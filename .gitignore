@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+dist/
+build/
+out/
+
+# env — chỉ .env.example được commit
+.env
+.env.*
+!.env.example
+
+# gitleaks local binary (mỗi dev tự tải qua script, không commit binary)
+.tools/
+
+# turborepo / test / misc
+coverage/
+*.tsbuildinfo
+.DS_Store
+npm-debug.log*
+
+# husky internal
+.husky/_
+
+# tài liệu riêng của người dùng — không đưa vào repo public
+CLAUDE.md
+PROJECT_STATE.md
+docs/

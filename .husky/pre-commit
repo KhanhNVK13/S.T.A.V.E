@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+GITLEAKS_BIN="./.tools/gitleaks.exe"
+
+if [ -x "$GITLEAKS_BIN" ]; then
+  GITLEAKS_CMD="$GITLEAKS_BIN"
+elif command -v gitleaks >/dev/null 2>&1; then
+  GITLEAKS_CMD="gitleaks"
+else
+  echo "⚠️  gitleaks chưa được cài — bỏ qua kiểm tra secret cục bộ."
+  echo "   Chạy: bash scripts/setup-gitleaks.sh để cài (chỉ máy dev, không commit vào repo)."
+  exit 0
+fi
+
+"$GITLEAKS_CMD" protect --staged --redact -v
