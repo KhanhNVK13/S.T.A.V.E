@@ -9,9 +9,6 @@ on:
 jobs:
   frontend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,14 +16,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: npm run build
-      - run: npm run lint
+      - run: npm run build --workspace=frontend
+      - run: npm run lint --workspace=frontend
 
   backend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,5 +28,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: npm run build
-      - run: npm run lint
+      - run: npm run build --workspace=backend
+      - run: npm run lint --workspace=backend
