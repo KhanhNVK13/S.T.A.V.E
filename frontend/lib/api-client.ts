@@ -52,3 +52,25 @@ export async function apiFetch<T>(
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+export interface UpdateProjectPayload {
+  name?: string;
+  description?: string;
+  genre?: string;
+}
+
+export async function updateProject(
+  id: string,
+  payload: UpdateProjectPayload,
+): Promise<void> {
+  await apiFetch<void>(`/projects/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function archiveProject(id: string): Promise<void> {
+  await apiFetch<void>(`/projects/${id}/archive`, {
+    method: "PATCH",
+  });
+}

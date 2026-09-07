@@ -7,6 +7,7 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { CreateProjectDto } from './dto/create-project.dto';
+import type { UpdateProjectDto } from './dto/update-project.dto';
 import type { BranchRow, ProjectRow } from './project-row.type';
 
 export const DEFAULT_BRANCH_NAME = 'main';
@@ -91,6 +92,54 @@ export class ProjectsService {
 
     if (error || !data) {
       throw new NotFoundException('Default branch not found');
+    }
+    return data;
+  }
+
+  /** UC-19: cập nhật thông tin project — chỉ owner. */
+  async updateOwned(
+    projectId: string,
+    ownerId: string,
+    dto: UpdateProjectDto,
+  ): Promise<ProjectRow> {
+    await this.getOwned(projectId, ownerId);
+
+    const updates: Partial<{
+      name: string;
+      description: string;
+      genre: string;
+    }> = {};
+
+    if (dto.name !== undefined) updates.name = dto.name;
+    if (dto.description !== undefined) updates.description = dto.description;
+    if (dto.genre !== undefined) updates.genre = dto.genre;
+
+    const { data, error } = await this.supabase
+      .from('projects')
+      .update(updates)
+      .eq('id', projectId)
+      .select('*')
+      .single<ProjectRow>();
+
+    if (error || !data) {
+      throw new InternalServerErrorException('Could not update project');
+    }
+    return data;
+  }
+
+  /** UC-20: archive project — chỉ owner. */
+  async archiveOwned(projectId: string, ownerId: string): Promise<ProjectRow> {
+    await this.getOwned(projectId, ownerId);
+
+    const { data, error } = await this.supabase
+      .from('projects')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', projectId)
+      .select('*')
+      .single<ProjectRow>();
+
+    if (error || !data) {
+      throw new InternalServerErrorException('Could not archive project');
     }
     return data;
   }

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -12,6 +13,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
 @Controller('projects')
@@ -31,5 +33,21 @@ export class ProjectsController {
   @Get(':id')
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.projectsService.getOwned(id, req.user.id);
+  }
+
+  /** UC-19: cập nhật thông tin project. */
+  @Patch(':id')
+  update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateProjectDto,
+  ) {
+    return this.projectsService.updateOwned(id, req.user.id, dto);
+  }
+
+  /** UC-20: archive project. */
+  @Patch(':id/archive')
+  archive(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.projectsService.archiveOwned(id, req.user.id);
   }
 }
