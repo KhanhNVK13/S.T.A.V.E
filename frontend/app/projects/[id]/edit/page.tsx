@@ -33,7 +33,7 @@ export default function EditProjectPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    async function fetchProject() {
+    void (async () => {
       setLoading(true);
       try {
         const project = (await getProject(projectId)) as Project;
@@ -45,9 +45,8 @@ export default function EditProjectPage() {
       } finally {
         setLoading(false);
       }
-    }
-
-    void fetchProject();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   async function handleSubmit(e: React.FormEvent) {

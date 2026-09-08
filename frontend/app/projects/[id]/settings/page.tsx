@@ -36,7 +36,7 @@ export default function ProjectSettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchProject() {
+    void (async () => {
       setLoading(true);
       try {
         const data = (await getProject(projectId)) as Project;
@@ -46,9 +46,8 @@ export default function ProjectSettingsPage() {
       } finally {
         setLoading(false);
       }
-    }
-
-    void fetchProject();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   async function handleArchive() {
