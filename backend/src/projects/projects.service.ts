@@ -23,7 +23,12 @@ export class ProjectsService {
   async create(ownerId: string, dto: CreateProjectDto): Promise<ProjectRow> {
     const { data: project, error: projectError } = await this.supabase
       .from('projects')
-      .insert({ owner_id: ownerId, name: dto.name })
+      .insert({
+        owner_id: ownerId,
+        name: dto.name,
+        description: dto.description ?? null,
+        genre: dto.genre ?? null,
+      })
       .select('*')
       .single<ProjectRow>();
 

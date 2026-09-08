@@ -56,7 +56,7 @@ export class ProjectsController {
 
   /** UC-21: xóa project. Chỉ owner mới được xóa. */
   @Delete(':id')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.NO_CONTENT)
   delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.projectsService.deleteOwned(id, req.user.id);
   }

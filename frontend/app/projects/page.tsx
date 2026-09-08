@@ -3,9 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { RequireAuth } from "../../components/require-auth";
-import { getStoredSessionId } from "../../lib/api-client";
-import { archiveProject } from "../../lib/api-client";
-import { supabase } from "../../lib/supabase-browser";
+import { archiveProject, listProjects, ApiError } from "../../lib/api-client";
 
 interface Project {
   id: string;
@@ -124,36 +122,10 @@ export default function ProjectsPage() {
       setLoading(true);
       setError(null);
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token ?? "";
-        const sessionId = getStoredSessionId() ?? "";
-
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-        if (sessionId) headers["X-Session-Id"] = sessionId;
-
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/projects`,
-          { headers }
-        );
-
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as {
-            message?: string;
-          };
-          throw new Error(
-            Array.isArray(body.message)
-              ? body.message.join(", ")
-              : body.message ?? `Request failed (${res.status})`
-          );
-        }
-
-        const data = (await res.json()) as Project[];
+        const data = (await listProjects()) as Project[];
         setProjects(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Có lỗi xảy ra");
+        setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
       } finally {
         setLoading(false);
       }

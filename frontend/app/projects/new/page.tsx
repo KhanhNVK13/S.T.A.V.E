@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { RequireAuth } from "../../../components/require-auth";
-import { apiFetch } from "../../../lib/api-client";
+import { createProject } from "../../../lib/api-client";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -22,9 +22,10 @@ export default function NewProjectPage() {
     setError(null);
 
     try {
-      await apiFetch("/projects", {
-        method: "POST",
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, genre: genre.trim() || undefined }),
+      await createProject({
+        name: name.trim(),
+        description: description.trim() || null,
+        genre: genre.trim() || null,
       });
       router.push("/projects");
     } catch (err) {
