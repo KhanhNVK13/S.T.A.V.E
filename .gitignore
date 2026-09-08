@@ -28,3 +28,6 @@ npm-debug.log*
 CLAUDE.md
 PROJECT_STATE.md
 docs/
+
+# Claude Code internal (memory, settings, workflows — không liên quan đến app)
+.claude/

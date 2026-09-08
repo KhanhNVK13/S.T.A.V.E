@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { RequireAuth } from "../../../../components/require-auth";
-import { getStoredSessionId, archiveProject, ApiError } from "../../../../lib/api-client";
+import { getStoredSessionId, archiveProject, deleteProject, ApiError } from "../../../../lib/api-client";
 import { supabase } from "../../../../lib/supabase-browser";
 
 interface Project {
@@ -26,6 +26,9 @@ export default function ProjectSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,6 +82,20 @@ export default function ProjectSettingsPage() {
       setArchiving(false);
     }
   }
+
+  async function handleDelete() {
+    setError(null);
+    setDeleting(true);
+    try {
+      await deleteProject(projectId);
+      router.push("/projects");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setDeleting(false);
+    }
+  }
+
+  const canDelete = deleteConfirmName === project?.name;
 
   return (
     <RequireAuth>
@@ -153,6 +170,15 @@ export default function ProjectSettingsPage() {
               >
                 {project.archived_at ? "Đã lưu trữ" : "Lưu trữ dự án"}
               </button>
+              <button
+                onClick={() => {
+                  setDeleteConfirmName("");
+                  setShowDeleteConfirm(true);
+                }}
+                className="rounded border border-red-600 px-4 py-2 text-red-600 hover:bg-red-600 hover:text-white"
+              >
+                Xóa dự án
+              </button>
             </section>
           </>
         )}
@@ -189,6 +215,57 @@ export default function ProjectSettingsPage() {
                 className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {archiving ? "Đang xử lý..." : "Xác nhận lưu trữ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900">
+            <h3 className="mb-4 text-lg font-semibold text-red-600">
+              Xóa dự án vĩnh viễn
+            </h3>
+            <p className="mb-4 text-sm opacity-70">
+              Hành động này không thể hoàn tác. Tất cả dữ liệu bao gồm lịch sử
+              phiên bản, các bản nháp và thành viên của dự án &quot;{project?.name}&quot; sẽ
+              bị xóa vĩnh viễn.
+            </p>
+            <label className="mb-4 flex flex-col gap-2 text-sm">
+              <span className="font-medium">
+                Để xác nhận, hãy nhập tên dự án:{" "}
+                <span className="font-semibold">{project?.name}</span>
+              </span>
+              <input
+                type="text"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder={project?.name ?? ""}
+                className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+              />
+            </label>
+            {error && (
+              <p className="mb-4 text-sm text-red-600">{error}</p>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmName("");
+                  setError(null);
+                }}
+                disabled={deleting}
+                className="rounded border border-black/20 px-4 py-2 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/5"
+              >
+                Huỷ
+              </button>
+              <button
+                onClick={() => void handleDelete()}
+                disabled={!canDelete || deleting}
+                className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleting ? "Đang xóa..." : "Xóa vĩnh viễn"}
               </button>
             </div>
           </div>

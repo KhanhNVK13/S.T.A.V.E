@@ -143,4 +143,19 @@ export class ProjectsService {
     }
     return data;
   }
+
+  /** UC-21: xóa project — chỉ owner. */
+  async deleteOwned(projectId: string, ownerId: string): Promise<void> {
+    await this.getOwned(projectId, ownerId);
+
+    const { error } = await this.supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId)
+      .eq('owner_id', ownerId);
+
+    if (error) {
+      throw new InternalServerErrorException('Could not delete project');
+    }
+  }
 }

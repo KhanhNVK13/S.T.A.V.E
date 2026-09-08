@@ -50,7 +50,7 @@ export async function apiFetch<T>(
   }
 
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  return (await res.json().catch(() => ({}))) as T;
 }
 
 export interface UpdateProjectPayload {
@@ -72,5 +72,11 @@ export async function updateProject(
 export async function archiveProject(id: string): Promise<void> {
   await apiFetch<void>(`/projects/${id}/archive`, {
     method: "PATCH",
+  });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await apiFetch<void>(`/projects/${id}`, {
+    method: "DELETE",
   });
 }

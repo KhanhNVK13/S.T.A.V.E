@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -49,5 +52,12 @@ export class ProjectsController {
   @Patch(':id/archive')
   archive(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.projectsService.archiveOwned(id, req.user.id);
+  }
+
+  /** UC-21: xóa project. Chỉ owner mới được xóa. */
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.projectsService.deleteOwned(id, req.user.id);
   }
 }
