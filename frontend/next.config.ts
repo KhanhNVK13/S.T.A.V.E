@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Disable dev indicator (compass icon bottom-right)
+  devIndicators: false,
 };
 
 export default nextConfig;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { RequireAuth } from "../../../components/require-auth";
-import { createProject } from "../../../lib/api-client";
+import { createProject, ApiError } from "../../../lib/api-client";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export default function NewProjectPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || submitting) return;
 
     setSubmitting(true);
     setError(null);
@@ -29,7 +29,13 @@ export default function NewProjectPage() {
       });
       router.push("/projects");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Có lỗi xảy ra");
+      if (err instanceof ApiError && err.status === 409) {
+        setError("Một dự án với tên này đã tồn tại trong tài khoản của bạn.");
+      } else {
+        setError(err instanceof Error ? err.message : "Có lỗi xảy ra");
+      }
+    } finally {
+      // Only re-enable on error; on success we navigate away anyway
       setSubmitting(false);
     }
   }

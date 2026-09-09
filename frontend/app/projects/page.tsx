@@ -15,18 +15,23 @@ interface Project {
   updated_at: string;
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({
+  project,
+  onArchive,
+}: {
+  project: Project;
+  onArchive: (id: string) => Promise<void>;
+}) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
   async function handleArchive() {
     setArchiving(true);
     try {
-      await archiveProject(project.id);
-      window.location.reload();
+      await onArchive(project.id);
+      setShowConfirm(false);
     } catch {
       setArchiving(false);
-      setShowConfirm(false);
     }
   }
 
@@ -117,25 +122,44 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchProjects() {
+  async function fetchProjects(silent = false) {
+    if (!silent) {
       setLoading(true);
       setError(null);
-      try {
-        const data = (await listProjects()) as Project[];
-        setProjects(data);
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
-      } finally {
-        setLoading(false);
-      }
     }
+    try {
+      const data = (await listProjects()) as Project[];
+      setProjects(data);
+      setError(null);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else if (err instanceof TypeError && /fetch/i.test(err.message)) {
+        setError("Không thể kết nối tới máy chủ. Vui lòng kiểm tra backend đang chạy và thử lại.");
+      } else {
+        setError("Có lỗi xảy ra");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
+  useEffect(() => {
     void fetchProjects();
   }, []);
 
   const activeProjects = projects.filter((p) => !p.archived_at);
   const archivedProjects = projects.filter((p) => p.archived_at);
+
+  async function handleArchive(id: string) {
+    await archiveProject(id);
+    // Update local state — no full reload
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, archived_at: new Date().toISOString() } : p,
+      ),
+    );
+  }
 
   return (
     <RequireAuth>
@@ -155,9 +179,15 @@ export default function ProjectsPage() {
         )}
 
         {error && (
-          <p className="rounded border border-red-600 bg-red-50 p-4 text-red-600 dark:bg-red-950">
-            {error}
-          </p>
+          <div className="rounded border border-red-600 bg-red-50 p-4 text-red-600 dark:bg-red-950">
+            <p>{error}</p>
+            <button
+              onClick={() => void fetchProjects()}
+              className="mt-2 rounded border border-red-600 px-3 py-1 text-sm hover:bg-red-600 hover:text-white"
+            >
+              Thử lại
+            </button>
+          </div>
         )}
 
         {!loading && !error && (
@@ -169,7 +199,11 @@ export default function ProjectsPage() {
                 </h2>
                 <div className="flex flex-col gap-4">
                   {activeProjects.map((project) => (
-                    <ProjectCard key={project.id} project={project} />
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      onArchive={handleArchive}
+                    />
                   ))}
                 </div>
               </section>
@@ -188,7 +222,11 @@ export default function ProjectsPage() {
                 </h2>
                 <div className="flex flex-col gap-4">
                   {archivedProjects.map((project) => (
-                    <ProjectCard key={project.id} project={project} />
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      onArchive={handleArchive}
+                    />
                   ))}
                 </div>
               </section>

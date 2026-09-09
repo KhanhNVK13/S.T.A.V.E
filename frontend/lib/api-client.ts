@@ -96,8 +96,43 @@ export async function archiveProject(id: string): Promise<void> {
   });
 }
 
+export async function unarchiveProject(id: string): Promise<void> {
+  await apiFetch<void>(`/projects/${id}/unarchive`, {
+    method: "PATCH",
+  });
+}
+
 export async function deleteProject(id: string): Promise<void> {
   await apiFetch<void>(`/projects/${id}`, {
     method: "DELETE",
+  });
+}
+
+export type ProjectVisibility = 'private' | 'public';
+
+export interface Project {
+  id: string;
+  owner_id: string;
+  name: string;
+  description: string | null;
+  visibility: ProjectVisibility;
+  license: string | null;
+  forked_from_project_id: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  moderation_hidden_at: string | null;
+  moderation_hidden_reason: string | null;
+  play_count: number;
+  genre: string | null;
+}
+
+export async function setProjectVisibility(
+  id: string,
+  visibility: ProjectVisibility,
+): Promise<Project> {
+  return apiFetch<Project>(`/projects/${id}/visibility`, {
+    method: "PATCH",
+    body: JSON.stringify({ visibility }),
   });
 }
