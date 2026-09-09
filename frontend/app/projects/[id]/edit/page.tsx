@@ -3,12 +3,17 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, Lock, TriangleAlert } from "lucide-react";
 import { RequireAuth } from "../../../../components/require-auth";
 import {
   updateProject,
   getProject,
   ApiError,
 } from "../../../../lib/api-client";
+import { PageHeader } from "../../../../components/ui/page-header";
+import { Card } from "../../../../components/ui/card";
+import { Button } from "../../../../components/ui/button";
+import { Field, INPUT_CLASS } from "../../../../components/ui/form";
 
 interface Project {
   id: string;
@@ -74,97 +79,91 @@ export default function EditProjectPage() {
 
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-2xl px-4 py-12">
-        <div className="mb-8">
-          <Link
-            href="/projects"
-            className="mb-4 inline-block text-sm opacity-70 hover:underline"
-          >
-            &larr; Quay lại danh sách dự án
-          </Link>
-          <h1 className="text-2xl font-bold">
-            {isArchived ? "Xem dự án đã lưu trữ" : "Chỉnh sửa dự án"}
-          </h1>
-        </div>
+      <div className="mx-auto max-w-2xl px-4 py-10">
+        <Link
+          href="/projects"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-accent-600 hover:underline"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách dự án
+        </Link>
+        <PageHeader title={isArchived ? "Xem dự án đã lưu trữ" : "Chỉnh sửa dự án"} />
 
-        {loading && (
-          <p className="text-center opacity-70">Đang tải thông tin dự án...</p>
-        )}
+        {loading && <p className="text-center text-sm text-slate-500">Đang tải thông tin dự án...</p>}
 
         {error && !loading && !submitting && (
-          <p className="mb-4 rounded border border-red-600 bg-red-50 p-4 text-red-600 dark:bg-red-950">
+          <div className="mb-4 rounded-card border border-danger-600/20 bg-danger-50 p-4 text-sm text-danger-600">
             {error}
-          </p>
+          </div>
         )}
 
         {!loading && isArchived && (
-          <p className="mb-6 rounded border border-amber-400 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-400/50 dark:bg-amber-900/20 dark:text-amber-400">
-            Dự án này đã được lưu trữ nên chỉ xem được, không chỉnh sửa được.
-            Khôi phục dự án từ trang danh sách để chỉnh sửa lại.
-          </p>
+          <div className="mb-6 flex items-start gap-3 rounded-card border border-warning-600/30 bg-warning-50 p-4 text-sm text-warning-700">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Dự án này đã được lưu trữ nên chỉ xem được, không chỉnh sửa được. Khôi phục dự
+              án từ trang danh sách để chỉnh sửa lại.
+            </p>
+          </div>
         )}
 
         {!loading && (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            <fieldset disabled={isArchived} className="contents">
-              <label className="flex flex-col gap-2">
-                <span className="font-medium">
-                  Tên dự án <span className="text-red-600">*</span>
-                </span>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="rounded border border-black/20 px-3 py-2 disabled:opacity-60 dark:border-white/20"
-                  placeholder="Nhập tên dự án"
-                />
-              </label>
+          <Card className={`relative p-6 ${isArchived ? "bg-slate-50" : ""}`}>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+              <fieldset disabled={isArchived} className="contents">
+                <Field label="Tên dự án *">
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className={INPUT_CLASS}
+                    placeholder="Nhập tên dự án"
+                  />
+                </Field>
 
-              <label className="flex flex-col gap-2">
-                <span className="font-medium">Mô tả</span>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="min-h-24 rounded border border-black/20 px-3 py-2 disabled:opacity-60 dark:border-white/20"
-                  placeholder="Mô tả ngắn về dự án của bạn"
-                />
-              </label>
+                <Field label="Mô tả">
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                    className={INPUT_CLASS}
+                    placeholder="Mô tả ngắn về dự án của bạn"
+                  />
+                </Field>
 
-              <label className="flex flex-col gap-2">
-                <span className="font-medium">Thể loại</span>
-                <input
-                  type="text"
-                  value={genre}
-                  onChange={(e) => setGenre(e.target.value)}
-                  className="rounded border border-black/20 px-3 py-2 disabled:opacity-60 dark:border-white/20"
-                  placeholder="Ví dụ: Khoa học viễn tưởng, Giả tưởng,..."
-                />
-              </label>
-            </fieldset>
+                <Field label="Thể loại">
+                  <input
+                    type="text"
+                    value={genre}
+                    onChange={(e) => setGenre(e.target.value)}
+                    className={INPUT_CLASS}
+                    placeholder="Ví dụ: Lo-Fi, Jazz,..."
+                  />
+                </Field>
+              </fieldset>
 
-            {error && submitting && (
-              <p className="text-sm text-red-600">{error}</p>
+              {error && submitting && <p className="text-sm text-danger-600">{error}</p>}
+
+              <div className="flex gap-3">
+                {!isArchived && (
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Đang lưu..." : "Lưu thay đổi"}
+                  </Button>
+                )}
+                <Link href="/projects">
+                  <Button type="button" variant="secondary">
+                    {isArchived ? "Quay lại" : "Huỷ"}
+                  </Button>
+                </Link>
+              </div>
+            </form>
+
+            {isArchived && (
+              <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-medium text-warning-700 shadow-card">
+                <TriangleAlert className="h-3.5 w-3.5" /> Chỉ xem
+              </div>
             )}
-
-            <div className="flex gap-3">
-              {!isArchived && (
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="rounded bg-[#1D4ED8] px-4 py-2 text-white hover:bg-[#1E40AF] disabled:opacity-50"
-                >
-                  {submitting ? "Đang lưu..." : "Lưu thay đổi"}
-                </button>
-              )}
-              <Link
-                href="/projects"
-                className="rounded border border-black/20 px-4 py-2 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/5"
-              >
-                {isArchived ? "Quay lại" : "Huỷ"}
-              </Link>
-            </div>
-          </form>
+          </Card>
         )}
       </div>
     </RequireAuth>

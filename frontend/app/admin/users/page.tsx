@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Search, ShieldAlert } from "lucide-react";
 import { RequireAuth } from "../../../components/require-auth";
 import { useAuth } from "../../../context/auth-context";
 import { apiFetch, ApiError } from "../../../lib/api-client";
+import { PageHeader } from "../../../components/ui/page-header";
+import { Card } from "../../../components/ui/card";
+import { Badge } from "../../../components/ui/badge";
+import { Button } from "../../../components/ui/button";
+import { Avatar } from "../../../components/ui/avatar";
+import { INPUT_CLASS } from "../../../components/ui/form";
+import { EmptyState } from "../../../components/ui/empty-state";
 
 interface AdminUserRow {
   id: string;
@@ -23,6 +31,12 @@ interface ListUsersResponse {
 }
 
 type ActionType = "suspend" | "reactivate" | "remove";
+
+function StatusBadge({ status }: { status: AdminUserRow["status"] }) {
+  if (status === "active") return <Badge variant="success">Active</Badge>;
+  if (status === "suspended") return <Badge variant="warning">Suspended</Badge>;
+  return <Badge variant="danger">Removed</Badge>;
+}
 
 function ActionPanel({
   user,
@@ -76,48 +90,47 @@ function ActionPanel({
         : `Xoá vĩnh viễn @${user.username}`;
 
   return (
-    <div className="mt-3 rounded border border-black/10 p-4 dark:border-white/10">
-      <p className="font-medium">{title}</p>
-      {action === "remove" && (
-        <p className="mt-1 text-sm text-red-600">
-          Không thể hoàn tác. Gõ lại username <strong>{user.username}</strong>{" "}
-          để xác nhận.
-        </p>
-      )}
-      <textarea
-        placeholder="Lý do"
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        className="mt-3 w-full rounded border border-black/20 px-3 py-2 text-sm dark:border-white/20"
-      />
-      {action === "remove" && (
-        <input
-          placeholder="Gõ lại username để xác nhận"
-          value={confirmUsername}
-          onChange={(e) => setConfirmUsername(e.target.value)}
-          className="mt-3 w-full rounded border border-black/20 px-3 py-2 text-sm dark:border-white/20"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <Card className="w-full max-w-sm p-6">
+        <p className="font-semibold text-slate-900">{title}</p>
+        {action === "remove" && (
+          <p className="mt-1 text-sm text-danger-600">
+            Không thể hoàn tác. Gõ lại username <strong>{user.username}</strong> để xác nhận.
+          </p>
+        )}
+        <textarea
+          placeholder="Lý do"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={2}
+          className={`${INPUT_CLASS} mt-3 w-full`}
         />
-      )}
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={() => void handleConfirm()}
-          disabled={
-            submitting ||
-            !reason ||
-            (action === "remove" && confirmUsername !== user.username)
-          }
-          className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          {submitting ? "Đang xử lý…" : "Xác nhận"}
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded border border-black/20 px-3 py-1.5 text-sm dark:border-white/20"
-        >
-          Huỷ
-        </button>
-      </div>
+        {action === "remove" && (
+          <input
+            placeholder="Gõ lại username để xác nhận"
+            value={confirmUsername}
+            onChange={(e) => setConfirmUsername(e.target.value)}
+            className={`${INPUT_CLASS} mt-3 w-full`}
+          />
+        )}
+        {error && <p className="mt-2 text-sm text-danger-600">{error}</p>}
+        <div className="mt-4 flex gap-2">
+          <Button
+            variant={action === "remove" ? "danger" : "primary"}
+            onClick={() => void handleConfirm()}
+            disabled={
+              submitting ||
+              !reason ||
+              (action === "remove" && confirmUsername !== user.username)
+            }
+          >
+            {submitting ? "Đang xử lý…" : "Xác nhận"}
+          </Button>
+          <Button variant="secondary" onClick={onCancel}>
+            Huỷ
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -159,80 +172,89 @@ function AdminUsersTable() {
           e.preventDefault();
           void load();
         }}
-        className="flex gap-2"
+        className="flex flex-wrap gap-2"
       >
-        <input
-          placeholder="Tìm theo username hoặc email chính xác"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 rounded border border-black/20 px-3 py-2 text-sm dark:border-white/20"
-        />
+        <div className="relative min-w-[240px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            placeholder="Tìm theo username hoặc email chính xác"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={`${INPUT_CLASS} w-full pl-9`}
+          />
+        </div>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 text-sm dark:border-white/20"
+          className={INPUT_CLASS}
         >
           <option value="">Tất cả trạng thái</option>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
         </select>
-        <button
-          type="submit"
-          className="rounded border border-black/20 px-3 py-2 text-sm dark:border-white/20"
-        >
+        <Button type="submit" variant="secondary">
           Tìm
-        </button>
+        </Button>
       </form>
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-danger-600">{error}</p>}
 
-      <div className="mt-4 overflow-x-auto">
+      <Card className="mt-4 overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-black/10 dark:border-white/10">
-              <th className="py-2 pr-4">Username</th>
-              <th className="py-2 pr-4">Email</th>
-              <th className="py-2 pr-4">Trạng thái</th>
-              <th className="py-2 pr-4">Vai trò</th>
-              <th className="py-2 pr-4"></th>
+            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+              <th className="px-4 py-3 font-medium">Người dùng</th>
+              <th className="px-4 py-3 font-medium">Email</th>
+              <th className="px-4 py-3 font-medium">Trạng thái</th>
+              <th className="px-4 py-3 font-medium">Vai trò</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {result?.users.map((user) => (
-              <tr
-                key={user.id}
-                className="border-b border-black/5 dark:border-white/5"
-              >
-                <td className="py-2 pr-4">{user.username}</td>
-                <td className="py-2 pr-4">{user.maskedEmail}</td>
-                <td className="py-2 pr-4">{user.status}</td>
-                <td className="py-2 pr-4">{user.role}</td>
-                <td className="py-2 pr-4">
+              <tr key={user.id} className="border-b border-slate-100 last:border-0">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Avatar id={user.id} label={user.displayName || user.username} size="sm" />
+                    <div>
+                      <p className="font-medium text-slate-900">{user.displayName}</p>
+                      <p className="text-xs text-slate-500">@{user.username}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-600">{user.maskedEmail}</td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={user.status} />
+                </td>
+                <td className="px-4 py-3">
+                  {user.role === "admin" ? (
+                    <Badge variant="info">Admin</Badge>
+                  ) : (
+                    <Badge variant="neutral">User</Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3">
                   {user.role !== "admin" && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       {user.status === "active" && (
                         <button
-                          onClick={() =>
-                            setSelected({ user, action: "suspend" })
-                          }
-                          className="text-xs underline"
+                          onClick={() => setSelected({ user, action: "suspend" })}
+                          className="text-xs font-medium text-warning-600 hover:underline"
                         >
                           Suspend
                         </button>
                       )}
                       {user.status === "suspended" && (
                         <button
-                          onClick={() =>
-                            setSelected({ user, action: "reactivate" })
-                          }
-                          className="text-xs underline"
+                          onClick={() => setSelected({ user, action: "reactivate" })}
+                          className="text-xs font-medium text-success-600 hover:underline"
                         >
                           Reactivate
                         </button>
                       )}
                       <button
                         onClick={() => setSelected({ user, action: "remove" })}
-                        className="text-xs text-red-600 underline"
+                        className="text-xs font-medium text-danger-600 hover:underline"
                       >
                         Remove
                       </button>
@@ -244,9 +266,9 @@ function AdminUsersTable() {
           </tbody>
         </table>
         {result && result.users.length === 0 && (
-          <p className="mt-4 text-sm opacity-60">Không có kết quả.</p>
+          <p className="px-4 py-8 text-center text-sm text-slate-500">Không có kết quả.</p>
         )}
-      </div>
+      </Card>
 
       {selected && (
         <ActionPanel
@@ -268,18 +290,18 @@ export default function AdminUsersPage() {
 
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-3xl px-4 py-12">
-        <h1 className="text-2xl font-bold">Quản lý người dùng</h1>
+      <div className="mx-auto max-w-4xl px-4 py-10">
+        <PageHeader title="Quản lý người dùng" />
         {loading ? (
-          <p className="mt-6 text-sm opacity-60">Đang tải…</p>
+          <p className="text-sm text-slate-500">Đang tải…</p>
         ) : profile?.role !== "admin" ? (
-          <p className="mt-6 text-sm text-red-600">
-            Bạn không có quyền truy cập trang này.
-          </p>
+          <EmptyState
+            icon={ShieldAlert}
+            title="Không có quyền truy cập"
+            description="Bạn không có quyền truy cập trang này."
+          />
         ) : (
-          <div className="mt-6">
-            <AdminUsersTable />
-          </div>
+          <AdminUsersTable />
         )}
       </div>
     </RequireAuth>

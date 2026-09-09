@@ -2,11 +2,15 @@
 
 import { use } from 'react';
 import Link from 'next/link';
+import { CalendarDays, FolderOpen } from 'lucide-react';
 import { getPublicUserProfile, getUserPublicProjects, PublicUserProfile, PublicProject } from '../../../lib/api-client';
 import { ProjectCard } from '../../../components/project-card';
-import { getInitials } from '../../../lib/format-name';
 import { formatMonthYear } from '../../../lib/format-date';
 import { useApiResource } from '../../../lib/use-api-resource';
+import { Card } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Avatar } from '../../../components/ui/avatar';
+import { EmptyState } from '../../../components/ui/empty-state';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -36,15 +40,15 @@ export default function CreatorProfilePage({ params }: Props) {
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="animate-pulse">
           <div className="mb-8 flex items-center gap-4">
-            <div className="h-20 w-20 rounded-full bg-[#F7F7F5]" />
+            <div className="h-20 w-20 rounded-full bg-slate-100" />
             <div>
-              <div className="mb-2 h-6 w-48 rounded bg-[#F7F7F5]" />
-              <div className="h-4 w-32 rounded bg-[#F7F7F5]" />
+              <div className="mb-2 h-6 w-48 rounded bg-slate-100" />
+              <div className="h-4 w-32 rounded bg-slate-100" />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 rounded-lg bg-[#F7F7F5]" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-24 rounded-card bg-slate-100" />
             ))}
           </div>
         </div>
@@ -55,77 +59,64 @@ export default function CreatorProfilePage({ params }: Props) {
   if (error || !profile) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
-        <div className="rounded-lg border border-[#B3242E]/20 bg-[#B3242E]/5 p-8 text-center">
-          <h1 className="text-xl font-semibold text-[#B3242E]">Không tìm thấy</h1>
-          <p className="mt-2 text-[#8A8D93]">{error ?? 'Người dùng này không tồn tại.'}</p>
-          <Link
-            href="/explore"
-            className="mt-4 inline-block rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E40AF]"
-          >
-            Quay lại Khám phá
+        <div className="rounded-card border border-danger-600/20 bg-danger-50 p-8 text-center">
+          <h1 className="text-xl font-semibold text-danger-600">Không tìm thấy</h1>
+          <p className="mt-2 text-slate-500">{error ?? 'Người dùng này không tồn tại.'}</p>
+          <Link href="/explore">
+            <Button className="mt-4">Quay lại Khám phá</Button>
           </Link>
         </div>
       </div>
     );
   }
 
-  const initials = getInitials(profile.display_name, profile.username);
   const joinDate = formatMonthYear(profile.created_at);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       {/* Profile Header */}
-      <div className="mb-8 flex items-start gap-6">
-        {profile.avatar_url ? (
-          <img
-            src={profile.avatar_url}
-            alt={profile.display_name ?? profile.username ?? ''}
-            className="h-24 w-24 rounded-full object-cover"
-          />
-        ) : (
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#1D4ED8] text-3xl font-bold text-white">
-            {initials}
-          </div>
-        )}
+      <Card className="mb-8 flex items-start gap-6 p-6">
+        <Avatar
+          id={profile.id}
+          label={profile.display_name ?? profile.username ?? '?'}
+          imageUrl={profile.avatar_url}
+          size="lg"
+        />
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-[#1F2126]">
+          <h1 className="text-2xl font-bold text-slate-900">
             {profile.display_name ?? profile.username ?? 'Người dùng'}
           </h1>
-          <p className="text-[#8A8D93]">@{profile.username ?? 'unknown'}</p>
-          {profile.bio && (
-            <p className="mt-3 max-w-2xl text-[#1F2126]">{profile.bio}</p>
-          )}
-          <p className="mt-2 text-sm text-[#8A8D93]">
-            Tham gia {joinDate}
+          <p className="text-slate-500">@{profile.username ?? 'unknown'}</p>
+          {profile.bio && <p className="mt-3 max-w-2xl text-slate-700">{profile.bio}</p>}
+          <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
+            <CalendarDays className="h-3.5 w-3.5" /> Tham gia {joinDate}
           </p>
         </div>
-      </div>
+      </Card>
 
       {/* Stats */}
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-[#E3E4E8] bg-white p-4 text-center">
-          <p className="text-3xl font-bold text-[#1F2126]">
+        <Card className="p-4 text-center">
+          <p className="font-mono text-3xl font-bold text-slate-900">
             {profile.total_public_projects.toLocaleString()}
           </p>
-          <p className="text-sm text-[#8A8D93]">Dự án công khai</p>
-        </div>
-        <div className="rounded-lg border border-[#E3E4E8] bg-white p-4 text-center">
-          <p className="text-3xl font-bold text-[#1F2126]">
+          <p className="text-sm text-slate-500">Dự án công khai</p>
+        </Card>
+        <Card className="p-4 text-center">
+          <p className="font-mono text-3xl font-bold text-slate-900">
             {profile.total_forks.toLocaleString()}
           </p>
-          <p className="text-sm text-[#8A8D93]">Lượt fork</p>
-        </div>
+          <p className="text-sm text-slate-500">Lượt fork</p>
+        </Card>
       </div>
 
       {/* Projects */}
       <div>
-        <h2 className="mb-4 text-xl font-semibold text-[#1F2126]">
+        <h2 className="mb-4 text-xl font-semibold text-slate-900">
           Dự án công khai ({projects.length})
         </h2>
         {projects.length === 0 ? (
-          <div className="rounded-lg border border-[#E3E4E8] bg-white p-8 text-center">
-            <p className="text-[#8A8D93]">Người dùng này chưa có dự án công khai nào.</p>
-          </div>
+          <EmptyState icon={FolderOpen} title="Người dùng này chưa có dự án công khai nào." />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (

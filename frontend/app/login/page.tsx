@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase-browser";
+import { AuthCard, AuthField, AuthDivider, GoogleButton, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { Button } from "../../components/ui/button";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,48 +38,45 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="text-2xl font-bold">Đăng nhập</h1>
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        <input
-          type="password"
-          required
-          placeholder="Mật khẩu"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-black px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
+    <AuthCard title="Đăng nhập">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <AuthField label="Email">
+          <input
+            type="email"
+            required
+            placeholder="ban@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        <AuthField label="Mật khẩu">
+          <input
+            type="password"
+            required
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        {error && <p className="text-sm text-danger-600">{error}</p>}
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang đăng nhập…" : "Đăng nhập"}
-        </button>
+        </Button>
       </form>
-      <button
-        onClick={() => void handleGoogle()}
-        className="mt-3 w-full rounded border border-black/20 px-3 py-2 dark:border-white/20"
-      >
-        Đăng nhập với Google
-      </button>
-      <div className="mt-4 flex justify-between text-sm">
-        <Link href="/forgot-password" className="underline">
+
+      <AuthDivider />
+      <GoogleButton onClick={() => void handleGoogle()} />
+
+      <div className="mt-5 flex justify-between text-sm">
+        <Link href="/forgot-password" className="text-accent-600 hover:underline">
           Quên mật khẩu?
         </Link>
-        <Link href="/register" className="underline">
+        <Link href="/register" className="text-accent-600 hover:underline">
           Chưa có tài khoản?
         </Link>
       </div>
-    </div>
+    </AuthCard>
   );
 }
