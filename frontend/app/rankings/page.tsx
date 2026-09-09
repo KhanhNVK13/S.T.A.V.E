@@ -1,32 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { getProjectRankings, PublicProject } from '../../lib/api-client';
+import { useApiResource } from '../../lib/use-api-resource';
 
 type RankingType = 'trending' | 'top_forked' | 'top_played';
 
 export default function RankingsPage() {
   const [type, setType] = useState<RankingType>('trending');
-  const [projects, setProjects] = useState<PublicProject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchRankings() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getProjectRankings(type);
-        setProjects(data);
-      } catch {
-        setError('Không thể tải bảng xếp hạng. Vui lòng thử lại.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchRankings();
-  }, [type]);
+  const { data, loading, error } = useApiResource<PublicProject[]>(
+    () => getProjectRankings(type),
+    [type],
+    'Không thể tải bảng xếp hạng. Vui lòng thử lại.',
+  );
+  const projects = data ?? [];
 
   const tabs = [
     { value: 'trending' as const, label: 'Xu hướng', metric: 'Lượt nghe' },

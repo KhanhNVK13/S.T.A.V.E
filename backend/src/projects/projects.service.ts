@@ -13,6 +13,9 @@ import type { BranchRow, ProjectRow } from './project-row.type';
 
 export const DEFAULT_BRANCH_NAME = 'main';
 
+/** Postgres unique_violation error code (`projects_owner_id_name_key`). */
+const UNIQUE_VIOLATION = '23505';
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -22,18 +25,6 @@ export class ProjectsService {
 
   /** UC-18 (core): tạo project + branch mặc định 'main' đi kèm. */
   async create(ownerId: string, dto: CreateProjectDto): Promise<ProjectRow> {
-    // Reject duplicate project name for the same owner
-    const { data: existing } = await this.supabase
-      .from('projects')
-      .select('id')
-      .eq('owner_id', ownerId)
-      .eq('name', dto.name)
-      .maybeSingle();
-
-    if (existing) {
-      throw new ConflictException('A project with this name already exists');
-    }
-
     const { data: project, error: projectError } = await this.supabase
       .from('projects')
       .insert({
@@ -45,7 +36,13 @@ export class ProjectsService {
       .select('*')
       .single<ProjectRow>();
 
-    if (projectError || !project) {
+    if (projectError) {
+      if (projectError.code === UNIQUE_VIOLATION) {
+        throw new ConflictException('A project with this name already exists');
+      }
+      throw new InternalServerErrorException('Could not create project');
+    }
+    if (!project) {
       throw new InternalServerErrorException('Could not create project');
     }
 
@@ -139,47 +136,50 @@ export class ProjectsService {
       .select('*')
       .single<ProjectRow>();
 
-    if (error || !data) {
+    if (error) {
+      if (error.code === UNIQUE_VIOLATION) {
+        throw new ConflictException('A project with this name already exists');
+      }
+      throw new InternalServerErrorException('Could not update project');
+    }
+    if (!data) {
       throw new InternalServerErrorException('Could not update project');
     }
     return data;
   }
 
   /** UC-20: archive project — chỉ owner. */
-  async archiveOwned(projectId: string, ownerId: string): Promise<ProjectRow> {
-    await this.getOwned(projectId, ownerId);
-
-    const { data, error } = await this.supabase
-      .from('projects')
-      .update({ archived_at: new Date().toISOString() })
-      .eq('id', projectId)
-      .select('*')
-      .single<ProjectRow>();
-
-    if (error || !data) {
-      throw new InternalServerErrorException('Could not archive project');
-    }
-    return data;
+  archiveOwned(projectId: string, ownerId: string): Promise<ProjectRow> {
+    return this.updateOwnedProject(
+      projectId,
+      ownerId,
+      { archived_at: new Date().toISOString() },
+      'Could not archive project',
+    );
   }
 
   /** UC-20: khôi phục project đã lưu trữ — chỉ owner. */
-  async unarchiveOwned(
+  unarchiveOwned(projectId: string, ownerId: string): Promise<ProjectRow> {
+    return this.updateOwnedProject(
+      projectId,
+      ownerId,
+      { archived_at: null },
+      'Could not unarchive project',
+    );
+  }
+
+  /** UC-23: đổi visibility project — chỉ owner. */
+  setVisibility(
     projectId: string,
     ownerId: string,
+    visibility: 'public' | 'private',
   ): Promise<ProjectRow> {
-    await this.getOwned(projectId, ownerId);
-
-    const { data, error } = await this.supabase
-      .from('projects')
-      .update({ archived_at: null, updated_at: new Date().toISOString() })
-      .eq('id', projectId)
-      .select('*')
-      .single<ProjectRow>();
-
-    if (error || !data) {
-      throw new InternalServerErrorException('Could not unarchive project');
-    }
-    return data;
+    return this.updateOwnedProject(
+      projectId,
+      ownerId,
+      { visibility },
+      'Could not update project visibility',
+    );
   }
 
   /** UC-21: xóa project — chỉ owner. */
@@ -197,25 +197,24 @@ export class ProjectsService {
     }
   }
 
-  /** UC-23: đổi visibility project — chỉ owner. */
-  async setVisibility(
+  /** Shared getOwned → update → error-check pattern for archive/unarchive/setVisibility. */
+  private async updateOwnedProject(
     projectId: string,
     ownerId: string,
-    visibility: 'public' | 'private',
+    patch: Record<string, unknown>,
+    errorMessage: string,
   ): Promise<ProjectRow> {
     await this.getOwned(projectId, ownerId);
 
     const { data, error } = await this.supabase
       .from('projects')
-      .update({ visibility, updated_at: new Date().toISOString() })
+      .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('id', projectId)
       .select('*')
       .single<ProjectRow>();
 
     if (error || !data) {
-      throw new InternalServerErrorException(
-        'Could not update project visibility',
-      );
+      throw new InternalServerErrorException(errorMessage);
     }
     return data;
   }

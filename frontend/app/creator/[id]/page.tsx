@@ -1,43 +1,35 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { use } from 'react';
 import Link from 'next/link';
 import { getPublicUserProfile, getUserPublicProjects, PublicUserProfile, PublicProject } from '../../../lib/api-client';
 import { ProjectCard } from '../../../components/project-card';
 import { getInitials } from '../../../lib/format-name';
 import { formatMonthYear } from '../../../lib/format-date';
+import { useApiResource } from '../../../lib/use-api-resource';
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
+interface CreatorPageData {
+  profile: PublicUserProfile;
+  projects: PublicProject[];
+}
+
 export default function CreatorProfilePage({ params }: Props) {
   const { id } = use(params);
 
-  const [profile, setProfile] = useState<PublicUserProfile | null>(null);
-  const [projects, setProjects] = useState<PublicProject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [profileData, projectsData] = await Promise.all([
-          getPublicUserProfile(id),
-          getUserPublicProjects(id),
-        ]);
-        setProfile(profileData);
-        setProjects(projectsData);
-      } catch {
-        setError('Không tìm thấy người dùng này.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchData();
-  }, [id]);
+  const { data, loading, error } = useApiResource<CreatorPageData>(
+    () =>
+      Promise.all([getPublicUserProfile(id), getUserPublicProjects(id)]).then(
+        ([profile, projects]) => ({ profile, projects }),
+      ),
+    [id],
+    'Không tìm thấy người dùng này.',
+  );
+  const profile = data?.profile ?? null;
+  const projects = data?.projects ?? [];
 
   if (loading) {
     return (
