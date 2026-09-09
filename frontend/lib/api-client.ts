@@ -136,3 +136,108 @@ export async function setProjectVisibility(
     body: JSON.stringify({ visibility }),
   });
 }
+
+// ============================================
+// Public API (no auth required)
+// ============================================
+
+export interface PublicProject {
+  id: string;
+  name: string;
+  description: string | null;
+  genre: string | null;
+  visibility: 'public';
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  play_count: number;
+  fork_count: number;
+  like_count: number;
+  owner: {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  };
+  tags: string[];
+}
+
+export interface PublicProjectsResponse {
+  items: PublicProject[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+}
+
+export interface PublicUserProfile {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  created_at: string;
+  total_public_projects: number;
+  total_forks: number;
+}
+
+export interface FeaturedContent {
+  hero: {
+    title: string;
+    subtitle: string;
+    cta_primary: { label: string; href: string };
+    cta_secondary: { label: string; href: string };
+  };
+  featured_projects: PublicProject[];
+  trending_projects: PublicProject[];
+  stats: {
+    total_projects: number;
+    total_users: number;
+    total_forks: number;
+  };
+}
+
+/** UC-08: Browse public projects with filters */
+export async function listPublicProjects(params?: {
+  page?: number;
+  limit?: number;
+  genre?: string;
+  tag?: string;
+  sort?: 'newest' | 'popular' | 'most_played';
+}): Promise<PublicProjectsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.genre) searchParams.set('genre', params.genre);
+  if (params?.tag) searchParams.set('tag', params.tag);
+  if (params?.sort) searchParams.set('sort', params.sort);
+
+  const query = searchParams.toString();
+  return apiFetch<PublicProjectsResponse>(`/explore/projects${query ? `?${query}` : ''}`);
+}
+
+/** UC-09: Get public project detail */
+export async function getPublicProject(id: string): Promise<PublicProject> {
+  return apiFetch<PublicProject>(`/explore/projects/${id}`);
+}
+
+/** UC-10: Get public user profile */
+export async function getPublicUserProfile(id: string): Promise<PublicUserProfile> {
+  return apiFetch<PublicUserProfile>(`/explore/users/${id}`);
+}
+
+/** UC-10: Get public projects of a user */
+export async function getUserPublicProjects(id: string): Promise<PublicProject[]> {
+  return apiFetch<PublicProject[]>(`/explore/users/${id}/projects`);
+}
+
+/** UC-11: Get project rankings */
+export async function getProjectRankings(type?: 'trending' | 'top_forked' | 'top_played'): Promise<PublicProject[]> {
+  const query = type ? `?type=${type}` : '';
+  return apiFetch<PublicProject[]>(`/explore/rankings${query}`);
+}
+
+/** UC-12: Get featured content for landing page */
+export async function getFeaturedContent(): Promise<FeaturedContent> {
+  return apiFetch<FeaturedContent>('/explore/featured');
+}

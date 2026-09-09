@@ -13,6 +13,7 @@ interface NavLink {
 const NAV_LINKS: NavLink[] = [
   { href: "/", label: "Trang chủ" },
   { href: "/projects", label: "Dự án của tôi" },
+  { href: "/rankings", label: "Bảng xếp hạng" },
 ];
 
 export function SiteHeader() {
@@ -45,7 +46,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         {/* Brand */}
         <Link
-          href={user ? "/projects" : "/"}
+          href="/"
           className="flex items-center gap-2 text-xl font-bold tracking-tight"
         >
           <span className="text-2xl">🎵</span>
@@ -164,7 +165,7 @@ export function SiteHeader() {
       </div>
 
       {/* Mobile nav */}
-      <div className="flex gap-1 border-t border-black/5 px-4 py-2 sm:hidden">
+      <div className="flex flex-wrap gap-1 border-t border-black/5 px-4 py-2 sm:hidden">
         {NAV_LINKS.map((link) => {
           const isActive =
             link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
