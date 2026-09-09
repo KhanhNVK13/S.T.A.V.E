@@ -1,0 +1,16 @@
+# Enforce LF line endings for all text files across OSes
+* text=auto
+
+# TypeScript / config files — always LF
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.json   text eol=lf
+*.md     text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.sh     text eol=lf
+
+# Binary files
+*.png  binary
+*.jpg  binary
+*.ico  binary

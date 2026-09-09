@@ -1,10 +1,10 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class CreateProjectDto {
+export class UpdateProjectDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  name!: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
