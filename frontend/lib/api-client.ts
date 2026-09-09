@@ -1,4 +1,9 @@
 import { supabase } from "./supabase-browser";
+import type {
+  PublicProjectCard,
+  PublicUserProfile as SharedPublicUserProfile,
+  PublicFeaturedContent,
+} from "@stave/shared-types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 const SESSION_ID_KEY = "stave_session_id";
@@ -135,4 +140,67 @@ export async function setProjectVisibility(
     method: "PATCH",
     body: JSON.stringify({ visibility }),
   });
+}
+
+// ============================================
+// Public API (no auth required)
+// ============================================
+
+export type PublicProject = PublicProjectCard;
+
+export interface PublicProjectsResponse {
+  items: PublicProject[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+}
+
+export type PublicUserProfile = SharedPublicUserProfile;
+
+export type FeaturedContent = PublicFeaturedContent;
+
+/** UC-08: Browse public projects with filters */
+export async function listPublicProjects(params?: {
+  page?: number;
+  limit?: number;
+  genre?: string;
+  tag?: string;
+  sort?: 'newest' | 'popular' | 'most_played';
+}): Promise<PublicProjectsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.genre) searchParams.set('genre', params.genre);
+  if (params?.tag) searchParams.set('tag', params.tag);
+  if (params?.sort) searchParams.set('sort', params.sort);
+
+  const query = searchParams.toString();
+  return apiFetch<PublicProjectsResponse>(`/explore/projects${query ? `?${query}` : ''}`);
+}
+
+/** UC-09: Get public project detail */
+export async function getPublicProject(id: string): Promise<PublicProject> {
+  return apiFetch<PublicProject>(`/explore/projects/${id}`);
+}
+
+/** UC-10: Get public user profile */
+export async function getPublicUserProfile(id: string): Promise<PublicUserProfile> {
+  return apiFetch<PublicUserProfile>(`/explore/users/${id}`);
+}
+
+/** UC-10: Get public projects of a user */
+export async function getUserPublicProjects(id: string): Promise<PublicProject[]> {
+  return apiFetch<PublicProject[]>(`/explore/users/${id}/projects`);
+}
+
+/** UC-11: Get project rankings */
+export async function getProjectRankings(type?: 'trending' | 'top_forked' | 'top_played'): Promise<PublicProject[]> {
+  const query = type ? `?type=${type}` : '';
+  return apiFetch<PublicProject[]>(`/explore/rankings${query}`);
+}
+
+/** UC-12: Get featured content for landing page */
+export async function getFeaturedContent(): Promise<FeaturedContent> {
+  return apiFetch<FeaturedContent>('/explore/featured');
 }
