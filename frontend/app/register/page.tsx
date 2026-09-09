@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase-browser";
+import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { Button } from "../../components/ui/button";
+import { MailCheck } from "lucide-react";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -52,60 +55,67 @@ export default function RegisterPage() {
 
   if (done) {
     return (
-      <div className="mx-auto max-w-sm px-4 py-16">
-        <h1 className="text-2xl font-bold">Kiểm tra email</h1>
-        <p className="mt-4 text-sm opacity-80">
-          Mình đã gửi email xác nhận tới <strong>{email}</strong>. Bấm vào
-          link trong email để hoàn tất đăng ký.
-        </p>
-      </div>
+      <AuthCard>
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-50">
+            <MailCheck className="h-5 w-5 text-accent-600" />
+          </span>
+          <h2 className="mb-2 text-lg font-semibold text-slate-900">Kiểm tra email</h2>
+          <p className="text-sm text-slate-500">
+            Mình đã gửi email xác nhận tới{" "}
+            <span className="font-mono text-slate-700">{email}</span>. Bấm vào link trong
+            email để hoàn tất đăng ký.
+          </p>
+        </div>
+      </AuthCard>
     );
   }
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="text-2xl font-bold">Đăng ký</h1>
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        <input
-          type="password"
-          required
-          minLength={8}
-          placeholder="Mật khẩu (tối thiểu 8 ký tự)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        <input
-          type="password"
-          required
-          placeholder="Nhập lại mật khẩu"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-black px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
+    <AuthCard title="Đăng ký">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <AuthField label="Email">
+          <input
+            type="email"
+            required
+            placeholder="ban@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        <AuthField label="Mật khẩu">
+          <input
+            type="password"
+            required
+            minLength={8}
+            placeholder="Tối thiểu 8 ký tự"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        <AuthField label="Nhập lại mật khẩu">
+          <input
+            type="password"
+            required
+            placeholder="••••••••"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        {error && <p className="text-sm text-danger-600">{error}</p>}
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang tạo tài khoản…" : "Đăng ký"}
-        </button>
+        </Button>
       </form>
-      <p className="mt-4 text-sm">
+      <p className="mt-5 text-center text-sm text-slate-500">
         Đã có tài khoản?{" "}
-        <Link href="/login" className="underline">
+        <Link href="/login" className="text-accent-600 hover:underline">
           Đăng nhập
         </Link>
       </p>
-    </div>
+    </AuthCard>
   );
 }

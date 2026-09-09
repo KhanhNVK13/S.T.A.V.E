@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
+import { Search, Music2, Piano, Archive, Undo2, Settings as SettingsIcon, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { RequireAuth } from '../../components/require-auth';
 import {
   archiveProject,
@@ -13,6 +14,13 @@ import {
   type ProjectVisibility,
 } from '../../lib/api-client';
 import { formatRelativeTime } from '../../lib/format-date';
+import { PageHeader } from '../../components/ui/page-header';
+import { Card } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Tabs } from '../../components/ui/tabs';
+import { EmptyState } from '../../components/ui/empty-state';
+import { INPUT_CLASS } from '../../components/ui/form';
 
 interface Project {
   id: string;
@@ -28,11 +36,11 @@ interface Project {
 type SortOption = 'default' | 'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc';
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'default', label: '🌐 Công khai trước' },
-  { value: 'updated_desc', label: '🕐 Mới cập nhật' },
-  { value: 'updated_asc', label: '🕰️ Cũ nhất' },
-  { value: 'name_asc', label: '🔤 Tên A→Z' },
-  { value: 'name_desc', label: '🔤 Tên Z→A' },
+  { value: 'default', label: 'Công khai trước' },
+  { value: 'updated_desc', label: 'Mới cập nhật' },
+  { value: 'updated_asc', label: 'Cũ nhất' },
+  { value: 'name_asc', label: 'Tên A→Z' },
+  { value: 'name_desc', label: 'Tên Z→A' },
 ];
 
 const PAGE_SIZE = 12;
@@ -41,31 +49,18 @@ type Tab = 'all' | 'active' | 'archived';
 
 function VisibilityBadge({ visibility }: { visibility: ProjectVisibility }) {
   const isPublic = visibility === 'public';
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-        isPublic
-          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-          : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-      }`}
-    >
-      {isPublic ? '🌐' : '🔒'}
-      {isPublic ? 'Công khai' : 'Riêng tư'}
-    </span>
-  );
+  return <Badge variant={isPublic ? 'info' : 'neutral'}>{isPublic ? 'Công khai' : 'Riêng tư'}</Badge>;
 }
 
 function StatusBadge({ archivedAt }: { archivedAt: string | null }) {
   const isArchived = !!archivedAt;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-        isArchived
-          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-          : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
+        isArchived ? 'bg-warning-50 text-warning-700' : 'bg-success-50 text-success-700'
       }`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${isArchived ? 'bg-amber-500' : 'bg-green-500'}`} />
+      <span className={`h-1.5 w-1.5 rounded-full ${isArchived ? 'bg-warning-600' : 'bg-success-600'}`} />
       {isArchived ? 'Đã lưu trữ' : 'Hoạt động'}
     </span>
   );
@@ -107,38 +102,33 @@ function ProjectCard({
 
   return (
     <>
-      <div className="flex flex-col rounded-lg border border-[#E3E4E8] bg-white p-4 transition-all hover:border-[#1D4ED8] hover:shadow-sm dark:border-white/10 dark:bg-[#1F2126]">
+      <Card className="flex flex-col p-4 transition-all hover:border-accent-300 hover:shadow-md">
         {/* Header: icon + name + visibility */}
         <div className="mb-2 flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-lg">🎵</span>
-            <h3 className="truncate font-semibold text-[#1F2126] dark:text-white">
-              {project.name}
-            </h3>
+          <div className="flex min-w-0 items-center gap-2">
+            <Music2 className="h-4 w-4 shrink-0 text-slate-400" />
+            <h3 className="truncate font-semibold text-slate-900">{project.name}</h3>
           </div>
           <VisibilityBadge visibility={project.visibility} />
         </div>
 
         {/* Meta: relative time */}
-        <p className="mb-2 text-xs text-[#8A8D93]">
+        <p className="mb-2 font-mono text-xs text-slate-500">
           Cập nhật: {formatRelativeTime(project.updated_at)}
         </p>
 
         {/* Description */}
         {project.description && (
-          <p className="mb-3 line-clamp-2 text-sm text-[#8A8D93]">
-            {project.description}
-          </p>
+          <p className="mb-3 line-clamp-2 text-sm text-slate-500">{project.description}</p>
         )}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
         {/* Status row: badges + genre */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <StatusBadge archivedAt={project.archived_at} />
           {project.genre && (
-            <span className="rounded-full bg-[#F7F7F5] px-2 py-0.5 text-xs text-[#8A8D93] dark:bg-white/5">
+            <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-500">
               #{project.genre}
             </span>
           )}
@@ -149,82 +139,76 @@ function ProjectCard({
           {/* Editor placeholder */}
           <button
             disabled
-            title="Sắp ra mắt"
-            className="flex items-center gap-1 rounded border border-[#E3E4E8] bg-[#F7F7F5] px-3 py-1.5 text-xs text-[#8A8D93] dark:border-white/10 dark:bg-white/5 dark:text-gray-500"
+            title="PLACEHOLDER — chưa xây dựng"
+            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-400"
           >
-            🎹 Mở Editor
+            <Piano className="h-3.5 w-3.5" /> Mở Editor
           </button>
 
           {isArchived ? (
             <>
               <Link
                 href={`/projects/${project.id}/edit`}
-                className="rounded border border-[#E3E4E8] px-3 py-1.5 text-xs font-medium text-[#1F2126] hover:bg-[#F7F7F5] dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
-                👁 Xem
+                Xem
               </Link>
               <button
                 onClick={() => void handleUnarchive()}
                 disabled={restoring}
-                className="flex items-center gap-1 rounded border border-green-400 px-3 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50 disabled:opacity-50 dark:border-green-400/50 dark:text-green-400 dark:hover:bg-green-900/20"
+                className="flex items-center gap-1 rounded-lg border border-success-600/40 px-3 py-1.5 text-xs font-medium text-success-600 hover:bg-success-50 disabled:opacity-50"
               >
-                {restoring ? 'Đang khôi phục...' : '↩ Khôi phục'}
+                <Undo2 className="h-3.5 w-3.5" /> {restoring ? 'Đang khôi phục...' : 'Khôi phục'}
               </button>
             </>
           ) : (
             <>
               <Link
                 href={`/projects/${project.id}/edit`}
-                className="rounded border border-[#1D4ED8] px-3 py-1.5 text-xs font-medium text-[#1D4ED8] hover:bg-[#1D4ED8]/10"
+                className="rounded-lg border border-accent-600 px-3 py-1.5 text-xs font-medium text-accent-700 hover:bg-accent-50"
               >
                 Chỉnh sửa
               </Link>
               <button
                 onClick={() => setShowConfirm(true)}
-                className="rounded border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-600 hover:bg-amber-50 dark:border-amber-400/50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                className="flex items-center gap-1 rounded-lg border border-warning-600/40 px-3 py-1.5 text-xs font-medium text-warning-600 hover:bg-warning-50"
               >
-                📦 Lưu trữ
+                <Archive className="h-3.5 w-3.5" /> Lưu trữ
               </button>
             </>
           )}
 
           <Link
             href={`/projects/${project.id}/settings`}
-            className="rounded border border-[#E3E4E8] px-3 py-1.5 text-xs text-[#8A8D93] hover:bg-[#F7F7F5] dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
+            className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
           >
-            ⚙️ Cài đặt
+            <SettingsIcon className="h-3.5 w-3.5" /> Cài đặt
           </Link>
         </div>
-      </div>
+      </Card>
 
       {/* Confirm archive dialog */}
       {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-sm rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900">
-            <h3 className="mb-2 text-lg font-semibold text-[#1F2126] dark:text-white">
-              Xác nhận lưu trữ
-            </h3>
-            <p className="mb-6 text-sm text-[#8A8D93]">
-              Bạn có chắc muốn lưu trữ dự án &quot;{project.name}&quot;? Dự
-              án sẽ chuyển sang phần đã lưu trữ.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <Card className="w-full max-w-sm p-6">
+            <h3 className="mb-2 text-lg font-semibold text-slate-900">Xác nhận lưu trữ</h3>
+            <p className="mb-6 text-sm text-slate-500">
+              Bạn có chắc muốn lưu trữ dự án &quot;{project.name}&quot;? Dự án sẽ chuyển sang
+              phần đã lưu trữ.
             </p>
             <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowConfirm(false)}
-                disabled={archiving}
-                className="rounded border border-[#E3E4E8] px-4 py-2 text-sm hover:bg-[#F7F7F5] dark:border-white/10 dark:hover:bg-white/5"
-              >
+              <Button variant="secondary" onClick={() => setShowConfirm(false)} disabled={archiving}>
                 Huỷ
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => void handleArchive()}
                 disabled={archiving}
-                className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                className="bg-warning-600 hover:bg-warning-700"
               >
                 {archiving ? 'Đang xử lý...' : 'Xác nhận lưu trữ'}
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </>
@@ -387,26 +371,21 @@ function ProjectsContent() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[#1F2126] dark:text-white">
-          Dự án của tôi
-        </h1>
-        <Link
-          href="/projects/new"
-          className="rounded bg-[#1D4ED8] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E40AF]"
-        >
-          + Tạo dự án mới
-        </Link>
-      </div>
+      <PageHeader
+        title="Dự án của tôi"
+        action={
+          <Link href="/projects/new">
+            <Button className="gap-1.5">
+              <Plus className="h-4 w-4" /> Tạo dự án mới
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Row 1: Search + Sort */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8D93]">
-            🔍
-          </span>
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={search}
@@ -415,15 +394,14 @@ function ProjectsContent() {
               updateUrl({ page: null }); // reset to page 1 on search
             }}
             placeholder="Tìm theo tên..."
-            className="w-full rounded-lg border border-[#E3E4E8] bg-white py-2 pl-9 pr-3 text-sm text-[#1F2126] placeholder:text-[#8A8D93] focus:border-[#1D4ED8] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8] dark:border-white/10 dark:bg-[#1F2126] dark:text-white"
+            className={`${INPUT_CLASS} w-full pl-9`}
           />
         </div>
 
-        {/* Sort */}
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortOption)}
-          className="rounded-lg border border-[#E3E4E8] bg-white px-3 py-2 text-sm text-[#1F2126] focus:border-[#1D4ED8] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8] dark:border-white/10 dark:bg-[#1F2126] dark:text-white"
+          className={INPUT_CLASS}
         >
           {SORT_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -436,16 +414,14 @@ function ProjectsContent() {
       {/* Row 2: Genre pills (only show if there are genres) */}
       {allGenres.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-[#8A8D93]">Thể loại:</span>
+          <span className="text-xs text-slate-500">Thể loại:</span>
           <button
             onClick={() => {
               setGenre('');
               updateUrl({ page: null });
             }}
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-              genre === ''
-                ? 'bg-[#1D4ED8] text-white'
-                : 'bg-[#F7F7F5] text-[#8A8D93] hover:bg-[#E3E4E8] dark:bg-white/5 dark:hover:bg-white/10'
+              genre === '' ? 'bg-accent-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
             }`}
           >
             Tất cả
@@ -458,9 +434,7 @@ function ProjectsContent() {
                 updateUrl({ page: null });
               }}
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                genre === g
-                  ? 'bg-[#1D4ED8] text-white'
-                  : 'bg-[#F7F7F5] text-[#8A8D93] hover:bg-[#E3E4E8] dark:bg-white/5 dark:hover:bg-white/10'
+                genre === g ? 'bg-accent-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
               }`}
             >
               #{g}
@@ -470,36 +444,25 @@ function ProjectsContent() {
       )}
 
       {/* Row 3: Tabs */}
-      <div className="mb-6 flex gap-1 border-b border-[#E3E4E8] dark:border-white/10">
-        {tabs.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => updateUrl({ tab: t.value, page: null })}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.value
-                ? 'border-b-2 border-[#1D4ED8] text-[#1D4ED8]'
-                : 'text-[#8A8D93] hover:text-[#1F2126]'
-            }`}
-          >
-            {t.label} ({t.count})
-          </button>
-        ))}
+      <div className="mb-6">
+        <Tabs
+          tabs={tabs.map((t) => ({ id: t.value, label: `${t.label} (${t.count})` }))}
+          active={tab}
+          onChange={(id) => updateUrl({ tab: id, page: null })}
+        />
       </div>
 
       {/* Content */}
       {loading && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="animate-pulse rounded-lg border border-[#E3E4E8] bg-white p-4 dark:border-white/10 dark:bg-[#1F2126]"
-            >
-              <div className="mb-2 h-5 w-2/3 rounded bg-[#F7F7F5] dark:bg-white/5" />
-              <div className="mb-3 h-3 w-1/2 rounded bg-[#F7F7F5] dark:bg-white/5" />
-              <div className="mb-4 h-3 w-full rounded bg-[#F7F7F5] dark:bg-white/5" />
+            <div key={i} className="animate-pulse rounded-card border border-slate-200 bg-white p-4">
+              <div className="mb-2 h-5 w-2/3 rounded bg-slate-100" />
+              <div className="mb-3 h-3 w-1/2 rounded bg-slate-100" />
+              <div className="mb-4 h-3 w-full rounded bg-slate-100" />
               <div className="flex gap-2">
-                <div className="h-6 w-16 rounded bg-[#F7F7F5] dark:bg-white/5" />
-                <div className="h-6 w-20 rounded bg-[#F7F7F5] dark:bg-white/5" />
+                <div className="h-6 w-16 rounded bg-slate-100" />
+                <div className="h-6 w-20 rounded bg-slate-100" />
               </div>
             </div>
           ))}
@@ -507,11 +470,11 @@ function ProjectsContent() {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="rounded-card border border-danger-600/20 bg-danger-50 p-4">
+          <p className="text-sm text-danger-600">{error}</p>
           <button
             onClick={() => void fetchProjects()}
-            className="mt-2 rounded border border-red-300 px-3 py-1 text-xs text-red-600 hover:bg-red-100 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900"
+            className="mt-2 rounded-lg border border-danger-600/30 px-3 py-1 text-xs text-danger-600 hover:bg-danger-50"
           >
             Thử lại
           </button>
@@ -519,58 +482,49 @@ function ProjectsContent() {
       )}
 
       {!loading && !error && filteredProjects.length === 0 && (
-        <div className="rounded-lg border border-[#E3E4E8] bg-white p-12 text-center dark:border-white/10 dark:bg-[#1F2126]">
-          <p className="mb-2 text-4xl">
-            {search || genre ? '🔍' : projects.length === 0 ? '🎵' : '📂'}
-          </p>
-          {search || genre ? (
-            <>
-              <p className="text-[#8A8D93]">
-                Không tìm thấy dự án nào
-                {search ? ` matching "${search}"` : ''}
-                {genre ? ` #${genre}` : ''}
-              </p>
+        <EmptyState
+          icon={search || genre ? Search : Music2}
+          title={
+            search || genre
+              ? `Không tìm thấy dự án nào${search ? ` matching "${search}"` : ''}${genre ? ` #${genre}` : ''}`
+              : projects.length === 0
+                ? 'Chưa có dự án nào.'
+                : 'Không có dự án nào trong mục này.'
+          }
+          description={projects.length === 0 && !search && !genre ? 'Tạo dự án đầu tiên của bạn để bắt đầu sáng tác!' : undefined}
+          action={
+            search || genre ? (
               <button
                 onClick={() => {
                   setSearch('');
                   setGenre('');
                   updateUrl({ page: null });
                 }}
-                className="mt-3 text-sm text-[#1D4ED8] hover:underline"
+                className="text-sm text-accent-600 hover:underline"
               >
                 Xóa bộ lọc
               </button>
-            </>
-          ) : projects.length === 0 ? (
-            <>
-              <p className="text-[#8A8D93]">Chưa có dự án nào.</p>
-              <p className="mt-1 text-sm text-[#8A8D93]">
-                Tạo dự án đầu tiên của bạn để bắt đầu sáng tác!
-              </p>
-              <Link
-                href="/projects/new"
-                className="mt-4 inline-block rounded bg-[#1D4ED8] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E40AF]"
-              >
-                + Tạo dự án mới
+            ) : projects.length === 0 ? (
+              <Link href="/projects/new">
+                <Button className="gap-1.5">
+                  <Plus className="h-4 w-4" /> Tạo dự án mới
+                </Button>
               </Link>
-            </>
-          ) : (
-            <>
-              <p className="text-[#8A8D93]">Không có dự án nào trong mục này.</p>
+            ) : (
               <button
                 onClick={() => updateUrl({ tab: 'all', page: null })}
-                className="mt-3 text-sm text-[#1D4ED8] hover:underline"
+                className="text-sm text-accent-600 hover:underline"
               >
                 Xem tất cả dự án
               </button>
-            </>
-          )}
-        </div>
+            )
+          }
+        />
       )}
 
       {!loading && !error && filteredProjects.length > 0 && (
         <>
-          <p className="mb-4 text-sm text-[#8A8D93]">
+          <p className="mb-4 text-sm text-slate-500">
             {filteredProjects.length === 1
               ? '1 dự án'
               : `${filteredProjects.length} dự án`}
@@ -595,14 +549,14 @@ function ProjectsContent() {
               <button
                 onClick={() => updateUrl({ page: String(currentPage - 1) })}
                 disabled={currentPage <= 1}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E3E4E8] bg-white text-sm text-[#1F2126] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#F7F7F5] dark:border-white/10 dark:bg-[#1F2126] dark:text-white disabled:dark:opacity-30"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                ‹
+                <ChevronLeft className="h-4 w-4" />
               </button>
 
               {pageNumbers.map((p, i) =>
                 p === '...' ? (
-                  <span key={`ellipsis-${i}`} className="flex h-9 w-9 items-center justify-center text-[#8A8D93]">
+                  <span key={`ellipsis-${i}`} className="flex h-9 w-9 items-center justify-center text-slate-400">
                     ...
                   </span>
                 ) : (
@@ -611,8 +565,8 @@ function ProjectsContent() {
                     onClick={() => updateUrl({ page: String(p) })}
                     className={`flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-medium ${
                       p === currentPage
-                        ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
-                        : 'border-[#E3E4E8] bg-white text-[#1F2126] hover:bg-[#F7F7F5] dark:border-white/10 dark:bg-[#1F2126] dark:text-white dark:hover:bg-white/10'
+                        ? 'border-accent-600 bg-accent-600 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     {p}
@@ -623,9 +577,9 @@ function ProjectsContent() {
               <button
                 onClick={() => updateUrl({ page: String(currentPage + 1) })}
                 disabled={currentPage >= totalPages}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E3E4E8] bg-white text-sm text-[#1F2126] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#F7F7F5] dark:border-white/10 dark:bg-[#1F2126] dark:text-white disabled:dark:opacity-30"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                ›
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -642,17 +596,14 @@ export default function ProjectsPage() {
         fallback={
           <div className="mx-auto max-w-5xl px-4 py-8">
             <div className="mb-6 flex items-center justify-between">
-              <div className="h-8 w-40 animate-pulse rounded bg-[#F7F7F5] dark:bg-white/5" />
-              <div className="h-10 w-40 animate-pulse rounded bg-[#F7F7F5] dark:bg-white/5" />
+              <div className="h-8 w-40 animate-pulse rounded bg-slate-100" />
+              <div className="h-10 w-40 animate-pulse rounded bg-slate-100" />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="animate-pulse rounded-lg border border-[#E3E4E8] bg-white p-4 dark:border-white/10 dark:bg-[#1F2126]"
-                >
-                  <div className="mb-2 h-5 w-2/3 rounded bg-[#F7F7F5] dark:bg-white/5" />
-                  <div className="mb-3 h-3 w-1/2 rounded bg-[#F7F7F5] dark:bg-white/5" />
+                <div key={i} className="animate-pulse rounded-card border border-slate-200 bg-white p-4">
+                  <div className="mb-2 h-5 w-2/3 rounded bg-slate-100" />
+                  <div className="mb-3 h-3 w-1/2 rounded bg-slate-100" />
                 </div>
               ))}
             </div>

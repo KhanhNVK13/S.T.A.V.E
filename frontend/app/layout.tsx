@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../context/auth-context";
 import { SiteHeader } from "../components/site-header";
 import { SiteFooter } from "../components/site-footer";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const staveSans = Inter({
+  variable: "--font-stave-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const staveMono = JetBrains_Mono({
+  variable: "--font-stave-mono",
   subsets: ["latin"],
 });
 
@@ -26,9 +26,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${staveSans.variable} ${staveMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-white font-sans text-slate-900">
         <AuthProvider>
           <SiteHeader />
           <main className="flex-1">{children}</main>

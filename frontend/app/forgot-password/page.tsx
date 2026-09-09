@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { MailCheck } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
+import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { Button } from "../../components/ui/button";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -27,37 +31,50 @@ export default function ForgotPasswordPage() {
 
   if (done) {
     return (
-      <div className="mx-auto max-w-sm px-4 py-16">
-        <h1 className="text-2xl font-bold">Kiểm tra email</h1>
-        <p className="mt-4 text-sm opacity-80">
-          Nếu <strong>{email}</strong> đã đăng ký, mình đã gửi link đặt lại
-          mật khẩu (hiệu lực 1 giờ, dùng được 1 lần).
-        </p>
-      </div>
+      <AuthCard>
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-50">
+            <MailCheck className="h-5 w-5 text-accent-600" />
+          </span>
+          <h2 className="mb-2 text-lg font-semibold text-slate-900">Kiểm tra email</h2>
+          <p className="text-sm text-slate-500">
+            Nếu <span className="font-mono text-slate-700">{email}</span> đã đăng ký, mình
+            đã gửi link đặt lại mật khẩu (hiệu lực 1 giờ, dùng được 1 lần).
+          </p>
+          <Link href="/login" className="mt-5 text-sm text-accent-600 hover:underline">
+            Quay lại đăng nhập
+          </Link>
+        </div>
+      </AuthCard>
     );
   }
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="text-2xl font-bold">Quên mật khẩu</h1>
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-black px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
+    <AuthCard title="Quên mật khẩu">
+      <p className="mb-4 -mt-2 text-sm text-slate-500">
+        Nhập email, mình sẽ gửi link để đặt lại mật khẩu.
+      </p>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <AuthField label="Email">
+          <input
+            type="email"
+            required
+            placeholder="ban@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        {error && <p className="text-sm text-danger-600">{error}</p>}
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang gửi…" : "Gửi link đặt lại mật khẩu"}
-        </button>
+        </Button>
       </form>
-    </div>
+      <p className="mt-5 text-center text-sm text-slate-500">
+        <Link href="/login" className="text-accent-600 hover:underline">
+          Quay lại đăng nhập
+        </Link>
+      </p>
+    </AuthCard>
   );
 }

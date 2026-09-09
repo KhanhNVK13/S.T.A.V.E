@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
 import { apiFetch } from "../../lib/api-client";
 import { useAuth } from "../../context/auth-context";
+import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { Button } from "../../components/ui/button";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -52,50 +55,55 @@ export default function ResetPasswordPage() {
   }
 
   if (loading || (!session && !waited)) {
-    return <p className="p-6 text-sm opacity-60">Đang xử lý link…</p>;
+    return (
+      <AuthCard>
+        <div className="flex flex-col items-center gap-2 py-4 text-sm text-slate-500">
+          <Loader2 className="h-5 w-5 animate-spin text-accent-600" />
+          Đang xử lý link…
+        </div>
+      </AuthCard>
+    );
   }
 
   if (!session) {
     return (
-      <div className="mx-auto max-w-sm px-4 py-16">
-        <h1 className="text-2xl font-bold">Link không hợp lệ hoặc đã hết hạn</h1>
-        <p className="mt-4 text-sm opacity-80">
+      <AuthCard title="Link không hợp lệ hoặc đã hết hạn">
+        <p className="text-sm text-slate-500">
           Yêu cầu 1 link đặt lại mật khẩu mới ở trang Quên mật khẩu.
         </p>
-      </div>
+      </AuthCard>
     );
   }
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="text-2xl font-bold">Đặt mật khẩu mới</h1>
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-        <input
-          type="password"
-          required
-          minLength={8}
-          placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        <input
-          type="password"
-          required
-          placeholder="Nhập lại mật khẩu mới"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-black px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
+    <AuthCard title="Đặt mật khẩu mới">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <AuthField label="Mật khẩu mới">
+          <input
+            type="password"
+            required
+            minLength={8}
+            placeholder="Tối thiểu 8 ký tự"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        <AuthField label="Nhập lại mật khẩu mới">
+          <input
+            type="password"
+            required
+            placeholder="••••••••"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className={AUTH_INPUT_CLASS}
+          />
+        </AuthField>
+        {error && <p className="text-sm text-danger-600">{error}</p>}
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang lưu…" : "Đặt mật khẩu mới"}
-        </button>
+        </Button>
       </form>
-    </div>
+    </AuthCard>
   );
 }
