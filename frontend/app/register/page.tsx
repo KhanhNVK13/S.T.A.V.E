@@ -26,7 +26,7 @@ export default function RegisterPage() {
     }
 
     setSubmitting(true);
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
@@ -37,6 +37,16 @@ export default function RegisterPage() {
       setError(signUpError.message);
       return;
     }
+
+    // Supabase trả về error: null kể cả khi email đã đăng ký (chống dò email),
+    // nhưng identities rỗng cho biết đây không phải tài khoản mới — không có email nào được gửi.
+    if (signUpData.user && signUpData.user.identities?.length === 0) {
+      setError(
+        "Email này đã được đăng ký. Nếu đây là tài khoản của bạn, hãy đăng nhập hoặc dùng chức năng quên mật khẩu."
+      );
+      return;
+    }
+
     setDone(true);
   }
 
