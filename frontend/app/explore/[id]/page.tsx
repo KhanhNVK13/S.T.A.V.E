@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPublicProject, PublicProject } from '../../../lib/api-client';
 import { useAuth } from '../../../context/auth-context';
+import { getInitials } from '../../../lib/format-name';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -80,7 +81,7 @@ export default function PublicProjectPage({ params }: Props) {
     );
   }
 
-  const ownerInitials = project.owner.display_name?.[0] ?? project.owner.username?.[0] ?? '?';
+  const ownerInitials = getInitials(project.owner.display_name, project.owner.username);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -121,7 +122,7 @@ export default function PublicProjectPage({ params }: Props) {
             />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1D4ED8] text-lg font-semibold text-white">
-              {ownerInitials.toUpperCase()}
+              {ownerInitials}
             </div>
           )}
           <div>
@@ -136,7 +137,7 @@ export default function PublicProjectPage({ params }: Props) {
       </div>
 
       {/* Stats */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-4">
         <div className="rounded-lg border border-[#E3E4E8] bg-white p-4 text-center">
           <p className="text-2xl font-bold text-[#1F2126]">{project.play_count.toLocaleString()}</p>
           <p className="text-sm text-[#8A8D93]">Lượt nghe</p>
@@ -144,10 +145,6 @@ export default function PublicProjectPage({ params }: Props) {
         <div className="rounded-lg border border-[#E3E4E8] bg-white p-4 text-center">
           <p className="text-2xl font-bold text-[#1F2126]">{project.fork_count.toLocaleString()}</p>
           <p className="text-sm text-[#8A8D93]">Lượt fork</p>
-        </div>
-        <div className="rounded-lg border border-[#E3E4E8] bg-white p-4 text-center">
-          <p className="text-2xl font-bold text-[#1F2126]">{project.like_count.toLocaleString()}</p>
-          <p className="text-sm text-[#8A8D93]">Lượt thích</p>
         </div>
       </div>
 

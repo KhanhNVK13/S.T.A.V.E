@@ -1,4 +1,9 @@
 import { supabase } from "./supabase-browser";
+import type {
+  PublicProjectCard,
+  PublicUserProfile as SharedPublicUserProfile,
+  PublicFeaturedContent,
+} from "@stave/shared-types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 const SESSION_ID_KEY = "stave_session_id";
@@ -141,26 +146,7 @@ export async function setProjectVisibility(
 // Public API (no auth required)
 // ============================================
 
-export interface PublicProject {
-  id: string;
-  name: string;
-  description: string | null;
-  genre: string | null;
-  visibility: 'public';
-  archived_at: string | null;
-  created_at: string;
-  updated_at: string;
-  play_count: number;
-  fork_count: number;
-  like_count: number;
-  owner: {
-    id: string;
-    username: string | null;
-    display_name: string | null;
-    avatar_url: string | null;
-  };
-  tags: string[];
-}
+export type PublicProject = PublicProjectCard;
 
 export interface PublicProjectsResponse {
   items: PublicProject[];
@@ -170,32 +156,9 @@ export interface PublicProjectsResponse {
   limit: number;
 }
 
-export interface PublicUserProfile {
-  id: string;
-  username: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-  created_at: string;
-  total_public_projects: number;
-  total_forks: number;
-}
+export type PublicUserProfile = SharedPublicUserProfile;
 
-export interface FeaturedContent {
-  hero: {
-    title: string;
-    subtitle: string;
-    cta_primary: { label: string; href: string };
-    cta_secondary: { label: string; href: string };
-  };
-  featured_projects: PublicProject[];
-  trending_projects: PublicProject[];
-  stats: {
-    total_projects: number;
-    total_users: number;
-    total_forks: number;
-  };
-}
+export type FeaturedContent = PublicFeaturedContent;
 
 /** UC-08: Browse public projects with filters */
 export async function listPublicProjects(params?: {

@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ExploreService } from './explore.service';
 import { PublicProjectsQueryDto } from '../projects/dto/public-projects-query.dto';
+import { RankingsQueryDto } from '../projects/dto/rankings-query.dto';
 
 @Controller('explore')
 export class ExploreController {
@@ -30,10 +31,10 @@ export class ExploreController {
     return this.exploreService.getUserPublicProjects(id);
   }
 
-  /** UC-11: View project rankings — sorted by play_count. */
+  /** UC-11: View project rankings — sorted by fork_count (top_forked) or play_count (trending/top_played). */
   @Get('rankings')
-  getRankings() {
-    return this.exploreService.getRankings();
+  getRankings(@Query() query: RankingsQueryDto) {
+    return this.exploreService.getRankings(query.type);
   }
 
   /** UC-12: Featured content for landing page. */

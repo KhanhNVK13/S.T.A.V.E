@@ -29,6 +29,18 @@ export function formatRelativeTime(dateStr: string | null | undefined): string {
 }
 
 /**
+ * Format a date string to "Tháng M, yyyy" (Vietnamese locale) — used for "joined on" style dates.
+ */
+export function formatMonthYear(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+
+  return date.toLocaleDateString('vi-VN', { year: 'numeric', month: 'long' });
+}
+
+/**
  * Format a date string to dd/MM/yyyy
  */
 export function formatDate(dateStr: string | null | undefined): string {

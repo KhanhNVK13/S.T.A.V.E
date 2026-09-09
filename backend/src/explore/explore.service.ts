@@ -5,11 +5,24 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type {
+  PublicProjectCard,
+  PublicFeaturedContent,
+} from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { PublicProjectsQueryDto } from '../projects/dto/public-projects-query.dto';
 import type { PublicUserProfile } from '../users/dto/public-user-profile.dto';
 
-export interface PublicProjectCard {
+export type { PublicProjectCard };
+export type RankingType = 'trending' | 'top_forked' | 'top_played';
+
+/**
+ * Shape of a raw row returned by `PROJECT_CARD_COLUMNS` selects, before tag/fork enrichment.
+ * `projects` has no `fork_count` column — fork counts are computed from
+ * `forked_from_project_id` (see `enrichProjectCards`). There is no "likes" feature in the
+ * SRS (Report 3) and no backing table for it, so it is not part of this card.
+ */
+interface ProjectCardRow {
   id: string;
   name: string;
   description: string | null;
@@ -19,15 +32,12 @@ export interface PublicProjectCard {
   created_at: string;
   updated_at: string;
   play_count: number;
-  fork_count: number;
-  like_count: number;
   owner: {
     id: string;
     username: string | null;
     display_name: string | null;
     avatar_url: string | null;
-  };
-  tags: string[];
+  } | null;
 }
 
 export interface PaginatedResult<T> {
@@ -38,27 +48,11 @@ export interface PaginatedResult<T> {
   limit: number;
 }
 
-export interface RankingsResult {
-  trending: PublicProjectCard[];
-  top_forked: PublicProjectCard[];
-  top_played: PublicProjectCard[];
-}
+export type FeaturedResult = PublicFeaturedContent;
 
-export interface FeaturedResult {
-  hero: {
-    title: string;
-    subtitle: string;
-    cta_primary: { label: string; href: string };
-    cta_secondary: { label: string; href: string };
-  };
-  featured_projects: PublicProjectCard[];
-  trending_projects: PublicProjectCard[];
-  stats: {
-    total_projects: number;
-    total_users: number;
-    total_forks: number;
-  };
-}
+/** Columns shared by every query that returns a `PublicProjectCard` — keep in sync with `ProjectCardRow`. */
+const PROJECT_CARD_COLUMNS = `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
+   owner:owner_id (id, username, display_name, avatar_url)`;
 
 @Injectable()
 export class ExploreService {
@@ -77,20 +71,21 @@ export class ExploreService {
 
     let queryBuilder = this.supabase
       .from('projects')
-      .select(
-        `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
-         owner:owner_id (id, username, display_name, avatar_url)`,
-        { count: 'exact' },
-      )
+      .select(PROJECT_CARD_COLUMNS, { count: 'exact' })
       .eq('visibility', 'public')
+      .is('archived_at', null)
+      .is('moderation_hidden_at', null)
       .range(offset, offset + limit - 1);
 
-    // Apply genre filter
     if (query.genre) {
       queryBuilder = queryBuilder.ilike('genre', `%${query.genre}%`);
     }
 
-    // Apply sort
+    if (query.tag) {
+      const projectIds = await this.getProjectIdsForTag(query.tag);
+      queryBuilder = queryBuilder.in('id', projectIds);
+    }
+
     switch (query.sort) {
       case 'popular':
       case 'most_played':
@@ -108,7 +103,9 @@ export class ExploreService {
     }
 
     const total = count ?? 0;
-    const items = await this.enrichProjectCards(data ?? []);
+    const items = await this.enrichProjectCards(
+      (data ?? []) as unknown as ProjectCardRow[],
+    );
 
     return {
       items,
@@ -123,28 +120,28 @@ export class ExploreService {
   async getPublicProject(id: string): Promise<PublicProjectCard> {
     const { data, error } = await this.supabase
       .from('projects')
-      .select(
-        `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
-         owner:owner_id (id, username, display_name, avatar_url)`,
-      )
+      .select(PROJECT_CARD_COLUMNS)
       .eq('id', id)
       .eq('visibility', 'public')
       .is('archived_at', null)
       .is('moderation_hidden_at', null)
-      .maybeSingle();
+      .maybeSingle<ProjectCardRow>();
 
     if (error || !data) {
       throw new NotFoundException('Project not found');
     }
 
-    // Increment play_count (best effort, don't fail the request)
+    const updatedPlayCount = (data.play_count ?? 0) + 1;
+
+    // Increment play_count (best effort, don't fail the request on write error).
     try {
       await this.supabase
         .from('projects')
-        .update({ play_count: (data.play_count ?? 0) + 1 })
+        .update({ play_count: updatedPlayCount })
         .eq('id', id);
+      data.play_count = updatedPlayCount;
     } catch {
-      // Silently fail — view count increment is not critical
+      // Silently fail — view count increment is not critical.
     }
 
     const cards = await this.enrichProjectCards([data]);
@@ -170,21 +167,25 @@ export class ExploreService {
       throw new NotFoundException('User not found');
     }
 
-    // Get total public projects count
-    const { count: totalProjects } = await this.supabase
+    // Get this user's public project ids first — forks are counted against them.
+    const { data: ownedProjects, count: totalProjects } = await this.supabase
       .from('projects')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('owner_id', id)
       .eq('visibility', 'public')
       .is('archived_at', null);
 
-    // Get total forks (projects forked from any of their public projects)
-    const { count: totalForks } = await this.supabase
-      .from('projects')
-      .select('id', { count: 'exact', head: true })
-      .not('forked_from_project_id', 'is', null)
-      .is('archived_at', null)
-      .in('forked_from_project_id', []);
+    const ownedProjectIds = (ownedProjects ?? []).map(
+      (p: { id: string }) => p.id,
+    );
+
+    const { count: totalForks } =
+      ownedProjectIds.length > 0
+        ? await this.supabase
+            .from('projects')
+            .select('id', { count: 'exact', head: true })
+            .in('forked_from_project_id', ownedProjectIds)
+        : { count: 0 };
 
     return {
       id: user.id,
@@ -202,10 +203,7 @@ export class ExploreService {
   async getUserPublicProjects(id: string): Promise<PublicProjectCard[]> {
     const { data, error } = await this.supabase
       .from('projects')
-      .select(
-        `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
-         owner:owner_id (id, username, display_name, avatar_url)`,
-      )
+      .select(PROJECT_CARD_COLUMNS)
       .eq('owner_id', id)
       .eq('visibility', 'public')
       .is('archived_at', null)
@@ -216,31 +214,59 @@ export class ExploreService {
       throw new InternalServerErrorException('Could not list user projects');
     }
 
-    return this.enrichProjectCards(data ?? []);
+    return this.enrichProjectCards((data ?? []) as unknown as ProjectCardRow[]);
   }
 
-  /** UC-11: Get rankings. Sorted by play_count. */
-  async getRankings(): Promise<PublicProjectCard[]> {
+  /**
+   * UC-11: Get rankings, sorted according to `type`.
+   * `trending`/`top_played` sort by `play_count` at the DB level. `top_forked` has no
+   * denormalized counter column to sort by, so it pulls the visible-project candidate
+   * set, computes real fork counts in-app, and sorts there — fine at this project's
+   * scale; would need a maintained `fork_count` column + trigger to sort at the DB
+   * level once the catalog grows large.
+   */
+  async getRankings(
+    type: RankingType = 'trending',
+  ): Promise<PublicProjectCard[]> {
     const limit = 10;
-    const queryBuilder = this.supabase
+
+    if (type === 'top_forked') {
+      const { data, error } = await this.supabase
+        .from('projects')
+        .select(PROJECT_CARD_COLUMNS)
+        .eq('visibility', 'public')
+        .is('archived_at', null)
+        .is('moderation_hidden_at', null);
+
+      if (error) {
+        throw new InternalServerErrorException('Could not get rankings');
+      }
+
+      const rows = (data ?? []) as unknown as ProjectCardRow[];
+      const forkCounts = await this.getForkCounts(rows.map((r) => r.id));
+      const topRows = [...rows]
+        .sort(
+          (a, b) => (forkCounts.get(b.id) ?? 0) - (forkCounts.get(a.id) ?? 0),
+        )
+        .slice(0, limit);
+
+      return this.enrichProjectCards(topRows, forkCounts);
+    }
+
+    const { data, error } = await this.supabase
       .from('projects')
-      .select(
-        `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
-         owner:owner_id (id, username, display_name, avatar_url)`,
-      )
+      .select(PROJECT_CARD_COLUMNS)
       .eq('visibility', 'public')
       .is('archived_at', null)
       .is('moderation_hidden_at', null)
       .order('play_count', { ascending: false })
       .limit(limit);
 
-    const { data, error } = await queryBuilder;
-
     if (error) {
       throw new InternalServerErrorException('Could not get rankings');
     }
 
-    return this.enrichProjectCards(data ?? []);
+    return this.enrichProjectCards((data ?? []) as unknown as ProjectCardRow[]);
   }
 
   /** UC-12: Featured content for landing page. */
@@ -253,38 +279,28 @@ export class ExploreService {
       cta_secondary: { label: 'Khám phá dự án', href: '/explore' },
     };
 
-    // Get featured projects: 6 recent public projects
-    const { data: featuredData } = await this.supabase
-      .from('projects')
-      .select(
-        `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
-         owner:owner_id (id, username, display_name, avatar_url)`,
-      )
-      .eq('visibility', 'public')
-      .order('created_at', { ascending: false })
-      .limit(6);
+    const visibleProjectsBase = () =>
+      this.supabase
+        .from('projects')
+        .select(PROJECT_CARD_COLUMNS)
+        .eq('visibility', 'public')
+        .is('archived_at', null)
+        .is('moderation_hidden_at', null);
 
-    // Get trending projects: 6 projects with most plays
-    const { data: trendingData } = await this.supabase
-      .from('projects')
-      .select(
-        `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
-         owner:owner_id (id, username, display_name, avatar_url)`,
-      )
-      .eq('visibility', 'public')
-      .order('play_count', { ascending: false })
-      .limit(6);
-
-    // Get stats (only visibility='public')
     const [
+      { data: featuredData },
+      { data: trendingData },
       { count: totalProjects },
       { count: totalUsers },
       { count: totalForks },
     ] = await Promise.all([
+      visibleProjectsBase().order('created_at', { ascending: false }).limit(6),
+      visibleProjectsBase().order('play_count', { ascending: false }).limit(6),
       this.supabase
         .from('projects')
         .select('id', { count: 'exact', head: true })
-        .eq('visibility', 'public'),
+        .eq('visibility', 'public')
+        .is('archived_at', null),
       this.supabase.from('users').select('id', { count: 'exact', head: true }),
       this.supabase
         .from('projects')
@@ -292,8 +308,14 @@ export class ExploreService {
         .not('forked_from_project_id', 'is', null),
     ]);
 
-    const featuredProjects = await this.enrichProjectCards(featuredData ?? []);
-    const trendingProjects = await this.enrichProjectCards(trendingData ?? []);
+    const [featuredProjects, trendingProjects] = await Promise.all([
+      this.enrichProjectCards(
+        (featuredData ?? []) as unknown as ProjectCardRow[],
+      ),
+      this.enrichProjectCards(
+        (trendingData ?? []) as unknown as ProjectCardRow[],
+      ),
+    ]);
 
     return {
       hero,
@@ -307,19 +329,55 @@ export class ExploreService {
     };
   }
 
-  /** Enrich raw project data with tags. */
+  /** Resolve project ids that carry a given tag name (used by the `tag` filter). */
+  private async getProjectIdsForTag(tagName: string): Promise<string[]> {
+    const { data } = await this.supabase
+      .from('project_tags')
+      .select('project_id, tag:tag_id!inner(name)')
+      .eq('tag.name', tagName);
+
+    return (data ?? []).map(
+      (row) => (row as { project_id: string }).project_id,
+    );
+  }
+
+  /** Real fork count per project id, computed from `projects.forked_from_project_id`. */
+  private async getForkCounts(
+    projectIds: string[],
+  ): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (projectIds.length === 0) return counts;
+
+    const { data } = await this.supabase
+      .from('projects')
+      .select('forked_from_project_id')
+      .in('forked_from_project_id', projectIds);
+
+    for (const row of (data ?? []) as { forked_from_project_id: string }[]) {
+      const parentId = row.forked_from_project_id;
+      counts.set(parentId, (counts.get(parentId) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /** Enrich raw project rows with tags and real fork counts. */
   private async enrichProjectCards(
-    projects: Record<string, unknown>[],
+    projects: ProjectCardRow[],
+    precomputedForkCounts?: Map<string, number>,
   ): Promise<PublicProjectCard[]> {
     if (projects.length === 0) return [];
 
-    const projectIds = projects.map((p) => p['id'] as string);
+    const projectIds = projects.map((p) => p.id);
 
-    // Get tags for these projects (via project_tags junction)
-    const { data: projectTags } = await this.supabase
-      .from('project_tags')
-      .select(`project_id, tag:tag_id (name)`)
-      .in('project_id', projectIds);
+    const [{ data: projectTags }, forkCounts] = await Promise.all([
+      this.supabase
+        .from('project_tags')
+        .select(`project_id, tag:tag_id (name)`)
+        .in('project_id', projectIds),
+      precomputedForkCounts
+        ? Promise.resolve(precomputedForkCounts)
+        : this.getForkCounts(projectIds),
+    ]);
 
     const tagsMap = new Map<string, string[]>();
     for (const pt of projectTags ?? []) {
@@ -332,28 +390,24 @@ export class ExploreService {
       }
     }
 
-    return projects.map((p) => {
-      const owner = p['owner'] as Record<string, unknown>;
-      return {
-        id: p['id'] as string,
-        name: p['name'] as string,
-        description: p['description'] as string | null,
-        genre: p['genre'] as string | null,
-        visibility: 'public' as const,
-        archived_at: p['archived_at'] as string | null,
-        created_at: p['created_at'] as string,
-        updated_at: p['updated_at'] as string,
-        play_count: p['play_count'] as number,
-        fork_count: (p['fork_count'] as number) ?? 0,
-        like_count: (p['like_count'] as number) ?? 0,
-        owner: {
-          id: owner['id'] as string,
-          username: owner['username'] as string | null,
-          display_name: owner['display_name'] as string | null,
-          avatar_url: owner['avatar_url'] as string | null,
-        },
-        tags: tagsMap.get(p['id'] as string) ?? [],
-      };
-    });
+    return projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      genre: p.genre,
+      visibility: 'public' as const,
+      archived_at: p.archived_at,
+      created_at: p.created_at,
+      updated_at: p.updated_at,
+      play_count: p.play_count,
+      fork_count: forkCounts.get(p.id) ?? 0,
+      owner: {
+        id: p.owner?.id ?? '',
+        username: p.owner?.username ?? null,
+        display_name: p.owner?.display_name ?? null,
+        avatar_url: p.owner?.avatar_url ?? null,
+      },
+      tags: tagsMap.get(p.id) ?? [],
+    }));
   }
 }

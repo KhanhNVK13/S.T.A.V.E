@@ -4,6 +4,8 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { getPublicUserProfile, getUserPublicProjects, PublicUserProfile, PublicProject } from '../../../lib/api-client';
 import { ProjectCard } from '../../../components/project-card';
+import { getInitials } from '../../../lib/format-name';
+import { formatMonthYear } from '../../../lib/format-date';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -75,11 +77,8 @@ export default function CreatorProfilePage({ params }: Props) {
     );
   }
 
-  const initials = profile.display_name?.[0] ?? profile.username?.[0] ?? '?';
-  const joinDate = new Date(profile.created_at).toLocaleDateString('vi-VN', {
-    year: 'numeric',
-    month: 'long',
-  });
+  const initials = getInitials(profile.display_name, profile.username);
+  const joinDate = formatMonthYear(profile.created_at);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -93,7 +92,7 @@ export default function CreatorProfilePage({ params }: Props) {
           />
         ) : (
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#1D4ED8] text-3xl font-bold text-white">
-            {initials.toUpperCase()}
+            {initials}
           </div>
         )}
         <div className="flex-1">

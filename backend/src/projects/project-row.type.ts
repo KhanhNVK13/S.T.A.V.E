@@ -15,9 +15,6 @@ export interface ProjectRow {
   moderation_hidden_at: string | null;
   moderation_hidden_reason: string | null;
   play_count: number;
-  view_count: number;
-  fork_count: number;
-  like_count: number;
   genre: string | null;
 }
 

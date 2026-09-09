@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { PublicProject } from '../lib/api-client';
+import { getInitials } from '../lib/format-name';
 
 interface ProjectCardProps {
   project: PublicProject;
@@ -9,7 +10,7 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, showOwner = true }: ProjectCardProps) {
-  const ownerInitials = project.owner.display_name?.[0] ?? project.owner.username?.[0] ?? '?';
+  const ownerInitials = getInitials(project.owner.display_name, project.owner.username);
 
   return (
     <div className="group relative rounded-lg border border-[#E3E4E8] bg-white p-4 transition-all hover:border-[#1D4ED8] hover:shadow-md">
@@ -65,9 +66,6 @@ export function ProjectCard({ project, showOwner = true }: ProjectCardProps) {
           <span title="Lượt fork">
             🍴 {project.fork_count.toLocaleString()}
           </span>
-          <span title="Lượt thích">
-            ❤️ {project.like_count.toLocaleString()}
-          </span>
         </div>
 
         {showOwner && (
@@ -85,7 +83,7 @@ export function ProjectCard({ project, showOwner = true }: ProjectCardProps) {
               />
             ) : (
               <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1D4ED8] text-[10px] font-semibold text-white">
-                {ownerInitials.toUpperCase()}
+                {ownerInitials}
               </div>
             )}
             <span className="truncate max-w-[80px]">

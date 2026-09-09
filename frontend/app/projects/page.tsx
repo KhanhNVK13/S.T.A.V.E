@@ -7,6 +7,7 @@ import { Suspense } from 'react';
 import { RequireAuth } from '../../components/require-auth';
 import {
   archiveProject,
+  unarchiveProject,
   listProjects,
   ApiError,
   type ProjectVisibility,
@@ -73,9 +74,11 @@ function StatusBadge({ archivedAt }: { archivedAt: string | null }) {
 function ProjectCard({
   project,
   onArchive,
+  onUnarchive,
 }: {
   project: Project;
   onArchive: (id: string) => Promise<void>;
+  onUnarchive: (id: string) => Promise<void>;
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -96,9 +99,7 @@ function ProjectCard({
   async function handleUnarchive() {
     setRestoring(true);
     try {
-      const { unarchiveProject } = await import('../../lib/api-client');
-      await unarchiveProject(project.id);
-      window.location.reload();
+      await onUnarchive(project.id);
     } catch {
       setRestoring(false);
     }
@@ -155,13 +156,21 @@ function ProjectCard({
           </button>
 
           {isArchived ? (
-            <button
-              onClick={() => void handleUnarchive()}
-              disabled={restoring}
-              className="flex items-center gap-1 rounded border border-green-400 px-3 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50 disabled:opacity-50 dark:border-green-400/50 dark:text-green-400 dark:hover:bg-green-900/20"
-            >
-              {restoring ? 'Đang khôi phục...' : '↩ Khôi phục'}
-            </button>
+            <>
+              <Link
+                href={`/projects/${project.id}/edit`}
+                className="rounded border border-[#E3E4E8] px-3 py-1.5 text-xs font-medium text-[#1F2126] hover:bg-[#F7F7F5] dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+              >
+                👁 Xem
+              </Link>
+              <button
+                onClick={() => void handleUnarchive()}
+                disabled={restoring}
+                className="flex items-center gap-1 rounded border border-green-400 px-3 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50 disabled:opacity-50 dark:border-green-400/50 dark:text-green-400 dark:hover:bg-green-900/20"
+              >
+                {restoring ? 'Đang khôi phục...' : '↩ Khôi phục'}
+              </button>
+            </>
           ) : (
             <>
               <Link
@@ -270,6 +279,13 @@ function ProjectsContent() {
       prev.map((p) =>
         p.id === id ? { ...p, archived_at: new Date().toISOString() } : p,
       ),
+    );
+  }
+
+  async function handleUnarchive(id: string) {
+    await unarchiveProject(id);
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, archived_at: null } : p)),
     );
   }
 
@@ -568,6 +584,7 @@ function ProjectsContent() {
                 key={project.id}
                 project={project}
                 onArchive={handleArchive}
+                onUnarchive={handleUnarchive}
               />
             ))}
           </div>
