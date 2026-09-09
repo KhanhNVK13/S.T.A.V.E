@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -21,6 +22,18 @@ export class ProjectsService {
 
   /** UC-18 (core): tạo project + branch mặc định 'main' đi kèm. */
   async create(ownerId: string, dto: CreateProjectDto): Promise<ProjectRow> {
+    // Reject duplicate project name for the same owner
+    const { data: existing } = await this.supabase
+      .from('projects')
+      .select('id')
+      .eq('owner_id', ownerId)
+      .eq('name', dto.name)
+      .maybeSingle();
+
+    if (existing) {
+      throw new ConflictException('A project with this name already exists');
+    }
+
     const { data: project, error: projectError } = await this.supabase
       .from('projects')
       .insert({
@@ -149,6 +162,26 @@ export class ProjectsService {
     return data;
   }
 
+  /** UC-20: khôi phục project đã lưu trữ — chỉ owner. */
+  async unarchiveOwned(
+    projectId: string,
+    ownerId: string,
+  ): Promise<ProjectRow> {
+    await this.getOwned(projectId, ownerId);
+
+    const { data, error } = await this.supabase
+      .from('projects')
+      .update({ archived_at: null, updated_at: new Date().toISOString() })
+      .eq('id', projectId)
+      .select('*')
+      .single<ProjectRow>();
+
+    if (error || !data) {
+      throw new InternalServerErrorException('Could not unarchive project');
+    }
+    return data;
+  }
+
   /** UC-21: xóa project — chỉ owner. */
   async deleteOwned(projectId: string, ownerId: string): Promise<void> {
     await this.getOwned(projectId, ownerId);
@@ -162,5 +195,28 @@ export class ProjectsService {
     if (error) {
       throw new InternalServerErrorException('Could not delete project');
     }
+  }
+
+  /** UC-23: đổi visibility project — chỉ owner. */
+  async setVisibility(
+    projectId: string,
+    ownerId: string,
+    visibility: 'public' | 'private',
+  ): Promise<ProjectRow> {
+    await this.getOwned(projectId, ownerId);
+
+    const { data, error } = await this.supabase
+      .from('projects')
+      .update({ visibility, updated_at: new Date().toISOString() })
+      .eq('id', projectId)
+      .select('*')
+      .single<ProjectRow>();
+
+    if (error || !data) {
+      throw new InternalServerErrorException(
+        'Could not update project visibility',
+      );
+    }
+    return data;
   }
 }

@@ -17,6 +17,7 @@ import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { UpdateProjectVisibilityDto } from './dto/update-project-visibility.dto';
 
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
 @Controller('projects')
@@ -54,10 +55,26 @@ export class ProjectsController {
     return this.projectsService.archiveOwned(id, req.user.id);
   }
 
+  /** UC-20: khôi phục project đã lưu trữ. */
+  @Patch(':id/unarchive')
+  unarchive(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.projectsService.unarchiveOwned(id, req.user.id);
+  }
+
   /** UC-21: xóa project. Chỉ owner mới được xóa. */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.projectsService.deleteOwned(id, req.user.id);
+  }
+
+  /** UC-23: đổi visibility project. */
+  @Patch(':id/visibility')
+  setVisibility(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateProjectVisibilityDto,
+  ) {
+    return this.projectsService.setVisibility(id, req.user.id, dto.visibility);
   }
 }
