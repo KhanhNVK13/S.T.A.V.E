@@ -122,11 +122,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchProjects(silent = false) {
-    if (!silent) {
-      setLoading(true);
-      setError(null);
-    }
+  async function fetchProjects() {
     try {
       const data = (await listProjects()) as Project[];
       setProjects(data);
@@ -139,13 +135,16 @@ export default function ProjectsPage() {
       } else {
         setError("Có lỗi xảy ra");
       }
-    } finally {
-      setLoading(false);
     }
   }
 
   useEffect(() => {
-    void fetchProjects();
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      await fetchProjects();
+      setLoading(false);
+    })();
   }, []);
 
   const activeProjects = projects.filter((p) => !p.archived_at);
