@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { listPublicProjects, PublicProjectsResponse } from '../../lib/api-client';
 import { ProjectCard } from '../../components/project-card';
+import { useApiResource } from '../../lib/use-api-resource';
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Mới nhất' },
@@ -11,34 +12,37 @@ const SORT_OPTIONS = [
   { value: 'most_played', label: 'Lượt nghe nhiều' },
 ] as const;
 
+function ProjectCardSkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="animate-pulse rounded-lg border border-[#E3E4E8] bg-white p-4">
+          <div className="mb-2 h-5 w-3/4 rounded bg-[#F7F7F5]" />
+          <div className="mb-3 h-4 w-full rounded bg-[#F7F7F5]" />
+          <div className="flex justify-between">
+            <div className="h-4 w-1/3 rounded bg-[#F7F7F5]" />
+            <div className="h-4 w-1/4 rounded bg-[#F7F7F5]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const [data, setData] = useState<PublicProjectsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Filters from URL
   const page = parseInt(searchParams.get('page') ?? '1', 10);
   const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'popular' | 'most_played';
   const genre = searchParams.get('genre') ?? '';
 
-  useEffect(() => {
-    async function fetchProjects() {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await listPublicProjects({ page, limit: 12, sort, genre: genre || undefined });
-        setData(result);
-      } catch {
-        setError('Không thể tải danh sách dự án. Vui lòng thử lại.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchProjects();
-  }, [page, sort, genre]);
+  const { data, loading, error } = useApiResource<PublicProjectsResponse>(
+    () => listPublicProjects({ page, limit: 12, sort, genre: genre || undefined }),
+    [page, sort, genre],
+    'Không thể tải danh sách dự án. Vui lòng thử lại.',
+  );
 
   function updateParams(newParams: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -91,18 +95,7 @@ function ExploreContent() {
 
       {/* Content */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-lg border border-[#E3E4E8] bg-white p-4">
-              <div className="mb-2 h-5 w-3/4 rounded bg-[#F7F7F5]" />
-              <div className="mb-3 h-4 w-full rounded bg-[#F7F7F5]" />
-              <div className="flex justify-between">
-                <div className="h-4 w-1/3 rounded bg-[#F7F7F5]" />
-                <div className="h-4 w-1/4 rounded bg-[#F7F7F5]" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <ProjectCardSkeletonGrid />
       ) : error ? (
         <div className="rounded-lg border border-[#B3242E]/20 bg-[#B3242E]/5 p-8 text-center">
           <p className="text-[#B3242E]">{error}</p>
@@ -179,20 +172,7 @@ export default function ExplorePage() {
       </div>
 
       {/* Wrap content in Suspense for useSearchParams */}
-      <Suspense fallback={
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-lg border border-[#E3E4E8] bg-white p-4">
-              <div className="mb-2 h-5 w-3/4 rounded bg-[#F7F7F5]" />
-              <div className="mb-3 h-4 w-full rounded bg-[#F7F7F5]" />
-              <div className="flex justify-between">
-                <div className="h-4 w-1/3 rounded bg-[#F7F7F5]" />
-                <div className="h-4 w-1/4 rounded bg-[#F7F7F5]" />
-              </div>
-            </div>
-          ))}
-        </div>
-      }>
+      <Suspense fallback={<ProjectCardSkeletonGrid />}>
         <ExploreContent />
       </Suspense>
     </div>

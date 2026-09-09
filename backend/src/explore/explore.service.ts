@@ -131,17 +131,13 @@ export class ExploreService {
       throw new NotFoundException('Project not found');
     }
 
-    const updatedPlayCount = (data.play_count ?? 0) + 1;
-
-    // Increment play_count (best effort, don't fail the request on write error).
-    try {
-      await this.supabase
-        .from('projects')
-        .update({ play_count: updatedPlayCount })
-        .eq('id', id);
-      data.play_count = updatedPlayCount;
-    } catch {
-      // Silently fail — view count increment is not critical.
+    // Atomic increment via RPC (single UPDATE ... RETURNING) — avoids the read-modify-write
+    // race of a plain update. Best effort: a failed increment doesn't fail the request.
+    const rpcResult = (await this.supabase.rpc('increment_project_play_count', {
+      p_project_id: id,
+    })) as { data: number | null };
+    if (typeof rpcResult.data === 'number') {
+      data.play_count = rpcResult.data;
     }
 
     const cards = await this.enrichProjectCards([data]);

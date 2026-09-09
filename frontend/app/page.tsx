@@ -1,28 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../context/auth-context';
 import { getFeaturedContent, FeaturedContent } from '../lib/api-client';
+import { useApiResource } from '../lib/use-api-resource';
 
 export default function HomePage() {
   const { user } = useAuth();
-  const [data, setData] = useState<FeaturedContent | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchFeatured() {
-      try {
-        const result = await getFeaturedContent();
-        setData(result);
-      } catch {
-        // Silently fail - show placeholder content
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchFeatured();
-  }, []);
+  // Errors are ignored on purpose — the hero section already has hardcoded placeholder
+  // copy for `data === null`, so there's nothing extra to show on failure.
+  const { data, loading } = useApiResource<FeaturedContent>(
+    () => getFeaturedContent(),
+    [],
+  );
 
   return (
     <div className="min-h-screen">
