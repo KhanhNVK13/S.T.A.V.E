@@ -76,3 +76,10 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* Spinner animation for MIDI editor loading state */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
