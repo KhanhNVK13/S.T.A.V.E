@@ -4,7 +4,7 @@
  * Read by MIDI Editor, Version Control, and the projects/drafts API alike —
  * do not diverge per-module.
  */
-export const DRAFT_SCHEMA_VERSION = 1;
+export const DRAFT_SCHEMA_VERSION = 2;
 
 export interface DraftMeta {
   tempo: number;
@@ -23,6 +23,8 @@ export interface DraftTrack {
   volume: number;
   /** -1..1, matches Tone.Panner */
   pan: number;
+  /** UC-30: General MIDI instrument name, null = default (sine oscillator) */
+  instrument: string | null;
 }
 
 export interface DraftNote {

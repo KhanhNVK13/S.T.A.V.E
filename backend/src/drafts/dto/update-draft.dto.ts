@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsInt,
   IsNumber,
+  IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
@@ -52,6 +53,10 @@ export class DraftTrackDto implements DraftTrack {
 
   @IsNumber()
   pan!: number;
+
+  @IsOptional()
+  @IsString()
+  instrument!: string | null;
 }
 
 export class DraftNoteDto implements DraftNote {
