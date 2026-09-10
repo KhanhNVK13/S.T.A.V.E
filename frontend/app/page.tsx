@@ -8,6 +8,8 @@ import { useApiResource } from '../lib/use-api-resource';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { ProjectThumb } from '../components/ui/project-thumb';
+import { CARD_LIST_CLASS } from '../components/ui/card-grid';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -21,7 +23,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-accent-900 px-4 py-24 text-white">
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-accent-900 px-4 py-14 text-white">
         <div className="absolute inset-0 opacity-10">
           <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
             <defs>
@@ -33,31 +35,31 @@ export default function HomePage() {
           </svg>
         </div>
 
-        <div className="relative mx-auto max-w-5xl text-center">
-          <div className="mb-6 flex justify-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
-              <AudioLines className="h-6 w-6" />
+        <div className="relative mx-auto max-w-3xl text-center">
+          <div className="mb-4 flex justify-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
+              <AudioLines className="h-5 w-5" />
             </span>
           </div>
-          <h1 className="text-4xl font-bold sm:text-5xl lg:text-6xl">
+          <h1 className="text-3xl font-bold sm:text-4xl lg:text-5xl">
             {loading ? 'STAVE' : (data?.hero.title ?? 'Sáng tác nhạc theo phong cách của bạn')}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-white/80">
+          <p className="mx-auto mt-4 max-w-xl text-base text-white/80">
             {loading
               ? 'Đang tải...'
               : (data?.hero.subtitle ??
                 'Nền tảng quản lý phiên bản cho dự án MIDI. Lưu trữ, phân nhánh, so sánh và hợp nhất các bản nhạc của bạn như cách Git quản lý mã nguồn.')}
           </p>
 
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href={user ? '/projects' : '/register'}>
-              <Button className="px-8 py-3 text-lg">
+              <Button className="px-6 py-2.5">
                 {loading ? '...' : (data?.hero.cta_primary.label ?? 'Bắt đầu sáng tạo')}
               </Button>
             </Link>
             <Link
               href="/explore"
-              className="rounded-lg border-2 border-white/30 px-8 py-3 text-lg font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/10"
+              className="rounded-lg border-2 border-white/30 px-6 py-2.5 font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/10"
             >
               {loading ? '...' : (data?.hero.cta_secondary.label ?? 'Khám phá dự án')}
             </Link>
@@ -67,18 +69,18 @@ export default function HomePage() {
 
       {/* Stats */}
       {data && (
-        <section className="border-b border-slate-200 py-8">
-          <div className="mx-auto flex max-w-5xl justify-center gap-8 sm:gap-16">
+        <section className="border-b border-slate-200 bg-slate-50 py-5">
+          <div className="mx-auto flex max-w-page justify-center gap-8 px-4 sm:gap-16">
             <div className="text-center">
-              <p className="font-mono text-3xl font-bold text-slate-900">{data.stats.total_projects.toLocaleString()}</p>
+              <p className="font-mono text-2xl font-bold text-slate-900">{data.stats.total_projects.toLocaleString()}</p>
               <p className="text-sm text-slate-500">Dự án công khai</p>
             </div>
             <div className="text-center">
-              <p className="font-mono text-3xl font-bold text-slate-900">{data.stats.total_users.toLocaleString()}</p>
+              <p className="font-mono text-2xl font-bold text-slate-900">{data.stats.total_users.toLocaleString()}</p>
               <p className="text-sm text-slate-500">Người dùng</p>
             </div>
             <div className="text-center">
-              <p className="font-mono text-3xl font-bold text-slate-900">{data.stats.total_forks.toLocaleString()}</p>
+              <p className="font-mono text-2xl font-bold text-slate-900">{data.stats.total_forks.toLocaleString()}</p>
               <p className="text-sm text-slate-500">Lượt fork</p>
             </div>
           </div>
@@ -87,30 +89,33 @@ export default function HomePage() {
 
       {/* Trending Projects */}
       {data && data.trending_projects.length > 0 && (
-        <section className="mx-auto max-w-5xl px-4 py-12">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
-              <Flame className="h-6 w-6 text-warning-600" /> Dự án thịnh hành
+        <section className="mx-auto max-w-page px-4 py-10">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Flame className="h-5 w-5 text-warning-600" /> Dự án thịnh hành
             </h2>
             <Link href="/rankings" className="text-sm font-medium text-accent-600 hover:underline">
               Xem tất cả →
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={CARD_LIST_CLASS}>
             {data.trending_projects.slice(0, 6).map((project) => (
               <Link key={project.id} href={`/explore/${project.id}`} className="group block">
-                <Card className="p-4 transition-all hover:border-accent-300 hover:shadow-md">
-                  <h3 className="mb-2 truncate font-semibold text-slate-900 group-hover:text-accent-700">
-                    {project.name}
-                  </h3>
-                  <div className="flex items-center gap-3 font-mono text-xs text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Play className="h-3.5 w-3.5" /> {project.play_count.toLocaleString()}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <GitFork className="h-3.5 w-3.5" /> {project.fork_count.toLocaleString()}
-                    </span>
+                <Card className="flex items-center gap-4 p-4 transition-all hover:border-accent-300 hover:shadow-md">
+                  <ProjectThumb id={project.id} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate font-semibold text-slate-900 group-hover:text-accent-700">
+                      {project.name}
+                    </h3>
+                    <div className="mt-1 flex items-center gap-3 font-mono text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Play className="h-3.5 w-3.5" /> {project.play_count.toLocaleString()}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <GitFork className="h-3.5 w-3.5" /> {project.fork_count.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </Card>
               </Link>
@@ -121,29 +126,30 @@ export default function HomePage() {
 
       {/* Recent Projects */}
       {data && data.featured_projects.length > 0 && (
-        <section className="mx-auto max-w-5xl px-4 py-12">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
-              <Sparkles className="h-6 w-6 text-accent-600" /> Dự án mới
+        <section className="mx-auto max-w-page px-4 py-10">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Sparkles className="h-5 w-5 text-accent-600" /> Dự án mới
             </h2>
             <Link href="/explore" className="text-sm font-medium text-accent-600 hover:underline">
               Khám phá thêm →
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={CARD_LIST_CLASS}>
             {data.featured_projects.slice(0, 6).map((project) => (
               <Link key={project.id} href={`/explore/${project.id}`} className="group block">
-                <Card className="p-4 transition-all hover:border-accent-300 hover:shadow-md">
-                  <h3 className="mb-2 truncate font-semibold text-slate-900 group-hover:text-accent-700">
-                    {project.name}
-                  </h3>
-                  {project.genre && (
-                    <div className="mb-2">
-                      <Badge variant="info">{project.genre}</Badge>
+                <Card className="flex items-center gap-4 p-4 transition-all hover:border-accent-300 hover:shadow-md">
+                  <ProjectThumb id={project.id} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate font-semibold text-slate-900 group-hover:text-accent-700">
+                        {project.name}
+                      </h3>
+                      {project.genre && <Badge variant="info">{project.genre}</Badge>}
                     </div>
-                  )}
-                  <div className="mt-2 text-xs text-slate-500">@{project.owner.username ?? 'unknown'}</div>
+                    <div className="mt-1 text-xs text-slate-500">@{project.owner.username ?? 'unknown'}</div>
+                  </div>
                 </Card>
               </Link>
             ))}
@@ -152,7 +158,7 @@ export default function HomePage() {
       )}
 
       {/* Features */}
-      <section className="bg-slate-50 py-16">
+      <section className="border-t border-slate-200 bg-slate-50 py-14">
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="mb-8 text-center text-2xl font-bold text-slate-900">Tại sao chọn STAVE?</h2>
 
@@ -198,12 +204,12 @@ export default function HomePage() {
 
       {/* CTA — only for guests */}
       {!user && (
-        <section className="py-16 text-center">
+        <section className="py-14 text-center">
           <div className="mx-auto max-w-5xl px-4">
             <h2 className="text-2xl font-bold text-slate-900">Sẵn sàng bắt đầu?</h2>
             <p className="mt-2 text-slate-500">Tham gia cùng cộng đồng sáng tác ngay hôm nay.</p>
             <Link href="/register">
-              <Button className="mt-6 px-8 py-3 text-lg">Đăng ký miễn phí</Button>
+              <Button className="mt-6 px-6 py-2.5">Đăng ký miễn phí</Button>
             </Link>
           </div>
         </section>

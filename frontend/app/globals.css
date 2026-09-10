@@ -31,6 +31,15 @@
   /* Card/surface */
   --radius-card: 1rem; /* rounded-2xl */
   --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+
+  /*
+   * Container chính cho trang list/content (header/footer/explore/projects/
+   * creator/rankings/home). 105rem (~1680px) — rộng hơn hẳn max-w-7xl (1280px)
+   * cũ để không còn để trắng lớn 2 bên trên màn 1920px+ thật, nhưng vẫn giữ
+   * khoảng lề hợp lý trên màn cực rộng (21:9/31:9). Trang dạng form/đọc hẹp
+   * (auth, /profile, /projects/new...) KHÔNG dùng token này — xem CLAUDE.md 4.7.
+   */
+  --container-page: 105rem;
 }
 
 @theme inline {
@@ -59,6 +68,8 @@
 
   --radius-card: var(--radius-card);
   --shadow-card: var(--shadow-card);
+
+  --container-page: var(--container-page);
 }
 
 body {

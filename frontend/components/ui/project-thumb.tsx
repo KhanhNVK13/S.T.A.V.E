@@ -12,15 +12,25 @@ const GRADIENTS: Record<string, string> = {
   "bg-orange-100": "from-orange-200 to-orange-100",
 };
 
+const SIZE_CLASSES = {
+  sm: "h-12 w-12 shrink-0 rounded-lg",
+  lg: "h-24 w-full rounded-lg",
+} as const;
+
+const ICON_SIZE = {
+  sm: "h-5 w-5",
+  lg: "h-7 w-7",
+} as const;
+
 /** Placeholder trực quan tất định theo id project — không phải waveform dữ liệu thật (chưa có gì để biểu diễn). */
-export function ProjectThumb({ id }: { id: string }) {
+export function ProjectThumb({ id, size = "lg" }: { id: string; size?: "sm" | "lg" }) {
   const { bg, text } = colorFromId(id);
   const gradient = GRADIENTS[bg] ?? "from-slate-200 to-slate-100";
   return (
     <div
-      className={`flex h-24 w-full items-center justify-center rounded-lg bg-gradient-to-br ${gradient}`}
+      className={`flex items-center justify-center bg-gradient-to-br ${gradient} ${SIZE_CLASSES[size]}`}
     >
-      <Music2 className={`h-7 w-7 ${text} opacity-70`} />
+      <Music2 className={`${ICON_SIZE[size]} ${text} opacity-70`} />
     </div>
   );
 }
