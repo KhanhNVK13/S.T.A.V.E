@@ -47,7 +47,7 @@ export default function RankingsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="mx-auto max-w-page px-4 py-8">
       <PageHeader title="Bảng xếp hạng" description="Top dự án được nghe/fork nhiều nhất trên STAVE" />
 
       <div className="mb-6">

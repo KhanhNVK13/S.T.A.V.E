@@ -11,6 +11,7 @@ import { Card } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { CARD_LIST_CLASS } from '../../../components/ui/card-grid';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -37,7 +38,7 @@ export default function CreatorProfilePage({ params }: Props) {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mx-auto max-w-page px-4 py-8">
         <div className="animate-pulse">
           <div className="mb-8 flex items-center gap-4">
             <div className="h-20 w-20 rounded-full bg-slate-100" />
@@ -58,7 +59,7 @@ export default function CreatorProfilePage({ params }: Props) {
 
   if (error || !profile) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mx-auto max-w-page px-4 py-8">
         <div className="rounded-card border border-danger-600/20 bg-danger-50 p-8 text-center">
           <h1 className="text-xl font-semibold text-danger-600">Không tìm thấy</h1>
           <p className="mt-2 text-slate-500">{error ?? 'Người dùng này không tồn tại.'}</p>
@@ -73,7 +74,7 @@ export default function CreatorProfilePage({ params }: Props) {
   const joinDate = formatMonthYear(profile.created_at);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="mx-auto max-w-page px-4 py-8">
       {/* Profile Header */}
       <Card className="mb-8 flex items-start gap-6 p-6">
         <Avatar
@@ -118,7 +119,7 @@ export default function CreatorProfilePage({ params }: Props) {
         {projects.length === 0 ? (
           <EmptyState icon={FolderOpen} title="Người dùng này chưa có dự án công khai nào." />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={CARD_LIST_CLASS}>
             {projects.map((project) => (
               <ProjectCard key={project.id} project={project} showOwner={false} />
             ))}

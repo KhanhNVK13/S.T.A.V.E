@@ -9,6 +9,7 @@ import { useApiResource } from '../../lib/use-api-resource';
 import { PageHeader } from '../../components/ui/page-header';
 import { EmptyState } from '../../components/ui/empty-state';
 import { INPUT_CLASS } from '../../components/ui/form';
+import { CARD_LIST_CLASS } from '../../components/ui/card-grid';
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Mới nhất' },
@@ -18,15 +19,16 @@ const SORT_OPTIONS = [
 
 function ProjectCardSkeletonGrid() {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className={CARD_LIST_CLASS}>
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="animate-pulse rounded-card border border-slate-200 bg-white p-4">
-          <div className="mb-3 h-24 w-full rounded-lg bg-slate-100" />
-          <div className="mb-2 h-5 w-3/4 rounded bg-slate-100" />
-          <div className="mb-3 h-4 w-full rounded bg-slate-100" />
-          <div className="flex justify-between">
-            <div className="h-4 w-1/3 rounded bg-slate-100" />
-            <div className="h-4 w-1/4 rounded bg-slate-100" />
+        <div
+          key={i}
+          className="flex animate-pulse items-center gap-4 rounded-card border border-slate-200 bg-white p-4"
+        >
+          <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-100" />
+          <div className="min-w-0 flex-1">
+            <div className="mb-2 h-5 w-1/3 rounded bg-slate-100" />
+            <div className="h-4 w-2/3 rounded bg-slate-100" />
           </div>
         </div>
       ))}
@@ -129,8 +131,8 @@ function ExploreContent() {
           {/* Stats */}
           <p className="mb-4 text-sm text-slate-500">{data?.total ?? 0} dự án công khai</p>
 
-          {/* Grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* List */}
+          <div className={CARD_LIST_CLASS}>
             {data?.items.map((project) => (
               <ProjectCard key={project.id} project={project} />
             ))}
@@ -166,7 +168,7 @@ function ExploreContent() {
 
 export default function ExplorePage() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="mx-auto max-w-page px-4 py-8">
       <PageHeader title="Khám phá dự án" description="Tìm kiếm cảm hứng từ cộng đồng sáng tác" />
 
       <Suspense fallback={<ProjectCardSkeletonGrid />}>

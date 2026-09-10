@@ -21,6 +21,7 @@ import { Button } from '../../components/ui/button';
 import { Tabs } from '../../components/ui/tabs';
 import { EmptyState } from '../../components/ui/empty-state';
 import { INPUT_CLASS } from '../../components/ui/form';
+import { CARD_LIST_CLASS } from '../../components/ui/card-grid';
 
 interface Project {
   id: string;
@@ -102,40 +103,32 @@ function ProjectCard({
 
   return (
     <>
-      <Card className="flex flex-col p-4 transition-all hover:border-accent-300 hover:shadow-md">
-        {/* Header: icon + name + visibility */}
-        <div className="mb-2 flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
+      <Card className="flex flex-col gap-3 p-4 transition-all hover:border-accent-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between">
+        {/* Left: icon + name + meta */}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             <Music2 className="h-4 w-4 shrink-0 text-slate-400" />
             <h3 className="truncate font-semibold text-slate-900">{project.name}</h3>
+            <VisibilityBadge visibility={project.visibility} />
+            <StatusBadge archivedAt={project.archived_at} />
+            {project.genre && (
+              <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-500">
+                #{project.genre}
+              </span>
+            )}
           </div>
-          <VisibilityBadge visibility={project.visibility} />
-        </div>
 
-        {/* Meta: relative time */}
-        <p className="mb-2 font-mono text-xs text-slate-500">
-          Cập nhật: {formatRelativeTime(project.updated_at)}
-        </p>
-
-        {/* Description */}
-        {project.description && (
-          <p className="mb-3 line-clamp-2 text-sm text-slate-500">{project.description}</p>
-        )}
-
-        <div className="flex-1" />
-
-        {/* Status row: badges + genre */}
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <StatusBadge archivedAt={project.archived_at} />
-          {project.genre && (
-            <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-500">
-              #{project.genre}
-            </span>
+          {project.description && (
+            <p className="mt-1 line-clamp-1 text-sm text-slate-500">{project.description}</p>
           )}
+
+          <p className="mt-1 font-mono text-xs text-slate-500">
+            Cập nhật: {formatRelativeTime(project.updated_at)}
+          </p>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Right: actions */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {/* Editor placeholder */}
           <button
             disabled
@@ -370,7 +363,7 @@ function ProjectsContent() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="mx-auto max-w-page px-4 py-8">
       <PageHeader
         title="Dự án của tôi"
         action={
@@ -454,16 +447,11 @@ function ProjectsContent() {
 
       {/* Content */}
       {loading && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={CARD_LIST_CLASS}>
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="animate-pulse rounded-card border border-slate-200 bg-white p-4">
-              <div className="mb-2 h-5 w-2/3 rounded bg-slate-100" />
-              <div className="mb-3 h-3 w-1/2 rounded bg-slate-100" />
-              <div className="mb-4 h-3 w-full rounded bg-slate-100" />
-              <div className="flex gap-2">
-                <div className="h-6 w-16 rounded bg-slate-100" />
-                <div className="h-6 w-20 rounded bg-slate-100" />
-              </div>
+              <div className="mb-2 h-5 w-1/3 rounded bg-slate-100" />
+              <div className="h-3 w-2/3 rounded bg-slate-100" />
             </div>
           ))}
         </div>
@@ -532,7 +520,7 @@ function ProjectsContent() {
             {search ? ` • "${search}"` : ''}
           </p>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={CARD_LIST_CLASS}>
             {paginatedProjects.map((project) => (
               <ProjectCard
                 key={project.id}
@@ -594,12 +582,12 @@ export default function ProjectsPage() {
     <RequireAuth>
       <Suspense
         fallback={
-          <div className="mx-auto max-w-5xl px-4 py-8">
+          <div className="mx-auto max-w-page px-4 py-8">
             <div className="mb-6 flex items-center justify-between">
               <div className="h-8 w-40 animate-pulse rounded bg-slate-100" />
               <div className="h-10 w-40 animate-pulse rounded bg-slate-100" />
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={CARD_LIST_CLASS}>
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="animate-pulse rounded-card border border-slate-200 bg-white p-4">
                   <div className="mb-2 h-5 w-2/3 rounded bg-slate-100" />
