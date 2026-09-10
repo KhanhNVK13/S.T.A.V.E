@@ -24,6 +24,10 @@ export class PublicProjectsQueryDto {
   tag?: string;
 
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
   @IsIn(['newest', 'popular', 'most_played'])
   sort?: 'newest' | 'popular' | 'most_played' = 'newest';
 }

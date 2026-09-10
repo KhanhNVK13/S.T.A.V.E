@@ -9,27 +9,37 @@ import { useApiResource } from '../../lib/use-api-resource';
 import { PageHeader } from '../../components/ui/page-header';
 import { EmptyState } from '../../components/ui/empty-state';
 import { INPUT_CLASS } from '../../components/ui/form';
-import { CARD_LIST_CLASS } from '../../components/ui/card-grid';
 
+// Genre filter pills — các thể loại được hỗ trợ
+const GENRE_FILTERS = [
+  { value: '', label: 'Tất cả' },
+  { value: 'Jazz', label: '🎷 Jazz' },
+  { value: 'Rock', label: '🎸 Rock' },
+  { value: 'Pop', label: '🎹 Pop' },
+  { value: 'Lo-Fi', label: '🎧 Lo-Fi' },
+  { value: 'Electronic', label: '⚡ Electronic' },
+  { value: 'Classical', label: '🎻 Classical' },
+  { value: 'Hip-Hop', label: '🎤 Hip-Hop' },
+] as const;
+
+// Sort options
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Mới nhất' },
-  { value: 'popular', label: 'Phổ biến nhất' },
-  { value: 'most_played', label: 'Lượt nghe nhiều' },
+  { value: 'most_played', label: 'Lượt nghe nhiều nhất' },
 ] as const;
 
 function ProjectCardSkeletonGrid() {
   return (
-    <div className={CARD_LIST_CLASS}>
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="flex animate-pulse items-center gap-4 rounded-card border border-slate-200 bg-white p-4"
+          className="animate-pulse rounded-xl border border-[#E3E4E8] bg-white p-4"
         >
-          <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-100" />
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 h-5 w-1/3 rounded bg-slate-100" />
-            <div className="h-4 w-2/3 rounded bg-slate-100" />
-          </div>
+          <div className="mb-3 h-32 rounded-lg bg-slate-100" />
+          <div className="mb-2 h-5 w-3/4 rounded bg-slate-100" />
+          <div className="mb-2 h-4 w-1/2 rounded bg-slate-100" />
+          <div className="h-3 w-full rounded bg-slate-100" />
         </div>
       ))}
     </div>
@@ -42,8 +52,9 @@ function ExploreContent() {
 
   // Filters from URL
   const page = parseInt(searchParams.get('page') ?? '1', 10);
-  const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'popular' | 'most_played';
+  const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'most_played';
   const genre = searchParams.get('genre') ?? '';
+  const search = searchParams.get('search') ?? '';
 
   const { data, loading, error } = useApiResource<PublicProjectsResponse>(
     () => listPublicProjects({ page, limit: 12, sort, genre: genre || undefined }),
@@ -61,40 +72,71 @@ function ExploreContent() {
       }
     }
     // Reset to page 1 when changing filters
-    if (newParams.sort !== undefined || newParams.genre !== undefined) {
+    if (newParams.sort !== undefined || newParams.genre !== undefined || newParams.search !== undefined) {
       params.set('page', '1');
     }
     router.push(`/explore?${params.toString()}`);
   }
 
+  // Client-side filter for search (tên project hoặc tên tác giả)
+  const filteredItems = search.trim()
+    ? data?.items.filter(item =>
+        item.name.toLowerCase().includes(search.toLowerCase()) ||
+        (item.owner?.display_name ?? item.owner?.username ?? '').toLowerCase().includes(search.toLowerCase())
+      )
+    : data?.items;
+
   return (
     <>
-      {/* Filters */}
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">Sắp xếp:</label>
-          <select
-            value={sort}
-            onChange={(e) => updateParams({ sort: e.target.value })}
-            className={INPUT_CLASS}
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+      {/* Filter Bar */}
+      <div className="mb-6 rounded-xl border border-[#E3E4E8] bg-white p-4">
+        {/* Search + Sort Row */}
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => updateParams({ search: e.target.value })}
+              placeholder="Tìm kiếm tác phẩm hoặc nghệ sĩ..."
+              className={`${INPUT_CLASS} w-full pl-10`}
+            />
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-700">Sắp xếp:</label>
+            <select
+              value={sort}
+              onChange={(e) => updateParams({ sort: e.target.value })}
+              className={`${INPUT_CLASS} w-auto min-w-[160px]`}
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="relative min-w-[200px]">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={genre}
-            onChange={(e) => updateParams({ genre: e.target.value })}
-            placeholder="Lọc theo thể loại: Jazz, Rock..."
-            className={`${INPUT_CLASS} w-full pl-9`}
-          />
+        {/* Genre Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-sm font-medium text-slate-600">Thể loại:</span>
+          {GENRE_FILTERS.map((g) => (
+            <button
+              key={g.value}
+              onClick={() => updateParams({ genre: g.value })}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
+                genre === g.value
+                  ? 'bg-[#1D4ED8] text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {g.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -111,17 +153,17 @@ function ExploreContent() {
             Thử lại
           </button>
         </div>
-      ) : data?.items.length === 0 ? (
+      ) : filteredItems?.length === 0 ? (
         <EmptyState
           icon={SearchIcon}
           title="Không tìm thấy dự án nào."
           action={
-            genre ? (
+            search || genre ? (
               <button
-                onClick={() => updateParams({ genre: null })}
+                onClick={() => updateParams({ search: null, genre: null })}
                 className="text-sm text-accent-600 hover:underline"
               >
-                Xóa bộ lọc thể loại
+                Xóa bộ lọc
               </button>
             ) : undefined
           }
@@ -129,17 +171,21 @@ function ExploreContent() {
       ) : (
         <>
           {/* Stats */}
-          <p className="mb-4 text-sm text-slate-500">{data?.total ?? 0} dự án công khai</p>
+          <p className="mb-4 text-sm text-slate-500">
+            {search
+              ? `${filteredItems?.length ?? 0} kết quả cho "${search}"`
+              : `${data?.total ?? 0} dự án công khai`}
+          </p>
 
-          {/* List */}
-          <div className={CARD_LIST_CLASS}>
-            {data?.items.map((project) => (
+          {/* Grid - 3 columns responsive */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredItems?.map((project) => (
               <ProjectCard key={project.id} project={project} />
             ))}
           </div>
 
           {/* Pagination */}
-          {data && data.totalPages > 1 && (
+          {data && data.totalPages > 1 && !search && (
             <div className="mt-8 flex items-center justify-center gap-2">
               <button
                 onClick={() => updateParams({ page: String(page - 1) })}
@@ -168,7 +214,7 @@ function ExploreContent() {
 
 export default function ExplorePage() {
   return (
-    <div className="mx-auto max-w-page px-4 py-8">
+    <div className="mx-auto max-w-[1280px] px-4 py-8">
       <PageHeader title="Khám phá dự án" description="Tìm kiếm cảm hứng từ cộng đồng sáng tác" />
 
       <Suspense fallback={<ProjectCardSkeletonGrid />}>
