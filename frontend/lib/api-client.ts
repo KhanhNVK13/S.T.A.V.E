@@ -1,4 +1,5 @@
 import { supabase } from "./supabase-browser";
+import type { DraftSnapshot } from "@stave/shared-types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 const SESSION_ID_KEY = "stave_session_id";
@@ -99,5 +100,19 @@ export async function archiveProject(id: string): Promise<void> {
 export async function deleteProject(id: string): Promise<void> {
   await apiFetch<void>(`/projects/${id}`, {
     method: "DELETE",
+  });
+}
+
+export async function getDraft(projectId: string): Promise<DraftSnapshot> {
+  return apiFetch<DraftSnapshot>(`/projects/${projectId}/draft`);
+}
+
+export async function putDraft(
+  projectId: string,
+  snapshot: DraftSnapshot,
+): Promise<DraftSnapshot> {
+  return apiFetch<DraftSnapshot>(`/projects/${projectId}/draft`, {
+    method: "PUT",
+    body: JSON.stringify(snapshot),
   });
 }

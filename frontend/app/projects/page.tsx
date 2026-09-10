@@ -60,9 +60,9 @@ function ProjectCard({ project }: { project: Project }) {
         <div className="flex gap-2 ml-4">
           <Link
             href={`/projects/${project.id}/edit`}
-            className="rounded border border-[#1D4ED8] px-3 py-1.5 text-sm text-[#1D4ED8] hover:bg-[#1D4ED8]/10"
+            className="rounded border border-[#6366f1] px-3 py-1.5 text-sm text-[#6366f1] hover:bg-[#6366f1]/10"
           >
-            {isArchived ? "Xem" : "Chỉnh sửa"}
+            {isArchived ? "Xem" : "🎹 Mở Editor"}
           </Link>
           {!isArchived && (
             <button
