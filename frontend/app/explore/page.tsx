@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search as SearchIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search as SearchIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { listPublicProjects, PublicProjectsResponse } from '../../lib/api-client';
 import { ProjectCard } from '../../components/project-card';
 import { useApiResource } from '../../lib/use-api-resource';
@@ -34,7 +34,7 @@ function ProjectCardSkeletonGrid() {
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="animate-pulse rounded-xl border border-[#E3E4E8] bg-white p-4"
+          className="animate-pulse rounded-card border border-slate-200 bg-white p-4"
         >
           <div className="mb-3 h-32 rounded-lg bg-slate-100" />
           <div className="mb-2 h-5 w-3/4 rounded bg-slate-100" />
@@ -55,10 +55,19 @@ function ExploreContent() {
   const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'most_played';
   const genre = searchParams.get('genre') ?? '';
   const search = searchParams.get('search') ?? '';
+  const tag = searchParams.get('tag') ?? '';
 
   const { data, loading, error } = useApiResource<PublicProjectsResponse>(
-    () => listPublicProjects({ page, limit: 12, sort, genre: genre || undefined }),
-    [page, sort, genre],
+    () =>
+      listPublicProjects({
+        page,
+        limit: 12,
+        sort,
+        genre: genre || undefined,
+        search: search || undefined,
+        tag: tag || undefined,
+      }),
+    [page, sort, genre, search, tag],
     'Không thể tải danh sách dự án. Vui lòng thử lại.',
   );
 
@@ -72,24 +81,32 @@ function ExploreContent() {
       }
     }
     // Reset to page 1 when changing filters
-    if (newParams.sort !== undefined || newParams.genre !== undefined || newParams.search !== undefined) {
+    if (
+      newParams.sort !== undefined ||
+      newParams.genre !== undefined ||
+      newParams.search !== undefined ||
+      newParams.tag !== undefined
+    ) {
       params.set('page', '1');
     }
     router.push(`/explore?${params.toString()}`);
   }
 
-  // Client-side filter for search (tên project hoặc tên tác giả)
-  const filteredItems = search.trim()
-    ? data?.items.filter(item =>
-        item.name.toLowerCase().includes(search.toLowerCase()) ||
-        (item.owner?.display_name ?? item.owner?.username ?? '').toLowerCase().includes(search.toLowerCase())
-      )
-    : data?.items;
+  // Ô nhập gõ mượt (state local), URL/refetch chỉ cập nhật sau khi ngừng gõ 400ms
+  const [searchInput, setSearchInput] = useState(search);
+  useEffect(() => {
+    if (searchInput === search) return;
+    const timer = setTimeout(() => updateParams({ search: searchInput || null }), 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
+
+  const items = data?.items;
 
   return (
     <>
       {/* Filter Bar */}
-      <div className="mb-6 rounded-xl border border-[#E3E4E8] bg-white p-4">
+      <div className="mb-6 rounded-card border border-slate-200 bg-white p-4">
         {/* Search + Sort Row */}
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Search Input */}
@@ -97,9 +114,9 @@ function ExploreContent() {
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              value={search}
-              onChange={(e) => updateParams({ search: e.target.value })}
-              placeholder="Tìm kiếm tác phẩm hoặc nghệ sĩ..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Tìm kiếm theo tên tác phẩm..."
               className={`${INPUT_CLASS} w-full pl-10`}
             />
           </div>
@@ -130,7 +147,7 @@ function ExploreContent() {
               onClick={() => updateParams({ genre: g.value })}
               className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
                 genre === g.value
-                  ? 'bg-[#1D4ED8] text-white shadow-sm'
+                  ? 'bg-accent-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -138,6 +155,20 @@ function ExploreContent() {
             </button>
           ))}
         </div>
+
+        {/* Active tag filter (đến từ click #tag trên ProjectCard) */}
+        {tag && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-600">Tag:</span>
+            <button
+              onClick={() => updateParams({ tag: null })}
+              className="flex items-center gap-1 rounded-full bg-accent-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm"
+            >
+              #{tag}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -153,14 +184,17 @@ function ExploreContent() {
             Thử lại
           </button>
         </div>
-      ) : filteredItems?.length === 0 ? (
+      ) : items?.length === 0 ? (
         <EmptyState
           icon={SearchIcon}
           title="Không tìm thấy dự án nào."
           action={
-            search || genre ? (
+            search || genre || tag ? (
               <button
-                onClick={() => updateParams({ search: null, genre: null })}
+                onClick={() => {
+                  setSearchInput('');
+                  updateParams({ search: null, genre: null, tag: null });
+                }}
                 className="text-sm text-accent-600 hover:underline"
               >
                 Xóa bộ lọc
@@ -173,19 +207,19 @@ function ExploreContent() {
           {/* Stats */}
           <p className="mb-4 text-sm text-slate-500">
             {search
-              ? `${filteredItems?.length ?? 0} kết quả cho "${search}"`
+              ? `${data?.total ?? 0} kết quả cho "${search}"`
               : `${data?.total ?? 0} dự án công khai`}
           </p>
 
           {/* Grid - 3 columns responsive */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredItems?.map((project) => (
+            {items?.map((project) => (
               <ProjectCard key={project.id} project={project} />
             ))}
           </div>
 
           {/* Pagination */}
-          {data && data.totalPages > 1 && !search && (
+          {data && data.totalPages > 1 && (
             <div className="mt-8 flex items-center justify-center gap-2">
               <button
                 onClick={() => updateParams({ page: String(page - 1) })}
@@ -214,7 +248,7 @@ function ExploreContent() {
 
 export default function ExplorePage() {
   return (
-    <div className="mx-auto max-w-[1280px] px-4 py-8">
+    <div className="mx-auto max-w-page px-4 py-8">
       <PageHeader title="Khám phá dự án" description="Tìm kiếm cảm hứng từ cộng đồng sáng tác" />
 
       <Suspense fallback={<ProjectCardSkeletonGrid />}>
