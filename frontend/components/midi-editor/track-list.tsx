@@ -5,10 +5,11 @@
  * UC-29: Remove track
  * UC-30: Assign instrument to track
  * UC-34: Set track color
+ * UC-35: Set track label
  */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import type { DraftTrack } from "@stave/shared-types";
 import { GM_INSTRUMENTS } from "../../lib/instruments";
 
@@ -22,6 +23,7 @@ interface TrackListProps {
   onDeleteTrack: (id: string) => void;
   onAssignInstrument: (id: string, instrument: string | null) => void;
   onSetTrackColor: (id: string, color: string) => void;
+  onSetTrackLabel: (id: string, label: string) => void;
   noteRowHeight: number;
   pitchCount: number; // total visible rows (128)
   canAddTrack?: boolean; // UC-28: max 16 tracks
@@ -55,6 +57,7 @@ export function TrackList({
   onDeleteTrack,
   onAssignInstrument,
   onSetTrackColor,
+  onSetTrackLabel,
   noteRowHeight,
   pitchCount,
   canAddTrack = true,
@@ -67,6 +70,19 @@ export function TrackList({
 
   // UC-34: Track being edited for color
   const [editingColorTrackId, setEditingColorTrackId] = useState<string | null>(null);
+
+  // UC-35: Track being edited for label
+  const [editingLabelTrackId, setEditingLabelTrackId] = useState<string | null>(null);
+  const [labelInputValue, setLabelInputValue] = useState("");
+  const labelInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus input when editing starts
+  useEffect(() => {
+    if (editingLabelTrackId !== null && labelInputRef.current) {
+      labelInputRef.current.focus();
+      labelInputRef.current.select();
+    }
+  }, [editingLabelTrackId]);
 
   // Get short display name for instrument
   function getInstrumentDisplayName(instrument: string | null): string {
@@ -138,10 +154,44 @@ export function TrackList({
                   }}
                 />
 
-                {/* Track name */}
-                <span style={styles.trackName} title={track.name}>
-                  {track.name}
-                </span>
+                {/* Track name — click to edit label (UC-35) */}
+                {editingLabelTrackId === track.id ? (
+                  <input
+                    ref={labelInputRef}
+                    type="text"
+                    value={labelInputValue}
+                    maxLength={50}
+                    onChange={(e) => setLabelInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const trimmed = labelInputValue.trim();
+                        if (trimmed) onSetTrackLabel(track.id, trimmed);
+                        setEditingLabelTrackId(null);
+                      } else if (e.key === "Escape") {
+                        setEditingLabelTrackId(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      const trimmed = labelInputValue.trim();
+                      if (trimmed) onSetTrackLabel(track.id, trimmed);
+                      setEditingLabelTrackId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={styles.trackNameInput}
+                  />
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLabelInputValue(track.name);
+                      setEditingLabelTrackId(track.id);
+                    }}
+                    title="Click to rename track"
+                    style={styles.trackNameBtn}
+                  >
+                    {track.name}
+                  </button>
+                )}
 
                 {/* Instrument indicator (clickable) */}
                 <button
@@ -375,6 +425,32 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     maxWidth: 60,
+  },
+  trackNameBtn: {
+    fontSize: 12,
+    color: "#d4d4d8",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    padding: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: 60,
+    textAlign: "left",
+    fontFamily: "inherit",
+  },
+  trackNameInput: {
+    fontSize: 12,
+    color: "#d4d4d8",
+    background: "#09090b",
+    border: "1px solid #6366f1",
+    borderRadius: 3,
+    padding: "1px 4px",
+    outline: "none",
+    width: 60,
+    fontFamily: "inherit",
+    boxSizing: "border-box",
   },
   instrumentBtn: {
     fontSize: 9,

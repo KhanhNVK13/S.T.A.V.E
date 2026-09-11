@@ -7,6 +7,8 @@
  * UC-29: Remove track
  * UC-30: Assign instrument to track
  * UC-31: Quantize button
+ * UC-34: Set track color
+ * UC-35: Set track label
  */
 "use client";
 
@@ -198,6 +200,16 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     });
   }
 
+  // ── UC-35: Set track label ──────────────────────────────────
+  function handleSetTrackLabel(id: string, label: string) {
+    updateSnapshot({
+      ...snapshot,
+      tracks: snapshot.tracks.map((t) =>
+        t.id === id ? { ...t, name: label } : t,
+      ),
+    });
+  }
+
   // ── UC-29: Remove track ─────────────────────────────────────
   function handleDeleteTrack(id: string) {
     // BR-30: Project must have at least 1 track
@@ -383,6 +395,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onDeleteTrack={handleDeleteTrack}
           onAssignInstrument={handleAssignInstrument}
           onSetTrackColor={handleSetTrackColor}
+          onSetTrackLabel={handleSetTrackLabel}
           noteRowHeight={14}
           pitchCount={128}
           canAddTrack={snapshot.tracks.length < MAX_TRACKS}
