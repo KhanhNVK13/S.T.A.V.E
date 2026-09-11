@@ -206,3 +206,23 @@ export async function getProjectRankings(type?: 'trending' | 'top_forked' | 'top
 export async function getFeaturedContent(): Promise<FeaturedContent> {
   return apiFetch<FeaturedContent>('/explore/featured');
 }
+
+// ============================================
+// Draft API (MIDI Editor)
+// ============================================
+import type { DraftSnapshot } from "@stave/shared-types";
+
+export type { DraftSnapshot };
+
+/** GET /projects/:id/draft — load draft snapshot */
+export async function getDraft(projectId: string): Promise<DraftSnapshot> {
+  return apiFetch<DraftSnapshot>(`/projects/${projectId}/draft`);
+}
+
+/** PUT /projects/:id/draft — save draft snapshot (auto-save) */
+export async function putDraft(projectId: string, snapshot: DraftSnapshot): Promise<void> {
+  await apiFetch<void>(`/projects/${projectId}/draft`, {
+    method: "PUT",
+    body: JSON.stringify(snapshot),
+  });
+}
