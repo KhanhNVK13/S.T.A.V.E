@@ -383,8 +383,6 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onDeleteTrack={handleDeleteTrack}
           onAssignInstrument={handleAssignInstrument}
           onSetTrackColor={handleSetTrackColor}
-          noteRowHeight={14}
-          pitchCount={128}
           canAddTrack={snapshot.tracks.length < MAX_TRACKS}
         />
         <PianoRoll
