@@ -31,6 +31,10 @@ interface TrackListProps {
 
 const TRACK_HEIGHT = 36; // px per track header row
 
+// UC-35 exception 4.E2: label max length — shared by the input's `maxLength`
+// attribute and the character counter shown while editing.
+const MAX_LABEL_LENGTH = 50;
+
 // UC-34: Color palette for tracks (matches TRACK_COLORS in midi-editor)
 const TRACK_COLOR_PALETTE = [
   "#6366f1", // indigo
@@ -75,10 +79,31 @@ export function TrackList({
   const [editingLabelTrackId, setEditingLabelTrackId] = useState<string | null>(null);
   const [labelInputValue, setLabelInputValue] = useState("");
   const labelInputRef = useRef<HTMLInputElement>(null);
+  // Enter/Escape both end editing, which unmounts the input and triggers a
+  // native `blur` — without this flag, onBlur would run again afterwards and
+  // re-save (double-fire on Enter) or silently overrule Escape's "discard
+  // and restore" (SRS UC-35 alt-flow 3.1). Set before closing, checked (and
+  // reset) at the top of onBlur.
+  const labelIntentHandledRef = useRef(false);
+
+  function commitLabel(trackId: string) {
+    const trimmed = labelInputValue.trim();
+    // Exception 4.E1: empty label — restore the previous one (do nothing).
+    if (trimmed) onSetTrackLabel(trackId, trimmed);
+    labelIntentHandledRef.current = true;
+    setEditingLabelTrackId(null);
+  }
+
+  function cancelLabelEdit() {
+    // Alt-flow 3.1: Escape discards the change and restores the previous label.
+    labelIntentHandledRef.current = true;
+    setEditingLabelTrackId(null);
+  }
 
   // Auto-focus input when editing starts
   useEffect(() => {
     if (editingLabelTrackId !== null && labelInputRef.current) {
+      labelIntentHandledRef.current = false;
       labelInputRef.current.focus();
       labelInputRef.current.select();
     }
@@ -156,29 +181,35 @@ export function TrackList({
 
                 {/* Track name — click to edit label (UC-35) */}
                 {editingLabelTrackId === track.id ? (
-                  <input
-                    ref={labelInputRef}
-                    type="text"
-                    value={labelInputValue}
-                    maxLength={50}
-                    onChange={(e) => setLabelInputValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const trimmed = labelInputValue.trim();
-                        if (trimmed) onSetTrackLabel(track.id, trimmed);
-                        setEditingLabelTrackId(null);
-                      } else if (e.key === "Escape") {
-                        setEditingLabelTrackId(null);
-                      }
-                    }}
-                    onBlur={() => {
-                      const trimmed = labelInputValue.trim();
-                      if (trimmed) onSetTrackLabel(track.id, trimmed);
-                      setEditingLabelTrackId(null);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    style={styles.trackNameInput}
-                  />
+                  <span style={styles.trackNameEditWrap}>
+                    <input
+                      ref={labelInputRef}
+                      type="text"
+                      value={labelInputValue}
+                      maxLength={MAX_LABEL_LENGTH}
+                      onChange={(e) => setLabelInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          commitLabel(track.id);
+                        } else if (e.key === "Escape") {
+                          cancelLabelEdit();
+                        }
+                      }}
+                      onBlur={() => {
+                        // Enter/Escape already handled intent and closed
+                        // editing — the blur that follows (from the input
+                        // unmounting) must not save/re-save on top of that.
+                        if (labelIntentHandledRef.current) return;
+                        commitLabel(track.id);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={styles.trackNameInput}
+                    />
+                    {/* Exception 4.E2: show the length limit while editing */}
+                    <span style={styles.trackNameCounter}>
+                      {labelInputValue.length}/{MAX_LABEL_LENGTH}
+                    </span>
+                  </span>
                 ) : (
                   <button
                     onClick={(e) => {
@@ -418,13 +449,15 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "50%",
     flexShrink: 0,
   },
-  trackName: {
-    fontSize: 12,
-    color: "#d4d4d8",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    maxWidth: 60,
+  trackNameEditWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 1,
+  },
+  trackNameCounter: {
+    fontSize: 8,
+    color: "#52525b",
+    lineHeight: 1,
   },
   trackNameBtn: {
     fontSize: 12,

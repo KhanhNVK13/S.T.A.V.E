@@ -9,6 +9,8 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { GM_INSTRUMENT_NAMES } from '@stave/shared-types';
@@ -39,7 +41,10 @@ export class DraftTrackDto implements DraftTrack {
   @IsString()
   id!: string;
 
+  /** UC-35 normal flow step 4 / exception 4.E1-4.E2: 1-50 chars, never empty. */
   @IsString()
+  @MinLength(1)
+  @MaxLength(50)
   name!: string;
 
   @IsInt()
