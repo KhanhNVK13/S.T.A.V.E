@@ -4,6 +4,7 @@
  *   UC-25: Add note  — Pencil tool: mousedown → draw note
  *   UC-26: Edit note — Pointer tool: drag to move, drag right-edge to resize
  *   UC-27: Delete    — Eraser tool click OR right-click any note
+ *   UC-32: Copy      — Ctrl+A select all, click/shift-click to select notes
  */
 "use client";
 
@@ -63,6 +64,9 @@ interface PianoRollProps {
   gridDivision: GridDivision;
   playheadTick: number;
   onNotesChange: (notes: DraftNote[]) => void;
+  selectedNoteIds: Set<string>;
+  onSelectedNotesChange: (ids: Set<string>) => void;
+  onSelectAll: () => void;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -77,6 +81,9 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       gridDivision,
       playheadTick,
       onNotesChange,
+      selectedNoteIds,
+      onSelectedNotesChange,
+      onSelectAll,
     },
     ref,
   ) {
@@ -86,6 +93,9 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     const [scrollY, setScrollY] = useState((128 - 72) * ROW_H); // start near C5
     const dragRef = useRef<DragState | null>(null);
     const drawNoteRef = useRef<DraftNote | null>(null); // note being drawn
+    // Box selection state (UC-32)
+    const boxSelectRef = useRef<{ startX: number; startY: number } | null>(null);
+    const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
 
     // px per tick
     const pxPerTick = 0.06 * zoom;
@@ -245,11 +255,21 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         if (nx + nw < KEY_WIDTH || nx > W || ny + ROW_H < HEADER_H || ny > H)
           return;
 
+        const isSelected = selectedNoteIds.has(n.id);
+
         // Note body
         ctx.fillStyle = color;
-        ctx.globalAlpha = track?.muted ? 0.3 : 0.85;
+        ctx.globalAlpha = track?.muted ? 0.3 : isSelected ? 1 : 0.85;
         roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
         ctx.fill();
+
+        // Selected highlight border (UC-32)
+        if (isSelected) {
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
+          ctx.stroke();
+        }
 
         // Resize handle highlight
         ctx.fillStyle = "rgba(255,255,255,0.25)";
@@ -281,7 +301,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         ctx.lineTo(phX, H);
         ctx.stroke();
       }
-    }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid]);
+    }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, selectedNoteIds]);
 
     // Re-draw whenever state changes
     useEffect(() => {
@@ -366,7 +386,26 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
       // Pointer tool
       const hit = hitNote(cx, cy);
-      if (!hit) return;
+      if (!hit) {
+        // UC-32: Start box selection if click on empty area
+        boxSelectRef.current = { startX: cx, startY: cy };
+        return;
+      }
+
+      // UC-32: Handle note selection
+      if (e.shiftKey) {
+        // Shift+click: add/remove from selection
+        const newSet = new Set(selectedNoteIds);
+        if (newSet.has(hit.note.id)) {
+          newSet.delete(hit.note.id);
+        } else {
+          newSet.add(hit.note.id);
+        }
+        onSelectedNotesChange(newSet);
+      } else if (!selectedNoteIds.has(hit.note.id)) {
+        // Click on non-selected note: select only this note
+        onSelectedNotesChange(new Set([hit.note.id]));
+      }
 
       dragRef.current = {
         type: hit.zone === "resize" ? "resize" : "move",
@@ -382,6 +421,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
       const drag = dragRef.current;
       const { cx, cy } = canvasCoords(e);
+      lastMouseRef.current = { x: cx, y: cy };
 
       if (!drag) {
         // Update cursor
@@ -391,7 +431,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
             canvasRef.current!.style.cursor =
               hit.zone === "resize" ? "ew-resize" : "grab";
           } else {
-            canvasRef.current!.style.cursor = "default";
+            canvasRef.current!.style.cursor = boxSelectRef.current ? "crosshair" : "default";
           }
         }
         return;
@@ -442,6 +482,36 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
     function handleMouseUp() {
       const drag = dragRef.current;
+      const last = lastMouseRef.current;
+
+      // UC-32: Commit box selection
+      if (boxSelectRef.current && last) {
+        const { startX, startY } = boxSelectRef.current;
+        const cx = last.x;
+        const cy = last.y;
+        const minX = Math.min(startX, cx);
+        const maxX = Math.max(startX, cx);
+        const minY = Math.min(startY, cy);
+        const maxY = Math.max(startY, cy);
+
+        // Only commit if box has meaningful size (> 3px)
+        if (maxX - minX > 3 || maxY - minY > 3) {
+          const boxSelectedIds = new Set<string>();
+          notes.forEach((n) => {
+            const nx = KEY_WIDTH + n.start * pxPerTick - scrollX;
+            const nw = Math.max(4, n.duration * pxPerTick);
+            const ny = HEADER_H + (PITCH_COUNT - 1 - n.pitch) * ROW_H - scrollY;
+
+            // Check if note overlaps with box
+            if (nx + nw >= minX && nx <= maxX && ny + ROW_H >= minY && ny <= maxY) {
+              boxSelectedIds.add(n.id);
+            }
+          });
+          onSelectedNotesChange(boxSelectedIds);
+        }
+        boxSelectRef.current = null;
+      }
+
       if (drag?.type === "draw" && drawNoteRef.current) {
         // Commit the drawn note
         onNotesChange([...notes, drawNoteRef.current]);
