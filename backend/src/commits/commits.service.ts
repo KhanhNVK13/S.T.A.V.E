@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -190,10 +191,16 @@ export class CommitsService {
    */
   async getCommitHistory(
     dto: GetCommitHistoryDto,
+    userId: string,
   ): Promise<PaginatedCommitHistory> {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
     const offset = (page - 1) * limit;
+
+    // If filtering by branch, verify user has access
+    if (dto.branch_id) {
+      await this.verifyBranchAccess(dto.branch_id, userId);
+    }
 
     let query = this.supabase.from('commits').select('*', { count: 'exact' });
 
@@ -255,17 +262,26 @@ export class CommitsService {
   /**
    * Get single commit by ID
    */
-  async getCommitById(commitId: string): Promise<CommitWithAuthor> {
-    // Fetch commit
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  async getCommitById(
+    commitId: string,
+    userId: string,
+  ): Promise<CommitWithAuthor> {
+    // Fetch commit with branch info for ownership check
     const { data: commitData, error: commitError } = await this.supabase
       .from('commits')
-      .select('*')
+      .select('*, branch:branches!inner(project_id)')
       .eq('id', commitId)
       .single();
 
     if (commitError || !commitData) {
       throw new NotFoundException('Commit not found');
+    }
+
+    // Verify user has access to the project
+    const projectId = (commitData as { branch?: { project_id: string } }).branch
+      ?.project_id;
+    if (projectId) {
+      await this.verifyProjectOwnership(projectId, userId);
     }
 
     const commit = commitData as unknown as CommitDbRow;
@@ -430,6 +446,7 @@ export class CommitsService {
   async compareCommits(
     baseCommitId: string,
     targetCommitId: string,
+    userId?: string,
   ): Promise<ReturnType<DiffService['compareSnapshots']>> {
     // Fetch base commit
     const { data: baseCommit, error: baseError } = await this.supabase
@@ -453,17 +470,22 @@ export class CommitsService {
       throw new NotFoundException('Target commit not found');
     }
 
-    // Verify both commits belong to the same project (BR-46)
+    // Get branch and project IDs
     const baseBranchId = (baseCommit as { branch_id: string }).branch_id;
     const targetBranchId = (targetCommit as { branch_id: string }).branch_id;
-
     const baseProjectId = await this.getProjectIdFromBranch(baseBranchId);
     const targetProjectId = await this.getProjectIdFromBranch(targetBranchId);
 
+    // Verify both commits belong to the same project (BR-46)
     if (baseProjectId !== targetProjectId) {
       throw new BadRequestException(
         'Cannot compare commits from different projects',
       );
+    }
+
+    // Verify ownership if userId provided
+    if (userId && baseProjectId) {
+      await this.verifyProjectOwnership(baseProjectId, userId);
     }
 
     // Use DiffService to compare snapshots
@@ -499,10 +521,13 @@ export class CommitsService {
   ): Promise<CommitRow> {
     const { branch_id, message: customMessage } = dto;
 
-    // Step 1: Get the commit to restore
+    // Step 1: Verify user has access to the target branch (also verifies ownership)
+    const branch = await this.verifyBranchAccess(branch_id, userId);
+
+    // Step 2: Get the commit to restore and verify it belongs to the same project
     const { data: commitToRestore, error: commitError } = await this.supabase
       .from('commits')
-      .select('*')
+      .select('*, branch:branches!inner(project_id)')
       .eq('id', commitId)
       .single();
 
@@ -510,10 +535,17 @@ export class CommitsService {
       throw new NotFoundException('Commit to restore not found');
     }
 
-    const commit = commitToRestore as unknown as CommitDbRow;
+    // SECURITY FIX: Verify commit belongs to same project as target branch
+    const commitProjectId = (
+      commitToRestore as { branch?: { project_id: string } }
+    ).branch?.project_id;
+    if (commitProjectId !== branch.project_id) {
+      throw new ForbiddenException(
+        'Cannot restore a commit from a different project',
+      );
+    }
 
-    // Step 2: Verify user has access to the target branch
-    const branch = await this.verifyBranchAccess(branch_id, userId);
+    const commit = commitToRestore as unknown as CommitDbRow;
 
     // Step 3: PRE-3 Check - Verify this commit is not already the head
     // If the commit being restored IS the current head, no need to restore
@@ -787,6 +819,7 @@ export class CommitsService {
         solo: t.isSolo ?? false,
         volume: t.volume ?? 1,
         pan: t.pan ?? 0,
+        instrument: t.instrument ?? null,
       })),
       notes: (snapshot.notes ?? []).map((n) => ({
         id: n.id ?? uuidv4(),
@@ -820,19 +853,14 @@ export class CommitsService {
    */
   private async getTagsForCommits(
     commitIds: string[],
-  ): Promise<Map<string, string[]>> {
+  ): Promise<Map<string, TagRow[]>> {
     if (commitIds.length === 0) {
       return new Map();
     }
 
-    interface TagRow {
-      commit_id: string;
-      name: string;
-    }
-
     const { data, error } = await this.supabase
       .from('tags')
-      .select('commit_id, name')
+      .select('id, commit_id, name, color, created_by, created_at')
       .in('commit_id', commitIds);
 
     if (error) {
@@ -840,14 +868,13 @@ export class CommitsService {
       return new Map();
     }
 
-    const tagsMap = new Map<string, string[]>();
+    const tagsMap = new Map<string, TagRow[]>();
     for (const tag of (data as TagRow[]) ?? []) {
       const tid = tag.commit_id;
-      const name = tag.name;
       if (!tagsMap.has(tid)) {
         tagsMap.set(tid, []);
       }
-      tagsMap.get(tid)!.push(name);
+      tagsMap.get(tid)!.push(tag);
     }
 
     return tagsMap;
@@ -907,5 +934,27 @@ export class CommitsService {
     }
 
     return authorsMap;
+  }
+
+  /**
+   * Verify user owns the project (ownership check for security)
+   */
+  private async verifyProjectOwnership(
+    projectId: string,
+    userId: string,
+  ): Promise<void> {
+    const { data: project } = await this.supabase
+      .from('projects')
+      .select('owner_id')
+      .eq('id', projectId)
+      .single();
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    if (project.owner_id !== userId) {
+      throw new ForbiddenException('You do not have access to this project');
+    }
   }
 }

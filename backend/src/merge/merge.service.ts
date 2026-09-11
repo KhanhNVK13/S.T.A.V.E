@@ -205,11 +205,21 @@ export class MergeService {
     const { baseSnapshot, sourceSnapshot, targetSnapshot } =
       await this.getThreeSnapshots(sourceBranch, targetBranch);
 
-    // Apply resolutions
-    const mergedSnapshot = this.applyResolutions(
-      baseSnapshot,
-      sourceSnapshot,
-      targetSnapshot,
+    // Handle null snapshots
+    const base = baseSnapshot ?? this.createEmptySnapshot();
+    const source = sourceSnapshot ?? this.createEmptySnapshot();
+    const target = targetSnapshot ?? this.createEmptySnapshot();
+
+    // Run full 3-way merge to get non-conflicting notes
+    const notesResult = this.mergeNotes(base.notes, source.notes, target.notes);
+
+    // Apply resolutions to conflicting notes
+    const finalMergedSnapshot = this.applyResolutionsWithMergedNotes(
+      base,
+      source,
+      target,
+      notesResult.merged,
+      notesResult.conflicts,
       resolutions,
     );
 
@@ -220,7 +230,7 @@ export class MergeService {
     const commit = await this.createMergeCommit(
       userId,
       targetBranchId,
-      mergedSnapshot,
+      finalMergedSnapshot,
       commitMessage,
     );
 
@@ -260,7 +270,10 @@ export class MergeService {
       return {
         hasConflicts: true,
         conflictsCount: notesResult.conflicts.length,
-        conflictsByBar: this.groupConflictsByBar(notesResult.conflicts),
+        conflictsByBar: this.groupConflictsByBar(
+          notesResult.conflicts,
+          source.meta ?? target.meta,
+        ),
       };
     }
 
@@ -314,77 +327,22 @@ export class MergeService {
       const sourceNote = sourceMap.get(noteId);
       const targetNote = targetMap.get(noteId);
 
-      // Case 1: Unchanged - note same in source and target
-      if (sourceNote && targetNote && this.notesEqual(sourceNote, targetNote)) {
-        merged.push(sourceNote);
-        continue;
-      }
-
-      // Case 2: Source-Only Modified/Added (target unchanged from base)
-      if (sourceNote && !targetNote) {
-        // Check if target changed from base
-        if (!baseNote) {
-          // Source added new note - include it
-          merged.push(sourceNote);
-          continue;
-        }
-        // Target deleted this note - it's a conflict
-        if (targetNote && !this.notesEqual(baseNote, targetNote)) {
-          // Target explicitly deleted
-          conflicts.push({
-            noteId,
-            baseNote,
-            sourceNote,
-            targetNote: undefined,
-            type: 'DELETE_VS_MODIFY',
-          });
-          continue;
-        }
-        merged.push(sourceNote);
-        continue;
-      }
-
-      // Case 3: Target-Only Modified/Added (source unchanged from base)
-      if (targetNote && !sourceNote) {
-        // Check if source changed from base
-        if (!baseNote) {
-          // Target added new note - include it
-          merged.push(targetNote);
-          continue;
-        }
-        // Source deleted this note - it's a conflict
-        if (sourceNote && !this.notesEqual(baseNote, sourceNote)) {
-          // Source explicitly deleted
-          conflicts.push({
-            noteId,
-            baseNote,
-            sourceNote: undefined,
-            targetNote,
-            type: 'DELETE_VS_MODIFY',
-          });
-          continue;
-        }
-        merged.push(targetNote);
-        continue;
-      }
-
-      // Case 4: Both Modified
+      // Case 1: Note exists in both source and target - check if unchanged
       if (sourceNote && targetNote) {
-        // Check if both modified the same way
-        const sourceChanged = baseNote
-          ? !this.notesEqual(sourceNote, baseNote)
-          : true;
-        const targetChanged = baseNote
-          ? !this.notesEqual(targetNote, baseNote)
-          : true;
+        if (this.notesEqual(sourceNote, targetNote)) {
+          // Unchanged - include it
+          merged.push(sourceNote);
+        } else {
+          // Both modified - check if same change
+          const sourceChanged = baseNote
+            ? !this.notesEqual(sourceNote, baseNote)
+            : true;
+          const targetChanged = baseNote
+            ? !this.notesEqual(targetNote, baseNote)
+            : true;
 
-        if (sourceChanged && targetChanged) {
-          // Both changed - check if they changed the same way
-          if (this.notesEqual(sourceNote, targetNote)) {
-            // Same change - include it
-            merged.push(sourceNote);
-          } else {
-            // Different changes - CONFLICT
+          if (sourceChanged && targetChanged) {
+            // Both changed differently - CONFLICT
             conflicts.push({
               noteId,
               baseNote,
@@ -392,17 +350,61 @@ export class MergeService {
               targetNote,
               type: 'MODIFIED_DIFFERENTLY',
             });
+          } else if (sourceChanged) {
+            // Only source changed - use source
+            merged.push(sourceNote);
+          } else {
+            // Only target changed - use target
+            merged.push(targetNote);
           }
-        } else if (sourceChanged) {
-          // Only source changed - use source
+        }
+        continue;
+      }
+
+      // Case 2: Source has note, Target doesn't
+      if (sourceNote && !targetNote) {
+        if (!baseNote) {
+          // Source added new note - include it
           merged.push(sourceNote);
-        } else if (targetChanged) {
-          // Only target changed - use target
+        } else {
+          // Base had note, Target doesn't = Target deleted
+          // Source modified or kept it = Source modified
+          // This is DELETE_VS_MODIFY conflict
+          conflicts.push({
+            noteId,
+            baseNote,
+            sourceNote,
+            targetNote: undefined,
+            type: 'DELETE_VS_MODIFY',
+          });
+        }
+        continue;
+      }
+
+      // Case 3: Target has note, Source doesn't
+      if (targetNote && !sourceNote) {
+        if (!baseNote) {
+          // Target added new note - include it
           merged.push(targetNote);
         } else {
-          // Neither changed - include base
-          merged.push(baseNote!);
+          // Base had note, Source doesn't = Source deleted
+          // Target modified or kept it = Target modified
+          // This is DELETE_VS_MODIFY conflict
+          conflicts.push({
+            noteId,
+            baseNote,
+            sourceNote: undefined,
+            targetNote,
+            type: 'DELETE_VS_MODIFY',
+          });
         }
+        continue;
+      }
+
+      // Case 4: Only in base (deleted from both) - skip
+      if (baseNote && !sourceNote && !targetNote) {
+        // Note deleted from both - don't include
+        continue;
       }
     }
 
@@ -524,6 +526,76 @@ export class MergeService {
   }
 
   /**
+   * Apply resolutions to conflicting notes with pre-merged notes
+   */
+  private applyResolutionsWithMergedNotes(
+    base: DraftSnapshot,
+    source: DraftSnapshot,
+    target: DraftSnapshot,
+    preMergedNotes: DraftNote[],
+    conflicts: NoteConflict[],
+    resolutions: Array<{
+      noteId: string;
+      choice: ConflictChoice;
+      customNote?: Partial<DraftNote>;
+    }>,
+  ): DraftSnapshot {
+    // Start with pre-merged notes (non-conflicting)
+    const resultNotes: DraftNote[] = [...preMergedNotes];
+    const resultTracks = this.mergeTracks(
+      base.tracks,
+      source.tracks,
+      target.tracks,
+    );
+
+    // Apply resolutions to conflicting notes
+    for (const conflict of conflicts) {
+      const resolution = resolutions.find((r) => r.noteId === conflict.noteId);
+      const { noteId, choice, customNote } = resolution ?? {
+        noteId: conflict.noteId,
+        choice: ConflictChoice.PICK_TARGET as ConflictChoice,
+      };
+
+      switch (choice) {
+        case ConflictChoice.PICK_SOURCE: {
+          if (conflict.sourceNote) {
+            resultNotes.push(conflict.sourceNote);
+          }
+          break;
+        }
+        case ConflictChoice.PICK_TARGET: {
+          if (conflict.targetNote) {
+            resultNotes.push(conflict.targetNote);
+          }
+          break;
+        }
+        case ConflictChoice.PICK_CUSTOM: {
+          if (customNote) {
+            resultNotes.push({
+              id: noteId,
+              trackId: customNote.trackId ?? conflict.baseNote?.trackId ?? '',
+              pitch: customNote.pitch ?? conflict.baseNote?.pitch ?? 60,
+              start: customNote.start ?? conflict.baseNote?.start ?? 0,
+              duration:
+                customNote.duration ?? conflict.baseNote?.duration ?? 480,
+              velocity:
+                customNote.velocity ?? conflict.baseNote?.velocity ?? 80,
+            });
+          }
+          break;
+        }
+      }
+    }
+
+    return {
+      schemaVersion: source.schemaVersion ?? 1,
+      meta: source.meta ?? target.meta ?? base.meta,
+      tracks: resultTracks,
+      notes: resultNotes,
+    };
+  }
+
+  /**
    * Check if two notes are equal
    */
   private notesEqual(a: DraftNote, b: DraftNote): boolean {
@@ -537,12 +609,17 @@ export class MergeService {
   }
 
   /**
-   * Group conflicts by bar number
+   * Group conflicts by bar number using dynamic calculation
    */
   private groupConflictsByBar(
     conflicts: NoteConflict[],
+    meta?: { ppq?: number; timeSignature?: [number, number] },
   ): Record<number, NoteConflict[]> {
-    const ticksPerBar = 1920; // Assuming 4/4 time signature at 480 PPQ
+    // Dynamic ticks per bar: ppq * beats_per_bar
+    // beats_per_bar = numerator * (4/denominator) for standard time sigs
+    const ppq = meta?.ppq ?? 480;
+    const [numerator = 4, denominator = 4] = meta?.timeSignature ?? [4, 4];
+    const ticksPerBar = ppq * (numerator / denominator) * 4;
 
     const grouped: Record<number, NoteConflict[]> = {};
 
@@ -755,6 +832,14 @@ export class MergeService {
       );
     }
 
+    // BR-54: Cannot delete currently active branch
+    const isActive = await this.isBranchActiveForUser(userId, branchId);
+    if (isActive) {
+      throw new BadRequestException(
+        'Cannot delete the currently active branch. Switch to another branch first.',
+      );
+    }
+
     // Delete draft record first
     await this.supabase.from('drafts').delete().eq('branch_id', branchId);
 
@@ -771,5 +856,28 @@ export class MergeService {
     }
 
     // Note: We do NOT delete commits - they are kept for history integrity
+  }
+
+  /**
+   * Check if a branch is currently active for a user
+   */
+  private async isBranchActiveForUser(
+    userId: string,
+    branchId: string,
+  ): Promise<boolean> {
+    // Check if there's a recent draft activity for this user on this branch
+    // This is a simplified check - in production, you might have a user_sessions table
+    // or check the most recently accessed draft
+    const { data: recentDraft } = await this.supabase
+      .from('drafts')
+      .select('branch_id')
+      .eq('branch_id', branchId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // If there's a draft associated with this branch, consider it potentially active
+    // The actual "active branch" for a user would be tracked in a user session/context
+    return recentDraft !== null;
   }
 }

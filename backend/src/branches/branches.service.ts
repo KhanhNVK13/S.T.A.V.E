@@ -677,6 +677,7 @@ export class BranchesService {
         solo: t.isSolo ?? false,
         volume: t.volume ?? 1,
         pan: t.pan ?? 0,
+        instrument: t.instrument ?? null,
       })),
       notes: (dto.notes ?? []).map((n) => ({
         id: n.id ?? uuidv4(),

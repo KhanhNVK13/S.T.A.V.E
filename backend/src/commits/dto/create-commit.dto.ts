@@ -75,6 +75,11 @@ export class DraftTrackDto {
 
   @IsOptional()
   isSolo?: boolean;
+
+  /** UC-30: General MIDI instrument name, null = default (sine oscillator) */
+  @IsOptional()
+  @IsString()
+  instrument?: string | null;
 }
 
 /** Full snapshot structure sent from client */

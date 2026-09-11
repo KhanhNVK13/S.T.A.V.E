@@ -97,9 +97,10 @@ export class CommitsController {
    */
   @Get()
   async getCommitHistory(
+    @CurrentUser() userId: string,
     @Query() dto: GetCommitHistoryDto,
   ): Promise<PaginatedCommitHistory> {
-    return this.commitsService.getCommitHistory(dto);
+    return this.commitsService.getCommitHistory(dto, userId);
   }
 
   // ==========================================================================
@@ -120,10 +121,14 @@ export class CommitsController {
    * Returns: SnapshotDiff with notes/tracks changes grouped by bar
    */
   @Get('diff')
-  async compareCommits(@Query() dto: CompareCommitsDto): Promise<SnapshotDiff> {
+  async compareCommits(
+    @CurrentUser() userId: string,
+    @Query() dto: CompareCommitsDto,
+  ): Promise<SnapshotDiff> {
     return this.commitsService.compareCommits(
       dto.baseCommitId,
       dto.targetCommitId,
+      userId,
     );
   }
 
@@ -140,9 +145,10 @@ export class CommitsController {
    */
   @Get(':id')
   async getCommitById(
+    @CurrentUser() userId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<CommitWithAuthor> {
-    return this.commitsService.getCommitById(id);
+    return this.commitsService.getCommitById(id, userId);
   }
 
   // ==========================================================================

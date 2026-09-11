@@ -34,6 +34,7 @@ export class DraftSnapshotDto {
     pan: number;
     isMuted?: boolean;
     isSolo?: boolean;
+    instrument?: string | null;
   }>;
 
   @IsOptional()
