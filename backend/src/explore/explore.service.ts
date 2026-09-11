@@ -81,6 +81,10 @@ export class ExploreService {
       queryBuilder = queryBuilder.ilike('genre', `%${query.genre}%`);
     }
 
+    if (query.search) {
+      queryBuilder = queryBuilder.ilike('name', `%${query.search}%`);
+    }
+
     if (query.tag) {
       const projectIds = await this.getProjectIdsForTag(query.tag);
       queryBuilder = queryBuilder.in('id', projectIds);
