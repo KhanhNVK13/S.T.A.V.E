@@ -7,8 +7,11 @@
  * UC-29: Remove track
  * UC-30: Assign instrument to track
  * UC-31: Quantize button
+ * UC-32: Copy pattern
+ * UC-33: Paste pattern
  * UC-34: Set track color
  * UC-35: Set track label
+ * UC-37: Playback project
  */
 "use client";
 
@@ -58,13 +61,20 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [playheadTick, setPlayheadTick] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [trackLimitWarning, setTrackLimitWarning] = useState(false);
+  // UC-37: Playback state
+  const [loopOn, setLoopOn] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // UC-37: Refs for playback closure access
+  const loopOnRef = useRef(false);
+  const startTickRef = useRef(0);
+  const endTickRef = useRef(0);
   // Always holds the latest snapshot so the unmount-flush below (a cleanup
   // closure, which only ever sees the snapshot from its own render) can save
   // the most recent edit instead of whatever was current when it was set up.
@@ -264,10 +274,12 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     e.target.value = "";
   }
 
-  // ── Playback (simple Web Audio oscillator) ──────────────────
+  // ── Playback (UC-37: Enhanced with instrument, solo, volume, pan, loop) ──
   function handlePlay() {
     if (isPlaying) return;
     setIsPlaying(true);
+    setIsPaused(false);
+
     const ctx = new AudioContext();
     audioCtxRef.current = ctx;
     const bpm = snapshot.meta.tempo;
@@ -276,44 +288,147 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     const startTick = playheadTick;
     const startTime = ctx.currentTime;
 
-    // Schedule all notes via Web Audio
-    snapshot.notes.forEach((n) => {
+    // UC-37: Calculate end tick for auto-stop
+    const allNotes = snapshot.notes;
+    const endTick = allNotes.length > 0
+      ? Math.max(...allNotes.map((n) => n.start + n.duration))
+      : startTick;
+    startTickRef.current = startTick;
+    endTickRef.current = endTick;
+    loopOnRef.current = loopOn;
+
+    // UC-37: Check solo - if any track is solo'd, only play solo tracks
+    const hasSolo = snapshot.tracks.some((t) => t.solo);
+
+    // UC-37: Schedule all notes via Web Audio with instrument, volume, pan
+    allNotes.forEach((n) => {
       const track = snapshot.tracks.find((t) => t.id === n.trackId);
-      if (track?.muted) return;
+      if (!track) return;
+
+      // UC-37: Respect mute/solo
+      if (track.muted) return;
+      if (hasSolo && !track.solo) return;
+
       const noteStart = (n.start - startTick) * secPerTick;
       if (noteStart < 0) return;
 
+      // UC-37: Create audio chain: Oscillator → Gain → Pan → Destination
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      const panner = ctx.createStereoPanner();
+
+      // UC-37: Map instrument to oscillator type
+      osc.type = getOscillatorType(track.instrument);
       osc.frequency.value = 440 * Math.pow(2, (n.pitch - 69) / 12);
-      osc.type = "sine";
+
+      // UC-37: Apply volume (0-1) and velocity (1-127)
+      const volume = (track.volume ?? 1) * (n.velocity / 127) * 0.3;
       gain.gain.setValueAtTime(0, startTime + noteStart);
-      gain.gain.linearRampToValueAtTime(
-        (n.velocity / 127) * (track?.volume ?? 1) * 0.3,
-        startTime + noteStart + 0.01,
-      );
+      gain.gain.linearRampToValueAtTime(volume, startTime + noteStart + 0.01);
+
       const noteDur = n.duration * secPerTick;
-      gain.gain.setValueAtTime(
-        (n.velocity / 127) * (track?.volume ?? 1) * 0.3,
-        startTime + noteStart + noteDur - 0.01,
-      );
+      gain.gain.setValueAtTime(volume, startTime + noteStart + noteDur - 0.01);
       gain.gain.linearRampToValueAtTime(0, startTime + noteStart + noteDur);
+
+      // UC-37: Apply pan (-1 to 1)
+      panner.pan.value = track.pan ?? 0;
+
+      // Connect: Osc → Gain → Pan → Destination
+      osc.connect(gain);
+      gain.connect(panner);
+      panner.connect(ctx.destination);
+
       osc.start(startTime + noteStart);
       osc.stop(startTime + noteStart + noteDur + 0.01);
     });
 
-    // Animate playhead
+    // UC-37: Animate playhead with loop support
+    const ticksPerMs = (bpm * ppq) / 60000;
+    const originalStartTick = startTick;
+
+    playTimerRef.current = setInterval(() => {
+      const elapsed = (ctx.currentTime - startTime) * 1000;
+      let currentTick = Math.floor(startTick + elapsed * ticksPerMs);
+
+      // UC-37: Loop or stop at end
+      if (loopOnRef.current && currentTick >= endTickRef.current) {
+        // Reset for loop
+        currentTick = originalStartTick;
+        // Need to reschedule audio for the new loop iteration
+        handleStop();
+        handlePlayFromTick(originalStartTick);
+        return;
+      } else if (currentTick >= endTickRef.current) {
+        // Stop at end
+        handleStop();
+        return;
+      }
+
+      setPlayheadTick(currentTick);
+    }, 16);
+  }
+
+  // UC-37: Internal play from specific tick (used for loop)
+  function handlePlayFromTick(fromTick: number) {
+    if (audioCtxRef.current) return; // Already playing
+    setIsPlaying(true);
+    setIsPaused(false);
+
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+    const bpm = snapshot.meta.tempo;
+    const ppq = snapshot.meta.ppq;
+    const secPerTick = 60 / (bpm * ppq);
+    const startTime = ctx.currentTime;
+
+    const allNotes = snapshot.notes;
+    const hasSolo = snapshot.tracks.some((t) => t.solo);
+
+    allNotes.forEach((n) => {
+      const track = snapshot.tracks.find((t) => t.id === n.trackId);
+      if (!track) return;
+      if (track.muted) return;
+      if (hasSolo && !track.solo) return;
+
+      const noteStart = (n.start - fromTick) * secPerTick;
+      if (noteStart < 0) return;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const panner = ctx.createStereoPanner();
+
+      osc.type = getOscillatorType(track.instrument);
+      osc.frequency.value = 440 * Math.pow(2, (n.pitch - 69) / 12);
+
+      const volume = (track.volume ?? 1) * (n.velocity / 127) * 0.3;
+      gain.gain.setValueAtTime(0, startTime + noteStart);
+      gain.gain.linearRampToValueAtTime(volume, startTime + noteStart + 0.01);
+
+      const noteDur = n.duration * secPerTick;
+      gain.gain.setValueAtTime(volume, startTime + noteStart + noteDur - 0.01);
+      gain.gain.linearRampToValueAtTime(0, startTime + noteStart + noteDur);
+
+      panner.pan.value = track.pan ?? 0;
+
+      osc.connect(gain);
+      gain.connect(panner);
+      panner.connect(ctx.destination);
+
+      osc.start(startTime + noteStart);
+      osc.stop(startTime + noteStart + noteDur + 0.01);
+    });
+
     const ticksPerMs = (bpm * ppq) / 60000;
     playTimerRef.current = setInterval(() => {
       const elapsed = (ctx.currentTime - startTime) * 1000;
-      setPlayheadTick(Math.floor(startTick + elapsed * ticksPerMs));
+      const currentTick = Math.floor(fromTick + elapsed * ticksPerMs);
+      setPlayheadTick(currentTick);
     }, 16);
   }
 
   function handleStop() {
     setIsPlaying(false);
+    setIsPaused(false);
     if (audioCtxRef.current) {
       void audioCtxRef.current.close();
       audioCtxRef.current = null;
@@ -323,6 +438,73 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       playTimerRef.current = null;
     }
     setPlayheadTick(0);
+  }
+
+  function handlePause() {
+    if (!isPlaying) return;
+    setIsPlaying(false);
+    setIsPaused(true);
+    if (audioCtxRef.current) {
+      void audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+    if (playTimerRef.current) {
+      clearInterval(playTimerRef.current);
+      playTimerRef.current = null;
+    }
+    // Keep playhead at current position
+  }
+
+  function handleToggleLoop() {
+    setLoopOn((prev) => !prev);
+    loopOnRef.current = !loopOn;
+  }
+
+  function handleSeek(tick: number) {
+    setPlayheadTick(tick);
+    // If currently playing, restart from new position
+    if (isPlaying) {
+      handleStop();
+      handlePlayFromTick(tick);
+    }
+  }
+
+  // UC-37: Map GM instrument to oscillator type
+  function getOscillatorType(instrument: string | null): OscillatorType {
+    if (!instrument) return "triangle"; // Default
+
+    const instLower = instrument.toLowerCase();
+
+    // Piano family → triangle (soft, rounded)
+    if (instLower.includes("piano") || instLower.includes("grand") || instLower.includes("electric piano")) {
+      return "triangle";
+    }
+    // Organ → sawtooth (bright, sustained)
+    if (instLower.includes("organ") || instLower.includes("accordion")) {
+      return "sawtooth";
+    }
+    // Guitar → triangle (similar to piano)
+    if (instLower.includes("guitar") || instLower.includes("harp")) {
+      return "triangle";
+    }
+    // Bass → sawtooth (deep, rich)
+    if (instLower.includes("bass")) {
+      return "sawtooth";
+    }
+    // Brass/Lead → square (bright, cutting)
+    if (instLower.includes("brass") || instLower.includes("trumpet") || instLower.includes("synth lead")) {
+      return "square";
+    }
+    // Strings → triangle (smooth)
+    if (instLower.includes("violin") || instLower.includes("cello") || instLower.includes("string")) {
+      return "triangle";
+    }
+    // Synth pads → sine (pure, smooth)
+    if (instLower.includes("synth pad") || instLower.includes("sweep") || instLower.includes("atmosphere")) {
+      return "sine";
+    }
+    // Default → triangle
+    return "triangle";
   }
 
   // ── Render ──────────────────────────────────────────────────
@@ -358,7 +540,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onImportMidi={handleImportMidi}
         onPlay={handlePlay}
         onStop={handleStop}
+        onPause={handlePause}
+        onToggleLoop={handleToggleLoop}
         isPlaying={isPlaying}
+        isPaused={isPaused}
+        loopOn={loopOn}
         projectName={projectName}
       />
 
@@ -409,6 +595,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           gridDivision={gridDivision}
           playheadTick={playheadTick}
           onNotesChange={handleNotesChange}
+          isPlaying={isPlaying}
+          onSeek={handleSeek}
         />
       </div>
     </div>

@@ -63,6 +63,9 @@ interface PianoRollProps {
   gridDivision: GridDivision;
   playheadTick: number;
   onNotesChange: (notes: DraftNote[]) => void;
+  // UC-37: Playback
+  isPlaying: boolean;
+  onSeek: (tick: number) => void;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -77,6 +80,8 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       gridDivision,
       playheadTick,
       onNotesChange,
+      isPlaying,
+      onSeek,
     },
     ref,
   ) {
@@ -245,11 +250,24 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         if (nx + nw < KEY_WIDTH || nx > W || ny + ROW_H < HEADER_H || ny > H)
           return;
 
+        // UC-37: Check if note is currently playing (within playhead range)
+        const isPlayingNote = isPlaying && n.start <= playheadTick && n.start + n.duration >= playheadTick;
+
         // Note body
         ctx.fillStyle = color;
-        ctx.globalAlpha = track?.muted ? 0.3 : 0.85;
+        ctx.globalAlpha = track?.muted ? 0.3 : isPlayingNote ? 1 : 0.85;
         roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
         ctx.fill();
+
+        // UC-37: Playing note glow effect
+        if (isPlayingNote) {
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 8;
+          ctx.fillStyle = "rgba(255,255,255,0.4)";
+          roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
 
         // Resize handle highlight
         ctx.fillStyle = "rgba(255,255,255,0.25)";
@@ -281,7 +299,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         ctx.lineTo(phX, H);
         ctx.stroke();
       }
-    }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid]);
+    }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, isPlaying]);
 
     // Re-draw whenever state changes
     useEffect(() => {
@@ -310,17 +328,23 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     }
 
     function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+      const { cx, cy } = canvasCoords(e);
+
+      // UC-37: Click on ruler to seek
+      if (cy < HEADER_H) {
+        const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
+        onSeek(Math.floor(tick));
+        return;
+      }
+
       if (e.button === 2) {
         // Right-click → delete
-        const { cx, cy } = canvasCoords(e);
         const hit = hitNote(cx, cy);
         if (hit) {
           onNotesChange(notes.filter((n) => n.id !== hit.note.id));
         }
         return;
       }
-
-      const { cx, cy } = canvasCoords(e);
 
       if (tool === "eraser") {
         const hit = hitNote(cx, cy);
