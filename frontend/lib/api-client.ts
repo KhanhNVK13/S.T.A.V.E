@@ -167,6 +167,7 @@ export async function listPublicProjects(params?: {
   genre?: string;
   tag?: string;
   sort?: 'newest' | 'popular' | 'most_played';
+  search?: string;
 }): Promise<PublicProjectsResponse> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
@@ -174,6 +175,7 @@ export async function listPublicProjects(params?: {
   if (params?.genre) searchParams.set('genre', params.genre);
   if (params?.tag) searchParams.set('tag', params.tag);
   if (params?.sort) searchParams.set('sort', params.sort);
+  if (params?.search) searchParams.set('search', params.search);
 
   const query = searchParams.toString();
   return apiFetch<PublicProjectsResponse>(`/explore/projects${query ? `?${query}` : ''}`);
