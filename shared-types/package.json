@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "echo \"shared-types: no build needed (TypeScript types are inferred)\"",
     "lint": "echo \"no lint configured for shared-types\""
   }
 }

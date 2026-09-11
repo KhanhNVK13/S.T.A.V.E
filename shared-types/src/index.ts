@@ -275,3 +275,52 @@ export const GM_INSTRUMENTS: GMInstrument[] = [
 
 /** Flat list of valid instrument names — used for server-side `@IsIn` validation. */
 export const GM_INSTRUMENT_NAMES: string[] = GM_INSTRUMENTS.map((i) => i.name);
+
+// =============================================================================
+// Version Control Types (UC-42, UC-43, UC-44, UC-45, UC-46)
+// =============================================================================
+
+/** Minimal commit row returned by create/restore endpoints */
+export interface CommitRow {
+  id: string;
+  branch_id: string;
+  message: string;
+  snapshot: DraftSnapshot;
+  created_by: string;
+  created_at: string;
+}
+
+/** Tag on a commit (UC-44) — matches the real `commit_tags` table, which has no `color` column. */
+export interface TagRow {
+  id: string;
+  commit_id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+}
+
+/** Commit with author info and tags (UC-43, UC-45) */
+export interface CommitWithAuthor {
+  id: string;
+  branch_id: string;
+  message: string;
+  snapshot: DraftSnapshot;
+  created_by: string;
+  created_at: string;
+  author: {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  };
+  tags: TagRow[];
+}
+
+/** Paginated commit history response (UC-43) */
+export interface PaginatedCommitHistory {
+  items: CommitWithAuthor[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+}
