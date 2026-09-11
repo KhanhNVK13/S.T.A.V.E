@@ -22,8 +22,6 @@ interface TrackListProps {
   onDeleteTrack: (id: string) => void;
   onAssignInstrument: (id: string, instrument: string | null) => void;
   onSetTrackColor: (id: string, color: string) => void;
-  noteRowHeight: number;
-  pitchCount: number; // total visible rows (128)
   canAddTrack?: boolean; // UC-28: max 16 tracks
 }
 
@@ -55,8 +53,6 @@ export function TrackList({
   onDeleteTrack,
   onAssignInstrument,
   onSetTrackColor,
-  noteRowHeight,
-  pitchCount,
   canAddTrack = true,
 }: TrackListProps) {
   // BR-30: Project must have at least 1 track — cannot delete when only 1 left
