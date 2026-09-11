@@ -63,18 +63,45 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Always holds the latest snapshot so the unmount-flush below (a cleanup
+  // closure, which only ever sees the snapshot from its own render) can save
+  // the most recent edit instead of whatever was current when it was set up.
+  const snapshotRef = useRef(snapshot);
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
 
   // ── Load draft on mount ─────────────────────────────────────
   useEffect(() => {
+    let cancelled = false;
     getDraft(projectId)
       .then((snap) => {
+        if (cancelled) return;
         setSnapshot(snap);
         if (snap.tracks.length > 0) {
           setSelectedTrackId(snap.tracks[0].id);
         }
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  // ── Flush pending autosave on unmount — a debounced save left running after
+  // navigating away can setState on an unmounted component; just clearing the
+  // timer would also silently drop the last edit, so fire the save once more
+  // instead (best-effort, not awaited — the component is already gone). ─────
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        putDraft(projectId, snapshotRef.current).catch(() => {});
+      }
+    };
   }, [projectId]);
 
   // ── Auto-save (debounce 2s) ─────────────────────────────────

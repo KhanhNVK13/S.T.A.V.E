@@ -60,7 +60,6 @@ export default function EditProjectPage() {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -113,7 +112,7 @@ export default function EditProjectPage() {
               </button>
               <button
                 onClick={() => setActiveTab("info")}
-                disabled={loading || isArchived}
+                disabled={loading}
                 className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                   activeTab === "info"
                     ? "bg-white text-slate-900 shadow-sm"
@@ -130,7 +129,18 @@ export default function EditProjectPage() {
         <div className="flex-1 overflow-hidden">
           {activeTab === "editor" ? (
             <div className="h-full">
-              {!loading && (
+              {!loading && isArchived && (
+                <div className="flex h-full items-center justify-center px-4">
+                  <div className="flex max-w-md flex-col items-center gap-3 rounded-card border border-warning-600/30 bg-warning-50 p-6 text-center text-sm text-warning-700">
+                    <Lock className="h-5 w-5" />
+                    <p>
+                      Dự án này đã được lưu trữ nên trình soạn nhạc chỉ ở chế độ chỉ xem thông
+                      tin. Khôi phục dự án từ trang danh sách để chỉnh sửa lại.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {!loading && !isArchived && (
                 <MidiEditor projectId={projectId} projectName={name} />
               )}
               {loading && (

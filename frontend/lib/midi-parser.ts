@@ -45,7 +45,7 @@ export function parseMidiBuffer(
   const newTracks: DraftTrack[] = [];
   const newNotes: DraftNote[] = [];
 
-  midi.tracks.forEach((midiTrack, trackIdx) => {
+  midi.tracks.forEach((midiTrack) => {
     if (midiTrack.notes.length === 0) return;
 
     const trackId = crypto.randomUUID();
@@ -74,8 +74,6 @@ export function parseMidiBuffer(
         velocity: Math.round(n.velocity * 127),
       });
     });
-
-    void trackIdx; // suppress unused warning
   });
 
   if (existing) {
