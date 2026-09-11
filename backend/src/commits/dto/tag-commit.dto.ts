@@ -1,17 +1,11 @@
-import {
-  IsString,
-  MinLength,
-  MaxLength,
-  Matches,
-  IsOptional,
-} from 'class-validator';
+import { IsString, MinLength, MaxLength, Matches } from 'class-validator';
 
 /**
  * UC-44: Tag Commit DTO
  *
- * Business Rules:
- * - BR-44: Tag names must be alphanumeric with hyphens, max 30 chars (updated from 50)
- * - Tag colors are optional, defaults to '#6366f1' (indigo)
+ * BR-44: tag name is 1-30 chars, unique within the project, and a commit
+ * carries at most one tag (both enforced by DB constraints on `commit_tags`).
+ * No `color` field — the real `commit_tags` table has no such column.
  */
 export class TagCommitDto {
   @IsString({ message: 'Tag name must be a string' })
@@ -22,11 +16,4 @@ export class TagCommitDto {
       'Tag name must be alphanumeric with hyphens (no leading/trailing hyphens)',
   })
   tag!: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(/^#[0-9A-Fa-f]{6}$/, {
-    message: 'Color must be a valid hex color (e.g., #ff0000)',
-  })
-  color?: string;
 }

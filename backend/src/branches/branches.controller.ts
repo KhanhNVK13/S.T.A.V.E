@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -74,9 +75,10 @@ export class BranchesController {
    */
   @Get('projects/:projectId/branches')
   async getProjectBranches(
+    @CurrentUser() userId: string,
     @Param('projectId', ParseUUIDPipe) projectId: string,
   ) {
-    return this.branchesService.getProjectBranches(projectId);
+    return this.branchesService.getProjectBranches(projectId, userId);
   }
 
   // ==========================================================================
@@ -121,8 +123,11 @@ export class BranchesController {
    * Returns: BranchDetails with divergence info
    */
   @Get('branches/:id')
-  async getBranchDetails(@Param('id', ParseUUIDPipe) id: string) {
-    return this.branchesService.getBranchDetails(id);
+  async getBranchDetails(
+    @CurrentUser() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.branchesService.getBranchDetails(id, userId);
   }
 
   // ==========================================================================
@@ -137,8 +142,43 @@ export class BranchesController {
    * Returns: BranchHistory with commits marked as unique/inherited
    */
   @Get('branches/:id/history')
-  async getBranchHistory(@Param('id', ParseUUIDPipe) id: string) {
-    return this.branchesService.getBranchHistory(id);
+  async getBranchHistory(
+    @CurrentUser() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.branchesService.getBranchHistory(id, userId);
+  }
+
+  // ==========================================================================
+  // UC-52: Delete Branch
+  // ==========================================================================
+
+  /**
+   * GET /branches/:id/delete-preview
+   *
+   * BR-55: preview what will be orphaned by deleting this branch.
+   */
+  @Get('branches/:id/delete-preview')
+  async getDeletePreview(
+    @CurrentUser() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.branchesService.getDeletePreview(id, userId);
+  }
+
+  /**
+   * DELETE /branches/:id
+   *
+   * Delete a branch. Refused for the default branch or the branch currently
+   * active on the project (see BranchesService.deleteBranch).
+   */
+  @Delete('branches/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteBranch(
+    @CurrentUser() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.branchesService.deleteBranch(id, userId);
   }
 
   // ==========================================================================

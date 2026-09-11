@@ -290,12 +290,11 @@ export interface CommitRow {
   created_at: string;
 }
 
-/** Tag on a commit (UC-44) */
+/** Tag on a commit (UC-44) — matches the real `commit_tags` table, which has no `color` column. */
 export interface TagRow {
   id: string;
   commit_id: string;
   name: string;
-  color: string | null;
   created_by: string;
   created_at: string;
 }

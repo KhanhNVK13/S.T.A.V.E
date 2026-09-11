@@ -216,9 +216,10 @@ export class CommitsController {
    */
   @Get(':id/tags')
   async getTagsForCommit(
+    @CurrentUser() userId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<TagRow[]> {
-    return this.commitsService.getTagsForCommit(id);
+    return this.commitsService.getTagsForCommit(id, userId);
   }
 
   /**
@@ -231,9 +232,10 @@ export class CommitsController {
   @Delete(':id/tags/:tagName')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteTag(
+    @CurrentUser() userId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('tagName') tagName: string,
   ): Promise<void> {
-    return this.commitsService.deleteTag(id, tagName);
+    return this.commitsService.deleteTag(id, tagName, userId);
   }
 }

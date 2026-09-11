@@ -70,4 +70,12 @@ export class ResolveConflictDto {
   @IsOptional()
   @IsString()
   message?: string;
+
+  /**
+   * UC-51 Exception 8.E1: if provided, must match the target branch's
+   * current head_commit_id at the time the merge is finally applied.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  expectedTargetHeadCommitId?: string;
 }

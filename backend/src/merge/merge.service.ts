@@ -3,10 +3,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException as HttpConflictException,
   ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   DraftSnapshot,
@@ -15,6 +15,7 @@ import type {
   CommitRow,
 } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { BranchesService } from '../branches/branches.service';
 import { MergeBranchDto } from './dto/merge-branch.dto';
 import { ResolveConflictDto, ConflictChoice } from './dto/resolve-conflict.dto';
 
@@ -30,13 +31,13 @@ interface BranchDbRow {
   head_commit_id: string | null;
 }
 
-/** Raw row from commits table */
+/** Raw row from the real `commits` table (author_id, not created_by). */
 interface CommitDbRow {
   id: string;
   branch_id: string;
   message: string;
   snapshot: DraftSnapshot;
-  created_by: string;
+  author_id: string;
   created_at: string;
 }
 
@@ -74,20 +75,12 @@ export interface MergeSuccessResult {
 /** Merge result - either success or conflict */
 export type MergeResult = MergeConflictResult | MergeSuccessResult;
 
-/** Delete branch preview */
-export interface DeleteBranchPreview {
-  branchId: string;
-  branchName: string;
-  isDefault: boolean;
-  unmergedCommitsCount: number;
-  unmergedCommitIds: string[];
-}
-
 @Injectable()
 export class MergeService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient<any, 'public', any>,
+    private readonly branchesService: BranchesService,
   ) {}
 
   // ==========================================================================
@@ -95,17 +88,17 @@ export class MergeService {
   // ==========================================================================
 
   /**
-   * Initiate a merge from source branch to target branch
+   * Initiate a merge from source branch into target branch.
    *
-   * Implements 3-way merge algorithm based on:
-   * - Base: branches.base_commit_id (Common Ancestor)
-   * - Source: head_commit_id of source branch
-   * - Target: head_commit_id of target branch
+   * 3-way merge based on a merge-base found by walking the real
+   * `parent_commit_id` chain (BranchesService.findMergeBase) — not the
+   * branches' static `base_commit_id`, which only reflects the ancestor at
+   * branch-creation time and goes stale after either branch has since merged
+   * elsewhere.
    */
   async mergeBranch(userId: string, dto: MergeBranchDto): Promise<MergeResult> {
-    const { sourceBranchId, targetBranchId } = dto;
+    const { sourceBranchId, targetBranchId, expectedTargetHeadCommitId } = dto;
 
-    // Get both branches
     const [sourceBranch, targetBranch] = await Promise.all([
       this.getBranchById(sourceBranchId),
       this.getBranchById(targetBranchId),
@@ -126,52 +119,45 @@ export class MergeService {
     // Verify user has edit permission
     await this.verifyUserEditPermission(sourceBranch.project_id, userId);
 
-    // 2.E1: Check branches have common ancestor
-    if (sourceBranch.base_commit_id !== targetBranch.base_commit_id) {
+    // 8.E1: someone else may have committed to target while this merge was
+    // being reviewed on the client — caller must restart against fresh state.
+    if (
+      expectedTargetHeadCommitId !== undefined &&
+      targetBranch.head_commit_id !== expectedTargetHeadCommitId
+    ) {
+      throw new HttpConflictException(
+        'Target branch has moved on since this merge was started. Please restart the merge.',
+      );
+    }
+
+    // 2.E1: branches must share a real common ancestor
+    const mergeBase = await this.branchesService.findMergeBase(
+      sourceBranch.head_commit_id,
+      targetBranch.head_commit_id,
+    );
+    if (!mergeBase) {
       throw new BadRequestException('Branches have no common ancestor');
     }
 
-    // 3.E1: Check if there's something to merge
-    if (sourceBranch.head_commit_id === targetBranch.head_commit_id) {
+    // 3.E1: source has nothing the target doesn't already contain
+    if (mergeBase === sourceBranch.head_commit_id) {
       throw new BadRequestException(
-        'Nothing to merge. Target branch is already up to date.',
+        'Nothing to merge. Source branch has no commits the target does not already contain.',
       );
     }
 
-    // Get the three snapshots
-    const { baseSnapshot, sourceSnapshot, targetSnapshot } =
-      await this.getThreeSnapshots(sourceBranch, targetBranch);
-
-    // Fast-Forward Check (7.1)
-    // If target hasn't moved from base, just update pointer
-    if (
-      targetBranch.head_commit_id === sourceBranch.base_commit_id &&
-      sourceBranch.head_commit_id !== targetBranch.head_commit_id
-    ) {
-      // Fast-forward: update target head to source head
-      const { error } = await this.supabase
-        .from('branches')
-        .update({ head_commit_id: sourceBranch.head_commit_id })
-        .eq('id', targetBranchId);
-
-      if (error) {
-        throw new InternalServerErrorException(
-          `Failed to fast-forward branch: ${error.message}`,
-        );
-      }
-
-      // Create auto-merge message commit for tracking
-      const mergeCommit = await this.createMergeCommit(
-        userId,
-        targetBranchId,
-        sourceSnapshot ?? this.createEmptySnapshot(),
-        `Merge branch '${sourceBranch.name}' into ${targetBranch.name}`,
-      );
-
-      return { hasConflicts: false, commit: mergeCommit };
+    // 7.1: target hasn't moved since divergence — fast-forward, no merge commit
+    if (mergeBase === targetBranch.head_commit_id) {
+      return this.fastForward(sourceBranch, targetBranch);
     }
 
-    // Perform 3-way merge
+    // Full 3-way merge
+    const [baseSnapshot, sourceSnapshot, targetSnapshot] = await Promise.all([
+      this.getCommitSnapshot(mergeBase),
+      this.getCommitSnapshot(sourceBranch.head_commit_id),
+      this.getCommitSnapshot(targetBranch.head_commit_id),
+    ]);
+
     return this.perform3WayMerge(
       userId,
       sourceBranch,
@@ -183,15 +169,81 @@ export class MergeService {
   }
 
   /**
-   * Resolve conflicts and complete the merge
+   * Fast-forward: source is entirely ahead of target with no divergent work
+   * on target's side, so the merge completes by just moving target's head —
+   * no separate merge commit (SRS UC-51 alt-flow 7.1).
+   */
+  private async fastForward(
+    sourceBranch: BranchDbRow,
+    targetBranch: BranchDbRow,
+  ): Promise<MergeSuccessResult> {
+    const headCommitId = sourceBranch.head_commit_id;
+    if (!headCommitId) {
+      throw new InternalServerErrorException(
+        'Source branch has no head commit to fast-forward to',
+      );
+    }
+
+    const snapshot = await this.getCommitSnapshot(headCommitId);
+    if (!snapshot) {
+      throw new InternalServerErrorException(
+        'Source head commit has no snapshot',
+      );
+    }
+
+    const { error: branchError } = await this.supabase
+      .from('branches')
+      .update({ head_commit_id: headCommitId })
+      .eq('id', targetBranch.id);
+    if (branchError) {
+      throw new InternalServerErrorException(
+        `Failed to fast-forward branch: ${branchError.message}`,
+      );
+    }
+
+    const { error: draftError } = await this.supabase.from('drafts').upsert(
+      {
+        branch_id: targetBranch.id,
+        snapshot,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'branch_id' },
+    );
+    if (draftError) {
+      throw new InternalServerErrorException(
+        `Failed to update draft after fast-forward: ${draftError.message}`,
+      );
+    }
+
+    const { data: commit, error: commitError } = await this.supabase
+      .from('commits')
+      .select('*')
+      .eq('id', headCommitId)
+      .single<CommitDbRow>();
+    if (commitError || !commit) {
+      throw new InternalServerErrorException(
+        'Failed to load fast-forwarded commit',
+      );
+    }
+
+    return { hasConflicts: false, commit: this.toCommitRow(commit) };
+  }
+
+  /**
+   * Resolve conflicts and complete the merge.
    */
   async resolveConflictsAndMerge(
     userId: string,
     dto: ResolveConflictDto,
   ): Promise<MergeSuccessResult> {
-    const { sourceBranchId, targetBranchId, resolutions, message } = dto;
+    const {
+      sourceBranchId,
+      targetBranchId,
+      resolutions,
+      message,
+      expectedTargetHeadCommitId,
+    } = dto;
 
-    // Get both branches
     const [sourceBranch, targetBranch] = await Promise.all([
       this.getBranchById(sourceBranchId),
       this.getBranchById(targetBranchId),
@@ -201,11 +253,34 @@ export class MergeService {
       throw new NotFoundException('Branch not found');
     }
 
-    // Get the three snapshots
-    const { baseSnapshot, sourceSnapshot, targetSnapshot } =
-      await this.getThreeSnapshots(sourceBranch, targetBranch);
+    if (sourceBranch.project_id !== targetBranch.project_id) {
+      throw new BadRequestException('Branches must belong to the same project');
+    }
 
-    // Handle null snapshots
+    // Same authorization requirement as starting a merge — this endpoint
+    // writes a commit into the target project, it can't be left open.
+    await this.verifyUserEditPermission(sourceBranch.project_id, userId);
+
+    if (
+      expectedTargetHeadCommitId !== undefined &&
+      targetBranch.head_commit_id !== expectedTargetHeadCommitId
+    ) {
+      throw new HttpConflictException(
+        'Target branch has moved on since this merge was started. Please restart the merge.',
+      );
+    }
+
+    const mergeBase = await this.branchesService.findMergeBase(
+      sourceBranch.head_commit_id,
+      targetBranch.head_commit_id,
+    );
+
+    const [baseSnapshot, sourceSnapshot, targetSnapshot] = await Promise.all([
+      mergeBase ? this.getCommitSnapshot(mergeBase) : Promise.resolve(null),
+      this.getCommitSnapshot(sourceBranch.head_commit_id),
+      this.getCommitSnapshot(targetBranch.head_commit_id),
+    ]);
+
     const base = baseSnapshot ?? this.createEmptySnapshot();
     const source = sourceSnapshot ?? this.createEmptySnapshot();
     const target = targetSnapshot ?? this.createEmptySnapshot();
@@ -223,13 +298,13 @@ export class MergeService {
       resolutions,
     );
 
-    // Create merge commit
     const commitMessage =
       message ??
       `Merge branch '${sourceBranch.name}' into ${targetBranch.name}`;
     const commit = await this.createMergeCommit(
       userId,
-      targetBranchId,
+      targetBranch,
+      sourceBranch.id,
       finalMergedSnapshot,
       commitMessage,
     );
@@ -241,9 +316,6 @@ export class MergeService {
   // 3-Way Merge Algorithm
   // ==========================================================================
 
-  /**
-   * Perform 3-way merge of two branches
-   */
   private async perform3WayMerge(
     userId: string,
     sourceBranch: BranchDbRow,
@@ -252,12 +324,10 @@ export class MergeService {
     sourceSnapshot: DraftSnapshot | null,
     targetSnapshot: DraftSnapshot | null,
   ): Promise<MergeResult> {
-    // Handle null snapshots
     const base = baseSnapshot ?? this.createEmptySnapshot();
     const source = sourceSnapshot ?? this.createEmptySnapshot();
     const target = targetSnapshot ?? this.createEmptySnapshot();
 
-    // Run merge on notes
     const notesResult = this.mergeNotes(base.notes, source.notes, target.notes);
     const tracksResult = this.mergeTracks(
       base.tracks,
@@ -265,7 +335,6 @@ export class MergeService {
       target.tracks,
     );
 
-    // Check for conflicts
     if (notesResult.conflicts.length > 0) {
       return {
         hasConflicts: true,
@@ -277,7 +346,6 @@ export class MergeService {
       };
     }
 
-    // No conflicts - create merge commit
     const mergedSnapshot: DraftSnapshot = {
       schemaVersion: source.schemaVersion ?? 1,
       meta: source.meta ??
@@ -290,7 +358,8 @@ export class MergeService {
     const message = `Merge branch '${sourceBranch.name}' into ${targetBranch.name}`;
     const commit = await this.createMergeCommit(
       userId,
-      targetBranch.id,
+      targetBranch,
+      sourceBranch.id,
       mergedSnapshot,
       message,
     );
@@ -299,7 +368,7 @@ export class MergeService {
   }
 
   /**
-   * Merge notes using 3-way algorithm
+   * Merge notes using a 3-way algorithm, joined by persistent note UUID.
    */
   private mergeNotes(
     baseNotes: DraftNote[],
@@ -308,12 +377,10 @@ export class MergeService {
   ): { merged: DraftNote[]; conflicts: NoteConflict[] } {
     const conflicts: NoteConflict[] = [];
 
-    // Create maps by note ID
     const baseMap = new Map(baseNotes.map((n) => [n.id, n]));
     const sourceMap = new Map(sourceNotes.map((n) => [n.id, n]));
     const targetMap = new Map(targetNotes.map((n) => [n.id, n]));
 
-    // Get all unique note IDs
     const allIds = new Set([
       ...baseNotes.map((n) => n.id),
       ...sourceNotes.map((n) => n.id),
@@ -327,13 +394,11 @@ export class MergeService {
       const sourceNote = sourceMap.get(noteId);
       const targetNote = targetMap.get(noteId);
 
-      // Case 1: Note exists in both source and target - check if unchanged
+      // Case 1: present on both sides
       if (sourceNote && targetNote) {
         if (this.notesEqual(sourceNote, targetNote)) {
-          // Unchanged - include it
           merged.push(sourceNote);
         } else {
-          // Both modified - check if same change
           const sourceChanged = baseNote
             ? !this.notesEqual(sourceNote, baseNote)
             : true;
@@ -342,7 +407,6 @@ export class MergeService {
             : true;
 
           if (sourceChanged && targetChanged) {
-            // Both changed differently - CONFLICT
             conflicts.push({
               noteId,
               baseNote,
@@ -351,25 +415,24 @@ export class MergeService {
               type: 'MODIFIED_DIFFERENTLY',
             });
           } else if (sourceChanged) {
-            // Only source changed - use source
             merged.push(sourceNote);
           } else {
-            // Only target changed - use target
             merged.push(targetNote);
           }
         }
         continue;
       }
 
-      // Case 2: Source has note, Target doesn't
+      // Case 2: source has it, target doesn't
       if (sourceNote && !targetNote) {
         if (!baseNote) {
-          // Source added new note - include it
+          // Never existed at base — source added it fresh
           merged.push(sourceNote);
+        } else if (this.notesEqual(sourceNote, baseNote)) {
+          // Source kept it unchanged, target deleted it — clean delete, no conflict
+          continue;
         } else {
-          // Base had note, Target doesn't = Target deleted
-          // Source modified or kept it = Source modified
-          // This is DELETE_VS_MODIFY conflict
+          // Source modified it, target deleted it — DELETE_VS_MODIFY conflict
           conflicts.push({
             noteId,
             baseNote,
@@ -381,15 +444,14 @@ export class MergeService {
         continue;
       }
 
-      // Case 3: Target has note, Source doesn't
+      // Case 3: target has it, source doesn't
       if (targetNote && !sourceNote) {
         if (!baseNote) {
-          // Target added new note - include it
           merged.push(targetNote);
+        } else if (this.notesEqual(targetNote, baseNote)) {
+          // Target kept it unchanged, source deleted it — clean delete, no conflict
+          continue;
         } else {
-          // Base had note, Source doesn't = Source deleted
-          // Target modified or kept it = Target modified
-          // This is DELETE_VS_MODIFY conflict
           conflicts.push({
             noteId,
             baseNote,
@@ -401,30 +463,25 @@ export class MergeService {
         continue;
       }
 
-      // Case 4: Only in base (deleted from both) - skip
-      if (baseNote && !sourceNote && !targetNote) {
-        // Note deleted from both - don't include
-        continue;
-      }
+      // Case 4: deleted on both sides — nothing to include
     }
 
     return { merged, conflicts };
   }
 
   /**
-   * Merge tracks - simplified merge
+   * Merge tracks — source wins over target wins over base on any given id
+   * (tracks don't carry per-field conflict detection like notes do).
    */
   private mergeTracks(
     baseTracks: DraftTrack[],
     sourceTracks: DraftTrack[],
     targetTracks: DraftTrack[],
   ): DraftTrack[] {
-    // Create maps by track ID
-    const baseMap = new Map(baseTracks.map((t) => [t.id, t]));
     const sourceMap = new Map(sourceTracks.map((t) => [t.id, t]));
     const targetMap = new Map(targetTracks.map((t) => [t.id, t]));
+    const baseMap = new Map(baseTracks.map((t) => [t.id, t]));
 
-    // Get all unique track IDs
     const allIds = new Set([
       ...baseTracks.map((t) => t.id),
       ...sourceTracks.map((t) => t.id),
@@ -432,13 +489,11 @@ export class MergeService {
     ]);
 
     const merged: DraftTrack[] = [];
-
     for (const trackId of allIds) {
-      const baseTrack = baseMap.get(trackId);
       const sourceTrack = sourceMap.get(trackId);
       const targetTrack = targetMap.get(trackId);
+      const baseTrack = baseMap.get(trackId);
 
-      // Use source if available, otherwise target, otherwise base
       if (sourceTrack) {
         merged.push(sourceTrack);
       } else if (targetTrack) {
@@ -452,81 +507,10 @@ export class MergeService {
   }
 
   /**
-   * Apply resolutions to resolve conflicts
-   */
-  private applyResolutions(
-    baseSnapshot: DraftSnapshot | null,
-    sourceSnapshot: DraftSnapshot | null,
-    targetSnapshot: DraftSnapshot | null,
-    resolutions: Array<{
-      noteId: string;
-      choice: ConflictChoice;
-      customNote?: Partial<DraftNote>;
-    }>,
-  ): DraftSnapshot {
-    // Handle null snapshots
-    const base = baseSnapshot ?? this.createEmptySnapshot();
-    const source = sourceSnapshot ?? this.createEmptySnapshot();
-    const target = targetSnapshot ?? this.createEmptySnapshot();
-
-    // Start with target as base
-    const resultNotes: DraftNote[] = [...target.notes];
-    const resultTracks = this.mergeTracks(
-      base.tracks,
-      source.tracks,
-      target.tracks,
-    );
-
-    // Apply each resolution
-    for (const resolution of resolutions) {
-      const { noteId, choice, customNote } = resolution;
-
-      switch (choice) {
-        case ConflictChoice.PICK_SOURCE: {
-          // Find source note and add/replace
-          const sourceNote = source.notes.find((n) => n.id === noteId);
-          if (sourceNote) {
-            // Remove existing note with same ID
-            const idx = resultNotes.findIndex((n) => n.id === noteId);
-            if (idx >= 0) resultNotes.splice(idx, 1);
-            resultNotes.push(sourceNote);
-          }
-          break;
-        }
-        case ConflictChoice.PICK_TARGET: {
-          // Keep target note (already in result)
-          // Nothing to do
-          break;
-        }
-        case ConflictChoice.PICK_CUSTOM: {
-          // Add custom note
-          if (customNote) {
-            const idx = resultNotes.findIndex((n) => n.id === noteId);
-            if (idx >= 0) resultNotes.splice(idx, 1);
-            resultNotes.push({
-              id: noteId,
-              trackId: customNote.trackId ?? '',
-              pitch: customNote.pitch ?? 60,
-              start: customNote.start ?? 0,
-              duration: customNote.duration ?? 480,
-              velocity: customNote.velocity ?? 80,
-            });
-          }
-          break;
-        }
-      }
-    }
-
-    return {
-      schemaVersion: source.schemaVersion ?? 1,
-      meta: source.meta ?? target.meta ?? base.meta,
-      tracks: resultTracks,
-      notes: resultNotes,
-    };
-  }
-
-  /**
-   * Apply resolutions to conflicting notes with pre-merged notes
+   * Apply user resolutions to conflicting notes on top of the already-merged
+   * non-conflicting notes (from `mergeNotes`) — this is what makes the final
+   * commit contain both the resolutions AND every non-conflicting change from
+   * source, instead of discarding the latter.
    */
   private applyResolutionsWithMergedNotes(
     base: DraftSnapshot,
@@ -540,7 +524,6 @@ export class MergeService {
       customNote?: Partial<DraftNote>;
     }>,
   ): DraftSnapshot {
-    // Start with pre-merged notes (non-conflicting)
     const resultNotes: DraftNote[] = [...preMergedNotes];
     const resultTracks = this.mergeTracks(
       base.tracks,
@@ -548,7 +531,6 @@ export class MergeService {
       target.tracks,
     );
 
-    // Apply resolutions to conflicting notes
     for (const conflict of conflicts) {
       const resolution = resolutions.find((r) => r.noteId === conflict.noteId);
       const { noteId, choice, customNote } = resolution ?? {
@@ -595,9 +577,6 @@ export class MergeService {
     };
   }
 
-  /**
-   * Check if two notes are equal
-   */
   private notesEqual(a: DraftNote, b: DraftNote): boolean {
     return (
       a.pitch === b.pitch &&
@@ -609,14 +588,14 @@ export class MergeService {
   }
 
   /**
-   * Group conflicts by bar number using dynamic calculation
+   * Group conflicts by bar number, deriving ticks-per-bar from the actual
+   * snapshot's meta (CLAUDE.md §4.2: ppq/timeSignature live in meta and can
+   * differ per project) instead of a hardcoded 4/4 @ 480ppq assumption.
    */
   private groupConflictsByBar(
     conflicts: NoteConflict[],
     meta?: { ppq?: number; timeSignature?: [number, number] },
   ): Record<number, NoteConflict[]> {
-    // Dynamic ticks per bar: ppq * beats_per_bar
-    // beats_per_bar = numerator * (4/denominator) for standard time sigs
     const ppq = meta?.ppq ?? 480;
     const [numerator = 4, denominator = 4] = meta?.timeSignature ?? [4, 4];
     const ticksPerBar = ppq * (numerator / denominator) * 4;
@@ -624,7 +603,6 @@ export class MergeService {
     const grouped: Record<number, NoteConflict[]> = {};
 
     for (const conflict of conflicts) {
-      // Use target note's start time if available, otherwise source, otherwise base
       const note =
         conflict.targetNote ?? conflict.sourceNote ?? conflict.baseNote;
       if (note) {
@@ -641,38 +619,10 @@ export class MergeService {
   // Helper Methods
   // ==========================================================================
 
-  /**
-   * Get three snapshots for 3-way merge
-   */
-  private async getThreeSnapshots(
-    sourceBranch: BranchDbRow,
-    targetBranch: BranchDbRow,
-  ): Promise<{
-    baseSnapshot: DraftSnapshot | null;
-    sourceSnapshot: DraftSnapshot | null;
-    targetSnapshot: DraftSnapshot | null;
-  }> {
-    const [baseSnapshot, sourceSnapshot, targetSnapshot] = await Promise.all([
-      sourceBranch.base_commit_id
-        ? this.getCommitSnapshot(sourceBranch.base_commit_id)
-        : Promise.resolve(null),
-      sourceBranch.head_commit_id
-        ? this.getCommitSnapshot(sourceBranch.head_commit_id)
-        : Promise.resolve(null),
-      targetBranch.head_commit_id
-        ? this.getCommitSnapshot(targetBranch.head_commit_id)
-        : Promise.resolve(null),
-    ]);
-
-    return { baseSnapshot, sourceSnapshot, targetSnapshot };
-  }
-
-  /**
-   * Get snapshot from a commit
-   */
   private async getCommitSnapshot(
-    commitId: string,
+    commitId: string | null,
   ): Promise<DraftSnapshot | null> {
+    if (!commitId) return null;
     const { data } = await this.supabase
       .from('commits')
       .select('snapshot')
@@ -683,27 +633,29 @@ export class MergeService {
   }
 
   /**
-   * Create merge commit
+   * Create the merge commit atomically (insert + move target head + reset
+   * target draft) via the same RPC used by CommitsService, recording both
+   * `parent_commit_id` (target's previous head) and `merged_from_branch_id`
+   * (the source branch) — BR-52: "refers to both contributing versions".
    */
   private async createMergeCommit(
     userId: string,
-    targetBranchId: string,
+    targetBranch: BranchDbRow,
+    sourceBranchId: string,
     snapshot: DraftSnapshot,
     message: string,
   ): Promise<CommitRow> {
-    const commitId = uuidv4();
-
-    const { data: commit, error } = await this.supabase
-      .from('commits')
-      .insert({
-        id: commitId,
-        branch_id: targetBranchId,
-        message,
-        snapshot,
-        created_by: userId,
-      })
-      .select('*')
-      .single<CommitDbRow>();
+    const { data: commit, error } = await this.supabase.rpc(
+      'create_commit_atomic',
+      {
+        p_branch_id: targetBranch.id,
+        p_author_id: userId,
+        p_message: message,
+        p_snapshot: snapshot,
+        p_parent_commit_id: targetBranch.head_commit_id,
+        p_merged_from_branch_id: sourceBranchId,
+      },
+    );
 
     if (error) {
       throw new InternalServerErrorException(
@@ -711,32 +663,20 @@ export class MergeService {
       );
     }
 
-    // Update branch head
-    await this.supabase
-      .from('branches')
-      .update({ head_commit_id: commitId })
-      .eq('id', targetBranchId);
+    return this.toCommitRow(commit as CommitDbRow);
+  }
 
-    // Update draft
-    await this.supabase.from('drafts').upsert({
-      branch_id: targetBranchId,
-      snapshot,
-      updated_at: new Date().toISOString(),
-    });
-
+  private toCommitRow(row: CommitDbRow): CommitRow {
     return {
-      id: commit.id,
-      branch_id: commit.branch_id,
-      message: commit.message,
-      snapshot: commit.snapshot,
-      created_by: commit.created_by,
-      created_at: commit.created_at,
+      id: row.id,
+      branch_id: row.branch_id,
+      message: row.message,
+      snapshot: row.snapshot,
+      created_by: row.author_id,
+      created_at: row.created_at,
     };
   }
 
-  /**
-   * Get branch by ID
-   */
   private async getBranchById(branchId: string): Promise<BranchDbRow | null> {
     const { data } = await this.supabase
       .from('branches')
@@ -747,9 +687,6 @@ export class MergeService {
     return data as BranchDbRow | null;
   }
 
-  /**
-   * Verify user has edit permission on project
-   */
   private async verifyUserEditPermission(
     projectId: string,
     userId: string,
@@ -771,9 +708,6 @@ export class MergeService {
     }
   }
 
-  /**
-   * Create empty snapshot template
-   */
   private createEmptySnapshot(): DraftSnapshot {
     return {
       schemaVersion: 1,
@@ -781,103 +715,5 @@ export class MergeService {
       tracks: [],
       notes: [],
     };
-  }
-
-  // ==========================================================================
-  // UC-52: Delete Branch
-  // ==========================================================================
-
-  /**
-   * Get preview of what will be deleted when removing a branch
-   */
-  async getDeletePreview(branchId: string): Promise<DeleteBranchPreview> {
-    const branch = await this.getBranchById(branchId);
-    if (!branch) {
-      throw new NotFoundException('Branch not found');
-    }
-
-    // Count commits unique to this branch
-    const { data: commits } = await this.supabase
-      .from('commits')
-      .select('id')
-      .eq('branch_id', branchId);
-
-    const unmergedCommitIds = (commits ?? []).map((c) => c.id);
-
-    return {
-      branchId: branch.id,
-      branchName: branch.name,
-      isDefault: branch.is_default,
-      unmergedCommitsCount: unmergedCommitIds.length,
-      unmergedCommitIds,
-    };
-  }
-
-  /**
-   * Delete a branch
-   */
-  async deleteBranch(userId: string, branchId: string): Promise<void> {
-    const branch = await this.getBranchById(branchId);
-    if (!branch) {
-      throw new NotFoundException('Branch not found');
-    }
-
-    // Verify user has edit permission
-    await this.verifyUserEditPermission(branch.project_id, userId);
-
-    // BR-54: Cannot delete default branch
-    if (branch.is_default) {
-      throw new BadRequestException(
-        "Cannot delete the project's default branch",
-      );
-    }
-
-    // BR-54: Cannot delete currently active branch
-    const isActive = await this.isBranchActiveForUser(userId, branchId);
-    if (isActive) {
-      throw new BadRequestException(
-        'Cannot delete the currently active branch. Switch to another branch first.',
-      );
-    }
-
-    // Delete draft record first
-    await this.supabase.from('drafts').delete().eq('branch_id', branchId);
-
-    // Delete branch record
-    const { error } = await this.supabase
-      .from('branches')
-      .delete()
-      .eq('id', branchId);
-
-    if (error) {
-      throw new InternalServerErrorException(
-        `Failed to delete branch: ${error.message}`,
-      );
-    }
-
-    // Note: We do NOT delete commits - they are kept for history integrity
-  }
-
-  /**
-   * Check if a branch is currently active for a user
-   */
-  private async isBranchActiveForUser(
-    userId: string,
-    branchId: string,
-  ): Promise<boolean> {
-    // Check if there's a recent draft activity for this user on this branch
-    // This is a simplified check - in production, you might have a user_sessions table
-    // or check the most recently accessed draft
-    const { data: recentDraft } = await this.supabase
-      .from('drafts')
-      .select('branch_id')
-      .eq('branch_id', branchId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    // If there's a draft associated with this branch, consider it potentially active
-    // The actual "active branch" for a user would be tracked in a user session/context
-    return recentDraft !== null;
   }
 }

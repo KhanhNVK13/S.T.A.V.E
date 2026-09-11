@@ -28,22 +28,23 @@ import {
 import { GetCommitHistoryDto } from './dto/get-commit-history.dto';
 import { TagCommitDto } from './dto/tag-commit.dto';
 
-/** Raw row from commits table */
+/** Raw row from the real `commits` table (id, branch_id, author_id, message, snapshot, parent_commit_id, merged_from_branch_id, created_at). */
 interface CommitDbRow {
   id: string;
   branch_id: string;
+  author_id: string;
   message: string;
   snapshot: DraftSnapshot;
-  created_by: string;
+  parent_commit_id: string | null;
+  merged_from_branch_id: string | null;
   created_at: string;
 }
 
-/** Raw row from tags table */
+/** Raw row from the real `commit_tags` table — no `color` column exists. */
 interface TagDbRow {
   id: string;
   commit_id: string;
   name: string;
-  color: string | null;
   created_by: string;
   created_at: string;
 }
@@ -76,16 +77,13 @@ export class CommitsService {
   /**
    * Create a new commit with full snapshot.
    *
-   * Transaction flow:
-   * 1. Validate branch exists and user has access
-   * 2. UC-42 Exception 6.E1: Check expectedHeadCommitId (concurrency protection)
-   * 3. BR-40: Compare snapshot with head_commit (draft diff check)
-   * 4. Get snapshot from draft or use provided snapshot
-   * 5. Inject UUIDs for notes if missing
-   * 6. INSERT into commits table
-   * 7. UPDATE branches.head_commit_id
+   * Writes the commit + moves the branch head + resets the branch's draft in
+   * one DB transaction via `create_commit_atomic` (RPC) — a failure partway
+   * through rolls back everything instead of leaving head_commit_id/drafts
+   * pointing at a stale/inconsistent state.
    *
-   * IMPORTANT: Only SELECT and INSERT on commits table. No UPDATE/DELETE.
+   * IMPORTANT: `commits` only ever gets INSERTed into, never UPDATE/DELETE
+   * (matches the table's real SELECT+INSERT-only RLS policies).
    */
   async createCommit(userId: string, dto: CreateCommitDto): Promise<CommitRow> {
     const {
@@ -132,49 +130,37 @@ export class CommitsService {
     // Step 4: Inject UUIDs for notes (ensure persistent identity)
     snapshot = this.injectNoteUuids(snapshot);
 
-    // Step 5: Generate commit ID
-    const commitId = uuidv4();
+    // Step 5+6+7 atomically: insert commit, move branch head, reset draft.
+    // parent_commit_id = the branch's current head — this is what lets the
+    // rest of the module (divergence, merge-base) walk a real commit graph
+    // instead of relying on a static base_commit_id/wall-clock heuristic.
+    const { data: commit, error } = await this.supabase.rpc(
+      'create_commit_atomic',
+      {
+        p_branch_id: branch_id,
+        p_author_id: userId,
+        p_message: message,
+        p_snapshot: snapshot,
+        p_parent_commit_id: branch.head_commit_id,
+        p_merged_from_branch_id: null,
+      },
+    );
 
-    // Step 6: INSERT commit record (SELECT + INSERT only, no UPDATE/DELETE)
-    const { data: commit, error: commitError } = await this.supabase
-      .from('commits')
-      .insert({
-        id: commitId,
-        branch_id,
-        message,
-        snapshot,
-        created_by: userId,
-      })
-      .select('*')
-      .single<CommitDbRow>();
-
-    if (commitError) {
+    if (error) {
       throw new InternalServerErrorException(
-        `Failed to create commit: ${commitError.message}`,
+        `Failed to create commit: ${error.message}`,
       );
     }
 
-    if (!commit) {
-      throw new InternalServerErrorException('Commit was not created');
-    }
-
-    // Step 7: UPDATE branch head pointer (this is the only UPDATE allowed)
-    const { error: branchError } = await this.supabase
-      .from('branches')
-      .update({ head_commit_id: commitId })
-      .eq('id', branch_id);
-
-    if (branchError) {
-      console.error('Failed to update branch head:', branchError);
-    }
+    const row = commit as CommitDbRow;
 
     return {
-      id: commit.id,
-      branch_id: commit.branch_id,
-      message: commit.message,
-      snapshot: commit.snapshot,
-      created_by: commit.created_by,
-      created_at: commit.created_at,
+      id: row.id,
+      branch_id: row.branch_id,
+      message: row.message,
+      snapshot: row.snapshot,
+      created_by: row.author_id,
+      created_at: row.created_at,
     };
   }
 
@@ -185,9 +171,9 @@ export class CommitsService {
   /**
    * Get paginated commit history with author info.
    *
-   * Supports filtering by branch_id and includes:
-   * - Author info (username, display_name, avatar_url)
-   * - Tags associated with each commit
+   * With `branch_id`: scoped to that branch (ownership verified).
+   * Without it: scoped to every branch across projects the caller owns —
+   * never returns commits from projects the caller doesn't own.
    */
   async getCommitHistory(
     dto: GetCommitHistoryDto,
@@ -197,16 +183,20 @@ export class CommitsService {
     const limit = dto.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    // If filtering by branch, verify user has access
-    if (dto.branch_id) {
-      await this.verifyBranchAccess(dto.branch_id, userId);
-    }
-
     let query = this.supabase.from('commits').select('*', { count: 'exact' });
 
-    // Filter by branch if specified
     if (dto.branch_id) {
+      // If filtering by branch, verify user has access
+      await this.verifyBranchAccess(dto.branch_id, userId);
       query = query.eq('branch_id', dto.branch_id);
+    } else {
+      // No branch filter — restrict to branches on projects the caller owns,
+      // never the whole platform's commits.
+      const ownedBranchIds = await this.getOwnedBranchIds(userId);
+      if (ownedBranchIds.length === 0) {
+        return { items: [], total: 0, page, totalPages: 0, limit };
+      }
+      query = query.in('branch_id', ownedBranchIds);
     }
 
     // Order by created_at descending (newest first)
@@ -230,7 +220,7 @@ export class CommitsService {
     const tagsMap = await this.getTagsForCommits(commitIds);
 
     // Fetch author info for all commits
-    const authorIds = [...new Set(commits.map((c) => c.created_by))];
+    const authorIds = [...new Set(commits.map((c) => c.author_id))];
     const authorsMap = await this.getAuthorsInfo(authorIds);
 
     // Enrich commits with author info and tags
@@ -239,10 +229,10 @@ export class CommitsService {
       branch_id: commit.branch_id,
       message: commit.message,
       snapshot: commit.snapshot,
-      created_by: commit.created_by,
+      created_by: commit.author_id,
       created_at: commit.created_at,
-      author: authorsMap.get(commit.created_by) ?? {
-        id: commit.created_by,
+      author: authorsMap.get(commit.author_id) ?? {
+        id: commit.author_id,
         username: null,
         display_name: null,
         avatar_url: null,
@@ -269,7 +259,7 @@ export class CommitsService {
     // Fetch commit with branch info for ownership check
     const { data: commitData, error: commitError } = await this.supabase
       .from('commits')
-      .select('*, branch:branches!inner(project_id)')
+      .select('*, branch:branches!commits_branch_id_fkey(project_id)')
       .eq('id', commitId)
       .single();
 
@@ -288,17 +278,16 @@ export class CommitsService {
     const tags = await this.getTagsForCommits([commitId]);
 
     // Fetch author info
-
     const { data: authorData } = await this.supabase
       .from('users')
       .select('id, username, display_name, avatar_url')
-      .eq('id', commit.created_by)
+      .eq('id', commit.author_id)
       .single();
 
     const author = authorData;
 
     const authorInfo = {
-      id: author?.id ?? commit.created_by,
+      id: author?.id ?? commit.author_id,
       username: author?.username ?? null,
       display_name: author?.display_name ?? null,
       avatar_url: author?.avatar_url ?? null,
@@ -309,7 +298,7 @@ export class CommitsService {
       branch_id: commit.branch_id,
       message: commit.message,
       snapshot: commit.snapshot,
-      created_by: commit.created_by,
+      created_by: commit.author_id,
       created_at: commit.created_at,
       author: authorInfo,
       tags: tags.get(commit.id) ?? [],
@@ -323,56 +312,35 @@ export class CommitsService {
   /**
    * Create a tag for a commit.
    *
-   * BR-44 Rules:
-   * - Tag name must be unique within the same project
-   * - If tag exists on this commit, it will be replaced
-   * - If tag exists on different commit in same project, throw ConflictException
+   * BR-44: tag name unique within the project, and a commit carries at most
+   * one tag — both enforced by real DB unique constraints now
+   * (`commit_tags_project_id_name_key`, `commit_tags_commit_id_key`), so the
+   * upsert below is the single source of truth (no separate check-then-insert
+   * race). BR-45: tags are metadata alongside the commit, not part of it.
    */
   async tagCommit(
     commitId: string,
     userId: string,
     dto: TagCommitDto,
   ): Promise<TagRow> {
-    // Verify commit exists and get branch info
-    const { data: existingCommit, error: commitError } = await this.supabase
-      .from('commits')
-      .select('id, branch_id')
-      .eq('id', commitId)
-      .single();
-
-    if (commitError || !existingCommit) {
-      throw new NotFoundException('Commit not found');
-    }
-
-    const branchId = (existingCommit as { branch_id: string }).branch_id;
-
-    // BR-44: Check if tag name already exists in any commit of this project
-    const isTagExistsInProject = await this.isTagNameExistsInProject(
-      dto.tag,
-      branchId,
-      commitId,
-    );
-
-    if (isTagExistsInProject) {
-      throw new ConflictException('Tag name already exists in this project');
-    }
+    // Verify commit exists and caller owns the project (also 404s on bad id)
+    await this.verifyCommitOwnership(commitId, userId);
 
     const tagId = uuidv4();
-    const color = dto.color ?? '#6366f1'; // Default indigo
 
-    // Upsert tag: update if exists on same commit, insert if not
+    // Upsert on commit_id: BR-44 says a commit carries at most one tag, so
+    // re-tagging a commit replaces its tag rather than adding a second one.
     const { data: tag, error: tagError } = await this.supabase
-      .from('tags')
+      .from('commit_tags')
       .upsert(
         {
           id: tagId,
           commit_id: commitId,
           name: dto.tag,
-          color,
           created_by: userId,
         },
         {
-          onConflict: 'commit_id,name',
+          onConflict: 'commit_id',
           ignoreDuplicates: false,
         },
       )
@@ -380,6 +348,11 @@ export class CommitsService {
       .single<TagDbRow>();
 
     if (tagError) {
+      // 23505 on (project_id, name) = another commit in this project already
+      // has this tag name.
+      if ((tagError as { code?: string }).code === '23505') {
+        throw new ConflictException('Tag name already exists in this project');
+      }
       throw new InternalServerErrorException(
         `Failed to create tag: ${tagError.message}`,
       );
@@ -393,7 +366,6 @@ export class CommitsService {
       id: tag.id,
       commit_id: tag.commit_id,
       name: tag.name,
-      color: tag.color,
       created_by: tag.created_by,
       created_at: tag.created_at,
     };
@@ -402,9 +374,11 @@ export class CommitsService {
   /**
    * Get all tags for a specific commit
    */
-  async getTagsForCommit(commitId: string): Promise<TagRow[]> {
+  async getTagsForCommit(commitId: string, userId: string): Promise<TagRow[]> {
+    await this.verifyCommitOwnership(commitId, userId);
+
     const { data, error } = await this.supabase
-      .from('tags')
+      .from('commit_tags')
       .select('*')
       .eq('commit_id', commitId)
       .order('created_at', { ascending: true });
@@ -421,9 +395,15 @@ export class CommitsService {
   /**
    * Delete a tag by name and commit_id
    */
-  async deleteTag(commitId: string, tagName: string): Promise<void> {
+  async deleteTag(
+    commitId: string,
+    tagName: string,
+    userId: string,
+  ): Promise<void> {
+    await this.verifyCommitOwnership(commitId, userId);
+
     const { error } = await this.supabase
-      .from('tags')
+      .from('commit_tags')
       .delete()
       .eq('commit_id', commitId)
       .eq('name', tagName);
@@ -446,7 +426,7 @@ export class CommitsService {
   async compareCommits(
     baseCommitId: string,
     targetCommitId: string,
-    userId?: string,
+    userId: string,
   ): Promise<ReturnType<DiffService['compareSnapshots']>> {
     // Fetch base commit
     const { data: baseCommit, error: baseError } = await this.supabase
@@ -483,8 +463,8 @@ export class CommitsService {
       );
     }
 
-    // Verify ownership if userId provided
-    if (userId && baseProjectId) {
+    // Verify caller owns the project both commits belong to
+    if (baseProjectId) {
       await this.verifyProjectOwnership(baseProjectId, userId);
     }
 
@@ -503,16 +483,14 @@ export class CommitsService {
   /**
    * Restore a previous commit by creating a new commit with that snapshot.
    *
-   * BR-47: Restore never deletes history - creates a NEW commit
-   * BR-41: Restoration never rewrites history
+   * BR-47/BR-41: Restore never deletes/rewrites history - creates a NEW commit.
    *
    * Flow:
-   * 1. Verify commit to restore exists
-   * 2. Verify user has edit permission on target branch
+   * 1. Verify user has edit permission on target branch
+   * 2. Verify commit to restore exists AND belongs to the same project
    * 3. Check if commit is NOT already the head of the branch (PRE-3)
-   * 4. Create new commit with snapshot from old commit
-   * 5. Update branch head pointer
-   * 6. Update draft to match restored state (POST-4)
+   * 4. Atomically: create new commit with snapshot from old commit, move
+   *    branch head, reset draft to match (POST-4)
    */
   async restoreCommit(
     commitId: string,
@@ -527,7 +505,7 @@ export class CommitsService {
     // Step 2: Get the commit to restore and verify it belongs to the same project
     const { data: commitToRestore, error: commitError } = await this.supabase
       .from('commits')
-      .select('*, branch:branches!inner(project_id)')
+      .select('*, branch:branches!commits_branch_id_fkey(project_id)')
       .eq('id', commitId)
       .single();
 
@@ -535,7 +513,6 @@ export class CommitsService {
       throw new NotFoundException('Commit to restore not found');
     }
 
-    // SECURITY FIX: Verify commit belongs to same project as target branch
     const commitProjectId = (
       commitToRestore as { branch?: { project_id: string } }
     ).branch?.project_id;
@@ -548,7 +525,6 @@ export class CommitsService {
     const commit = commitToRestore as unknown as CommitDbRow;
 
     // Step 3: PRE-3 Check - Verify this commit is not already the head
-    // If the commit being restored IS the current head, no need to restore
     if (branch.head_commit_id === commitId) {
       throw new BadRequestException(
         'Selected commit is already the most recent version on this branch',
@@ -559,63 +535,34 @@ export class CommitsService {
     const restoreMessage =
       customMessage ?? `Revert to commit ${commitId.substring(0, 8)}`;
 
-    // Step 5: Create new commit with the old snapshot
-    const commitIdNew = uuidv4();
+    // Step 5: atomically create the restore commit, move head, reset draft
+    const { data: newCommit, error } = await this.supabase.rpc(
+      'create_commit_atomic',
+      {
+        p_branch_id: branch_id,
+        p_author_id: userId,
+        p_message: restoreMessage,
+        p_snapshot: commit.snapshot,
+        p_parent_commit_id: branch.head_commit_id,
+        p_merged_from_branch_id: null,
+      },
+    );
 
-    // Upsert commit record
-    const { data: newCommit, error: newCommitError } = await this.supabase
-      .from('commits')
-      .insert({
-        id: commitIdNew,
-        branch_id,
-        message: restoreMessage,
-        snapshot: commit.snapshot,
-        created_by: userId,
-      })
-      .select('*')
-      .single<CommitDbRow>();
-
-    if (newCommitError) {
+    if (error) {
       throw new InternalServerErrorException(
-        `Failed to create restore commit: ${newCommitError.message}`,
+        `Failed to create restore commit: ${error.message}`,
       );
     }
 
-    if (!newCommit) {
-      throw new InternalServerErrorException('Restore commit was not created');
-    }
-
-    // Step 6: UPDATE branch head pointer
-    const { error: branchError } = await this.supabase
-      .from('branches')
-      .update({ head_commit_id: commitIdNew })
-      .eq('id', branch_id);
-
-    if (branchError) {
-      console.error(
-        'Failed to update branch head during restore:',
-        branchError,
-      );
-    }
-
-    // Step 7: POST-4 - Update draft to match restored state
-    const { error: draftError } = await this.supabase.from('drafts').upsert({
-      branch_id,
-      snapshot: commit.snapshot,
-      updated_at: new Date().toISOString(),
-    });
-
-    if (draftError) {
-      console.error('Failed to update draft during restore:', draftError);
-    }
+    const row = newCommit as CommitDbRow;
 
     return {
-      id: newCommit.id,
-      branch_id: newCommit.branch_id,
-      message: newCommit.message,
-      snapshot: newCommit.snapshot,
-      created_by: newCommit.created_by,
-      created_at: newCommit.created_at,
+      id: row.id,
+      branch_id: row.branch_id,
+      message: row.message,
+      snapshot: row.snapshot,
+      created_by: row.author_id,
+      created_at: row.created_at,
     };
   }
 
@@ -638,6 +585,52 @@ export class CommitsService {
     return branch?.project_id ?? null;
   }
 
+  /** All branch ids belonging to projects the given user owns. */
+  private async getOwnedBranchIds(userId: string): Promise<string[]> {
+    const { data: ownedProjects } = await this.supabase
+      .from('projects')
+      .select('id')
+      .eq('owner_id', userId);
+
+    const projectIds = (ownedProjects ?? []).map((p: { id: string }) => p.id);
+    if (projectIds.length === 0) return [];
+
+    const { data: branches } = await this.supabase
+      .from('branches')
+      .select('id')
+      .in('project_id', projectIds);
+
+    return (branches ?? []).map((b: { id: string }) => b.id);
+  }
+
+  /**
+   * Verify a commit exists and the caller owns the project it belongs to.
+   * Returns the commit's project id.
+   */
+  private async verifyCommitOwnership(
+    commitId: string,
+    userId: string,
+  ): Promise<string> {
+    const { data, error } = await this.supabase
+      .from('commits')
+      .select('branch:branches!commits_branch_id_fkey(project_id)')
+      .eq('id', commitId)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('Commit not found');
+    }
+
+    const projectId = (data as unknown as { branch?: { project_id: string } })
+      .branch?.project_id;
+    if (!projectId) {
+      throw new NotFoundException('Commit not found');
+    }
+
+    await this.verifyProjectOwnership(projectId, userId);
+    return projectId;
+  }
+
   /**
    * Verify user has access to branch and return branch info
    */
@@ -651,7 +644,7 @@ export class CommitsService {
       .select(
         `
         *,
-        project:projects!inner(id, owner_id)
+        project:projects!branches_project_id_fkey(id, owner_id)
       `,
       )
       .eq('id', branchId)
@@ -711,59 +704,6 @@ export class CommitsService {
     // Use DiffService for comparison
     const diff = this.diffService.compareSnapshots(headSnapshot, newSnapshot);
     return diff.areIdentical;
-  }
-
-  /**
-   * BR-44: Check if tag name already exists in any commit of this project
-   * (excluding the current commit being tagged)
-   */
-  private async isTagNameExistsInProject(
-    tagName: string,
-    branchId: string,
-    excludeCommitId: string,
-  ): Promise<boolean> {
-    // Get project_id from branch
-    const { data: branch } = await this.supabase
-      .from('branches')
-      .select('project_id')
-      .eq('id', branchId)
-      .single();
-
-    if (!branch) return false;
-
-    const projectId = branch.project_id;
-
-    // Get all commits in this project
-    const { data: projectCommits } = await this.supabase
-      .from('commits')
-      .select('id')
-      .in(
-        'branch_id',
-        (
-          await this.supabase
-            .from('branches')
-            .select('id')
-            .eq('project_id', projectId)
-        ).data?.map((b: { id: string }) => b.id) ?? [],
-      );
-
-    if (!projectCommits || projectCommits.length === 0) return false;
-
-    const commitIds = projectCommits
-      .map((c: { id: string }) => c.id)
-      .filter((id: string) => id !== excludeCommitId);
-
-    if (commitIds.length === 0) return false;
-
-    // Check if tag name exists on any of these commits
-    const { data: existingTag } = await this.supabase
-      .from('tags')
-      .select('id')
-      .in('commit_id', commitIds)
-      .eq('name', tagName)
-      .maybeSingle();
-
-    return !!existingTag;
   }
 
   /**
@@ -859,8 +799,8 @@ export class CommitsService {
     }
 
     const { data, error } = await this.supabase
-      .from('tags')
-      .select('id, commit_id, name, color, created_by, created_at')
+      .from('commit_tags')
+      .select('id, commit_id, name, created_by, created_at')
       .in('commit_id', commitIds);
 
     if (error) {

@@ -1,14 +1,10 @@
 import {
   Controller,
-  Get,
   Post,
-  Delete,
   Body,
-  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
-  ParseUUIDPipe,
   HttpException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -39,13 +35,14 @@ class ConflictException extends HttpException {
 }
 
 /**
- * Merge Controller - UC-51, UC-52
+ * Merge Controller - UC-51
  *
  * Endpoints:
  * POST   /branches/merge              - Initiate merge (UC-51)
  * POST   /branches/merge/resolve     - Resolve conflicts and complete merge (UC-51)
- * GET    /branches/:id/delete-preview - Preview deletion impact (UC-52)
- * DELETE /branches/:id               - Delete a branch (UC-52)
+ *
+ * UC-52 (delete-preview / delete branch) lives in BranchesController instead —
+ * it's a branch-lifecycle concern, not a merge concern.
  *
  * Guards: JwtAuthGuard + SessionAuthGuard (both required)
  */
@@ -116,45 +113,5 @@ export class MergeController {
     @Body() dto: ResolveConflictDto,
   ): Promise<MergeSuccessResult> {
     return this.mergeService.resolveConflictsAndMerge(userId, dto);
-  }
-
-  // ==========================================================================
-  // UC-52: Delete Branch
-  // ==========================================================================
-
-  /**
-   * GET /branches/:id/delete-preview
-   *
-   * Preview what will be deleted when removing a branch.
-   *
-   * Business Rules:
-   * - BR-55: Shows count of commits that will be orphaned
-   *
-   * Returns: DeleteBranchPreview with commit count
-   */
-  @Get(':id/delete-preview')
-  async getDeletePreview(@Param('id', ParseUUIDPipe) id: string) {
-    return this.mergeService.getDeletePreview(id);
-  }
-
-  /**
-   * DELETE /branches/:id
-   *
-   * Delete a branch.
-   *
-   * Business Rules:
-   * - BR-54: Cannot delete default branch
-   * - BR-54: Cannot delete currently active branch
-   * - BR-55: Does not delete commits (kept for history integrity)
-   *
-   * Returns: 204 No Content
-   */
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteBranch(
-    @CurrentUser() userId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<void> {
-    await this.mergeService.deleteBranch(userId, id);
   }
 }

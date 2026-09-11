@@ -65,11 +65,13 @@ export class SwitchBranchDto {
   targetBranchId!: string;
 
   /**
-   * Current draft snapshot from the branch being switched away from
-   * This will be saved before switching
+   * Current draft snapshot from the branch being switched away from — saved
+   * before switching. Required (not optional): CLAUDE.md §4.2 requires
+   * "chuyển branch = lưu draft cũ" unconditionally, so the server can't allow
+   * a client to silently skip sending it and lose unsaved edits.
    */
-  @IsOptional()
+  @IsNotEmpty({ message: 'Current draft is required when switching branches' })
   @ValidateNested()
   @Type(() => DraftSnapshotDto)
-  currentDraft?: DraftSnapshotDto;
+  currentDraft!: DraftSnapshotDto;
 }
