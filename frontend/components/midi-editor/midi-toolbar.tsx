@@ -20,12 +20,17 @@ interface MidiToolbarProps {
   onImportMidi: () => void;
   onPlay: () => void;
   onStop: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  onSelectAll: () => void;
   onPause: () => void;
   onToggleLoop: () => void;
   isPlaying: boolean;
   isPaused: boolean;
   loopOn: boolean;
   projectName: string;
+  hasSelection: boolean;
+  hasClipboard: boolean;
 }
 
 const TOOLS: { id: ToolMode; label: string; icon: string; title: string }[] = [
@@ -52,12 +57,17 @@ export function MidiToolbar({
   onImportMidi,
   onPlay,
   onStop,
+  onCopy,
+  onPaste,
+  onSelectAll,
   onPause,
   onToggleLoop,
   isPlaying,
   isPaused,
   loopOn,
   projectName,
+  hasSelection,
+  hasClipboard,
 }: MidiToolbarProps) {
   return (
     <div style={styles.bar}>
@@ -130,6 +140,41 @@ export function MidiToolbar({
           title="Zoom in"
         >
           +
+        </button>
+      </div>
+
+      <div style={styles.divider} />
+
+      {/* Copy/Paste (UC-32/33) */}
+      <div style={styles.group}>
+        <button
+          onClick={onSelectAll}
+          title="Select all notes (Ctrl+A)"
+          style={{ ...styles.btn, ...styles.btnSpecial }}
+        >
+          ⊞ All
+        </button>
+        <button
+          onClick={onCopy}
+          disabled={!hasSelection}
+          title={hasSelection ? "Copy selected notes (Ctrl+C)" : "Select notes first"}
+          style={{
+            ...styles.btn,
+            ...(!hasSelection ? styles.btnDisabled : styles.btnSpecial),
+          }}
+        >
+          ⧉ Copy
+        </button>
+        <button
+          onClick={onPaste}
+          disabled={!hasClipboard}
+          title={hasClipboard ? "Paste notes (Ctrl+V)" : "Nothing to paste"}
+          style={{
+            ...styles.btn,
+            ...(!hasClipboard ? styles.btnDisabled : styles.btnSpecial),
+          }}
+        >
+          ⧉ Paste
         </button>
       </div>
 
@@ -250,6 +295,11 @@ const styles: Record<string, React.CSSProperties> = {
   btnSpecial: {
     borderColor: "#4f46e5",
     color: "#818cf8",
+  },
+  btnDisabled: {
+    color: "#3f3f46",
+    cursor: "not-allowed",
+    opacity: 0.5,
   },
   btnPlay: {
     background: "#16a34a",

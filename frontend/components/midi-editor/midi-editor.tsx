@@ -103,6 +103,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [trackLimitWarning, setTrackLimitWarning] = useState(false);
+  // UC-32: Selected note IDs for copy
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+  // UC-33: Clipboard for paste
+  const [clipboard, setClipboard] = useState<DraftNote[] | null>(null);
   // UC-37: Playback state
   const [loopOn, setLoopOn] = useState(false);
 
@@ -147,6 +151,40 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       cancelled = true;
     };
   }, [projectId]);
+
+  // ── Keyboard shortcuts (UC-32/33) ───────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't hijack Ctrl/Cmd+A/C/V while the user is typing in a text field
+      // (e.g. the track rename input) — those need native select-all/copy/paste.
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (!mod) return;
+
+      if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        handleCopy();
+      } else if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        handlePaste();
+      } else if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        handleSelectAll();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleCopy, handlePaste, handleSelectAll, selectedTrackId, snapshot]);
 
   // ── Flush pending autosave on unmount — a debounced save left running after
   // navigating away can setState on an unmounted component; just clearing the
@@ -263,6 +301,46 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         t.id === id ? { ...t, name: label } : t,
       ),
     });
+  }
+
+  // ── UC-32: Copy selected notes ───────────────────────────────
+  function handleCopy() {
+    if (selectedNoteIds.size === 0) return;
+    const selectedNotes = snapshot.notes.filter((n) => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return;
+    setClipboard(selectedNotes);
+    // Also copy to system clipboard as JSON
+    void navigator.clipboard.writeText(JSON.stringify(selectedNotes)).catch(() => {});
+  }
+
+  // ── UC-33: Paste notes ──────────────────────────────────────
+  function handlePaste() {
+    if (!clipboard || clipboard.length === 0) return;
+    const targetTrackId = selectedTrackId ?? snapshot.tracks[0]?.id;
+    if (!targetTrackId) return;
+
+    // Calculate offset: paste at playhead position
+    const minStart = Math.min(...clipboard.map((n) => n.start));
+    const offset = playheadTick - minStart;
+
+    const pastedNotes = clipboard.map((n) => ({
+      ...n,
+      id: crypto.randomUUID(),
+      trackId: targetTrackId,
+      start: n.start + offset,
+    }));
+
+    updateSnapshot({ ...snapshot, notes: [...snapshot.notes, ...pastedNotes] });
+    setSelectedNoteIds(new Set(pastedNotes.map((n) => n.id)));
+  }
+
+  // Handle Ctrl+A: select every note shown on the piano roll. The piano roll
+  // always renders notes from every track (see `notes={snapshot.notes}`
+  // below), so Select All must match that scope — filtering by
+  // selectedTrackId here would silently select nothing while notes from
+  // other tracks are visibly on screen.
+  function handleSelectAll() {
+    setSelectedNoteIds(new Set(snapshot.notes.map((n) => n.id)));
   }
 
   // ── UC-29: Remove track ─────────────────────────────────────
@@ -489,12 +567,17 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onImportMidi={handleImportMidi}
         onPlay={handlePlay}
         onStop={handleStop}
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+        onSelectAll={handleSelectAll}
         onPause={handlePause}
         onToggleLoop={handleToggleLoop}
         isPlaying={isPlaying}
         isPaused={isPaused}
         loopOn={loopOn}
         projectName={projectName}
+        hasSelection={selectedNoteIds.size > 0}
+        hasClipboard={clipboard !== null}
       />
 
       {/* Save status strip */}
@@ -544,6 +627,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           gridDivision={gridDivision}
           playheadTick={playheadTick}
           onNotesChange={handleNotesChange}
+          selectedNoteIds={selectedNoteIds}
+          onSelectedNotesChange={setSelectedNoteIds}
           isPlaying={isPlaying}
           onSeek={handleSeek}
         />
