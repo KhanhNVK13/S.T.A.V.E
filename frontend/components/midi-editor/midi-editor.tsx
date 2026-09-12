@@ -11,7 +11,9 @@
  * UC-33: Paste pattern
  * UC-34: Set track color
  * UC-35: Set track label
+ * UC-36: Metronome + Loop playback
  * UC-37: Playback project
+ * UC-38: Export project audio (WAV/MP3)
  */
 "use client";
 
@@ -30,6 +32,7 @@ import { PianoRoll } from "./piano-roll";
 import type { PianoRollHandle } from "./piano-roll";
 import { getDraft, putDraft } from "../../lib/api-client";
 import { parseMidiBuffer } from "../../lib/midi-parser";
+import { ExportDialog } from "./export-dialog";
 
 // Maximum tracks allowed per project (BR-29)
 const MAX_TRACKS = 16;
@@ -109,6 +112,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [clipboard, setClipboard] = useState<DraftNote[] | null>(null);
   // UC-37: Playback state
   const [loopOn, setLoopOn] = useState(false);
+  // UC-38: Export dialog
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
@@ -578,6 +583,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         projectName={projectName}
         hasSelection={selectedNoteIds.size > 0}
         hasClipboard={clipboard !== null}
+        onExportAudio={() => setShowExportDialog(true)}
       />
 
       {/* Save status strip */}
@@ -633,6 +639,15 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onSeek={handleSeek}
         />
       </div>
+
+      {/* UC-38: Export Audio dialog */}
+      {showExportDialog && (
+        <ExportDialog
+          snapshot={snapshot}
+          projectName={projectName}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
     </div>
   );
 }

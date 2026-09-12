@@ -1,6 +1,8 @@
 /**
  * midi-toolbar.tsx
  * Toolbar for the MIDI Editor: tool selector, grid quantize, zoom, import, play.
+ * UC-36: Metronome toggle, Loop toggle, BPM input
+ * UC-38: Export Audio (WAV/MP3)
  */
 "use client";
 
@@ -31,6 +33,7 @@ interface MidiToolbarProps {
   projectName: string;
   hasSelection: boolean;
   hasClipboard: boolean;
+  onExportAudio: () => void;
 }
 
 const TOOLS: { id: ToolMode; label: string; icon: string; title: string }[] = [
@@ -68,6 +71,7 @@ export function MidiToolbar({
   projectName,
   hasSelection,
   hasClipboard,
+  onExportAudio,
 }: MidiToolbarProps) {
   return (
     <div style={styles.bar}>
@@ -229,6 +233,15 @@ export function MidiToolbar({
       >
         ⬆ Import MIDI
       </button>
+
+      {/* UC-38: Export Audio */}
+      <button
+        onClick={onExportAudio}
+        title="Export project audio as WAV/MP3 (UC-38)"
+        style={{ ...styles.btn, ...styles.btnExport }}
+      >
+        ↓ Export Audio
+      </button>
     </div>
   );
 }
@@ -324,6 +337,10 @@ const styles: Record<string, React.CSSProperties> = {
   btnImport: {
     borderColor: "#0ea5e9",
     color: "#38bdf8",
+  },
+  btnExport: {
+    borderColor: "#059669",
+    color: "#34d399",
   },
   btnIcon: {
     fontSize: 14,
