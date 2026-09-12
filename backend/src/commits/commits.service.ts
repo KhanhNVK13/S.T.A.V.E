@@ -765,7 +765,7 @@ export class CommitsService {
         id: n.id ?? uuidv4(),
         trackId: n.trackId,
         pitch: n.pitch,
-        start: n.startTime ?? n.start ?? 0, // Support both field names
+        start: n.start ?? 0,
         duration: n.duration ?? 0,
         velocity: n.velocity ?? 80,
       })),

@@ -12,6 +12,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
 import { ProjectThumb } from '../../../components/ui/project-thumb';
+import { Toast } from '../../../components/ui/toast';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -26,6 +27,7 @@ export default function PublicProjectPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchProject() {
@@ -53,7 +55,7 @@ export default function PublicProjectPage({ params }: Props) {
     // Placeholder - will be implemented with Fork module
     setTimeout(() => {
       setForking(false);
-      alert('PLACEHOLDER — tính năng fork chưa được xây dựng.');
+      setToastMessage('PLACEHOLDER — tính năng fork chưa được xây dựng.');
     }, 1000);
   }
 
@@ -85,7 +87,11 @@ export default function PublicProjectPage({ params }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <>
+      {toastMessage && (
+        <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
+      )}
+      <div className="mx-auto max-w-4xl px-4 py-8">
       <PageHeader
         title={project.name}
         breadcrumbs={[{ label: 'Khám phá', href: '/explore' }, { label: project.name }]}
@@ -201,6 +207,7 @@ export default function PublicProjectPage({ params }: Props) {
           <ChevronRight className="h-3 w-3" /> để fork dự án này về workspace của bạn.
         </p>
       )}
-    </div>
+      </div>
+    </>
   );
 }

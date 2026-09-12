@@ -226,3 +226,125 @@ export async function putDraft(projectId: string, snapshot: DraftSnapshot): Prom
     body: JSON.stringify(snapshot),
   });
 }
+
+// ============================================
+// Version Control API (UC-42, UC-43, UC-44, UC-46)
+// ============================================
+import type {
+  CommitRow,
+  CommitWithAuthor,
+  PaginatedCommitHistory,
+  TagRow,
+} from "@stave/shared-types";
+
+export type { CommitRow, CommitWithAuthor, PaginatedCommitHistory, TagRow };
+
+/**
+ * Giới hạn mirror lại DTO backend (`create-commit.dto.ts` BR-39,
+ * `tag-commit.dto.ts` BR-44) để UI hiện bộ đếm ký tự / chặn sớm.
+ * Server vẫn là nơi xác thực cuối cùng — client chỉ chặn cho đỡ 1 vòng mạng.
+ */
+export const COMMIT_MESSAGE_MAX_LENGTH = 200;
+export const TAG_NAME_MAX_LENGTH = 30;
+
+/**
+ * 1 branch của project. Hình dạng lấy đúng từ `BranchesService.getProjectBranches`
+ * (cột thật của bảng `branches` + author lồng vào) — không có `head_commit_id`
+ * ở mọi branch cũ nào chưa từng commit (null).
+ */
+export interface Branch {
+  id: string;
+  project_id: string;
+  name: string;
+  is_default: boolean;
+  created_by: string;
+  created_at: string;
+  base_commit_id: string | null;
+  head_commit_id: string | null;
+  author: {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  };
+}
+
+/** GET /projects/:projectId/branches — danh sách branch (branch mặc định đứng đầu). */
+export async function listProjectBranches(projectId: string): Promise<Branch[]> {
+  return apiFetch<Branch[]>(`/projects/${projectId}/branches`);
+}
+
+export interface CreateCommitPayload {
+  branch_id: string;
+  message: string;
+  /**
+   * UC-42 exception 6.E1: head_commit_id mà client tin là hiện tại. Nếu lệch
+   * (tab khác/người khác vừa commit) backend trả 409 thay vì ghi đè ngầm.
+   */
+  expectedHeadCommitId?: string;
+}
+
+/**
+ * POST /commits — UC-42.
+ *
+ * CỐ Ý KHÔNG gửi `snapshot`: backend sẽ lấy snapshot từ bảng `drafts` của
+ * branch. Lý do thật (không phải suy đoán): `DraftSnapshotDto.meta` trong
+ * `create-commit.dto.ts` không có decorator validate nào, nên
+ * `ValidationPipe({ whitelist: true })` sẽ **cắt bỏ** `meta` khỏi payload và
+ * commit sẽ mất tempo/ppq/timeSignature thật (rơi về mặc định 120/4-4/480);
+ * `DraftNoteDto` cũng đòi `startTime` trong khi snapshot thật dùng `start`.
+ * Đường đi qua draft (`PUT /projects/:id/draft`, DTO validate đầy đủ) là
+ * đường duy nhất giữ nguyên vẹn snapshot → phải flush draft TRƯỚC khi gọi hàm này.
+ */
+export async function createCommit(payload: CreateCommitPayload): Promise<CommitRow> {
+  return apiFetch<CommitRow>("/commits", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** GET /commits?branch_id=…&page=…&limit=… — UC-43, mới nhất trước. */
+export async function getCommitHistory(params: {
+  branchId: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedCommitHistory> {
+  const search = new URLSearchParams({ branch_id: params.branchId });
+  if (params.page) search.set("page", String(params.page));
+  if (params.limit) search.set("limit", String(params.limit));
+  return apiFetch<PaginatedCommitHistory>(`/commits?${search.toString()}`);
+}
+
+/** GET /commits/:id — UC-43, chi tiết 1 commit (kèm author + tag + snapshot). */
+export async function getCommit(commitId: string): Promise<CommitWithAuthor> {
+  return apiFetch<CommitWithAuthor>(`/commits/${commitId}`);
+}
+
+/**
+ * POST /commits/:id/restore — UC-46.
+ * BR-47: KHÔNG xoá lịch sử — tạo commit MỚI mang snapshot của commit cũ,
+ * đồng thời backend reset draft của branch về đúng snapshot đó.
+ * Trả về commit mới (đã kèm `snapshot` để client đồng bộ lại editor).
+ */
+export async function restoreCommit(
+  commitId: string,
+  payload: { branch_id: string; message?: string },
+): Promise<CommitRow> {
+  return apiFetch<CommitRow>(`/commits/${commitId}/restore`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * POST /commits/:id/tag — UC-44.
+ * BR-44: tên tag unique trong phạm vi project và mỗi commit chỉ mang tối đa 1
+ * tag — cả 2 đều do unique constraint dưới DB quyết định, client KHÔNG tự đoán
+ * trùng (không đủ dữ liệu), cứ gọi và hiện lỗi 409 thật nếu có.
+ */
+export async function tagCommit(commitId: string, tag: string): Promise<TagRow> {
+  return apiFetch<TagRow>(`/commits/${commitId}/tag`, {
+    method: "POST",
+    body: JSON.stringify({ tag }),
+  });
+}

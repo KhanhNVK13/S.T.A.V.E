@@ -62,11 +62,12 @@ export function TrackList({
   onSetTrackLabel,
   canAddTrack = true,
 }: TrackListProps) {
-  // BR-30: Project must have at least 1 track — cannot delete when only 1 left
-  const canDelete = tracks.length > 1;
-
   // UC-30: Track being edited for instrument assignment
   const [editingInstrumentTrackId, setEditingInstrumentTrackId] = useState<string | null>(null);
+  // Tìm nhạc cụ — 128 nhạc cụ trong 1 hộp cao 240px cuộn tay rất mất thời
+  // gian; lọc theo tên/nhóm nhạc cụ khi gõ. Xoá khi đóng/mở lại dropdown.
+  const [instrumentSearch, setInstrumentSearch] = useState("");
+  const instrumentSearchRef = useRef<HTMLInputElement>(null);
 
   // UC-34: Track being edited for color
   const [editingColorTrackId, setEditingColorTrackId] = useState<string | null>(null);
@@ -104,6 +105,15 @@ export function TrackList({
       labelInputRef.current.select();
     }
   }, [editingLabelTrackId]);
+
+  // Focus ô tìm mỗi lần mở dropdown nhạc cụ — ô tìm đã được xoá rỗng ngay tại
+  // nơi mở (xem nút bên dưới), không setState ở đây để tránh cascading
+  // render (ESLint react-hooks/set-state-in-effect).
+  useEffect(() => {
+    if (editingInstrumentTrackId !== null) {
+      instrumentSearchRef.current?.focus();
+    }
+  }, [editingInstrumentTrackId]);
 
   // Get short display name for instrument
   function getInstrumentDisplayName(instrument: string | null): string {
@@ -224,6 +234,7 @@ export function TrackList({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    setInstrumentSearch("");
                     setEditingInstrumentTrackId(
                       isEditingInstrument ? null : track.id
                     );
@@ -267,17 +278,12 @@ export function TrackList({
                       e.stopPropagation();
                       onDeleteTrack(track.id);
                     }}
-                    disabled={!canDelete}
-                    title={
-                      canDelete
-                        ? "Delete track"
-                        : "Cannot delete — project must have at least 1 track (BR-30)"
-                    }
+                    title="Delete track"
                     style={{
                       ...styles.iconBtn,
-                      color: canDelete ? "#52525b" : "#27272a",
-                      cursor: canDelete ? "pointer" : "not-allowed",
-                      opacity: canDelete ? 1 : 0.4,
+                      color: "#52525b",
+                      cursor: "pointer",
+                      opacity: 1,
                     }}
                   >
                     ✕
@@ -286,37 +292,68 @@ export function TrackList({
               </div>
 
               {/* UC-30: Instrument selector dropdown */}
-              {isEditingInstrument && (
-                <div style={styles.instrumentDropdown}>
-                  <div style={styles.instrumentDropdownHeader}>
-                    <span style={styles.instrumentDropdownLabel}>Select Instrument</span>
-                    <button
-                      onClick={() => setEditingInstrumentTrackId(null)}
-                      style={styles.instrumentDropdownClose}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  {/* None option */}
-                  <button
-                    onClick={() => {
-                      onAssignInstrument(track.id, null);
-                      setEditingInstrumentTrackId(null);
-                    }}
-                    style={{
-                      ...styles.instrumentOption,
-                      ...(track.instrument === null ? styles.instrumentOptionSelected : {}),
-                    }}
-                  >
-                    <span style={styles.instrumentOptionName}>None (Default)</span>
-                  </button>
-                  {/* Instrument categories */}
-                  {Array.from(new Set(GM_INSTRUMENTS.map((i) => i.category))).map(
-                    (category) => (
+              {isEditingInstrument && (() => {
+                const query = instrumentSearch.trim().toLowerCase();
+                const filtered = query
+                  ? GM_INSTRUMENTS.filter(
+                      (i) =>
+                        i.name.toLowerCase().includes(query) ||
+                        i.category.toLowerCase().includes(query),
+                    )
+                  : GM_INSTRUMENTS;
+                const categories = Array.from(new Set(filtered.map((i) => i.category)));
+
+                return (
+                  <div style={styles.instrumentDropdown}>
+                    <div style={styles.instrumentDropdownHeader}>
+                      <span style={styles.instrumentDropdownLabel}>Select Instrument</span>
+                      <button
+                        onClick={() => setEditingInstrumentTrackId(null)}
+                        style={styles.instrumentDropdownClose}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div style={styles.instrumentSearchWrap}>
+                      <input
+                        ref={instrumentSearchRef}
+                        type="text"
+                        value={instrumentSearch}
+                        onChange={(e) => setInstrumentSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            setEditingInstrumentTrackId(null);
+                          } else if (e.key === "Enter" && filtered[0]) {
+                            onAssignInstrument(track.id, filtered[0].name);
+                            setEditingInstrumentTrackId(null);
+                          }
+                        }}
+                        placeholder="Tìm nhạc cụ…"
+                        style={styles.instrumentSearchInput}
+                      />
+                    </div>
+                    {/* None option — luôn hiện, không lọc theo query */}
+                    {!query && (
+                      <button
+                        onClick={() => {
+                          onAssignInstrument(track.id, null);
+                          setEditingInstrumentTrackId(null);
+                        }}
+                        style={{
+                          ...styles.instrumentOption,
+                          ...(track.instrument === null ? styles.instrumentOptionSelected : {}),
+                        }}
+                      >
+                        <span style={styles.instrumentOptionName}>None (Default)</span>
+                      </button>
+                    )}
+                    {/* Instrument categories — chỉ hiện nhóm còn kết quả khớp */}
+                    {categories.map((category) => (
                       <div key={category}>
                         <div style={styles.instrumentCategory}>{category}</div>
-                        {GM_INSTRUMENTS.filter((i) => i.category === category).map(
-                          (inst) => (
+                        {filtered
+                          .filter((i) => i.category === category)
+                          .map((inst) => (
                             <button
                               key={inst.id}
                               onClick={() => {
@@ -332,13 +369,15 @@ export function TrackList({
                             >
                               <span style={styles.instrumentOptionName}>{inst.name}</span>
                             </button>
-                          )
-                        )}
+                          ))}
                       </div>
-                    )
-                  )}
-                </div>
-              )}
+                    ))}
+                    {query && filtered.length === 0 && (
+                      <div style={styles.instrumentSearchEmpty}>Không tìm thấy nhạc cụ nào</div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* UC-34: Color picker */}
               {editingColorTrackId === track.id && (
@@ -544,6 +583,25 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#52525b",
     cursor: "pointer",
     padding: 0,
+  },
+  instrumentSearchWrap: {
+    padding: "0 8px 4px",
+  },
+  instrumentSearchInput: {
+    width: "100%",
+    background: "#18181b",
+    border: "1px solid #27272a",
+    borderRadius: 4,
+    padding: "3px 6px",
+    fontSize: 10,
+    color: "#e4e4e7",
+    outline: "none",
+  },
+  instrumentSearchEmpty: {
+    padding: "8px",
+    fontSize: 10,
+    color: "#52525b",
+    textAlign: "center",
   },
   instrumentCategory: {
     fontSize: 9,
