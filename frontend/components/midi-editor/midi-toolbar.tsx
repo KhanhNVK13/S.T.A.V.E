@@ -40,6 +40,12 @@ interface MidiToolbarProps {
   /** 0..1 — âm lượng chung cho TẤT CẢ track (chỉ ảnh hưởng lúc phát, không ghi vào snapshot). */
   masterVolume: number;
   onMasterVolumeChange: (v: number) => void;
+  /** UC-36: Tempo (BPM) — ghi thẳng vào snapshot.meta.tempo. */
+  tempo: number;
+  onTempoChange: (bpm: number) => void;
+  /** UC-36: Metronome click trong lúc phát. */
+  metronomeOn: boolean;
+  onMetronomeToggle: () => void;
 }
 
 const TOOLS: { id: ToolMode; label: string; icon: string; title: string }[] = [
@@ -84,6 +90,10 @@ export function MidiToolbar({
   onOpenRedesign,
   masterVolume,
   onMasterVolumeChange,
+  tempo,
+  onTempoChange,
+  metronomeOn,
+  onMetronomeToggle,
 }: MidiToolbarProps) {
   return (
     <div style={styles.bar}>
@@ -254,6 +264,35 @@ export function MidiToolbar({
         >
           🔁 Loop
         </button>
+        {/* UC-36: Metronome toggle */}
+        <button
+          onClick={onMetronomeToggle}
+          title={metronomeOn ? "Metronome: ON (click to disable)" : "Metronome: OFF (click to enable)"}
+          style={{
+            ...styles.btn,
+            ...(metronomeOn ? styles.btnMetronomeActive : {}),
+          }}
+        >
+          🎵 Metro
+        </button>
+      </div>
+
+      <div style={styles.divider} />
+
+      {/* UC-36: Tempo (BPM) */}
+      <div style={styles.group} title="Tempo (BPM)">
+        <span style={styles.label}>BPM</span>
+        <input
+          type="number"
+          min={20}
+          max={300}
+          value={tempo}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            if (!isNaN(v) && v >= 20 && v <= 300) onTempoChange(v);
+          }}
+          style={styles.bpmInput}
+        />
       </div>
 
       <div style={styles.divider} />
@@ -399,6 +438,20 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#7c3aed",
     borderColor: "#7c3aed",
     color: "#fff",
+  },
+  btnMetronomeActive: {
+    background: "#d97706",
+    borderColor: "#d97706",
+    color: "#fff",
+  },
+  bpmInput: {
+    width: 48,
+    padding: "3px 6px",
+    fontSize: 12,
+    borderRadius: 5,
+    border: "1px solid #27272a",
+    background: "#111113",
+    color: "#e4e4e7",
   },
   btnImport: {
     borderColor: "#0ea5e9",

@@ -121,6 +121,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [clipboard, setClipboard] = useState<DraftNote[] | null>(null);
   // UC-37: Playback state
   const [loopOn, setLoopOn] = useState(false);
+  // UC-36: Metronome — click track played alongside notes during playback.
+  const [metronomeOn, setMetronomeOn] = useState(false);
   // Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc, thay vì
   // phải chỉnh từng track riêng. CỐ Ý là control chỉ ảnh hưởng tới output lúc
   // phát (1 GainNode chung, xem startPlayback), KHÔNG ghi vào `track.volume`
@@ -160,6 +162,16 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   useEffect(() => {
     loopOnRef.current = loopOn;
   }, [loopOn]);
+  // UC-36: ref so the metronome scheduler (a recursive setTimeout closure
+  // started once per startPlayback call) can react to the toggle live,
+  // instead of only taking effect on the next Play/loop-restart.
+  const metronomeOnRef = useRef(false);
+  useEffect(() => {
+    metronomeOnRef.current = metronomeOn;
+  }, [metronomeOn]);
+  // UC-36: metronome's own lookahead-scheduler timer, cleared in stopAudio()
+  // alongside the playback interval/AudioContext.
+  const metronomeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Kéo slider master volume trong lúc đang phát phải nghe thấy thay đổi
   // ngay lập tức, không chỉ áp dụng cho lần Play tiếp theo.
   useEffect(() => {
@@ -619,7 +631,71 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       clearInterval(playTimerRef.current);
       playTimerRef.current = null;
     }
+    if (metronomeTimerRef.current) {
+      clearTimeout(metronomeTimerRef.current);
+      metronomeTimerRef.current = null;
+    }
     masterGainRef.current = null;
+  }
+
+  // ── UC-36: Metronome ──────────────────────────────────────────
+  // Web-Audio lookahead scheduler (same pattern as the playhead interval):
+  // wakes up every SCHEDULE_INTERVAL_MS and queues any click whose exact
+  // audio-clock time falls within the next LOOKAHEAD_SEC, so click timing
+  // comes from the audio clock (sample-accurate) rather than from
+  // setTimeout/setInterval (which drifts).
+  //
+  // `fromTick` anchors the beat count to the song's own tick 0, not to
+  // whenever Play was pressed — starting mid-bar still puts the accent
+  // click on the correct beat instead of always treating the first click
+  // as beat 1. `metronomeOnRef` is read on every scheduled beat (not just
+  // once at the top) so toggling Metronome mid-playback takes effect
+  // immediately without restarting playback, and downbeat/beat-time math
+  // keeps running underneath even while muted so turning it back on
+  // doesn't jump out of alignment.
+  function scheduleMetronome(ctx: AudioContext, startTime: number, fromTick: number) {
+    const LOOKAHEAD_SEC = 0.1;
+    const SCHEDULE_INTERVAL_MS = 50;
+    const bpm = snapshot.meta.tempo;
+    const ppq = snapshot.meta.ppq;
+    const secPerBeat = 60 / bpm;
+    // Beats per bar — assumes a quarter-note beat (matches how `ppq`/tick
+    // math is used everywhere else in this file); compound meters like 6/8
+    // would need a different beat unit, out of scope here.
+    const beatsPerBar = Math.max(1, snapshot.meta.timeSignature[0] ?? 4);
+
+    let nextBeatIndex = Math.round(fromTick / ppq);
+    let nextBeatTime = startTime;
+
+    function scheduleBeat() {
+      const now = ctx.currentTime;
+      while (nextBeatTime < now + LOOKAHEAD_SEC) {
+        if (metronomeOnRef.current) {
+          const isDownbeat = nextBeatIndex % beatsPerBar === 0;
+
+          const bufLen = Math.floor(ctx.sampleRate * 0.03);
+          const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < bufLen; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 8);
+          }
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+
+          const gain = ctx.createGain();
+          gain.gain.value = isDownbeat ? 0.8 : 0.4;
+          src.connect(gain);
+          gain.connect(ctx.destination);
+          src.start(nextBeatTime);
+        }
+
+        nextBeatTime += secPerBeat;
+        nextBeatIndex += 1;
+      }
+      metronomeTimerRef.current = setTimeout(scheduleBeat, SCHEDULE_INTERVAL_MS);
+    }
+
+    scheduleBeat();
   }
 
   function startPlayback(fromTick: number) {
@@ -644,6 +720,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     masterGain.gain.value = masterVolume;
     masterGain.connect(ctx.destination);
     masterGainRef.current = masterGain;
+
+    // UC-36: Metronome scheduler — runs independently of note playback so
+    // it keeps clicking even through silence.
+    scheduleMetronome(ctx, startTime, fromTick);
 
     const allNotes = snapshot.notes;
     // UC-37: End tick for auto-stop/loop — end of the last note, or the
@@ -741,6 +821,15 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   function handleToggleLoop() {
     setLoopOn((prev) => !prev);
+  }
+
+  // ── UC-36: Metronome + Tempo ──────────────────────────────────
+  function handleToggleMetronome() {
+    setMetronomeOn((prev) => !prev);
+  }
+
+  function handleTempoChange(bpm: number) {
+    updateSnapshot({ ...snapshot, meta: { ...snapshot.meta, tempo: bpm } });
   }
 
   function handleSeek(tick: number) {
@@ -894,6 +983,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onOpenRedesign={() => setUiVariant("redesign")}
         masterVolume={masterVolume}
         onMasterVolumeChange={handleMasterVolumeChange}
+        tempo={snapshot.meta.tempo}
+        onTempoChange={handleTempoChange}
+        metronomeOn={metronomeOn}
+        onMetronomeToggle={handleToggleMetronome}
       />
 
       {/* Save status strip */}
