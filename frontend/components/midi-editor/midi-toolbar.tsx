@@ -20,7 +20,11 @@ interface MidiToolbarProps {
   onImportMidi: () => void;
   onPlay: () => void;
   onStop: () => void;
+  onPause: () => void;
+  onToggleLoop: () => void;
   isPlaying: boolean;
+  isPaused: boolean;
+  loopOn: boolean;
   projectName: string;
 }
 
@@ -48,7 +52,11 @@ export function MidiToolbar({
   onImportMidi,
   onPlay,
   onStop,
+  onPause,
+  onToggleLoop,
   isPlaying,
+  isPaused,
+  loopOn,
   projectName,
 }: MidiToolbarProps) {
   return (
@@ -127,17 +135,42 @@ export function MidiToolbar({
 
       <div style={styles.divider} />
 
-      {/* Playback */}
+      {/* Playback (UC-37) */}
       <div style={styles.group}>
         {isPlaying ? (
-          <button onClick={onStop} style={{ ...styles.btn, ...styles.btnStop }}>
-            ■ Stop
-          </button>
+          <>
+            <button onClick={onPause} style={{ ...styles.btn, ...styles.btnPause }} title="Pause">
+              ⏸
+            </button>
+            <button onClick={onStop} style={{ ...styles.btn, ...styles.btnStop }} title="Stop">
+              ■
+            </button>
+          </>
+        ) : isPaused ? (
+          <>
+            <button onClick={onPlay} style={{ ...styles.btn, ...styles.btnPlay }} title="Resume">
+              ▶ Resume
+            </button>
+            <button onClick={onStop} style={{ ...styles.btn, ...styles.btnStop }} title="Stop">
+              ■
+            </button>
+          </>
         ) : (
-          <button onClick={onPlay} style={{ ...styles.btn, ...styles.btnPlay }}>
-            ▶ Play
+          <button onClick={onPlay} style={{ ...styles.btn, ...styles.btnPlay }} title="Play">
+            ▶
           </button>
         )}
+        {/* Loop toggle */}
+        <button
+          onClick={onToggleLoop}
+          title={loopOn ? "Loop: ON (click to disable)" : "Loop: OFF (click to enable)"}
+          style={{
+            ...styles.btn,
+            ...(loopOn ? styles.btnLoopActive : {}),
+          }}
+        >
+          🔁 Loop
+        </button>
       </div>
 
       {/* Spacer */}
@@ -226,6 +259,16 @@ const styles: Record<string, React.CSSProperties> = {
   btnStop: {
     background: "#dc2626",
     borderColor: "#dc2626",
+    color: "#fff",
+  },
+  btnPause: {
+    background: "#f59e0b",
+    borderColor: "#f59e0b",
+    color: "#fff",
+  },
+  btnLoopActive: {
+    background: "#7c3aed",
+    borderColor: "#7c3aed",
     color: "#fff",
   },
   btnImport: {
