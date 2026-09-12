@@ -102,6 +102,18 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // ── Keyboard shortcuts (UC-32/33) ───────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Don't hijack Ctrl/Cmd+A/C/V while the user is typing in a text field
+      // (e.g. the track rename input) — those need native select-all/copy/paste.
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const mod = isMac ? e.metaKey : e.ctrlKey;
       if (!mod) return;
@@ -266,14 +278,16 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     }));
 
     updateSnapshot({ ...snapshot, notes: [...snapshot.notes, ...pastedNotes] });
+    setSelectedNoteIds(new Set(pastedNotes.map((n) => n.id)));
   }
 
-  // Handle Ctrl+A: select all notes on selected track
+  // Handle Ctrl+A: select every note shown on the piano roll. The piano roll
+  // always renders notes from every track (see `notes={snapshot.notes}`
+  // below), so Select All must match that scope — filtering by
+  // selectedTrackId here would silently select nothing while notes from
+  // other tracks are visibly on screen.
   function handleSelectAll() {
-    const trackNotes = snapshot.notes.filter(
-      (n) => n.trackId === selectedTrackId || (!selectedTrackId && snapshot.tracks[0]?.id === n.trackId),
-    );
-    setSelectedNoteIds(new Set(trackNotes.map((n) => n.id)));
+    setSelectedNoteIds(new Set(snapshot.notes.map((n) => n.id)));
   }
 
   // ── UC-29: Remove track ─────────────────────────────────────
@@ -482,7 +496,6 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onNotesChange={handleNotesChange}
           selectedNoteIds={selectedNoteIds}
           onSelectedNotesChange={setSelectedNoteIds}
-          onSelectAll={handleSelectAll}
         />
       </div>
     </div>

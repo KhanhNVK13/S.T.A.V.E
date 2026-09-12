@@ -66,7 +66,6 @@ interface PianoRollProps {
   onNotesChange: (notes: DraftNote[]) => void;
   selectedNoteIds: Set<string>;
   onSelectedNotesChange: (ids: Set<string>) => void;
-  onSelectAll: () => void;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -83,7 +82,6 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       onNotesChange,
       selectedNoteIds,
       onSelectedNotesChange,
-      onSelectAll,
     },
     ref,
   ) {
@@ -521,6 +519,21 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       dragRef.current = null;
     }
 
+    // The canvas's own onMouseUp only fires when the release happens over
+    // the canvas — dragging (or box-selecting) past its edge and releasing
+    // outside leaves boxSelectRef/dragRef stuck "active" until the next
+    // mousedown. Listening on window as well (mouseup bubbles there from
+    // anywhere) guarantees handleMouseUp always runs to clear that state.
+    const handleMouseUpRef = useRef(handleMouseUp);
+    handleMouseUpRef.current = handleMouseUp;
+    useEffect(() => {
+      function onWindowMouseUp() {
+        handleMouseUpRef.current();
+      }
+      window.addEventListener("mouseup", onWindowMouseUp);
+      return () => window.removeEventListener("mouseup", onWindowMouseUp);
+    }, []);
+
     // Scroll sync from container
     function handleScroll(e: React.UIEvent<HTMLDivElement>) {
       setScrollX(e.currentTarget.scrollLeft);
@@ -539,7 +552,6 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
             ref={canvasRef}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
             onContextMenu={(e) => e.preventDefault()}
             style={{
               position: "sticky",
