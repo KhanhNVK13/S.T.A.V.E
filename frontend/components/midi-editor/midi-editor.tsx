@@ -11,6 +11,7 @@
  * UC-33: Paste pattern
  * UC-34: Set track color
  * UC-35: Set track label
+ * UC-37: Playback project
  */
 "use client";
 
@@ -39,6 +40,46 @@ const TRACK_COLORS = [
   "#3b82f6","#ef4444","#8b5cf6","#14b8a6",
 ];
 
+// UC-37: Map GM instrument to oscillator type. Pure lookup, independent of
+// component state — kept at module scope instead of being re-created on
+// every render.
+function getOscillatorType(instrument: string | null): OscillatorType {
+  if (!instrument) return "triangle"; // Default
+
+  const instLower = instrument.toLowerCase();
+
+  // Piano family → triangle (soft, rounded)
+  if (instLower.includes("piano") || instLower.includes("grand") || instLower.includes("electric piano")) {
+    return "triangle";
+  }
+  // Organ → sawtooth (bright, sustained)
+  if (instLower.includes("organ") || instLower.includes("accordion")) {
+    return "sawtooth";
+  }
+  // Guitar → triangle (similar to piano)
+  if (instLower.includes("guitar") || instLower.includes("harp")) {
+    return "triangle";
+  }
+  // Bass → sawtooth (deep, rich)
+  if (instLower.includes("bass")) {
+    return "sawtooth";
+  }
+  // Brass/Lead → square (bright, cutting)
+  if (instLower.includes("brass") || instLower.includes("trumpet") || instLower.includes("synth lead")) {
+    return "square";
+  }
+  // Strings → triangle (smooth)
+  if (instLower.includes("violin") || instLower.includes("cello") || instLower.includes("string")) {
+    return "triangle";
+  }
+  // Synth pads → sine (pure, smooth)
+  if (instLower.includes("synth pad") || instLower.includes("sweep") || instLower.includes("atmosphere")) {
+    return "sine";
+  }
+  // Default → triangle
+  return "triangle";
+}
+
 interface MidiEditorProps {
   projectId: string;
   projectName: string;
@@ -60,17 +101,29 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [playheadTick, setPlayheadTick] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [trackLimitWarning, setTrackLimitWarning] = useState(false);
   // UC-32: Selected note IDs for copy
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
   // UC-33: Clipboard for paste
   const [clipboard, setClipboard] = useState<DraftNote[] | null>(null);
+  // UC-37: Playback state
+  const [loopOn, setLoopOn] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // UC-37: Refs for playback closure access
+  const loopOnRef = useRef(false);
+  // Tick that a loop restart (and Stop-then-replay) returns to — set
+  // whenever the user presses Play or seeks, not on the internal
+  // loop-restart call in startPlayback.
+  const loopAnchorRef = useRef(0);
+  useEffect(() => {
+    loopOnRef.current = loopOn;
+  }, [loopOn]);
   // Always holds the latest snapshot so the unmount-flush below (a cleanup
   // closure, which only ever sees the snapshot from its own render) can save
   // the most recent edit instead of whatever was current when it was set up.
@@ -344,56 +397,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     e.target.value = "";
   }
 
-  // ── Playback (simple Web Audio oscillator) ──────────────────
-  function handlePlay() {
-    if (isPlaying) return;
-    setIsPlaying(true);
-    const ctx = new AudioContext();
-    audioCtxRef.current = ctx;
-    const bpm = snapshot.meta.tempo;
-    const ppq = snapshot.meta.ppq;
-    const secPerTick = 60 / (bpm * ppq);
-    const startTick = playheadTick;
-    const startTime = ctx.currentTime;
-
-    // Schedule all notes via Web Audio
-    snapshot.notes.forEach((n) => {
-      const track = snapshot.tracks.find((t) => t.id === n.trackId);
-      if (track?.muted) return;
-      const noteStart = (n.start - startTick) * secPerTick;
-      if (noteStart < 0) return;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 440 * Math.pow(2, (n.pitch - 69) / 12);
-      osc.type = "sine";
-      gain.gain.setValueAtTime(0, startTime + noteStart);
-      gain.gain.linearRampToValueAtTime(
-        (n.velocity / 127) * (track?.volume ?? 1) * 0.3,
-        startTime + noteStart + 0.01,
-      );
-      const noteDur = n.duration * secPerTick;
-      gain.gain.setValueAtTime(
-        (n.velocity / 127) * (track?.volume ?? 1) * 0.3,
-        startTime + noteStart + noteDur - 0.01,
-      );
-      gain.gain.linearRampToValueAtTime(0, startTime + noteStart + noteDur);
-      osc.start(startTime + noteStart);
-      osc.stop(startTime + noteStart + noteDur + 0.01);
-    });
-
-    // Animate playhead
-    const ticksPerMs = (bpm * ppq) / 60000;
-    playTimerRef.current = setInterval(() => {
-      const elapsed = (ctx.currentTime - startTime) * 1000;
-      setPlayheadTick(Math.floor(startTick + elapsed * ticksPerMs));
-    }, 16);
-  }
-
-  function handleStop() {
-    setIsPlaying(false);
+  // ── Playback (UC-37: instrument, solo, volume, pan, loop, seek) ──────────
+  // A single startPlayback(fromTick) drives every entry point (Play, Seek,
+  // and the loop-restart at end-of-song) so the auto-stop/loop condition
+  // lives in exactly one place — a prior version duplicated this whole
+  // function for the loop-restart path, and the copy silently dropped the
+  // auto-stop/loop check, so playback ran forever in silence after the
+  // first loop or after seeking mid-playback.
+  function stopAudio() {
     if (audioCtxRef.current) {
       void audioCtxRef.current.close();
       audioCtxRef.current = null;
@@ -402,7 +413,125 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       clearInterval(playTimerRef.current);
       playTimerRef.current = null;
     }
+  }
+
+  function startPlayback(fromTick: number) {
+    stopAudio();
+    setIsPlaying(true);
+    setIsPaused(false);
+
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+    const bpm = snapshot.meta.tempo;
+    const ppq = snapshot.meta.ppq;
+    const secPerTick = 60 / (bpm * ppq);
+    const startTime = ctx.currentTime;
+
+    const allNotes = snapshot.notes;
+    // UC-37: End tick for auto-stop/loop — end of the last note, or the
+    // start position itself when there's nothing to play.
+    const endTick = allNotes.length > 0
+      ? Math.max(...allNotes.map((n) => n.start + n.duration))
+      : fromTick;
+
+    // UC-37: Check solo - if any track is solo'd, only play solo tracks
+    const hasSolo = snapshot.tracks.some((t) => t.solo);
+
+    // UC-37: Schedule all notes via Web Audio with instrument, volume, pan
+    allNotes.forEach((n) => {
+      const track = snapshot.tracks.find((t) => t.id === n.trackId);
+      if (!track) return;
+
+      // UC-37: Respect mute/solo
+      if (track.muted) return;
+      if (hasSolo && !track.solo) return;
+
+      const noteStart = (n.start - fromTick) * secPerTick;
+      if (noteStart < 0) return;
+
+      // UC-37: Create audio chain: Oscillator → Gain → Pan → Destination
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const panner = ctx.createStereoPanner();
+
+      // UC-37: Map instrument to oscillator type
+      osc.type = getOscillatorType(track.instrument);
+      osc.frequency.value = 440 * Math.pow(2, (n.pitch - 69) / 12);
+
+      // UC-37: Apply volume (0-1) and velocity (1-127)
+      const volume = (track.volume ?? 1) * (n.velocity / 127) * 0.3;
+      gain.gain.setValueAtTime(0, startTime + noteStart);
+      gain.gain.linearRampToValueAtTime(volume, startTime + noteStart + 0.01);
+
+      const noteDur = n.duration * secPerTick;
+      gain.gain.setValueAtTime(volume, startTime + noteStart + noteDur - 0.01);
+      gain.gain.linearRampToValueAtTime(0, startTime + noteStart + noteDur);
+
+      // UC-37: Apply pan (-1 to 1)
+      panner.pan.value = track.pan ?? 0;
+
+      // Connect: Osc → Gain → Pan → Destination
+      osc.connect(gain);
+      gain.connect(panner);
+      panner.connect(ctx.destination);
+
+      osc.start(startTime + noteStart);
+      osc.stop(startTime + noteStart + noteDur + 0.01);
+    });
+
+    // UC-37: Animate playhead with loop/auto-stop support
+    const ticksPerMs = (bpm * ppq) / 60000;
+    playTimerRef.current = setInterval(() => {
+      const elapsed = (ctx.currentTime - startTime) * 1000;
+      const currentTick = Math.floor(fromTick + elapsed * ticksPerMs);
+
+      if (currentTick >= endTick) {
+        if (loopOnRef.current) {
+          // Loop back to wherever this playback session was started from
+          // (the tick Play or Seek was last invoked with).
+          startPlayback(loopAnchorRef.current);
+        } else {
+          handleStop();
+        }
+        return;
+      }
+
+      setPlayheadTick(currentTick);
+    }, 16);
+  }
+
+  function handlePlay() {
+    if (isPlaying) return;
+    loopAnchorRef.current = playheadTick;
+    startPlayback(playheadTick);
+  }
+
+  function handleStop() {
+    setIsPlaying(false);
+    setIsPaused(false);
+    stopAudio();
     setPlayheadTick(0);
+  }
+
+  function handlePause() {
+    if (!isPlaying) return;
+    setIsPlaying(false);
+    setIsPaused(true);
+    stopAudio();
+    // Keep playhead at current position
+  }
+
+  function handleToggleLoop() {
+    setLoopOn((prev) => !prev);
+  }
+
+  function handleSeek(tick: number) {
+    setPlayheadTick(tick);
+    // If currently playing, restart from new position
+    if (isPlaying) {
+      loopAnchorRef.current = tick;
+      startPlayback(tick);
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────
@@ -441,7 +570,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onCopy={handleCopy}
         onPaste={handlePaste}
         onSelectAll={handleSelectAll}
+        onPause={handlePause}
+        onToggleLoop={handleToggleLoop}
         isPlaying={isPlaying}
+        isPaused={isPaused}
+        loopOn={loopOn}
         projectName={projectName}
         hasSelection={selectedNoteIds.size > 0}
         hasClipboard={clipboard !== null}
@@ -496,6 +629,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onNotesChange={handleNotesChange}
           selectedNoteIds={selectedNoteIds}
           onSelectedNotesChange={setSelectedNoteIds}
+          isPlaying={isPlaying}
+          onSeek={handleSeek}
         />
       </div>
     </div>
