@@ -14,6 +14,7 @@
  * UC-36: Metronome + Loop playback
  * UC-37: Playback project
  * UC-38: Export project audio (WAV/MP3)
+ * UC-40: Adjust track volume
  */
 "use client";
 
@@ -304,6 +305,18 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       ...snapshot,
       tracks: snapshot.tracks.map((t) =>
         t.id === id ? { ...t, name: label } : t,
+      ),
+    });
+  }
+
+  // ── UC-40: Adjust track volume ──────────────────────────────
+  function handleSetTrackVolume(id: string, volume: number) {
+    // Clamp to [0, 1]
+    const clamped = Math.min(1, Math.max(0, volume));
+    updateSnapshot({
+      ...snapshot,
+      tracks: snapshot.tracks.map((t) =>
+        t.id === id ? { ...t, volume: clamped } : t,
       ),
     });
   }
@@ -620,6 +633,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onAssignInstrument={handleAssignInstrument}
           onSetTrackColor={handleSetTrackColor}
           onSetTrackLabel={handleSetTrackLabel}
+          onSetTrackVolume={handleSetTrackVolume}
           canAddTrack={snapshot.tracks.length < MAX_TRACKS}
         />
         <PianoRoll
