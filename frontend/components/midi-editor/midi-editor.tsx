@@ -12,6 +12,8 @@
  * UC-34: Set track color
  * UC-35: Set track label
  * UC-37: Playback project
+ * UC-42/43/44/46: Version Control (chỉ ở biến thể UI redesign — xem
+ *   redesign/use-version-control.ts; UI gốc giữ nguyên, không có commit)
  */
 "use client";
 
@@ -20,6 +22,7 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
@@ -28,11 +31,20 @@ import { MidiToolbar } from "./midi-toolbar";
 import { TrackList } from "./track-list";
 import { PianoRoll } from "./piano-roll";
 import type { PianoRollHandle } from "./piano-roll";
+import { EditorRedesign } from "./redesign/editor-redesign";
+import {
+  getServerUiVariant,
+  getUiVariant,
+  setUiVariant,
+  subscribeUiVariant,
+} from "./redesign/ui-variant";
 import { getDraft, putDraft } from "../../lib/api-client";
 import { parseMidiBuffer } from "../../lib/midi-parser";
+import { ConfirmDialog } from "../ui/confirm-dialog";
 
 // Maximum tracks allowed per project (BR-29)
 const MAX_TRACKS = 16;
+
 
 // Color palette for tracks
 const TRACK_COLORS = [
@@ -109,12 +121,36 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [clipboard, setClipboard] = useState<DraftNote[] | null>(null);
   // UC-37: Playback state
   const [loopOn, setLoopOn] = useState(false);
+  // Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc, thay vì
+  // phải chỉnh từng track riêng. CỐ Ý là control chỉ ảnh hưởng tới output lúc
+  // phát (1 GainNode chung, xem startPlayback), KHÔNG ghi vào `track.volume`
+  // của từng track — vì snapshot/commit schema (CLAUDE.md 4.2) đã khoá, thêm
+  // field mới hoặc mutate hàng loạt `volume` của mọi track sẽ biến 1 thao tác
+  // "nghe thử" thành thay đổi dữ liệu thật cần commit, không đúng ý người dùng.
+  const [masterVolume, setMasterVolume] = useState(1); // 0..1, mặc định 100%
+  // UC-29: track đang chờ xác nhận xoá — thay cho `window.confirm()` gốc của
+  // trình duyệt bằng dialog trong app (components/ui/confirm-dialog.tsx).
+  const [pendingDeleteTrack, setPendingDeleteTrack] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  // Biến thể giao diện — "classic" là UI gốc (mặc định), "redesign" là bản
+  // dựng theo mockup. Nguồn lưu là localStorage, xem redesign/ui-variant.ts.
+  const uiVariant = useSyncExternalStore(
+    subscribeUiVariant,
+    getUiVariant,
+    getServerUiVariant,
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Master volume: 1 GainNode chung, đứng giữa mọi panner và ctx.destination
+  // (xem startPlayback) — chỉnh giá trị này chỉnh âm lượng output của TẤT CẢ
+  // track cùng lúc, ngay cả khi đang phát (không cần dừng/phát lại).
+  const masterGainRef = useRef<GainNode | null>(null);
   // UC-37: Refs for playback closure access
   const loopOnRef = useRef(false);
   // Tick that a loop restart (and Stop-then-replay) returns to — set
@@ -124,6 +160,13 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   useEffect(() => {
     loopOnRef.current = loopOn;
   }, [loopOn]);
+  // Kéo slider master volume trong lúc đang phát phải nghe thấy thay đổi
+  // ngay lập tức, không chỉ áp dụng cho lần Play tiếp theo.
+  useEffect(() => {
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = masterVolume;
+    }
+  }, [masterVolume]);
   // Always holds the latest snapshot so the unmount-flush below (a cleanup
   // closure, which only ever sees the snapshot from its own render) can save
   // the most recent edit instead of whatever was current when it was set up.
@@ -131,6 +174,22 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
+
+  // ── Undo/Redo (Ctrl+Z / Ctrl+Shift+Z hoặc Ctrl+Y) ────────────
+  // Mọi chỉnh sửa (note, track, quantize, paste...) đều đi qua updateSnapshot
+  // bên dưới — đúng 1 điểm để ghi lịch sử, không cần sửa gì ở piano-roll.tsx.
+  const undoStackRef = useRef<DraftSnapshot[]>([]);
+  const redoStackRef = useRef<DraftSnapshot[]>([]);
+  const HISTORY_LIMIT = 100;
+  // Kéo/resize note bắn onNotesChange liên tục theo từng pixel chuột di
+  // chuyển (piano-roll.tsx) — nếu ghi 1 điểm khôi phục cho MỖI lần gọi, 1 lần
+  // Ctrl+Z chỉ lùi được vài pixel thay vì lùi nguyên thao tác kéo. Gộp mọi
+  // lần gọi liên tiếp trong 1 khoảng lặng ngắn (không thao tác gì thêm) thành
+  // đúng 1 điểm khôi phục duy nhất.
+  const historyBurstActiveRef = useRef(false);
+  const historyBurstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   // ── Load draft on mount ─────────────────────────────────────
   useEffect(() => {
@@ -180,11 +239,20 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       } else if (e.key === "a" || e.key === "A") {
         e.preventDefault();
         handleSelectAll();
+      } else if (e.key === "z" || e.key === "Z") {
+        // Ctrl+Z = undo; Ctrl+Shift+Z = redo (chuẩn Mac/Linux). Ctrl+Y ở dưới
+        // phục vụ thói quen Windows.
+        e.preventDefault();
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
+      } else if (e.key === "y" || e.key === "Y") {
+        e.preventDefault();
+        handleRedo();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleCopy, handlePaste, handleSelectAll, selectedTrackId, snapshot]);
+  }, [handleCopy, handlePaste, handleSelectAll, handleUndo, handleRedo, selectedTrackId, snapshot]);
 
   // ── Flush pending autosave on unmount — a debounced save left running after
   // navigating away can setState on an unmounted component; just clearing the
@@ -218,9 +286,121 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   );
 
   function updateSnapshot(next: DraftSnapshot) {
+    // Chỉ ghi 1 điểm khôi phục ở lần gọi ĐẦU của mỗi "đợt" thay đổi liên tiếp
+    // (xem giải thích ở historyBurstActiveRef) — `snapshot` ở đây là giá trị
+    // TRƯỚC khi áp dụng `next`, đúng là trạng thái cần lùi về.
+    if (!historyBurstActiveRef.current) {
+      undoStackRef.current.push(snapshot);
+      if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+      redoStackRef.current = [];
+      historyBurstActiveRef.current = true;
+      setCanUndo(true);
+      setCanRedo(false);
+    }
+    if (historyBurstTimerRef.current) clearTimeout(historyBurstTimerRef.current);
+    historyBurstTimerRef.current = setTimeout(() => {
+      historyBurstActiveRef.current = false;
+    }, 500);
+
     setSnapshot(next);
     scheduleSave(next);
   }
+
+  // ── Undo/Redo ─────────────────────────────────────────────────
+  function handleUndo() {
+    if (undoStackRef.current.length === 0) return;
+    // Ctrl+Z giữa lúc đang có 1 "đợt" dở dang (VD nửa chừng kéo note) phải
+    // lùi về checkpoint của đợt đó ngay, không chờ hết 500ms mới cho phép.
+    if (historyBurstTimerRef.current) {
+      clearTimeout(historyBurstTimerRef.current);
+      historyBurstTimerRef.current = null;
+    }
+    historyBurstActiveRef.current = false;
+
+    const previous = undoStackRef.current.pop()!;
+    redoStackRef.current.push(snapshot);
+    if (redoStackRef.current.length > HISTORY_LIMIT) redoStackRef.current.shift();
+
+    setSnapshot(previous);
+    scheduleSave(previous);
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+  }
+
+  function handleRedo() {
+    if (redoStackRef.current.length === 0) return;
+    if (historyBurstTimerRef.current) {
+      clearTimeout(historyBurstTimerRef.current);
+      historyBurstTimerRef.current = null;
+    }
+    historyBurstActiveRef.current = false;
+
+    const nextSnapshot = redoStackRef.current.pop()!;
+    undoStackRef.current.push(snapshot);
+    if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+
+    setSnapshot(nextSnapshot);
+    scheduleSave(nextSnapshot);
+    setCanRedo(redoStackRef.current.length > 0);
+    setCanUndo(true);
+  }
+
+  // ── Version Control (UC-42/46) — 2 móc nối cho bản redesign ──
+  /**
+   * Ghi NGAY bản nháp xuống server và huỷ debounce đang chờ.
+   * Bắt buộc chạy trước khi tạo commit: backend đọc snapshot từ bảng `drafts`
+   * (xem `createCommit` trong lib/api-client.ts), nên thay đổi chưa kịp
+   * autosave sẽ không có trong commit. Ném lỗi ra ngoài để nơi gọi dừng lại
+   * thay vì commit nhầm bản cũ.
+   */
+  const flushDraft = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    setSaveStatus("saving");
+    try {
+      await putDraft(projectId, snapshotRef.current);
+      setSaveStatus("saved");
+    } catch (err) {
+      setSaveStatus("unsaved");
+      throw err;
+    }
+  }, [projectId]);
+
+  /**
+   * Nạp lại editor theo snapshot backend trả về sau khi khôi phục (UC-46).
+   * Backend đã đặt draft của branch về đúng snapshot này trong cùng
+   * transaction, nên KHÔNG gọi scheduleSave ở đây; ngược lại còn phải huỷ
+   * autosave đang chờ vì nó mang snapshot CŨ và sẽ ghi đè ngược lại.
+   */
+  const applyRestoredSnapshot = useCallback((restored: DraftSnapshot) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    // Khôi phục về 1 commit cũ là một mốc mới, không phải tiếp nối các thay
+    // đổi cục bộ trước đó — xoá sạch lịch sử undo/redo để tránh Ctrl+Z lùi
+    // ngược qua cả điểm khôi phục, gây rối timeline.
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    if (historyBurstTimerRef.current) {
+      clearTimeout(historyBurstTimerRef.current);
+      historyBurstTimerRef.current = null;
+    }
+    historyBurstActiveRef.current = false;
+    setCanUndo(false);
+    setCanRedo(false);
+    setSnapshot(restored);
+    snapshotRef.current = restored;
+    setSelectedNoteIds(new Set());
+    setSelectedTrackId((prev) =>
+      prev && restored.tracks.some((t) => t.id === prev)
+        ? prev
+        : (restored.tracks[0]?.id ?? null),
+    );
+    setSaveStatus("saved");
+  }, []);
 
   // ── Note changes ────────────────────────────────────────────
   function handleNotesChange(notes: DraftNote[]) {
@@ -279,6 +459,19 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       ...snapshot,
       tracks: snapshot.tracks.map((t) =>
         t.id === id ? { ...t, instrument } : t,
+      ),
+    });
+  }
+
+  // Âm lượng track — trường `volume` vốn đã có trong snapshot và đã được
+  // playback dùng (xem startPlayback), trước đây chưa có UI nào chỉnh. Bản
+  // redesign hiện thanh VOL theo mockup nên cần handler này.
+  function handleSetTrackVolume(id: string, volume: number) {
+    const clamped = Math.min(1, Math.max(0, volume));
+    updateSnapshot({
+      ...snapshot,
+      tracks: snapshot.tracks.map((t) =>
+        t.id === id ? { ...t, volume: clamped } : t,
       ),
     });
   }
@@ -344,17 +537,19 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   }
 
   // ── UC-29: Remove track ─────────────────────────────────────
+  // Xoá track KHÔNG còn bị chặn khi chỉ còn 1 track (BR-30 cũ đã bỏ theo yêu
+  // cầu người dùng) — cả 2 UI đã có empty-state "chưa có track nào" sẵn để
+  // xử lý đúng trường hợp 0 track.
   function handleDeleteTrack(id: string) {
-    // BR-30: Project must have at least 1 track
-    if (snapshot.tracks.length <= 1) {
-      return;
-    }
+    const trackName = snapshot.tracks.find((t) => t.id === id)?.name ?? "track này";
+    // Mở dialog xác nhận trong app thay vì `window.confirm()` — xoá thật xảy
+    // ra ở confirmDeleteTrack() khi người dùng bấm nút xác nhận.
+    setPendingDeleteTrack({ id, name: trackName });
+  }
 
-    const trackName = snapshot.tracks.find((t) => t.id === id)?.name ?? "this track";
-    const confirmed = window.confirm(
-      `Delete track "${trackName}"?\n\nThis will also delete all notes in this track. This action cannot be undone.`,
-    );
-    if (!confirmed) return;
+  function confirmDeleteTrack() {
+    if (!pendingDeleteTrack) return;
+    const { id } = pendingDeleteTrack;
 
     updateSnapshot({
       ...snapshot,
@@ -362,10 +557,21 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       notes: snapshot.notes.filter((n) => n.trackId !== id),
     });
     if (selectedTrackId === id) {
-      // Select the first remaining track
+      // Select the first remaining track (null nếu vừa xoá track cuối cùng)
       const remaining = snapshot.tracks.filter((t) => t.id !== id);
       setSelectedTrackId(remaining[0]?.id ?? null);
     }
+    setPendingDeleteTrack(null);
+  }
+
+  function cancelDeleteTrack() {
+    setPendingDeleteTrack(null);
+  }
+
+  // Master volume — chỉnh 1 lần cho toàn bộ track (xem masterGainRef/effect
+  // ở trên); chỉ ảnh hưởng output lúc phát, không ghi vào snapshot.
+  function handleMasterVolumeChange(volume: number) {
+    setMasterVolume(Math.min(1, Math.max(0, volume)));
   }
 
   // ── UC-31: Quantize ─────────────────────────────────────────
@@ -413,6 +619,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       clearInterval(playTimerRef.current);
       playTimerRef.current = null;
     }
+    masterGainRef.current = null;
   }
 
   function startPlayback(fromTick: number) {
@@ -426,6 +633,17 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     const ppq = snapshot.meta.ppq;
     const secPerTick = 60 / (bpm * ppq);
     const startTime = ctx.currentTime;
+
+    // Master volume: 1 GainNode chung cho toàn bộ track, đứng trước
+    // ctx.destination — chỉnh 1 chỗ này đổi âm lượng của mọi track cùng lúc,
+    // không cần chỉnh từng track riêng. Tạo mới mỗi lần start vì AudioContext
+    // cũng được tạo mới mỗi lần (đóng lại ở stopAudio) — giá trị lấy từ state
+    // hiện tại, và effect ở trên tiếp tục cập nhật sống nếu người dùng kéo
+    // slider trong lúc đang phát.
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = masterVolume;
+    masterGain.connect(ctx.destination);
+    masterGainRef.current = masterGain;
 
     const allNotes = snapshot.notes;
     // UC-37: End tick for auto-stop/loop — end of the last note, or the
@@ -470,10 +688,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       // UC-37: Apply pan (-1 to 1)
       panner.pan.value = track.pan ?? 0;
 
-      // Connect: Osc → Gain → Pan → Destination
+      // Connect: Osc → Gain → Pan → Master Gain → Destination
       osc.connect(gain);
       gain.connect(panner);
-      panner.connect(ctx.destination);
+      panner.connect(masterGain);
 
       osc.start(startTime + noteStart);
       osc.stop(startTime + noteStart + noteDur + 0.01);
@@ -544,6 +762,97 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     );
   }
 
+  // Bản UI thứ 2 — dựng theo mockup thiết kế. Dùng CHUNG toàn bộ state/handler
+  // ở trên với UI gốc (không tự fetch, không giữ state riêng) nên chuyển qua
+  // lại không mất thay đổi đang soạn. UI gốc bên dưới giữ nguyên như cũ.
+  if (uiVariant === "redesign") {
+    return (
+      <>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".mid,.midi"
+          style={{ display: "none" }}
+          onChange={(e) => void handleFileChange(e)}
+        />
+        <EditorRedesign
+          projectId={projectId}
+          projectName={projectName}
+          snapshot={snapshot}
+          notes={snapshot.notes}
+          tracks={snapshot.tracks}
+          tempo={snapshot.meta.tempo}
+          timeSignature={snapshot.meta.timeSignature}
+          ppq={snapshot.meta.ppq}
+          tool={tool}
+          onToolChange={setTool}
+          gridDivision={gridDivision}
+          onGridChange={setGridDivision}
+          zoom={zoom}
+          onZoomChange={setZoom}
+          selectedTrackId={selectedTrackId}
+          onSelectTrack={setSelectedTrackId}
+          selectedNoteIds={selectedNoteIds}
+          onSelectedNotesChange={setSelectedNoteIds}
+          onNotesChange={handleNotesChange}
+          playheadTick={playheadTick}
+          pianoRollRef={pianoRollRef}
+          onAddTrack={handleAddTrack}
+          onToggleMute={handleToggleMute}
+          onToggleSolo={handleToggleSolo}
+          onDeleteTrack={handleDeleteTrack}
+          onAssignInstrument={handleAssignInstrument}
+          onSetTrackColor={handleSetTrackColor}
+          onSetTrackLabel={handleSetTrackLabel}
+          onSetTrackVolume={handleSetTrackVolume}
+          canAddTrack={snapshot.tracks.length < MAX_TRACKS}
+          maxTracks={MAX_TRACKS}
+          trackLimitWarning={trackLimitWarning}
+          onQuantize={handleQuantize}
+          onImportMidi={handleImportMidi}
+          onCopy={handleCopy}
+          onPaste={handlePaste}
+          onSelectAll={handleSelectAll}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          hasSelection={selectedNoteIds.size > 0}
+          hasClipboard={clipboard !== null}
+          isPlaying={isPlaying}
+          isPaused={isPaused}
+          loopOn={loopOn}
+          onPlay={handlePlay}
+          onPause={handlePause}
+          onStop={handleStop}
+          onToggleLoop={handleToggleLoop}
+          onSeek={handleSeek}
+          saveStatus={saveStatus}
+          onFlushDraft={flushDraft}
+          onSnapshotRestored={applyRestoredSnapshot}
+          onBackToClassic={() => setUiVariant("classic")}
+          masterVolume={masterVolume}
+          onMasterVolumeChange={handleMasterVolumeChange}
+        />
+        <ConfirmDialog
+          open={pendingDeleteTrack !== null}
+          title="Xoá track?"
+          message={
+            <>
+              Xoá track <strong>&quot;{pendingDeleteTrack?.name}&quot;</strong>?
+              <br />
+              Toàn bộ note trong track này cũng sẽ bị xoá. Không thể hoàn tác.
+            </>
+          }
+          confirmLabel="Xoá track"
+          danger
+          onConfirm={confirmDeleteTrack}
+          onCancel={cancelDeleteTrack}
+        />
+      </>
+    );
+  }
+
   return (
     <div style={styles.root}>
       {/* Hidden file input for MIDI import */}
@@ -570,6 +879,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onCopy={handleCopy}
         onPaste={handlePaste}
         onSelectAll={handleSelectAll}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onPause={handlePause}
         onToggleLoop={handleToggleLoop}
         isPlaying={isPlaying}
@@ -578,6 +891,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         projectName={projectName}
         hasSelection={selectedNoteIds.size > 0}
         hasClipboard={clipboard !== null}
+        onOpenRedesign={() => setUiVariant("redesign")}
+        masterVolume={masterVolume}
+        onMasterVolumeChange={handleMasterVolumeChange}
       />
 
       {/* Save status strip */}
@@ -633,6 +949,22 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onSeek={handleSeek}
         />
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteTrack !== null}
+        title="Delete track?"
+        message={
+          <>
+            Delete track &quot;{pendingDeleteTrack?.name}&quot;?
+            <br />
+            This will also delete all notes in this track. This action cannot be undone.
+          </>
+        }
+        confirmLabel="Delete track"
+        danger
+        onConfirm={confirmDeleteTrack}
+        onCancel={cancelDeleteTrack}
+      />
     </div>
   );
 }

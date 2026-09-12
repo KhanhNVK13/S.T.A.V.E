@@ -23,6 +23,10 @@ interface MidiToolbarProps {
   onCopy: () => void;
   onPaste: () => void;
   onSelectAll: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   onPause: () => void;
   onToggleLoop: () => void;
   isPlaying: boolean;
@@ -31,6 +35,11 @@ interface MidiToolbarProps {
   projectName: string;
   hasSelection: boolean;
   hasClipboard: boolean;
+  /** Mở bản UI dựng theo mockup thiết kế (giao diện gốc vẫn là mặc định). */
+  onOpenRedesign: () => void;
+  /** 0..1 — âm lượng chung cho TẤT CẢ track (chỉ ảnh hưởng lúc phát, không ghi vào snapshot). */
+  masterVolume: number;
+  onMasterVolumeChange: (v: number) => void;
 }
 
 const TOOLS: { id: ToolMode; label: string; icon: string; title: string }[] = [
@@ -60,6 +69,10 @@ export function MidiToolbar({
   onCopy,
   onPaste,
   onSelectAll,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   onPause,
   onToggleLoop,
   isPlaying,
@@ -68,6 +81,9 @@ export function MidiToolbar({
   projectName,
   hasSelection,
   hasClipboard,
+  onOpenRedesign,
+  masterVolume,
+  onMasterVolumeChange,
 }: MidiToolbarProps) {
   return (
     <div style={styles.bar}>
@@ -176,6 +192,28 @@ export function MidiToolbar({
         >
           ⧉ Paste
         </button>
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          title={canUndo ? "Undo (Ctrl+Z)" : "Nothing to undo"}
+          style={{
+            ...styles.btn,
+            ...(!canUndo ? styles.btnDisabled : styles.btnSpecial),
+          }}
+        >
+          ↶ Undo
+        </button>
+        <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          title={canRedo ? "Redo (Ctrl+Y / Ctrl+Shift+Z)" : "Nothing to redo"}
+          style={{
+            ...styles.btn,
+            ...(!canRedo ? styles.btnDisabled : styles.btnSpecial),
+          }}
+        >
+          ↷ Redo
+        </button>
       </div>
 
       <div style={styles.divider} />
@@ -218,6 +256,26 @@ export function MidiToolbar({
         </button>
       </div>
 
+      <div style={styles.divider} />
+
+      {/* Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc,
+          thay vì phải chỉnh từng track riêng (xem masterGainRef trong
+          midi-editor.tsx). Chỉ ảnh hưởng output lúc phát, không ghi vào
+          snapshot/track.volume của từng track. */}
+      <div style={styles.group} title="Âm lượng chung cho tất cả track">
+        <span style={styles.label}>🔊</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={masterVolume}
+          onChange={(e) => onMasterVolumeChange(Number(e.target.value))}
+          style={styles.masterVolumeSlider}
+        />
+        <span style={styles.masterVolumeValue}>{Math.round(masterVolume * 100)}%</span>
+      </div>
+
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
@@ -228,6 +286,15 @@ export function MidiToolbar({
         style={{ ...styles.btn, ...styles.btnImport }}
       >
         ⬆ Import MIDI
+      </button>
+
+      {/* Chuyển sang bản UI dựng theo mockup thiết kế */}
+      <button
+        onClick={onOpenRedesign}
+        title="Xem bản giao diện mới dựng theo mockup thiết kế"
+        style={{ ...styles.btn, ...styles.btnRedesign }}
+      >
+        ◧ Xem giao diện mới
       </button>
     </div>
   );
@@ -271,6 +338,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     color: "#71717a",
     padding: "0 4px",
+    userSelect: "none",
+  },
+  masterVolumeSlider: {
+    width: 72,
+    accentColor: "#6366f1",
+    cursor: "pointer",
+  },
+  masterVolumeValue: {
+    fontSize: 11,
+    color: "#a1a1aa",
+    width: 34,
+    textAlign: "right",
     userSelect: "none",
   },
   btn: {
@@ -324,6 +403,10 @@ const styles: Record<string, React.CSSProperties> = {
   btnImport: {
     borderColor: "#0ea5e9",
     color: "#38bdf8",
+  },
+  btnRedesign: {
+    borderColor: "#a855f7",
+    color: "#d8b4fe",
   },
   btnIcon: {
     fontSize: 14,

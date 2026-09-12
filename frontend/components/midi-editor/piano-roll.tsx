@@ -21,10 +21,77 @@ import type { ToolMode, GridDivision } from "./midi-toolbar";
 
 // ── Constants ──────────────────────────────────────────────────
 const PITCH_COUNT = 128;
-const ROW_H = 14; // px per semitone row
-const KEY_WIDTH = 36; // px for the piano keys column
-const HEADER_H = 24; // px for bar/beat ruler
 const RESIZE_HANDLE_PX = 6; // px at right edge = resize zone
+
+/**
+ * Hình học + bảng màu theo biến thể UI.
+ *
+ * "classic" giữ nguyên đúng số liệu/màu đang chạy trên UI gốc — không được
+ * đổi. "redesign" lấy từ mã nguồn thiết kế thật (docs/STAVE design component
+ * sample/.../STAVE.dc.html, screen "editor" dòng 232–257: hàng 22px, cột phím
+ * 72px, ruler 34px, note bo góc 4px viền #0F2A5C, playhead #B3242E).
+ *
+ * Chỉ phần VẼ đổi theo theme — toàn bộ hit-test/kéo-thả/chọn vùng bên dưới
+ * dùng chung một bộ code, không nhân bản.
+ */
+const THEMES = {
+  classic: {
+    rowH: 14,
+    keyW: 36,
+    headerH: 24,
+    noteRadius: 3,
+    noteStroke: null as string | null,
+    noteTopHighlight: false,
+    keyBorder: null as string | null,
+    containerBg: "#1e1e24",
+    rowBlack: "#1a1a1f",
+    rowWhite: "#1e1e24",
+    cLine: "rgba(99,102,241,0.08)",
+    rowSeparator: "#27272a",
+    gridBar: "rgba(255,255,255,0.12)",
+    gridBeat: "rgba(255,255,255,0.06)",
+    gridStep: "rgba(255,255,255,0.025)",
+    rulerBg: "#18181b",
+    rulerText: "#52525b",
+    keyBlack: "#1c1c22",
+    keyWhite: "#2d2d35",
+    keyText: "#71717a",
+    drawingNote: "#a5b4fc",
+    playhead: "#f43f5e",
+    selectedBorder: "#ffffff",
+    playingGlow: "rgba(255,255,255,0.4)",
+    resizeHandle: "rgba(255,255,255,0.25)",
+  },
+  redesign: {
+    rowH: 22,
+    keyW: 72,
+    headerH: 34,
+    noteRadius: 4,
+    noteStroke: "#0F2A5C" as string | null,
+    noteTopHighlight: true,
+    keyBorder: "#E3E4E8" as string | null,
+    containerBg: "#ffffff",
+    rowBlack: "#FAFAF8",
+    rowWhite: "#ffffff",
+    cLine: "rgba(29,78,216,0.05)",
+    rowSeparator: "#F3F3F1",
+    gridBar: "#E6E6E2",
+    gridBeat: "#EDEDEA",
+    gridStep: "#F5F5F3",
+    rulerBg: "#FBFBF9",
+    rulerText: "#8A8D93",
+    keyBlack: "#E9E9E6",
+    keyWhite: "#ffffff",
+    keyText: "#8A8D93",
+    drawingNote: "#1D4ED8",
+    playhead: "#B3242E",
+    selectedBorder: "#1F2126",
+    playingGlow: "rgba(29,78,216,0.35)",
+    resizeHandle: "rgba(255,255,255,0.35)",
+  },
+} as const;
+
+export type PianoRollTheme = keyof typeof THEMES;
 
 // Piano key helpers
 const BLACK_NOTES = new Set([1, 3, 6, 8, 10]); // semitone % 12
@@ -69,6 +136,8 @@ interface PianoRollProps {
   // UC-37: Playback
   isPlaying: boolean;
   onSeek: (tick: number) => void;
+  /** Chỉ ảnh hưởng phần vẽ (màu + hình học). Mặc định giữ đúng UI gốc. */
+  theme?: PianoRollTheme;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -87,9 +156,15 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       onSelectedNotesChange,
       isPlaying,
       onSeek,
+      theme = "classic",
     },
     ref,
   ) {
+    const pal = THEMES[theme];
+    const ROW_H = pal.rowH;
+    const KEY_WIDTH = pal.keyW;
+    const HEADER_H = pal.headerH;
+
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [scrollX, setScrollX] = useState(0);
@@ -170,15 +245,15 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         if (y + ROW_H < 0 || y > H) continue;
         const pitch = PITCH_COUNT - 1 - p;
         const isBlack = isBlackKey(pitch);
-        ctx.fillStyle = isBlack ? "#1a1a1f" : "#1e1e24";
+        ctx.fillStyle = isBlack ? pal.rowBlack : pal.rowWhite;
         ctx.fillRect(KEY_WIDTH, y, W - KEY_WIDTH, ROW_H);
         // C line highlight
         if (pitch % 12 === 0) {
-          ctx.fillStyle = "rgba(99,102,241,0.08)";
+          ctx.fillStyle = pal.cLine;
           ctx.fillRect(KEY_WIDTH, y, W - KEY_WIDTH, ROW_H);
         }
         // Row separator
-        ctx.strokeStyle = "#27272a";
+        ctx.strokeStyle = pal.rowSeparator;
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(KEY_WIDTH, y + ROW_H);
@@ -198,11 +273,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         const x = KEY_WIDTH + t * pxPerTick - scrollX;
         const isBeat = t % ticksPerBeat < 1;
         const isBar = t % ticksPerBar < 1;
-        ctx.strokeStyle = isBar
-          ? "rgba(255,255,255,0.12)"
-          : isBeat
-            ? "rgba(255,255,255,0.06)"
-            : "rgba(255,255,255,0.025)";
+        ctx.strokeStyle = isBar ? pal.gridBar : isBeat ? pal.gridBeat : pal.gridStep;
         ctx.lineWidth = isBar ? 1 : 0.5;
         ctx.beginPath();
         ctx.moveTo(x, HEADER_H);
@@ -212,14 +283,14 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       }
 
       // ── Ruler header ─────────────────────────────────────────
-      ctx.fillStyle = "#18181b";
+      ctx.fillStyle = pal.rulerBg;
       ctx.fillRect(KEY_WIDTH, 0, W - KEY_WIDTH, HEADER_H);
 
       let bar = Math.floor(firstTick / ticksPerBar);
       while (bar * ticksPerBar <= lastTick) {
         const x = KEY_WIDTH + bar * ticksPerBar * pxPerTick - scrollX;
         if (x >= KEY_WIDTH) {
-          ctx.fillStyle = "#52525b";
+          ctx.fillStyle = pal.rulerText;
           ctx.font = "10px monospace";
           ctx.fillText(`${bar + 1}`, x + 3, HEADER_H - 6);
         }
@@ -227,7 +298,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       }
 
       // ── Piano keys ───────────────────────────────────────────
-      ctx.fillStyle = "#18181b";
+      ctx.fillStyle = pal.rulerBg;
       ctx.fillRect(0, 0, KEY_WIDTH, H);
 
       for (let p = 0; p < PITCH_COUNT; p++) {
@@ -236,15 +307,26 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         const pitch = PITCH_COUNT - 1 - p;
         const isBlack = isBlackKey(pitch);
 
-        ctx.fillStyle = isBlack ? "#1c1c22" : "#2d2d35";
+        ctx.fillStyle = isBlack ? pal.keyBlack : pal.keyWhite;
         ctx.fillRect(0, y, KEY_WIDTH - 1, ROW_H - 1);
 
         // Label C notes
         if (pitch % 12 === 0) {
-          ctx.fillStyle = "#71717a";
+          ctx.fillStyle = pal.keyText;
           ctx.font = "9px monospace";
           ctx.fillText(pitchName(pitch), 2, y + ROW_H - 3);
         }
+      }
+
+      // Đường viền ngăn cột phím với vùng lưới (mockup có, UI gốc không —
+      // classic để null nên không vẽ, giữ nguyên hình cũ).
+      if (pal.keyBorder) {
+        ctx.strokeStyle = pal.keyBorder;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(KEY_WIDTH - 0.5, 0);
+        ctx.lineTo(KEY_WIDTH - 0.5, H);
+        ctx.stroke();
       }
 
       // ── Notes ────────────────────────────────────────────────
@@ -265,14 +347,27 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         // Note body
         ctx.fillStyle = color;
         ctx.globalAlpha = track?.muted ? 0.3 : (isSelected || isPlayingNote) ? 1 : 0.85;
-        roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
+        roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, pal.noteRadius);
         ctx.fill();
+
+        // Viền note theo mockup (redesign); classic để null nên bỏ qua.
+        if (pal.noteStroke) {
+          ctx.strokeStyle = pal.noteStroke;
+          ctx.lineWidth = 1;
+          roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, pal.noteRadius);
+          ctx.stroke();
+        }
+        // Highlight mỏng ở cạnh trên (mockup: inset 0 1px 0 rgba(255,255,255,.18))
+        if (pal.noteTopHighlight && nw > 4) {
+          ctx.fillStyle = "rgba(255,255,255,0.18)";
+          ctx.fillRect(nx + 1.5, ny + 2, nw - 4, 1);
+        }
 
         // Selected highlight border (UC-32)
         if (isSelected) {
-          ctx.strokeStyle = "#ffffff";
+          ctx.strokeStyle = pal.selectedBorder;
           ctx.lineWidth = 1.5;
-          roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
+          roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, pal.noteRadius);
           ctx.stroke();
         }
 
@@ -280,15 +375,15 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         if (isPlayingNote) {
           ctx.shadowColor = color;
           ctx.shadowBlur = 8;
-          ctx.fillStyle = "rgba(255,255,255,0.4)";
-          roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
+          ctx.fillStyle = pal.playingGlow;
+          roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, pal.noteRadius);
           ctx.fill();
           ctx.shadowBlur = 0;
         }
 
 
         // Resize handle highlight
-        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        ctx.fillStyle = pal.resizeHandle;
         ctx.fillRect(nx + nw - RESIZE_HANDLE_PX, ny + 1, RESIZE_HANDLE_PX - 1, ROW_H - 2);
 
         ctx.globalAlpha = 1;
@@ -300,9 +395,9 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         const nx = KEY_WIDTH + n.start * pxPerTick - scrollX;
         const nw = Math.max(4, n.duration * pxPerTick);
         const ny = HEADER_H + (PITCH_COUNT - 1 - n.pitch) * ROW_H - scrollY;
-        ctx.fillStyle = "#a5b4fc";
+        ctx.fillStyle = pal.drawingNote;
         ctx.globalAlpha = 0.7;
-        roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, 3);
+        roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, pal.noteRadius);
         ctx.fill();
         ctx.globalAlpha = 1;
       }
@@ -310,14 +405,14 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       // ── Playhead ─────────────────────────────────────────────
       const phX = KEY_WIDTH + playheadTick * pxPerTick - scrollX;
       if (phX >= KEY_WIDTH && phX <= W) {
-        ctx.strokeStyle = "#f43f5e";
+        ctx.strokeStyle = pal.playhead;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(phX, 0);
         ctx.lineTo(phX, H);
         ctx.stroke();
       }
-      }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, selectedNoteIds, isPlaying]);
+      }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, selectedNoteIds, isPlaying, pal, ROW_H, KEY_WIDTH, HEADER_H]);
 
     // Re-draw whenever state changes
     useEffect(() => {
@@ -568,7 +663,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        style={styles.container}
+        style={{ ...styles.container, background: pal.containerBg }}
       >
         {/* Virtual scroll area */}
         <div style={{ width: totalWidth, height: totalHeight, position: "relative" }}>
@@ -615,8 +710,8 @@ function roundRect(
 const styles: Record<string, React.CSSProperties> = {
   container: {
     flex: 1,
+    minHeight: 0,
     overflow: "auto",
     position: "relative",
-    background: "#1e1e24",
   },
 };

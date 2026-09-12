@@ -5,6 +5,8 @@ import {
   IsOptional,
   ValidateNested,
   IsArray,
+  ArrayMaxSize,
+  IsInt,
   IsNumber,
   Min,
   Max,
@@ -25,14 +27,16 @@ export class DraftNoteDto {
   @IsNumber()
   pitch!: number;
 
+  /**
+   * Integer tick — matches the real `DraftNote.start` field (CLAUDE.md 4.2:
+   * "start"/"duration" là số nguyên tick). Was wrongly named `startTime`
+   * (required) with `start` as a dead optional fallback — fixed here to
+   * match the actual snapshot shape used everywhere else (drafts DTO,
+   * shared-types).
+   */
   @IsNumber()
   @Min(0)
-  startTime!: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  start?: number;
+  start!: number;
 
   @IsNumber()
   @Min(1)
@@ -82,16 +86,42 @@ export class DraftTrackDto {
   instrument?: string | null;
 }
 
+/**
+ * Meta block of a snapshot (tempo/timeSignature/ppq).
+ *
+ * BUG FIX (12/09/2026): this used to be an untyped inline object literal with
+ * no validator decorators on `DraftSnapshotDto.meta` below — under
+ * `ValidationPipe({ whitelist: true })` (see `backend/src/main.ts`) that made
+ * `meta` an unknown/non-whitelisted property, so it was silently STRIPPED
+ * from any request that included `snapshot` directly. Verified by test: a
+ * commit with `snapshot.meta.tempo = 99` was persisted with `tempo: 120`
+ * (schema default) instead. Frontend works around this today by never
+ * sending `snapshot` (it flushes the draft first and lets the server load it
+ * from `drafts`), so no user-facing corruption has happened yet — but any
+ * future caller that posts `snapshot` directly would still be silently
+ * corrupted without this fix.
+ */
+export class DraftMetaDto {
+  @IsNumber()
+  tempo!: number;
+
+  @IsArray()
+  @ArrayMaxSize(2)
+  @IsInt({ each: true })
+  timeSignature!: [number, number];
+
+  @IsInt()
+  ppq!: number;
+}
+
 /** Full snapshot structure sent from client */
 export class DraftSnapshotDto {
   @IsNumber()
   schemaVersion!: number;
 
-  meta!: {
-    tempo: number;
-    timeSignature: [number, number];
-    ppq: number;
-  };
+  @ValidateNested()
+  @Type(() => DraftMetaDto)
+  meta!: DraftMetaDto;
 
   @IsArray()
   @ValidateNested({ each: true })
