@@ -41,6 +41,8 @@ import {
 import { getDraft, putDraft } from "../../lib/api-client";
 import { parseMidiBuffer } from "../../lib/midi-parser";
 import { ConfirmDialog } from "../ui/confirm-dialog";
+import { getOscillatorType } from "../../lib/instrument-waveform";
+import { ExportDialog } from "./export-dialog";
 
 // Maximum tracks allowed per project (BR-29)
 const MAX_TRACKS = 16;
@@ -51,46 +53,6 @@ const TRACK_COLORS = [
   "#6366f1","#ec4899","#f59e0b","#10b981",
   "#3b82f6","#ef4444","#8b5cf6","#14b8a6",
 ];
-
-// UC-37: Map GM instrument to oscillator type. Pure lookup, independent of
-// component state — kept at module scope instead of being re-created on
-// every render.
-function getOscillatorType(instrument: string | null): OscillatorType {
-  if (!instrument) return "triangle"; // Default
-
-  const instLower = instrument.toLowerCase();
-
-  // Piano family → triangle (soft, rounded)
-  if (instLower.includes("piano") || instLower.includes("grand") || instLower.includes("electric piano")) {
-    return "triangle";
-  }
-  // Organ → sawtooth (bright, sustained)
-  if (instLower.includes("organ") || instLower.includes("accordion")) {
-    return "sawtooth";
-  }
-  // Guitar → triangle (similar to piano)
-  if (instLower.includes("guitar") || instLower.includes("harp")) {
-    return "triangle";
-  }
-  // Bass → sawtooth (deep, rich)
-  if (instLower.includes("bass")) {
-    return "sawtooth";
-  }
-  // Brass/Lead → square (bright, cutting)
-  if (instLower.includes("brass") || instLower.includes("trumpet") || instLower.includes("synth lead")) {
-    return "square";
-  }
-  // Strings → triangle (smooth)
-  if (instLower.includes("violin") || instLower.includes("cello") || instLower.includes("string")) {
-    return "triangle";
-  }
-  // Synth pads → sine (pure, smooth)
-  if (instLower.includes("synth pad") || instLower.includes("sweep") || instLower.includes("atmosphere")) {
-    return "sine";
-  }
-  // Default → triangle
-  return "triangle";
-}
 
 interface MidiEditorProps {
   projectId: string;
@@ -136,6 +98,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     id: string;
     name: string;
   } | null>(null);
+  // UC-38: Export project audio dialog (classic UI only, xem CLAUDE.md
+  // mục 5 — redesign vẫn thiếu 1 số UC, giữ đúng quy ước của các UC khác).
+  const [showExportDialog, setShowExportDialog] = useState(false);
   // Biến thể giao diện — "classic" là UI gốc (mặc định), "redesign" là bản
   // dựng theo mockup. Nguồn lưu là localStorage, xem redesign/ui-variant.ts.
   const uiVariant = useSyncExternalStore(
@@ -987,6 +952,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onTempoChange={handleTempoChange}
         metronomeOn={metronomeOn}
         onMetronomeToggle={handleToggleMetronome}
+        onExportAudio={() => setShowExportDialog(true)}
       />
 
       {/* Save status strip */}
@@ -1023,6 +989,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onAssignInstrument={handleAssignInstrument}
           onSetTrackColor={handleSetTrackColor}
           onSetTrackLabel={handleSetTrackLabel}
+          onSetTrackVolume={handleSetTrackVolume}
           canAddTrack={snapshot.tracks.length < MAX_TRACKS}
         />
         <PianoRoll
@@ -1042,6 +1009,15 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onSeek={handleSeek}
         />
       </div>
+
+      {/* UC-38: Export project audio dialog */}
+      {showExportDialog && (
+        <ExportDialog
+          snapshot={snapshot}
+          projectName={projectName}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
 
       <ConfirmDialog
         open={pendingDeleteTrack !== null}

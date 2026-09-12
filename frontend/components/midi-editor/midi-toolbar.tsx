@@ -46,6 +46,8 @@ interface MidiToolbarProps {
   /** UC-36: Metronome click trong lúc phát. */
   metronomeOn: boolean;
   onMetronomeToggle: () => void;
+  /** UC-38: Mở dialog xuất file âm thanh (WAV) */
+  onExportAudio: () => void;
 }
 
 const TOOLS: { id: ToolMode; label: string; icon: string; title: string }[] = [
@@ -94,6 +96,7 @@ export function MidiToolbar({
   onTempoChange,
   metronomeOn,
   onMetronomeToggle,
+  onExportAudio,
 }: MidiToolbarProps) {
   return (
     <div style={styles.bar}>
@@ -327,6 +330,15 @@ export function MidiToolbar({
         ⬆ Import MIDI
       </button>
 
+      {/* UC-38: Export project audio (WAV) */}
+      <button
+        onClick={onExportAudio}
+        title="Export project audio as WAV (UC-38)"
+        style={{ ...styles.btn, ...styles.btnExport }}
+      >
+        ↓ Export Audio
+      </button>
+
       {/* Chuyển sang bản UI dựng theo mockup thiết kế */}
       <button
         onClick={onOpenRedesign}
@@ -456,6 +468,10 @@ const styles: Record<string, React.CSSProperties> = {
   btnImport: {
     borderColor: "#0ea5e9",
     color: "#38bdf8",
+  },
+  btnExport: {
+    borderColor: "#059669",
+    color: "#34d399",
   },
   btnRedesign: {
     borderColor: "#a855f7",

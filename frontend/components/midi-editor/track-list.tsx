@@ -6,6 +6,7 @@
  * UC-30: Assign instrument to track
  * UC-34: Set track color
  * UC-35: Set track label
+ * UC-40: Adjust track volume
  */
 "use client";
 
@@ -24,6 +25,8 @@ interface TrackListProps {
   onAssignInstrument: (id: string, instrument: string | null) => void;
   onSetTrackColor: (id: string, color: string) => void;
   onSetTrackLabel: (id: string, label: string) => void;
+  /** UC-40: per-track volume, 0..1 */
+  onSetTrackVolume: (id: string, volume: number) => void;
   canAddTrack?: boolean; // UC-28: max 16 tracks
 }
 
@@ -60,6 +63,7 @@ export function TrackList({
   onAssignInstrument,
   onSetTrackColor,
   onSetTrackLabel,
+  onSetTrackVolume,
   canAddTrack = true,
 }: TrackListProps) {
   // UC-30: Track being edited for instrument assignment
@@ -410,6 +414,29 @@ export function TrackList({
                   </div>
                 </div>
               )}
+
+              {/* UC-40: Volume slider — shown under the selected track */}
+              {isSelected && (
+                <div style={styles.volumeRow}>
+                  <span style={styles.volumeLabel}>VOL</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round((track.volume ?? 1) * 100)}
+                    onChange={(e) => {
+                      onSetTrackVolume(track.id, Number(e.target.value) / 100);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Volume: ${Math.round((track.volume ?? 1) * 100)}%`}
+                    style={styles.volumeSlider}
+                  />
+                  <span style={styles.volumeValue}>
+                    {Math.round((track.volume ?? 1) * 100)}%
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}
@@ -669,5 +696,36 @@ const styles: Record<string, React.CSSProperties> = {
   colorSwatchActive: {
     borderColor: "#fff",
     boxShadow: "0 0 0 1px rgba(255,255,255,0.5)",
+  },
+  // UC-40: Volume slider styles
+  volumeRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "3px 8px 4px",
+    background: "rgba(99,102,241,0.07)",
+    borderBottom: "1px solid #27272a22",
+  },
+  volumeLabel: {
+    fontSize: 8,
+    fontWeight: 700,
+    color: "#52525b",
+    letterSpacing: 0.5,
+    flexShrink: 0,
+    width: 20,
+  },
+  volumeSlider: {
+    flex: 1,
+    height: 3,
+    cursor: "pointer",
+    accentColor: "#6366f1",
+    minWidth: 0,
+  },
+  volumeValue: {
+    fontSize: 8,
+    color: "#71717a",
+    width: 24,
+    textAlign: "right" as const,
+    flexShrink: 0,
   },
 };
