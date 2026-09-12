@@ -4,6 +4,7 @@
  *   UC-25: Add note  — Pencil tool: mousedown → draw note
  *   UC-26: Edit note — Pointer tool: drag to move, drag right-edge to resize
  *   UC-27: Delete    — Eraser tool click OR right-click any note
+ *   UC-36: Loop region — drag on header ruler to set loopStart/loopEnd
  */
 "use client";
 
@@ -53,6 +54,14 @@ interface DragState {
   origPitch: number;
 }
 
+// UC-36: loop drag state
+interface LoopDragState {
+  handle: "start" | "end" | "region";
+  startX: number;
+  origLoopStart: number;
+  origLoopEnd: number;
+}
+
 interface PianoRollProps {
   notes: DraftNote[];
   tracks: DraftTrack[];
@@ -63,6 +72,11 @@ interface PianoRollProps {
   gridDivision: GridDivision;
   playheadTick: number;
   onNotesChange: (notes: DraftNote[]) => void;
+  // UC-36: loop region
+  loopOn: boolean;
+  loopStart: number;
+  loopEnd: number;
+  onLoopRegionChange: (start: number, end: number) => void;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -77,6 +91,10 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       gridDivision,
       playheadTick,
       onNotesChange,
+      loopOn,
+      loopStart,
+      loopEnd,
+      onLoopRegionChange,
     },
     ref,
   ) {
@@ -86,6 +104,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     const [scrollY, setScrollY] = useState((128 - 72) * ROW_H); // start near C5
     const dragRef = useRef<DragState | null>(null);
     const drawNoteRef = useRef<DraftNote | null>(null); // note being drawn
+    const loopDragRef = useRef<LoopDragState | null>(null); // UC-36 loop drag
 
     // px per tick
     const pxPerTick = 0.06 * zoom;
@@ -137,6 +156,18 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
           return { note: n, zone };
         }
       }
+      return null;
+    }
+
+    // ── UC-36: Hit-test loop handle on ruler ──────────────────
+    function hitLoopHandle(cx: number, cy: number): "start" | "end" | "region" | null {
+      if (!loopOn || cy > HEADER_H) return null;
+      const lsX = KEY_WIDTH + loopStart * pxPerTick - scrollX;
+      const leX = KEY_WIDTH + loopEnd * pxPerTick - scrollX;
+      const HANDLE_ZONE = 8;
+      if (Math.abs(cx - lsX) <= HANDLE_ZONE) return "start";
+      if (Math.abs(cx - leX) <= HANDLE_ZONE) return "end";
+      if (cx > lsX && cx < leX) return "region";
       return null;
     }
 
@@ -198,9 +229,52 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         t += gridStep;
       }
 
+      // ── UC-36: Loop region highlight (behind ruler) ──────────
+      if (loopOn) {
+        const lsX = KEY_WIDTH + loopStart * pxPerTick - scrollX;
+        const leX = KEY_WIDTH + loopEnd * pxPerTick - scrollX;
+        if (leX > KEY_WIDTH && lsX < W) {
+          // Highlight over note area
+          ctx.fillStyle = "rgba(8,145,178,0.08)";
+          ctx.fillRect(Math.max(KEY_WIDTH, lsX), HEADER_H, Math.min(W, leX) - Math.max(KEY_WIDTH, lsX), H - HEADER_H);
+        }
+      }
+
       // ── Ruler header ─────────────────────────────────────────
       ctx.fillStyle = "#18181b";
       ctx.fillRect(KEY_WIDTH, 0, W - KEY_WIDTH, HEADER_H);
+
+      // UC-36: loop region on ruler
+      if (loopOn) {
+        const lsX = KEY_WIDTH + loopStart * pxPerTick - scrollX;
+        const leX = KEY_WIDTH + loopEnd * pxPerTick - scrollX;
+        if (leX > KEY_WIDTH && lsX < W) {
+          const rx = Math.max(KEY_WIDTH, lsX);
+          const rw = Math.min(W, leX) - rx;
+          // Shaded band
+          ctx.fillStyle = "rgba(8,145,178,0.25)";
+          ctx.fillRect(rx, 0, rw, HEADER_H);
+          // Top stripe
+          ctx.fillStyle = "#0891b2";
+          ctx.fillRect(rx, 0, rw, 3);
+          // L handle
+          if (lsX >= KEY_WIDTH && lsX <= W) {
+            ctx.fillStyle = "#0891b2";
+            ctx.fillRect(lsX - 1, 0, 2, HEADER_H);
+            ctx.fillStyle = "#e0f2fe";
+            ctx.font = "bold 9px monospace";
+            ctx.fillText("L", lsX + 3, HEADER_H - 5);
+          }
+          // R handle
+          if (leX >= KEY_WIDTH && leX <= W) {
+            ctx.fillStyle = "#0891b2";
+            ctx.fillRect(leX - 1, 0, 2, HEADER_H);
+            ctx.fillStyle = "#e0f2fe";
+            ctx.font = "bold 9px monospace";
+            ctx.fillText("R", leX - 10, HEADER_H - 5);
+          }
+        }
+      }
 
       let bar = Math.floor(firstTick / ticksPerBar);
       while (bar * ticksPerBar <= lastTick) {
@@ -280,8 +354,16 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         ctx.moveTo(phX, 0);
         ctx.lineTo(phX, H);
         ctx.stroke();
+        // small triangle at top
+        ctx.fillStyle = "#f43f5e";
+        ctx.beginPath();
+        ctx.moveTo(phX - 5, 0);
+        ctx.lineTo(phX + 5, 0);
+        ctx.lineTo(phX, 8);
+        ctx.closePath();
+        ctx.fill();
       }
-    }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid]);
+    }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, loopOn, loopStart, loopEnd]);
 
     // Re-draw whenever state changes
     useEffect(() => {
@@ -321,6 +403,31 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       }
 
       const { cx, cy } = canvasCoords(e);
+
+      // UC-36: check loop handle on ruler first
+      if (cy <= HEADER_H && cx >= KEY_WIDTH) {
+        const lh = hitLoopHandle(cx, cy);
+        if (lh) {
+          loopDragRef.current = {
+            handle: lh,
+            startX: cx,
+            origLoopStart: loopStart,
+            origLoopEnd: loopEnd,
+          };
+          return;
+        }
+        // click on ruler outside loop handles: set new loop start
+        const tick = snapToGrid(Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick));
+        const newEnd = Math.max(tick + ppq * 4, loopEnd);
+        onLoopRegionChange(tick, newEnd);
+        loopDragRef.current = {
+          handle: "end",
+          startX: cx,
+          origLoopStart: tick,
+          origLoopEnd: newEnd,
+        };
+        return;
+      }
 
       if (tool === "eraser") {
         const hit = hitNote(cx, cy);
@@ -381,10 +488,45 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
     function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
       const drag = dragRef.current;
+      const loopDrag = loopDragRef.current;
       const { cx, cy } = canvasCoords(e);
+
+      // UC-36: loop drag
+      if (loopDrag) {
+        const deltaTick = (cx - loopDrag.startX) / pxPerTick;
+        if (loopDrag.handle === "start") {
+          const newStart = Math.max(0, snapToGrid(loopDrag.origLoopStart + deltaTick));
+          if (newStart < loopDrag.origLoopEnd) {
+            onLoopRegionChange(newStart, loopDrag.origLoopEnd);
+          }
+        } else if (loopDrag.handle === "end") {
+          const newEnd = Math.max(
+            loopDrag.origLoopStart + gridStep,
+            snapToGrid(loopDrag.origLoopEnd + deltaTick),
+          );
+          onLoopRegionChange(loopDrag.origLoopStart, newEnd);
+        } else {
+          // move whole region
+          const newStart = Math.max(0, snapToGrid(loopDrag.origLoopStart + deltaTick));
+          const regionLen = loopDrag.origLoopEnd - loopDrag.origLoopStart;
+          onLoopRegionChange(newStart, newStart + regionLen);
+        }
+        return;
+      }
 
       if (!drag) {
         // Update cursor
+        if (cy <= HEADER_H && cx >= KEY_WIDTH) {
+          const lh = hitLoopHandle(cx, cy);
+          if (lh === "start" || lh === "end") {
+            canvasRef.current!.style.cursor = "ew-resize";
+          } else if (lh === "region") {
+            canvasRef.current!.style.cursor = "grab";
+          } else {
+            canvasRef.current!.style.cursor = "crosshair";
+          }
+          return;
+        }
         if (tool === "pointer") {
           const hit = hitNote(cx, cy);
           if (hit) {
@@ -449,6 +591,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         draw();
       }
       dragRef.current = null;
+      loopDragRef.current = null;
     }
 
     // Scroll sync from container

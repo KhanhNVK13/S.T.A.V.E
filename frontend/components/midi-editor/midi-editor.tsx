@@ -9,6 +9,7 @@
  * UC-31: Quantize button
  * UC-34: Set track color
  * UC-35: Set track label
+ * UC-36: Metronome + Loop playback
  */
 "use client";
 
@@ -59,12 +60,22 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [playheadTick, setPlayheadTick] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [trackLimitWarning, setTrackLimitWarning] = useState(false);
+  // UC-36
+  const [metronomeOn, setMetronomeOn] = useState(false);
+  const [loopOn, setLoopOn] = useState(false);
+  const [loopStart, setLoopStart] = useState(0);
+  const [loopEnd, setLoopEnd] = useState(snapshot.meta.ppq * 4 * 4); // 4 bars default
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // UC-36: refs for metronome scheduler
+  const metronomeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextBeatTimeRef = useRef<number>(0);
+  // UC-36: current play params (stable refs so loop callback doesn't stale-close)
+  const playParamsRef = useRef<{ startTick: number; startTime: number; bpm: number; ppq: number } | null>(null);
   // Always holds the latest snapshot so the unmount-flush below (a cleanup
   // closure, which only ever sees the snapshot from its own render) can save
   // the most recent edit instead of whatever was current when it was set up.
@@ -264,24 +275,72 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     e.target.value = "";
   }
 
-  // ── Playback (simple Web Audio oscillator) ──────────────────
-  function handlePlay() {
-    if (isPlaying) return;
-    setIsPlaying(true);
-    const ctx = new AudioContext();
-    audioCtxRef.current = ctx;
-    const bpm = snapshot.meta.tempo;
-    const ppq = snapshot.meta.ppq;
-    const secPerTick = 60 / (bpm * ppq);
-    const startTick = playheadTick;
-    const startTime = ctx.currentTime;
+  // ── UC-36: Tempo change ──────────────────────────────────────
+  function handleTempoChange(bpm: number) {
+    updateSnapshot({ ...snapshot, meta: { ...snapshot.meta, tempo: bpm } });
+  }
 
-    // Schedule all notes via Web Audio
-    snapshot.notes.forEach((n) => {
-      const track = snapshot.tracks.find((t) => t.id === n.trackId);
+  // ── UC-36: Schedule metronome clicks using Web Audio lookahead ──
+  function scheduleMetronome(ctx: AudioContext, bpm: number) {
+    const LOOKAHEAD_SEC = 0.1;  // how far ahead to schedule
+    const SCHEDULE_INTERVAL_MS = 50; // how often to run scheduler
+
+    function scheduleBeat() {
+      const now = ctx.currentTime;
+      while (nextBeatTimeRef.current < now + LOOKAHEAD_SEC) {
+        const beatTime = nextBeatTimeRef.current;
+        const secPerBeat = 60 / bpm;
+        // Determine if this is a downbeat (beat 1 of bar)
+        const beatIndex = Math.round(beatTime / secPerBeat);
+        const isDownbeat = beatIndex % 4 === 0;
+
+        // Click sound: short noise burst via buffer
+        const bufLen = Math.floor(ctx.sampleRate * 0.03);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 8);
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+
+        const gain = ctx.createGain();
+        gain.gain.value = isDownbeat ? 0.8 : 0.4;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        src.start(beatTime);
+
+        nextBeatTimeRef.current += secPerBeat;
+      }
+      metronomeTimerRef.current = setTimeout(scheduleBeat, SCHEDULE_INTERVAL_MS);
+    }
+
+    nextBeatTimeRef.current = ctx.currentTime;
+    scheduleBeat();
+  }
+
+  // ── UC-36: Schedule notes for one pass (startTick → endTick) ──
+  function scheduleNotes(
+    ctx: AudioContext,
+    notes: typeof snapshot.notes,
+    tracks: typeof snapshot.tracks,
+    startTick: number,
+    endTick: number | null,
+    bpm: number,
+    ppq: number,
+    offsetSec: number, // ctx time at which startTick plays
+  ) {
+    const secPerTick = 60 / (bpm * ppq);
+    notes.forEach((n) => {
+      const track = tracks.find((t) => t.id === n.trackId);
       if (track?.muted) return;
-      const noteStart = (n.start - startTick) * secPerTick;
-      if (noteStart < 0) return;
+      if (endTick !== null && n.start >= endTick) return;
+      const noteStartTick = Math.max(n.start, startTick);
+      const noteEndTick = endTick !== null ? Math.min(n.start + n.duration, endTick) : n.start + n.duration;
+      if (noteEndTick <= noteStartTick) return;
+
+      const noteStart = (noteStartTick - startTick) * secPerTick + offsetSec;
+      const noteDur = (noteEndTick - noteStartTick) * secPerTick;
 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -289,26 +348,88 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       gain.connect(ctx.destination);
       osc.frequency.value = 440 * Math.pow(2, (n.pitch - 69) / 12);
       osc.type = "sine";
-      gain.gain.setValueAtTime(0, startTime + noteStart);
+      gain.gain.setValueAtTime(0, noteStart);
       gain.gain.linearRampToValueAtTime(
         (n.velocity / 127) * (track?.volume ?? 1) * 0.3,
-        startTime + noteStart + 0.01,
+        noteStart + 0.01,
       );
-      const noteDur = n.duration * secPerTick;
       gain.gain.setValueAtTime(
         (n.velocity / 127) * (track?.volume ?? 1) * 0.3,
-        startTime + noteStart + noteDur - 0.01,
+        noteStart + noteDur - 0.01,
       );
-      gain.gain.linearRampToValueAtTime(0, startTime + noteStart + noteDur);
-      osc.start(startTime + noteStart);
-      osc.stop(startTime + noteStart + noteDur + 0.01);
+      gain.gain.linearRampToValueAtTime(0, noteStart + noteDur);
+      osc.start(noteStart);
+      osc.stop(noteStart + noteDur + 0.01);
     });
+  }
 
-    // Animate playhead
+  // ── Playback (Web Audio, supports loop) ──────────────────────
+  function handlePlay() {
+    if (isPlaying) return;
+    setIsPlaying(true);
+
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+
+    const bpm = snapshot.meta.tempo;
+    const ppq = snapshot.meta.ppq;
+    const secPerTick = 60 / (bpm * ppq);
+    const startTick = playheadTick;
+    const startTime = ctx.currentTime;
+
+    playParamsRef.current = { startTick, startTime, bpm, ppq };
+
+    // Capture current loop settings in local vars for the interval closure
+    const effectiveLoopOn = loopOn;
+    const effectiveLoopStart = loopStart;
+    const effectiveLoopEnd = loopEnd;
+
+    if (effectiveLoopOn) {
+      // Schedule notes only within loop region first pass
+      scheduleNotes(ctx, snapshot.notes, snapshot.tracks, effectiveLoopStart, effectiveLoopEnd, bpm, ppq, startTime);
+    } else {
+      scheduleNotes(ctx, snapshot.notes, snapshot.tracks, startTick, null, bpm, ppq, startTime);
+    }
+
+    // UC-36: Start metronome if enabled
+    if (metronomeOn) {
+      scheduleMetronome(ctx, bpm);
+    }
+
+    // Animate playhead + handle loop restart
     const ticksPerMs = (bpm * ppq) / 60000;
+
+    // Track how many loop iterations we've done
+    let loopIteration = 0;
+    const loopLenTicks = effectiveLoopEnd - effectiveLoopStart;
+    const loopLenSec = loopLenTicks * secPerTick;
+
     playTimerRef.current = setInterval(() => {
-      const elapsed = (ctx.currentTime - startTime) * 1000;
-      setPlayheadTick(Math.floor(startTick + elapsed * ticksPerMs));
+      if (!audioCtxRef.current) return;
+      const elapsed = (audioCtxRef.current.currentTime - startTime) * 1000;
+      const rawTick = effectiveLoopOn
+        ? effectiveLoopStart + ((elapsed * ticksPerMs) % (loopLenTicks || 1))
+        : startTick + elapsed * ticksPerMs;
+      setPlayheadTick(Math.floor(rawTick));
+
+      // Schedule next loop pass slightly before current one ends
+      if (effectiveLoopOn && loopLenSec > 0) {
+        const currentIteration = Math.floor((elapsed / 1000) / loopLenSec);
+        if (currentIteration > loopIteration) {
+          loopIteration = currentIteration;
+          const nextPassStart = startTime + loopIteration * loopLenSec;
+          scheduleNotes(
+            audioCtxRef.current,
+            snapshot.notes,
+            snapshot.tracks,
+            effectiveLoopStart,
+            effectiveLoopEnd,
+            bpm,
+            ppq,
+            nextPassStart,
+          );
+        }
+      }
     }, 16);
   }
 
@@ -322,6 +443,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       clearInterval(playTimerRef.current);
       playTimerRef.current = null;
     }
+    if (metronomeTimerRef.current) {
+      clearTimeout(metronomeTimerRef.current);
+      metronomeTimerRef.current = null;
+    }
+    playParamsRef.current = null;
     setPlayheadTick(0);
   }
 
@@ -360,6 +486,12 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onStop={handleStop}
         isPlaying={isPlaying}
         projectName={projectName}
+        tempo={snapshot.meta.tempo}
+        onTempoChange={handleTempoChange}
+        metronomeOn={metronomeOn}
+        onMetronomeToggle={() => setMetronomeOn((v) => !v)}
+        loopOn={loopOn}
+        onLoopToggle={() => setLoopOn((v) => !v)}
       />
 
       {/* Save status strip */}
@@ -409,6 +541,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           gridDivision={gridDivision}
           playheadTick={playheadTick}
           onNotesChange={handleNotesChange}
+          loopOn={loopOn}
+          loopStart={loopStart}
+          loopEnd={loopEnd}
+          onLoopRegionChange={(s, e) => { setLoopStart(s); setLoopEnd(e); }}
         />
       </div>
     </div>

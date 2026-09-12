@@ -1,6 +1,7 @@
 /**
  * midi-toolbar.tsx
  * Toolbar for the MIDI Editor: tool selector, grid quantize, zoom, import, play.
+ * UC-36: Metronome toggle, Loop toggle, BPM input
  */
 "use client";
 
@@ -22,6 +23,13 @@ interface MidiToolbarProps {
   onStop: () => void;
   isPlaying: boolean;
   projectName: string;
+  // UC-36
+  tempo: number;
+  onTempoChange: (bpm: number) => void;
+  metronomeOn: boolean;
+  onMetronomeToggle: () => void;
+  loopOn: boolean;
+  onLoopToggle: () => void;
 }
 
 const TOOLS: { id: ToolMode; label: string; icon: string; title: string }[] = [
@@ -50,6 +58,12 @@ export function MidiToolbar({
   onStop,
   isPlaying,
   projectName,
+  tempo,
+  onTempoChange,
+  metronomeOn,
+  onMetronomeToggle,
+  loopOn,
+  onLoopToggle,
 }: MidiToolbarProps) {
   return (
     <div style={styles.bar}>
@@ -122,6 +136,53 @@ export function MidiToolbar({
           title="Zoom in"
         >
           +
+        </button>
+      </div>
+
+      <div style={styles.divider} />
+
+      {/* UC-36: BPM input */}
+      <div style={styles.group}>
+        <span style={styles.label}>BPM</span>
+        <input
+          type="number"
+          min={20}
+          max={300}
+          value={tempo}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            if (!isNaN(v) && v >= 20 && v <= 300) onTempoChange(v);
+          }}
+          style={styles.bpmInput}
+          title="Tempo (BPM) – UC-36"
+        />
+      </div>
+
+      <div style={styles.divider} />
+
+      {/* UC-36: Metronome + Loop */}
+      <div style={styles.group}>
+        <button
+          onClick={onMetronomeToggle}
+          title="Toggle Metronome (UC-36)"
+          style={{
+            ...styles.btn,
+            ...(metronomeOn ? styles.btnMetronomeOn : styles.btnMetronomeOff),
+          }}
+        >
+          <span style={styles.btnIcon}>🎵</span>
+          <span style={styles.btnLabel}>Metro</span>
+        </button>
+        <button
+          onClick={onLoopToggle}
+          title="Toggle Loop Playback (UC-36)"
+          style={{
+            ...styles.btn,
+            ...(loopOn ? styles.btnLoopOn : styles.btnLoopOff),
+          }}
+        >
+          <span style={styles.btnIcon}>🔁</span>
+          <span style={styles.btnLabel}>Loop</span>
         </button>
       </div>
 
@@ -232,11 +293,41 @@ const styles: Record<string, React.CSSProperties> = {
     borderColor: "#0ea5e9",
     color: "#38bdf8",
   },
+  btnMetronomeOn: {
+    background: "#d97706",
+    borderColor: "#d97706",
+    color: "#fff",
+  },
+  btnMetronomeOff: {
+    borderColor: "#78716c",
+    color: "#a8a29e",
+  },
+  btnLoopOn: {
+    background: "#0891b2",
+    borderColor: "#0891b2",
+    color: "#fff",
+  },
+  btnLoopOff: {
+    borderColor: "#334155",
+    color: "#64748b",
+  },
   btnIcon: {
     fontSize: 14,
     lineHeight: 1,
   },
   btnLabel: {
     fontSize: 11,
+  },
+  bpmInput: {
+    width: 46,
+    padding: "2px 4px",
+    fontSize: 12,
+    fontFamily: "monospace",
+    background: "#09090b",
+    border: "1px solid #27272a",
+    borderRadius: 4,
+    color: "#e4e4e7",
+    textAlign: "center",
+    outline: "none",
   },
 };
