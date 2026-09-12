@@ -146,17 +146,19 @@ export function MidiToolbar({
               ■
             </button>
           </>
-        ) : (
+        ) : isPaused ? (
           <>
-            <button onClick={onPlay} style={{ ...styles.btn, ...styles.btnPlay }} title="Play">
-              ▶
+            <button onClick={onPlay} style={{ ...styles.btn, ...styles.btnPlay }} title="Resume">
+              ▶ Resume
             </button>
-            {isPaused && (
-              <button onClick={onPlay} style={{ ...styles.btn, ...styles.btnPlay }} title="Resume">
-                ▶ Resume
-              </button>
-            )}
+            <button onClick={onStop} style={{ ...styles.btn, ...styles.btnStop }} title="Stop">
+              ■
+            </button>
           </>
+        ) : (
+          <button onClick={onPlay} style={{ ...styles.btn, ...styles.btnPlay }} title="Play">
+            ▶
+          </button>
         )}
         {/* Loop toggle */}
         <button
