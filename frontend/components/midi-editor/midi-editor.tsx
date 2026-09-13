@@ -44,7 +44,7 @@ import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { ExportDialog } from "./export-dialog";
 import * as Tone from "tone";
-import { scheduleNotes, disposeTrackVoice, type TrackVoice } from "../../lib/tone-synth-engine";
+import { prepareVoices, triggerNotes, disposeTrackVoice, type TrackVoice } from "../../lib/tone-synth-engine";
 
 // Maximum tracks allowed per project (BR-29)
 const MAX_TRACKS = 16;
@@ -121,13 +121,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Tone.js voices (1 PolySynth+Panner per track that has notes to play in
-  // this session) created fresh by startPlayback and disposed by stopAudio —
-  // mirrors the old "fresh oscillators per Play" lifecycle, just with real
-  // Tone.js instruments instead of bare OscillatorNodes (Report 3 §4.1/§4.2
-  // specifies Tone.js for in-browser synthesis; the previous engine never
-  // actually used it).
-  const toneVoicesRef = useRef<TrackVoice[]>([]);
+  // Tone.js voices (1 Sampler-or-PolySynth+Panner per track that has notes
+  // to play in this session) created fresh by startPlayback and disposed by
+  // stopAudio — mirrors the old "fresh oscillators per Play" lifecycle, just
+  // with real Tone.js instruments instead of bare OscillatorNodes (Report 3
+  // §4.1/§4.2 specifies Tone.js for in-browser synthesis; the previous
+  // engine never actually used it). Keyed by track id so triggerNotes can
+  // look voices up after prepareVoices resolves.
+  const toneVoicesRef = useRef<Map<string, TrackVoice>>(new Map());
   // Master volume: 1 Tone.Gain chung, đứng giữa mọi panner và Tone.Limiter
   // (xem startPlayback) — chỉnh giá trị này chỉnh âm lượng output của TẤT CẢ
   // track cùng lúc, ngay cả khi đang phát (không cần dừng/phát lại).
@@ -136,6 +137,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // thô cộng thẳng vào destination không giới hạn biên độ).
   const masterLimiterRef = useRef<Tone.Limiter | null>(null);
   const metroSynthRef = useRef<Tone.NoiseSynth | null>(null);
+  // Bumped by stopAudio() (called at the top of every startPlayback, and by
+  // handleStop/handlePause) — startPlayback captures the value right after
+  // its own stopAudio() call and checks it again after awaiting
+  // prepareVoices(); if it changed, some other Stop/Play/Seek happened
+  // while sample files were still loading, so the voices this call just
+  // created are disposed instead of being adopted as the "current" ones —
+  // otherwise they'd leak (never reachable for stopAudio to dispose later).
+  const playSessionRef = useRef(0);
   // UC-37: Refs for playback closure access
   const loopOnRef = useRef(false);
   // Tick that a loop restart (and Stop-then-replay) returns to — set
@@ -622,10 +631,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // auto-stop/loop check, so playback ran forever in silence after the
   // first loop or after seeking mid-playback.
   function stopAudio() {
-    for (const voice of toneVoicesRef.current) {
+    playSessionRef.current += 1;
+    for (const voice of toneVoicesRef.current.values()) {
       disposeTrackVoice(voice);
     }
-    toneVoicesRef.current = [];
+    toneVoicesRef.current = new Map();
     if (metroSynthRef.current) {
       metroSynthRef.current.dispose();
       metroSynthRef.current = null;
@@ -702,18 +712,19 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   async function startPlayback(fromTick: number) {
     stopAudio();
+    const mySession = playSessionRef.current;
     setIsPlaying(true);
     setIsPaused(false);
 
     // Tone.js requires the shared AudioContext to be resumed from a user
     // gesture — the click that reached here (Play/Seek/Loop toggle) counts.
     await Tone.start();
+    if (playSessionRef.current !== mySession) return; // Stop/Play/Seek happened meanwhile
 
     // Preview speed only — never the value written back to the project
     // (see playbackRate declaration above).
     const bpm = snapshot.meta.tempo * playbackRate;
     const ppq = snapshot.meta.ppq;
-    const startTime = Tone.now();
 
     // Master bus: Gain (master volume, live-adjustable — see the effect
     // above) → Limiter → speakers. The limiter is what actually fixes the
@@ -722,12 +733,6 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     // so overlapping notes could push well past 0 dBFS and hard-clip.
     const limiter = new Tone.Limiter(-1).toDestination();
     const masterGain = new Tone.Gain(masterVolume).connect(limiter);
-    masterGainRef.current = masterGain;
-    masterLimiterRef.current = limiter;
-
-    // UC-36: Metronome scheduler — runs independently of note playback so
-    // it keeps clicking even through silence.
-    scheduleMetronome(startTime, fromTick);
 
     const allNotes = snapshot.notes;
     // UC-37: End tick for auto-stop/loop — end of the last note, or the
@@ -736,11 +741,33 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       ? Math.max(...allNotes.map((n) => n.start + n.duration))
       : fromTick;
 
-    // UC-37: Schedule all notes — instrument (oscillator type), mute/solo,
-    // volume, pan all handled by the shared Tone.js engine (also used by
+    // Create every needed track's voice (instrument/oscillator, mute/solo,
+    // volume, pan all handled by the shared Tone.js engine — also used by
     // UC-38 export, so exported audio matches what Play actually sounds
-    // like).
-    toneVoicesRef.current = scheduleNotes({
+    // like) and wait for any sampled instrument's files to finish loading
+    // BEFORE capturing `startTime` — otherwise the load delay eats into the
+    // schedule and the first several notes fire late/bunched together.
+    const voiceByTrack = await prepareVoices(allNotes, snapshot.tracks, fromTick, null, masterGain);
+    if (playSessionRef.current !== mySession) {
+      // Stopped/replaced while samples were loading — these voices (and the
+      // master bus they're plugged into) never became "the" current
+      // session's, so nothing else will ever dispose them; do it here.
+      for (const voice of voiceByTrack.values()) disposeTrackVoice(voice);
+      limiter.dispose();
+      masterGain.dispose();
+      return;
+    }
+    masterGainRef.current = masterGain;
+    masterLimiterRef.current = limiter;
+    toneVoicesRef.current = voiceByTrack;
+
+    const startTime = Tone.now();
+
+    // UC-36: Metronome scheduler — runs independently of note playback so
+    // it keeps clicking even through silence.
+    scheduleMetronome(startTime, fromTick);
+
+    triggerNotes({
       notes: allNotes,
       tracks: snapshot.tracks,
       ppq,
@@ -748,7 +775,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       startTime,
       fromTick,
       toTick: null,
-      destination: masterGain,
+      voiceByTrack,
     });
 
     // UC-37: Animate playhead with loop/auto-stop support

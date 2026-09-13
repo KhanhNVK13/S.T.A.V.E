@@ -16,7 +16,7 @@
 
 import * as Tone from "tone";
 import type { DraftSnapshot, DraftTrack } from "@stave/shared-types";
-import { scheduleNotes } from "./tone-synth-engine";
+import { prepareVoices, triggerNotes } from "./tone-synth-engine";
 
 export interface ExportOptions {
   /** Sample rate for the output file (default: 44100) */
@@ -51,13 +51,16 @@ export async function exportAudio(
 
   // ── 2. Offline render (Tone.Offline swaps the "current" Tone context for
   // the duration of this callback, so `.toDestination()` inside it — and
-  // inside scheduleNotes' per-track voices — routes to the offline buffer,
-  // not real speakers) ──────────────────────────────
-  const rendered = await Tone.Offline(() => {
+  // inside prepareVoices' per-track voices — routes to the offline buffer,
+  // not real speakers). The callback is async so any sampled instrument's
+  // files finish loading before triggerNotes schedules anything — same
+  // reasoning as startPlayback in midi-editor.tsx. ──────────────────────────────
+  const rendered = await Tone.Offline(async () => {
     // Same Limiter as live playback — without it, a dense passage renders
     // exactly the same clipped/buzzing audio it would play live.
     const limiter = new Tone.Limiter(-1).toDestination();
-    scheduleNotes({
+    const voiceByTrack = await prepareVoices(notes, tracks, 0, null, limiter);
+    triggerNotes({
       notes,
       tracks,
       ppq,
@@ -65,7 +68,7 @@ export async function exportAudio(
       startTime: 0,
       fromTick: 0,
       toTick: null,
-      destination: limiter,
+      voiceByTrack,
     });
   }, totalSec, 2, sampleRate);
 
