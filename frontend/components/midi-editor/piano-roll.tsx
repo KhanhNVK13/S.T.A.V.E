@@ -17,81 +17,48 @@ import React, {
   useImperativeHandle,
 } from "react";
 import type { DraftNote, DraftTrack } from "@stave/shared-types";
-import type { ToolMode, GridDivision } from "./midi-toolbar";
+
+export type ToolMode = "pointer" | "pencil" | "eraser";
+export type GridDivision = 4 | 8 | 16 | 32;
 
 // ── Constants ──────────────────────────────────────────────────
 const PITCH_COUNT = 128;
 const RESIZE_HANDLE_PX = 6; // px at right edge = resize zone
 
 /**
- * Hình học + bảng màu theo biến thể UI.
- *
- * "classic" giữ nguyên đúng số liệu/màu đang chạy trên UI gốc — không được
- * đổi. "redesign" lấy từ mã nguồn thiết kế thật (docs/STAVE design component
- * sample/.../STAVE.dc.html, screen "editor" dòng 232–257: hàng 22px, cột phím
- * 72px, ruler 34px, note bo góc 4px viền #0F2A5C, playhead #B3242E).
- *
- * Chỉ phần VẼ đổi theo theme — toàn bộ hit-test/kéo-thả/chọn vùng bên dưới
- * dùng chung một bộ code, không nhân bản.
+ * Hình học + bảng màu — lấy từ mã nguồn thiết kế thật (docs/STAVE design
+ * component sample/.../STAVE.dc.html, screen "editor" dòng 232–257: hàng
+ * 22px, cột phím 72px, ruler 34px, note bo góc 4px viền #0F2A5C, playhead
+ * #B3242E). Trước đây có thêm bảng "classic" cho bản UI gốc (đã xoá cùng
+ * toàn bộ UI gốc — xem PROJECT_STATE.md).
  */
-const THEMES = {
-  classic: {
-    rowH: 14,
-    keyW: 36,
-    headerH: 24,
-    noteRadius: 3,
-    noteStroke: null as string | null,
-    noteTopHighlight: false,
-    keyBorder: null as string | null,
-    containerBg: "#1e1e24",
-    rowBlack: "#1a1a1f",
-    rowWhite: "#1e1e24",
-    cLine: "rgba(99,102,241,0.08)",
-    rowSeparator: "#27272a",
-    gridBar: "rgba(255,255,255,0.12)",
-    gridBeat: "rgba(255,255,255,0.06)",
-    gridStep: "rgba(255,255,255,0.025)",
-    rulerBg: "#18181b",
-    rulerText: "#52525b",
-    keyBlack: "#1c1c22",
-    keyWhite: "#2d2d35",
-    keyText: "#71717a",
-    drawingNote: "#a5b4fc",
-    playhead: "#f43f5e",
-    selectedBorder: "#ffffff",
-    playingGlow: "rgba(255,255,255,0.4)",
-    resizeHandle: "rgba(255,255,255,0.25)",
-  },
-  redesign: {
-    rowH: 22,
-    keyW: 72,
-    headerH: 34,
-    noteRadius: 4,
-    noteStroke: "#0F2A5C" as string | null,
-    noteTopHighlight: true,
-    keyBorder: "#E3E4E8" as string | null,
-    containerBg: "#ffffff",
-    rowBlack: "#FAFAF8",
-    rowWhite: "#ffffff",
-    cLine: "rgba(29,78,216,0.05)",
-    rowSeparator: "#F3F3F1",
-    gridBar: "#E6E6E2",
-    gridBeat: "#EDEDEA",
-    gridStep: "#F5F5F3",
-    rulerBg: "#FBFBF9",
-    rulerText: "#8A8D93",
-    keyBlack: "#E9E9E6",
-    keyWhite: "#ffffff",
-    keyText: "#8A8D93",
-    drawingNote: "#1D4ED8",
-    playhead: "#B3242E",
-    selectedBorder: "#1F2126",
-    playingGlow: "rgba(29,78,216,0.35)",
-    resizeHandle: "rgba(255,255,255,0.35)",
-  },
+const PAL = {
+  rowH: 22,
+  keyW: 72,
+  headerH: 34,
+  noteRadius: 4,
+  noteStroke: "#0F2A5C" as string | null,
+  noteTopHighlight: true,
+  keyBorder: "#E3E4E8" as string | null,
+  containerBg: "#ffffff",
+  rowBlack: "#FAFAF8",
+  rowWhite: "#ffffff",
+  cLine: "rgba(29,78,216,0.05)",
+  rowSeparator: "#F3F3F1",
+  gridBar: "#E6E6E2",
+  gridBeat: "#EDEDEA",
+  gridStep: "#F5F5F3",
+  rulerBg: "#FBFBF9",
+  rulerText: "#8A8D93",
+  keyBlack: "#E9E9E6",
+  keyWhite: "#ffffff",
+  keyText: "#8A8D93",
+  drawingNote: "#1D4ED8",
+  playhead: "#B3242E",
+  selectedBorder: "#1F2126",
+  playingGlow: "rgba(29,78,216,0.35)",
+  resizeHandle: "rgba(255,255,255,0.35)",
 } as const;
-
-export type PianoRollTheme = keyof typeof THEMES;
 
 // Piano key helpers
 const BLACK_NOTES = new Set([1, 3, 6, 8, 10]); // semitone % 12
@@ -136,8 +103,6 @@ interface PianoRollProps {
   // UC-37: Playback
   isPlaying: boolean;
   onSeek: (tick: number) => void;
-  /** Chỉ ảnh hưởng phần vẽ (màu + hình học). Mặc định giữ đúng UI gốc. */
-  theme?: PianoRollTheme;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -156,11 +121,10 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       onSelectedNotesChange,
       isPlaying,
       onSeek,
-      theme = "classic",
     },
     ref,
   ) {
-    const pal = THEMES[theme];
+    const pal = PAL;
     const ROW_H = pal.rowH;
     const KEY_WIDTH = pal.keyW;
     const HEADER_H = pal.headerH;
@@ -322,8 +286,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         }
       }
 
-      // Đường viền ngăn cột phím với vùng lưới (mockup có, UI gốc không —
-      // classic để null nên không vẽ, giữ nguyên hình cũ).
+      // Đường viền ngăn cột phím với vùng lưới.
       if (pal.keyBorder) {
         ctx.strokeStyle = pal.keyBorder;
         ctx.lineWidth = 1;
@@ -354,7 +317,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         roundRect(ctx, nx, ny + 1, nw - 1, ROW_H - 2, pal.noteRadius);
         ctx.fill();
 
-        // Viền note theo mockup (redesign); classic để null nên bỏ qua.
+        // Viền note theo mockup.
         if (pal.noteStroke) {
           ctx.strokeStyle = pal.noteStroke;
           ctx.lineWidth = 1;

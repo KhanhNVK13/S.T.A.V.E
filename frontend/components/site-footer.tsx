@@ -7,8 +7,7 @@ export function SiteFooter() {
           Projects.
         </p>
         <p className="mt-1">
-          Instrument sounds: FluidR3_GM SoundFont by S. Christian Collins,
-          via{" "}
+          Instrument sounds: FluidR3_GM SoundFont by Frank Wen, via{" "}
           <a
             href="https://github.com/gleitz/midi-js-soundfonts"
             target="_blank"
@@ -17,7 +16,24 @@ export function SiteFooter() {
           >
             gleitz/midi-js-soundfonts
           </a>{" "}
-          (CC-BY 3.0)
+          (CC BY 3.0). Drum kits: GeneralUser GS by S. Christian Collins,{" "}
+          <a
+            href="https://schristiancollins.com/generaluser.php"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-slate-600"
+          >
+            schristiancollins.com
+          </a>{" "}
+          (GeneralUser GS License v2.0).{" "}
+          <a
+            href="/instruments/CREDITS.txt"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-slate-600"
+          >
+            Full credits
+          </a>
         </p>
       </div>
     </footer>

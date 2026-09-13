@@ -16,7 +16,7 @@
 
 import * as Tone from "tone";
 import type { DraftSnapshot, DraftTrack } from "@stave/shared-types";
-import { prepareVoices, triggerNotes } from "./tone-synth-engine";
+import { prepareVoices, triggerNotes, createVoiceCache } from "./tone-synth-engine";
 
 export interface ExportOptions {
   /** Sample rate for the output file (default: 44100) */
@@ -59,7 +59,10 @@ export async function exportAudio(
     // Same Limiter as live playback — without it, a dense passage renders
     // exactly the same clipped/buzzing audio it would play live.
     const limiter = new Tone.Limiter(-1).toDestination();
-    const voiceByTrack = await prepareVoices(notes, tracks, 0, null, limiter);
+    // Fresh cache per export — each Tone.Offline call is its own audio
+    // context, so voices can't be shared with live playback or other
+    // export calls anyway.
+    const voiceByTrack = await prepareVoices(notes, tracks, 0, null, limiter, createVoiceCache());
     triggerNotes({
       notes,
       tracks,

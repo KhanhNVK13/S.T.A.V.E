@@ -105,8 +105,29 @@ export interface PublicFeaturedContent {
  * (frontend) and by `backend/src/drafts/dto/update-draft.dto.ts` (server-side
  * validation of `DraftTrack.instrument`) — keep in sync, do not redefine per side.
  */
+/**
+ * The GM percussion kit (MIDI channel 10). A track assigned this plays each
+ * note number as a different drum sound (35 = kick, 38 = snare, 42 = closed
+ * hi-hat…), not as a pitch.
+ */
+export const DRUM_KIT_INSTRUMENT_NAME = "Standard Drum Kit";
+
+/** GS/GM2 Orchestra kit (channel-10 program 48): concert bass drum, concert snare, timpani, concert cymbals. */
+export const ORCHESTRA_KIT_INSTRUMENT_NAME = "Orchestra Drum Kit";
+
+/**
+ * Drum kits sit in GM_INSTRUMENTS at id = DRUM_KIT_ID_OFFSET + the kit's
+ * channel-10 program number (SoundFont convention: bank 128 = percussion),
+ * so the program to write on export is `id - DRUM_KIT_ID_OFFSET`.
+ */
+export const DRUM_KIT_ID_OFFSET = 128;
+
+export function isDrumKitInstrument(name: string | null): name is string {
+  return name === DRUM_KIT_INSTRUMENT_NAME || name === ORCHESTRA_KIT_INSTRUMENT_NAME;
+}
+
 export interface GMInstrument {
-  id: number; // GM program number (0-127)
+  id: number; // GM program number (0-127); ≥128 = drum kit (see DRUM_KIT_ID_OFFSET)
   name: string; // Display name
   category: string; // Category for grouping
 }
@@ -271,6 +292,10 @@ export const GM_INSTRUMENTS: GMInstrument[] = [
   { id: 125, name: "Helicopter", category: "Sound Effects" },
   { id: 126, name: "Applause", category: "Sound Effects" },
   { id: 127, name: "Gunshot", category: "Sound Effects" },
+
+  // ── Drum Kits (channel 10) — id = DRUM_KIT_ID_OFFSET + kit program ──
+  { id: DRUM_KIT_ID_OFFSET + 0, name: DRUM_KIT_INSTRUMENT_NAME, category: "Drum Kit" },
+  { id: DRUM_KIT_ID_OFFSET + 48, name: ORCHESTRA_KIT_INSTRUMENT_NAME, category: "Drum Kit" },
 ];
 
 /** Flat list of valid instrument names — used for server-side `@IsIn` validation. */

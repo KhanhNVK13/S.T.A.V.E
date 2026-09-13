@@ -1,14 +1,17 @@
 /**
  * instrument-samples.ts
- * Maps a GM instrument name to a real sampled-instrument set for Tone.Sampler.
+ * Maps a GM melodic instrument name to a real sampled-instrument set for
+ * Tone.Sampler. (GM drum kits don't go through here — they play GeneralUser
+ * GS samples via soundfont-kit.ts.)
  *
- * Samples are FluidR3_GM (CC-BY 3.0, S. Christian Collins / gleitz/midi-js-soundfonts
- * — https://github.com/gleitz/midi-js-soundfonts), pre-rendered per-note MP3s,
+ * Melodic samples are the FluidR3_GM SoundFont by Frank Wen, as pre-rendered
+ * per-note MP3s (CC BY 3.0, https://github.com/gleitz/midi-js-soundfonts),
  * self-hosted under `frontend/public/instruments/<slug>/` rather than fetched
  * from the third-party GitHub Pages host at runtime. Attribution: see
- * SiteFooter / About.
+ * public/instruments/CREDITS.txt and SiteFooter.
  *
- * Only instruments actually seen in real test projects are bundled so far
+ * Only instruments actually seen in real test projects (plus a few added on
+ * request: Steel Drums, Taiko Drum, Synth Drum) are bundled so far
  * (see PROJECT_STATE.md) — any instrument without a bundled sample set falls
  * back to the existing oscillator synth (createTrackVoice in
  * tone-synth-engine.ts), so assigning an instrument that isn't in this list
@@ -17,9 +20,9 @@
  * changes needed.
  */
 
-// Every instrument's sample set uses this same 88-note file naming
-// (flats, not sharps — matches the source repo's convention; Tone.js's note
-// parser accepts either).
+// Every instrument's sample set uses this same 88-note file naming (flats,
+// not sharps — matches the source repo's convention; Tone.js's note parser
+// accepts either).
 const SAMPLE_NOTES = [
   "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7",
   "Ab1", "Ab2", "Ab3", "Ab4", "Ab5", "Ab6", "Ab7",
@@ -54,6 +57,9 @@ const INSTRUMENT_SAMPLE_SLUGS: Record<string, string> = {
   "Pizzicato Strings": "pizzicato_strings",
   "Tremolo Strings": "tremolo_strings",
   "Acoustic Bass": "acoustic_bass",
+  "Steel Drums": "steel_drums",
+  "Taiko Drum": "taiko_drum",
+  "Synth Drum": "synth_drum",
 };
 
 export interface InstrumentSamplerOptions {

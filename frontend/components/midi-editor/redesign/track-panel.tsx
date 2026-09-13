@@ -4,8 +4,7 @@
  * (STAVE.dc.html screen "editor", dòng 203–230): mỗi track là 1 card dọc
  * gồm chấm màu + tên + nút M/S vuông + thanh VOL có thumb tròn.
  *
- * Không dùng lại JSX/style nào của `track-list.tsx` (UI gốc). Toàn bộ dữ liệu
- * và handler đều nhận từ `MidiEditor` — cùng một nguồn state với UI gốc.
+ * Toàn bộ dữ liệu và handler đều nhận từ `MidiEditor`.
  */
 "use client";
 
@@ -37,6 +36,7 @@ interface TrackPanelProps {
   onSetTrackLabel: (id: string, label: string) => void;
   onSetTrackVolume: (id: string, volume: number) => void;
   canAddTrack: boolean;
+  maxTracks: number; // BR-29 — chỉ để hiện đúng số trong tooltip khi đạt giới hạn
 }
 
 export function TrackPanel({
@@ -52,6 +52,7 @@ export function TrackPanel({
   onSetTrackLabel,
   onSetTrackVolume,
   canAddTrack,
+  maxTracks,
 }: TrackPanelProps) {
   const [openInstrumentFor, setOpenInstrumentFor] = useState<string | null>(null);
   // Tìm nhạc cụ — 128 nhạc cụ cuộn tay trong hộp nhỏ rất mất thời gian; lọc
@@ -366,7 +367,7 @@ export function TrackPanel({
       <button
         onClick={onAddTrack}
         disabled={!canAddTrack}
-        title={canAddTrack ? "Thêm track mới (UC-28)" : "Đã đạt tối đa 16 track (BR-29)"}
+        title={canAddTrack ? "Thêm track mới (UC-28)" : `Đã đạt tối đa ${maxTracks} track (BR-29)`}
         style={{
           ...styles.addBtn,
           cursor: canAddTrack ? "pointer" : "not-allowed",

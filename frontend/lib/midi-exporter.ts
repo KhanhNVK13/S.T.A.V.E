@@ -16,6 +16,7 @@
  * so every track/note goes out regardless of its current mute/solo state.
  */
 import { Midi } from "@tonejs/midi";
+import { DRUM_KIT_ID_OFFSET, isDrumKitInstrument } from "@stave/shared-types";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { getInstrumentByName } from "./instruments";
 
@@ -37,9 +38,15 @@ export function exportMidiFile(snapshot: DraftSnapshot): Uint8Array {
     const midiTrack = midi.addTrack();
     midiTrack.name = track.name;
 
-    if (track.instrument) {
-      const inst = getInstrumentByName(track.instrument);
-      if (inst) midiTrack.instrument.number = inst.id;
+    const inst = track.instrument ? getInstrumentByName(track.instrument) : undefined;
+    if (inst && isDrumKitInstrument(inst.name)) {
+      // Drums are selected by channel 10 (index 9) and the kit by the
+      // program number on that channel (Standard 0, Orchestra 48) — both
+      // are what midi-parser reads back on re-import.
+      midiTrack.channel = 9;
+      midiTrack.instrument.number = inst.id - DRUM_KIT_ID_OFFSET;
+    } else if (inst) {
+      midiTrack.instrument.number = inst.id;
     }
 
     const notes = snapshot.notes.filter((n) => n.trackId === track.id);

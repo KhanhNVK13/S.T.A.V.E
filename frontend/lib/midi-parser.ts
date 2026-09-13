@@ -4,7 +4,7 @@
  * UC-24: Import MIDI file
  */
 import { Midi } from "@tonejs/midi";
-import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
+import { DRAFT_SCHEMA_VERSION, DRUM_KIT_ID_OFFSET, DRUM_KIT_INSTRUMENT_NAME } from "@stave/shared-types";
 import type { DraftSnapshot, DraftTrack, DraftNote } from "@stave/shared-types";
 import { getInstrumentById } from "./instruments";
 
@@ -57,10 +57,11 @@ export function parseMidiBuffer(
     // unset — matches by number, not by @tonejs/midi's own lower-cased name
     // string (e.g. "acoustic grand piano" vs our "Acoustic Grand Piano"),
     // since GM_INSTRUMENTS.id is the same 0-127 program number either way.
-    // Percussion (channel 10) has no melodic GM instrument to map to, so it
-    // stays unset — same as before — rather than force-assigning a wrong one.
+    // Percussion (channel 10) gets a drum kit, picked by the kit program on
+    // that channel (48 = Orchestra); kits we don't bundle (Room, Power, …)
+    // fall back to the Standard kit.
     const autoInstrument = midiTrack.instrument.percussion
-      ? null
+      ? (getInstrumentById(DRUM_KIT_ID_OFFSET + midiTrack.instrument.number)?.name ?? DRUM_KIT_INSTRUMENT_NAME)
       : (getInstrumentById(midiTrack.instrument.number)?.name ?? null);
 
     newTracks.push({
