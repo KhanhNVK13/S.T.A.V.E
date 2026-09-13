@@ -40,10 +40,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             real, bounded height — without min-h-0 that chain breaks and the
             editor's tall inner content pushes the whole page (and the site
             footer) far below the viewport instead of scrolling internally.
-            Safe for normal content pages too: they don't rely on the exact
-            height, and still scroll normally when content is taller.
+            overflow-y-auto makes `main` the scroll container for pages taller
+            than it (settings, lists…); without it their content overflowed
+            the bounded `main` and painted over the footer. Pages that fill
+            the viewport should size with min-h-full (not 100vh) to match it.
           */}
-          <main className="min-h-0 flex-1">{children}</main>
+          <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
           <SiteFooter />
         </AuthProvider>
       </body>

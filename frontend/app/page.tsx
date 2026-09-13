@@ -21,7 +21,7 @@ export default function HomePage() {
   );
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-full">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-accent-900 px-4 py-14 text-white">
         <div className="absolute inset-0 opacity-10">

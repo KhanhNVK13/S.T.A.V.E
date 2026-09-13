@@ -1,17 +1,15 @@
 /**
  * redesign/editor-redesign.tsx
- * Bản UI thứ 2 của MIDI Editor — dựng lại theo mockup thật
+ * MIDI Editor UI — dựng theo mockup thật
  * (docs/STAVE design component sample/.../STAVE.dc.html, screen "editor").
+ * Bản UI gốc (cũ) đã bị xoá hoàn toàn — đây là UI duy nhất còn lại.
  *
- * Khác UI gốc về CẤU TRÚC, không chỉ màu:
  *   - header riêng 60px: branch + transport dạng segmented + Commit
  *   - tool strip riêng cho các công cụ soạn nhạc
- *   - body 3 cột: Tracks | Piano roll | Project History  (UI gốc chỉ có 2 cột)
+ *   - body 3 cột: Tracks | Piano roll | Project History
  *   - footer 34px hiện thông số thật
  *
- * 0% tái sử dụng JSX/CSS của UI gốc. Toàn bộ state/handler nhận từ
- * `MidiEditor` — chung một nguồn dữ liệu với UI gốc nên đổi qua lại không mất
- * thay đổi đang soạn.
+ * Toàn bộ state/handler nhận từ `MidiEditor`.
  */
 "use client";
 
@@ -19,7 +17,9 @@ import React, { useState } from "react";
 import {
   ClipboardPaste,
   Copy,
+  Download,
   Eraser,
+  FileDown,
   GitBranch,
   GitCommitHorizontal,
   Magnet,
@@ -30,6 +30,7 @@ import {
   Repeat,
   Square,
   SquareCheck,
+  Timer,
   Undo2,
   Redo2,
   Upload,
@@ -40,9 +41,10 @@ import {
 } from "lucide-react";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { CommitWithAuthor } from "../../../lib/api-client";
-import type { GridDivision, ToolMode } from "../midi-toolbar";
+import type { GridDivision, ToolMode } from "../piano-roll";
 import { PianoRoll } from "../piano-roll";
 import type { PianoRollHandle } from "../piano-roll";
+import { ExportDialog } from "../export-dialog";
 import { TrackPanel } from "./track-panel";
 import { HistoryPanel } from "./history-panel";
 import { CommitDialog } from "./commit-dialog";
@@ -62,6 +64,8 @@ const GRIDS: { value: GridDivision; label: string }[] = [
   { value: 16, label: "1/16" },
   { value: 32, label: "1/32" },
 ];
+
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 interface EditorRedesignProps {
   projectId: string;
@@ -127,11 +131,19 @@ interface EditorRedesignProps {
   onFlushDraft: () => Promise<void>;
   /** Nạp lại editor theo snapshot backend trả về sau khi khôi phục (UC-46). */
   onSnapshotRestored: (snapshot: DraftSnapshot) => void;
-  // Chuyển về UI gốc
-  onBackToClassic: () => void;
   /** 0..1 — âm lượng chung cho TẤT CẢ track (chỉ ảnh hưởng lúc phát, không ghi vào snapshot). */
   masterVolume: number;
   onMasterVolumeChange: (v: number) => void;
+  /** UC-36: Tempo (BPM) — ghi thẳng vào snapshot.meta.tempo. */
+  onTempoChange: (bpm: number) => void;
+  /** UC-36: Metronome click trong lúc phát. */
+  metronomeOn: boolean;
+  onMetronomeToggle: () => void;
+  /** UC-37: Tốc độ nghe thử (preview) — không đổi tempo thật của project. */
+  playbackRate: number;
+  onPlaybackRateChange: (rate: number) => void;
+  /** UC-39: Xuất project ra file .mid */
+  onExportMidi: () => void;
 }
 
 export function EditorRedesign(props: EditorRedesignProps) {
@@ -146,11 +158,14 @@ export function EditorRedesign(props: EditorRedesignProps) {
     onQuantize, onImportMidi, onCopy, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
     isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
-    saveStatus, onFlushDraft, onSnapshotRestored, onBackToClassic,
+    saveStatus, onFlushDraft, onSnapshotRestored,
     masterVolume, onMasterVolumeChange,
+    onTempoChange, metronomeOn, onMetronomeToggle,
+    playbackRate, onPlaybackRateChange, onExportMidi,
   } = props;
 
   const canStop = isPlaying || isPaused;
+  const [showExportAudio, setShowExportAudio] = useState(false);
 
   // ── Version Control (UC-42/43/44/46) ────────────────────────
   const vc = useVersionControl({
@@ -251,6 +266,17 @@ export function EditorRedesign(props: EditorRedesignProps) {
           >
             <Repeat size={15} />
           </button>
+          <button
+            onClick={onMetronomeToggle}
+            title={metronomeOn ? "Metronome: ĐANG BẬT" : "Metronome: đang tắt (UC-36)"}
+            style={{
+              ...styles.transportBtn,
+              background: metronomeOn ? DC.accent : "transparent",
+              color: metronomeOn ? "#fff" : DC.text,
+            }}
+          >
+            <Timer size={15} />
+          </button>
         </div>
 
         <div style={styles.headerRight}>
@@ -272,9 +298,6 @@ export function EditorRedesign(props: EditorRedesignProps) {
           >
             <GitCommitHorizontal size={16} />
             Commit Changes
-          </button>
-          <button onClick={onBackToClassic} style={styles.backBtn}>
-            Quay lại giao diện gốc
           </button>
         </div>
       </header>
@@ -334,6 +357,40 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <button onClick={() => onZoomChange(Math.min(4, zoom + 0.25))} title="Phóng to" style={styles.iconBtn}>
           <ZoomIn size={14} />
         </button>
+
+        <span style={styles.stripDivider} />
+
+        {/* UC-36: Tempo (BPM) */}
+        <div style={styles.bpmGroup} title="Tempo (BPM)">
+          <span style={styles.stripLabel}>BPM</span>
+          <input
+            type="number"
+            min={20}
+            max={300}
+            value={tempo}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v) && v >= 20 && v <= 300) onTempoChange(v);
+            }}
+            style={styles.bpmInput}
+          />
+        </div>
+
+        <span style={styles.stripDivider} />
+
+        {/* UC-37: Playback speed (preview only, không đổi tempo thật) */}
+        <div style={styles.bpmGroup} title="Tốc độ nghe thử — không đổi tempo thật của project">
+          <span style={styles.stripLabel}>SPEED</span>
+          <select
+            value={playbackRate}
+            onChange={(e) => onPlaybackRateChange(Number(e.target.value))}
+            style={styles.speedSelect}
+          >
+            {PLAYBACK_RATES.map((r) => (
+              <option key={r} value={r}>{r}×</option>
+            ))}
+          </select>
+        </div>
 
         <span style={styles.stripDivider} />
 
@@ -415,6 +472,14 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <Upload size={14} />
           Import MIDI
         </button>
+        <button onClick={onExportMidi} title="Xuất project ra file .mid (UC-39)" style={styles.ghostBtn}>
+          <FileDown size={14} />
+          Export MIDI
+        </button>
+        <button onClick={() => setShowExportAudio(true)} title="Xuất âm thanh WAV (UC-38)" style={styles.ghostBtn}>
+          <Download size={14} />
+          Export Audio
+        </button>
       </div>
 
       {/* ── Body 3 cột (mockup dòng 201–307) ───────────────────── */}
@@ -432,6 +497,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onSetTrackLabel={onSetTrackLabel}
           onSetTrackVolume={onSetTrackVolume}
           canAddTrack={canAddTrack}
+          maxTracks={maxTracks}
         />
 
         <div style={styles.rollWrap}>
@@ -450,7 +516,6 @@ export function EditorRedesign(props: EditorRedesignProps) {
             onSelectedNotesChange={onSelectedNotesChange}
             isPlaying={isPlaying}
             onSeek={onSeek}
-            theme="redesign"
           />
         </div>
 
@@ -507,6 +572,15 @@ export function EditorRedesign(props: EditorRedesignProps) {
           error={vc.restoreError}
           onConfirm={() => void confirmRestore()}
           onClose={() => setRestoreTarget(null)}
+        />
+      )}
+
+      {/* UC-38: Export project audio dialog */}
+      {showExportAudio && (
+        <ExportDialog
+          snapshot={snapshot}
+          projectName={projectName}
+          onClose={() => setShowExportAudio(false)}
         />
       )}
     </div>
@@ -589,17 +663,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 15px",
     fontWeight: 600,
     fontSize: 13,
-  },
-  backBtn: {
-    background: DC.surface,
-    border: `1px solid ${DC.border}`,
-    borderRadius: 8,
-    padding: "9px 13px",
-    fontWeight: 600,
-    fontSize: 13,
-    color: DC.text,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
   },
   toolStrip: {
     height: DC_SIZE.toolStripH,
@@ -697,6 +760,32 @@ const styles: Record<string, React.CSSProperties> = {
     width: 40,
     textAlign: "center",
     flexShrink: 0,
+  },
+  bpmGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  bpmInput: {
+    width: 48,
+    padding: "4px 6px",
+    fontSize: 12,
+    fontFamily: DC.mono,
+    borderRadius: 6,
+    border: `1px solid ${DC.border}`,
+    background: DC.pageBg,
+    color: DC.text,
+  },
+  speedSelect: {
+    padding: "4px 6px",
+    fontSize: 12,
+    fontFamily: DC.mono,
+    borderRadius: 6,
+    border: `1px solid ${DC.border}`,
+    background: DC.pageBg,
+    color: DC.text,
+    cursor: "pointer",
   },
   masterVolumeGroup: {
     display: "flex",

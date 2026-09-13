@@ -3,7 +3,7 @@ import { Logo } from "./ui/logo";
 
 export function AuthCard({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-[calc(100vh-8.5rem)] flex-col items-center justify-center bg-slate-50 px-4 py-12">
+    <div className="flex min-h-full flex-col items-center justify-center bg-slate-50 px-4 py-12">
       <div className="mb-6">
         <Logo />
       </div>

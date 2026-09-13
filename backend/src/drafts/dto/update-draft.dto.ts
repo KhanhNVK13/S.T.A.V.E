@@ -22,7 +22,7 @@ import type {
 } from '@stave/shared-types';
 
 /** BR-29: a project may have at most this many tracks. */
-export const MAX_DRAFT_TRACKS = 16;
+export const MAX_DRAFT_TRACKS = 32;
 
 export class DraftMetaDto implements DraftMeta {
   @IsNumber()

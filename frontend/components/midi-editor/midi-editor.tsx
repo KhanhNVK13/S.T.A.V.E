@@ -12,8 +12,7 @@
  * UC-34: Set track color
  * UC-35: Set track label
  * UC-37: Playback project
- * UC-42/43/44/46: Version Control (chỉ ở biến thể UI redesign — xem
- *   redesign/use-version-control.ts; UI gốc giữ nguyên, không có commit)
+ * UC-42/43/44/46: Version Control (redesign/use-version-control.ts)
  */
 "use client";
 
@@ -22,32 +21,28 @@ import React, {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
-import type { GridDivision, ToolMode } from "./midi-toolbar";
-import { MidiToolbar } from "./midi-toolbar";
-import { TrackList } from "./track-list";
-import { PianoRoll } from "./piano-roll";
-import type { PianoRollHandle } from "./piano-roll";
+import type { GridDivision, PianoRollHandle, ToolMode } from "./piano-roll";
 import { EditorRedesign } from "./redesign/editor-redesign";
-import {
-  getServerUiVariant,
-  getUiVariant,
-  setUiVariant,
-  subscribeUiVariant,
-} from "./redesign/ui-variant";
 import { getDraft, putDraft } from "../../lib/api-client";
 import { parseMidiBuffer } from "../../lib/midi-parser";
 import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
-import { ExportDialog } from "./export-dialog";
 import * as Tone from "tone";
-import { prepareVoices, triggerNotes, disposeTrackVoice, type TrackVoice } from "../../lib/tone-synth-engine";
+import {
+  prepareVoices,
+  triggerNotes,
+  createVoiceCache,
+  disposeVoiceCache,
+  evictVoice,
+  type VoiceCache,
+  type TrackVoice,
+} from "../../lib/tone-synth-engine";
 
 // Maximum tracks allowed per project (BR-29)
-const MAX_TRACKS = 16;
+const MAX_TRACKS = 32;
 
 
 // Color palette for tracks
@@ -106,29 +101,21 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     id: string;
     name: string;
   } | null>(null);
-  // UC-38: Export project audio dialog (classic UI only, xem CLAUDE.md
-  // mục 5 — redesign vẫn thiếu 1 số UC, giữ đúng quy ước của các UC khác).
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  // Biến thể giao diện — "classic" là UI gốc (mặc định), "redesign" là bản
-  // dựng theo mockup. Nguồn lưu là localStorage, xem redesign/ui-variant.ts.
-  const uiVariant = useSyncExternalStore(
-    subscribeUiVariant,
-    getUiVariant,
-    getServerUiVariant,
-  );
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Tone.js voices (1 Sampler-or-PolySynth+Panner per track that has notes
-  // to play in this session) created fresh by startPlayback and disposed by
-  // stopAudio — mirrors the old "fresh oscillators per Play" lifecycle, just
-  // with real Tone.js instruments instead of bare OscillatorNodes (Report 3
-  // §4.1/§4.2 specifies Tone.js for in-browser synthesis; the previous
-  // engine never actually used it). Keyed by track id so triggerNotes can
-  // look voices up after prepareVoices resolves.
-  const toneVoicesRef = useRef<Map<string, TrackVoice>>(new Map());
+  // Tone.js voices (1 Sampler-or-PolySynth+Filter+Panner per track) for the
+  // current playback session. Disposed by stopAudio() on every Stop/Pause/
+  // Seek (the only reliable way to cut notes already handed to a voice —
+  // see stopAudio) and rebuilt by the next prepareVoices(). Rebuilding is
+  // cheap because the expensive part — fetching + decoding ~88 sample
+  // files per instrument, which is what made per-Play rebuilds laggy
+  // before — is cached by URL in sample-buffer-cache.ts across sessions.
+  const voiceCacheRef = useRef<VoiceCache>(createVoiceCache());
+  // Master bus — also persistent across Play/Stop for the same reason, and
+  // because there's no per-track cost to keeping it alive. Created lazily
+  // on first Play.
   // Master volume: 1 Tone.Gain chung, đứng giữa mọi panner và Tone.Limiter
   // (xem startPlayback) — chỉnh giá trị này chỉnh âm lượng output của TẤT CẢ
   // track cùng lúc, ngay cả khi đang phát (không cần dừng/phát lại).
@@ -136,15 +123,43 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // Chặn clipping khi nhiều note chồng nhau (từng gây rè/nhiễu với oscillator
   // thô cộng thẳng vào destination không giới hạn biên độ).
   const masterLimiterRef = useRef<Tone.Limiter | null>(null);
+  // Confirmed root cause (see PROJECT_STATE.md §23): Tone.js creates its
+  // default Context/Transport eagerly at module-import time, well before any
+  // user gesture — Chrome logs "The AudioContext was not allowed to start...
+  // must be resumed after a user gesture" right then. Tone.start() later
+  // only calls .resume() on that SAME pre-gesture context; Chrome then
+  // reports rawContext.state === "running" and every Tone-level signal looks
+  // healthy, but on this machine that particular context never actually
+  // binds its render thread to the output device — confirmed by bisection:
+  // a brand-new `new AudioContext()` created directly inside a real click
+  // handler played audibly, while every note through Tone's original
+  // context (even bypassed straight to Tone.getDestination()) stayed
+  // silent, although a plain HTML5 `<audio>` element played the exact same
+  // sample file fine on the same tab/origin/device throughout. Swapping to
+  // a fresh Tone.Context created inside the first real Play click (see
+  // startPlayback) fixes this; only done once per editor session.
+  const contextReplacedRef = useRef(false);
   const metroSynthRef = useRef<Tone.NoiseSynth | null>(null);
   // Bumped by stopAudio() (called at the top of every startPlayback, and by
   // handleStop/handlePause) — startPlayback captures the value right after
   // its own stopAudio() call and checks it again after awaiting
-  // prepareVoices(); if it changed, some other Stop/Play/Seek happened
-  // while sample files were still loading, so the voices this call just
-  // created are disposed instead of being adopted as the "current" ones —
-  // otherwise they'd leak (never reachable for stopAudio to dispose later).
+  // prepareVoices(); if it changed, some other Stop/Play/Seek happened while
+  // sample files were still loading, so this call just bails out instead of
+  // scheduling notes/starting the playhead timer for a session nobody is
+  // listening to anymore (the voices it touched are safe either way — they
+  // live in voiceCacheRef, not owned by this call).
   const playSessionRef = useRef(0);
+  // Throttles how often dragging the seek bar/playhead actually restarts
+  // playback — handleSeek fires on every mousemove while dragging, and
+  // restarting means rescheduling every remaining note in the project, so
+  // doing that on every single pixel of movement (dozens of times/sec) was
+  // the other half of the "kéo thanh đỏ bị lag" report, on top of the
+  // voice-cache fix above. The very last position of a drag still lands —
+  // see handleSeek.
+  const seekThrottleRef = useRef<{ lastRestart: number; timer: ReturnType<typeof setTimeout> | null }>({
+    lastRestart: 0,
+    timer: null,
+  });
   // UC-37: Refs for playback closure access
   const loopOnRef = useRef(false);
   // Tick that a loop restart (and Stop-then-replay) returns to — set
@@ -164,6 +179,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // UC-36: metronome's own lookahead-scheduler timer, cleared in stopAudio()
   // alongside the playback interval/AudioContext.
   const metronomeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // UC-37 note scheduler's own lookahead timer (see scheduleNotes) — same
+  // reason as metronomeTimerRef, cleared in stopAudio().
+  const noteScheduleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Kéo slider master volume trong lúc đang phát phải nghe thấy thay đổi
   // ngay lập tức, không chỉ áp dụng cho lần Play tiếp theo.
   useEffect(() => {
@@ -270,6 +288,32 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       }
     };
   }, [projectId]);
+
+  // ── Tear down the persistent Tone.js voice cache + master bus on real
+  // unmount (navigating away from the editor entirely) — they're kept alive
+  // across every Play/Stop/Seek within a session (see voiceCacheRef above),
+  // so nothing else ever disposes them. ───────────────────────────────────
+  useEffect(() => {
+    const voiceCache = voiceCacheRef.current;
+    return () => {
+      disposeVoiceCache(voiceCache);
+      if (masterGainRef.current) {
+        masterGainRef.current.dispose();
+        masterGainRef.current = null;
+      }
+      if (masterLimiterRef.current) {
+        masterLimiterRef.current.dispose();
+        masterLimiterRef.current = null;
+      }
+      // The fresh Context swapped in on first Play (see contextReplacedRef)
+      // belongs to this editor session — close it on unmount instead of
+      // leaking one real AudioContext per editor visit.
+      if (contextReplacedRef.current) {
+        Tone.getContext().dispose();
+        contextReplacedRef.current = false;
+      }
+    };
+  }, []);
 
   // ── Auto-save (debounce 2s) ─────────────────────────────────
   const scheduleSave = useCallback(
@@ -555,6 +599,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     if (!pendingDeleteTrack) return;
     const { id } = pendingDeleteTrack;
 
+    // The deleted track's cached voice (if any) would otherwise sit in
+    // voiceCacheRef forever — nothing else ever removes an entry keyed by a
+    // track id that no longer exists.
+    evictVoice(voiceCacheRef.current, id);
+
     updateSnapshot({
       ...snapshot,
       tracks: snapshot.tracks.filter((t) => t.id !== id),
@@ -632,21 +681,19 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // first loop or after seeking mid-playback.
   function stopAudio() {
     playSessionRef.current += 1;
-    for (const voice of toneVoicesRef.current.values()) {
-      disposeTrackVoice(voice);
-    }
-    toneVoicesRef.current = new Map();
+    // Dispose (not releaseAll) — Tone.Sampler.triggerAttackRelease schedules
+    // each note's stop up front and immediately drops it from the list that
+    // releaseAll() walks, so releaseAll() silenced nothing: notes already
+    // started kept ringing to their natural end (a whole bar ≈ 2s), which
+    // was the audible "Stop only takes effect after a delay". Disposing a
+    // voice disconnects its output, cutting every note routed through it at
+    // once. Cheap to rebuild on the next Play: the decoded sample buffers
+    // live on in sample-buffer-cache.ts (dispose only drops Tone's wrapper
+    // objects), so no re-fetch/re-decode. The master bus stays alive.
+    disposeVoiceCache(voiceCacheRef.current);
     if (metroSynthRef.current) {
       metroSynthRef.current.dispose();
       metroSynthRef.current = null;
-    }
-    if (masterGainRef.current) {
-      masterGainRef.current.dispose();
-      masterGainRef.current = null;
-    }
-    if (masterLimiterRef.current) {
-      masterLimiterRef.current.dispose();
-      masterLimiterRef.current = null;
     }
     if (playTimerRef.current) {
       clearInterval(playTimerRef.current);
@@ -655,6 +702,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     if (metronomeTimerRef.current) {
       clearTimeout(metronomeTimerRef.current);
       metronomeTimerRef.current = null;
+    }
+    if (noteScheduleTimerRef.current) {
+      clearTimeout(noteScheduleTimerRef.current);
+      noteScheduleTimerRef.current = null;
     }
   }
 
@@ -710,14 +761,94 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     scheduleBeat();
   }
 
+  // ── UC-37: Note scheduler ────────────────────────────────────
+  // Root cause of "Stop nhấn xong nhạc vẫn chạy, Play thêm lần nữa thì
+  // chồng lớp" (found after the §23 AudioContext fix made audio actually
+  // audible for the first time — this bug was always there, just inaudible
+  // before): triggerNotes used to be called ONCE per startPlayback with
+  // `toTick: null`, scheduling every remaining note in the song immediately
+  // via triggerAttackRelease(freq, dur, futureAbsoluteTime, vel). Once that
+  // call returns, those future note-on/off events are already committed to
+  // the Sampler/PolySynth's internal Web Audio automation — there is no Tone
+  // API to cancel an already-scheduled triggerAttackRelease. stopAudio()'s
+  // `releaseAll()` couldn't reach any of them (see stopAudio for why);
+  // every note scheduled for later in the song keeps firing regardless of
+  // Stop, so the song just kept playing to the end in the background, and a
+  // second Play stacked a whole new set of voices/timers on top of it.
+  //
+  // Fix: schedule notes in small lookahead chunks instead — same pattern as
+  // scheduleMetronome above (wakes up every SCHEDULE_INTERVAL_MS, commits
+  // only whatever falls within the next LOOKAHEAD_SEC of the audio clock).
+  // stopAudio() clearing noteScheduleTimerRef stops anything further from
+  // being scheduled; notes already handed to a voice (sounding, or queued
+  // within the lookahead window) are cut by stopAudio() disposing voices.
+  function scheduleNotes(
+    allNotes: DraftNote[],
+    tracks: DraftTrack[],
+    ppq: number,
+    bpm: number,
+    startTime: number,
+    fromTick: number,
+    endTick: number,
+    voiceByTrack: Map<string, TrackVoice>,
+  ) {
+    const LOOKAHEAD_SEC = 0.15;
+    const SCHEDULE_INTERVAL_MS = 50;
+    const secPerTick = 60 / (bpm * ppq);
+
+    let scheduledUpToTick = fromTick;
+
+    function scheduleChunk() {
+      const now = Tone.now();
+      const targetTick = Math.min(
+        endTick,
+        fromTick + Math.ceil((now + LOOKAHEAD_SEC - startTime) / secPerTick),
+      );
+      if (targetTick > scheduledUpToTick) {
+        triggerNotes({
+          notes: allNotes,
+          tracks,
+          ppq,
+          bpm,
+          startTime,
+          fromTick: scheduledUpToTick,
+          toTick: targetTick,
+          anchorTick: fromTick,
+          voiceByTrack,
+        });
+        scheduledUpToTick = targetTick;
+      }
+      if (scheduledUpToTick < endTick) {
+        noteScheduleTimerRef.current = setTimeout(scheduleChunk, SCHEDULE_INTERVAL_MS);
+      }
+    }
+
+    scheduleChunk();
+  }
+
   async function startPlayback(fromTick: number) {
     stopAudio();
     const mySession = playSessionRef.current;
     setIsPlaying(true);
     setIsPaused(false);
 
-    // Tone.js requires the shared AudioContext to be resumed from a user
-    // gesture — the click that reached here (Play/Seek/Loop toggle) counts.
+    // Tone.js creates its default Context/Transport eagerly at module-import
+    // time — before any user gesture — so that default context never really
+    // binds to the output device on some machines, even though .resume()
+    // (below, via Tone.start()) makes it report state "running" and every
+    // other Tone-level signal looks healthy (confirmed by bisection, see
+    // contextReplacedRef above and PROJECT_STATE.md §23). Swapping to a
+    // brand-new Context here, inside this real click handler and before
+    // anything else touches Tone, fixes it — done once per editor session,
+    // before any voice/master-bus node gets created against the old one.
+    if (!contextReplacedRef.current) {
+      Tone.setContext(new Tone.Context());
+      contextReplacedRef.current = true;
+    }
+
+    // Tone.js requires the (now fresh) AudioContext to be resumed from a
+    // user gesture — the click that reached here (Play/Seek/Loop toggle)
+    // counts.
     await Tone.start();
     if (playSessionRef.current !== mySession) return; // Stop/Play/Seek happened meanwhile
 
@@ -731,8 +862,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     // buzzing/clipping from dense passages: before, every note's Gain
     // summed straight into the destination with nothing capping the total,
     // so overlapping notes could push well past 0 dBFS and hard-clip.
-    const limiter = new Tone.Limiter(-1).toDestination();
-    const masterGain = new Tone.Gain(masterVolume).connect(limiter);
+    // Created once and reused for the life of the editor (see voiceCacheRef
+    // above for why) — only built the first time Play is ever pressed.
+    if (!masterGainRef.current || !masterLimiterRef.current) {
+      const limiter = new Tone.Limiter(-1).toDestination();
+      masterGainRef.current = new Tone.Gain(masterVolume).connect(limiter);
+      masterLimiterRef.current = limiter;
+    }
+    const masterGain = masterGainRef.current;
 
     const allNotes = snapshot.notes;
     // UC-37: End tick for auto-stop/loop — end of the last note, or the
@@ -741,25 +878,24 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       ? Math.max(...allNotes.map((n) => n.start + n.duration))
       : fromTick;
 
-    // Create every needed track's voice (instrument/oscillator, mute/solo,
-    // volume, pan all handled by the shared Tone.js engine — also used by
-    // UC-38 export, so exported audio matches what Play actually sounds
-    // like) and wait for any sampled instrument's files to finish loading
-    // BEFORE capturing `startTime` — otherwise the load delay eats into the
-    // schedule and the first several notes fire late/bunched together.
-    const voiceByTrack = await prepareVoices(allNotes, snapshot.tracks, fromTick, null, masterGain);
-    if (playSessionRef.current !== mySession) {
-      // Stopped/replaced while samples were loading — these voices (and the
-      // master bus they're plugged into) never became "the" current
-      // session's, so nothing else will ever dispose them; do it here.
-      for (const voice of voiceByTrack.values()) disposeTrackVoice(voice);
-      limiter.dispose();
-      masterGain.dispose();
-      return;
-    }
-    masterGainRef.current = masterGain;
-    masterLimiterRef.current = limiter;
-    toneVoicesRef.current = voiceByTrack;
+    // Create (or reuse from voiceCacheRef) every needed track's voice —
+    // instrument/oscillator, mute/solo, volume, pan all handled by the
+    // shared Tone.js engine (also used by UC-38 export, so exported audio
+    // matches what Play actually sounds like) — and wait for any newly
+    // created Tone.Sampler's files to finish loading BEFORE capturing
+    // `startTime` — otherwise the load delay eats into the schedule and the
+    // first several notes fire late/bunched together. A track whose
+    // instrument hasn't changed since last Play reuses its cached voice
+    // instantly, no network/decode wait at all.
+    const voiceByTrack = await prepareVoices(
+      allNotes,
+      snapshot.tracks,
+      fromTick,
+      null,
+      masterGain,
+      voiceCacheRef.current,
+    );
+    if (playSessionRef.current !== mySession) return; // Stop/Play/Seek happened meanwhile — cache already owns these voices, nothing to dispose here
 
     const startTime = Tone.now();
 
@@ -767,16 +903,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     // it keeps clicking even through silence.
     scheduleMetronome(startTime, fromTick);
 
-    triggerNotes({
-      notes: allNotes,
-      tracks: snapshot.tracks,
-      ppq,
-      bpm,
-      startTime,
-      fromTick,
-      toTick: null,
-      voiceByTrack,
-    });
+    // UC-37: Note scheduler — lookahead chunks, not "schedule the whole rest
+    // of the song right now" (see scheduleNotes above for why).
+    scheduleNotes(allNotes, snapshot.tracks, ppq, bpm, startTime, fromTick, endTick, voiceByTrack);
 
     // UC-37: Animate playhead with loop/auto-stop support
     const ticksPerMs = (bpm * ppq) / 60000;
@@ -841,10 +970,29 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   function handleSeek(tick: number) {
     setPlayheadTick(tick);
-    // If currently playing, restart from new position
-    if (isPlaying) {
-      loopAnchorRef.current = tick;
+    if (!isPlaying) return;
+    loopAnchorRef.current = tick;
+
+    // Throttle actual playback restarts while dragging (see seekThrottleRef)
+    // — the visual playhead above still tracks the mouse on every move.
+    const SEEK_RESTART_THROTTLE_MS = 120;
+    const throttle = seekThrottleRef.current;
+    if (throttle.timer) {
+      clearTimeout(throttle.timer);
+      throttle.timer = null;
+    }
+    const elapsed = Date.now() - throttle.lastRestart;
+    if (elapsed >= SEEK_RESTART_THROTTLE_MS) {
+      throttle.lastRestart = Date.now();
       void startPlayback(tick);
+    } else {
+      // Make sure the position the drag ends on still lands, even though it
+      // arrived inside the throttle window.
+      throttle.timer = setTimeout(() => {
+        throttle.lastRestart = Date.now();
+        throttle.timer = null;
+        void startPlayback(tick);
+      }, SEEK_RESTART_THROTTLE_MS - elapsed);
     }
   }
 
@@ -858,100 +1006,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     );
   }
 
-  // Bản UI thứ 2 — dựng theo mockup thiết kế. Dùng CHUNG toàn bộ state/handler
-  // ở trên với UI gốc (không tự fetch, không giữ state riêng) nên chuyển qua
-  // lại không mất thay đổi đang soạn. UI gốc bên dưới giữ nguyên như cũ.
-  if (uiVariant === "redesign") {
-    return (
-      <>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".mid,.midi"
-          style={{ display: "none" }}
-          onChange={(e) => void handleFileChange(e)}
-        />
-        <EditorRedesign
-          projectId={projectId}
-          projectName={projectName}
-          snapshot={snapshot}
-          notes={snapshot.notes}
-          tracks={snapshot.tracks}
-          tempo={snapshot.meta.tempo}
-          timeSignature={snapshot.meta.timeSignature}
-          ppq={snapshot.meta.ppq}
-          tool={tool}
-          onToolChange={setTool}
-          gridDivision={gridDivision}
-          onGridChange={setGridDivision}
-          zoom={zoom}
-          onZoomChange={setZoom}
-          selectedTrackId={selectedTrackId}
-          onSelectTrack={setSelectedTrackId}
-          selectedNoteIds={selectedNoteIds}
-          onSelectedNotesChange={setSelectedNoteIds}
-          onNotesChange={handleNotesChange}
-          playheadTick={playheadTick}
-          pianoRollRef={pianoRollRef}
-          onAddTrack={handleAddTrack}
-          onToggleMute={handleToggleMute}
-          onToggleSolo={handleToggleSolo}
-          onDeleteTrack={handleDeleteTrack}
-          onAssignInstrument={handleAssignInstrument}
-          onSetTrackColor={handleSetTrackColor}
-          onSetTrackLabel={handleSetTrackLabel}
-          onSetTrackVolume={handleSetTrackVolume}
-          canAddTrack={snapshot.tracks.length < MAX_TRACKS}
-          maxTracks={MAX_TRACKS}
-          trackLimitWarning={trackLimitWarning}
-          onQuantize={handleQuantize}
-          onImportMidi={handleImportMidi}
-          onCopy={handleCopy}
-          onPaste={handlePaste}
-          onSelectAll={handleSelectAll}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-          hasSelection={selectedNoteIds.size > 0}
-          hasClipboard={clipboard !== null}
-          isPlaying={isPlaying}
-          isPaused={isPaused}
-          loopOn={loopOn}
-          onPlay={handlePlay}
-          onPause={handlePause}
-          onStop={handleStop}
-          onToggleLoop={handleToggleLoop}
-          onSeek={handleSeek}
-          saveStatus={saveStatus}
-          onFlushDraft={flushDraft}
-          onSnapshotRestored={applyRestoredSnapshot}
-          onBackToClassic={() => setUiVariant("classic")}
-          masterVolume={masterVolume}
-          onMasterVolumeChange={handleMasterVolumeChange}
-        />
-        <ConfirmDialog
-          open={pendingDeleteTrack !== null}
-          title="Xoá track?"
-          message={
-            <>
-              Xoá track <strong>&quot;{pendingDeleteTrack?.name}&quot;</strong>?
-              <br />
-              Toàn bộ note trong track này cũng sẽ bị xoá. Không thể hoàn tác.
-            </>
-          }
-          confirmLabel="Xoá track"
-          danger
-          onConfirm={confirmDeleteTrack}
-          onCancel={cancelDeleteTrack}
-        />
-      </>
-    );
-  }
-
   return (
-    <div style={styles.root}>
-      {/* Hidden file input for MIDI import */}
+    <>
       <input
         ref={fileInputRef}
         type="file"
@@ -959,19 +1015,41 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         style={{ display: "none" }}
         onChange={(e) => void handleFileChange(e)}
       />
-
-      {/* Toolbar */}
-      <MidiToolbar
+      <EditorRedesign
+        projectId={projectId}
+        projectName={projectName}
+        snapshot={snapshot}
+        notes={snapshot.notes}
+        tracks={snapshot.tracks}
+        tempo={snapshot.meta.tempo}
+        timeSignature={snapshot.meta.timeSignature}
+        ppq={snapshot.meta.ppq}
         tool={tool}
         onToolChange={setTool}
         gridDivision={gridDivision}
         onGridChange={setGridDivision}
         zoom={zoom}
         onZoomChange={setZoom}
+        selectedTrackId={selectedTrackId}
+        onSelectTrack={setSelectedTrackId}
+        selectedNoteIds={selectedNoteIds}
+        onSelectedNotesChange={setSelectedNoteIds}
+        onNotesChange={handleNotesChange}
+        playheadTick={playheadTick}
+        pianoRollRef={pianoRollRef}
+        onAddTrack={handleAddTrack}
+        onToggleMute={handleToggleMute}
+        onToggleSolo={handleToggleSolo}
+        onDeleteTrack={handleDeleteTrack}
+        onAssignInstrument={handleAssignInstrument}
+        onSetTrackColor={handleSetTrackColor}
+        onSetTrackLabel={handleSetTrackLabel}
+        onSetTrackVolume={handleSetTrackVolume}
+        canAddTrack={snapshot.tracks.length < MAX_TRACKS}
+        maxTracks={MAX_TRACKS}
+        trackLimitWarning={trackLimitWarning}
         onQuantize={handleQuantize}
         onImportMidi={handleImportMidi}
-        onPlay={handlePlay}
-        onStop={handleStop}
         onCopy={handleCopy}
         onPaste={handlePaste}
         onSelectAll={handleSelectAll}
@@ -979,127 +1057,48 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
-        onPause={handlePause}
-        onToggleLoop={handleToggleLoop}
+        hasSelection={selectedNoteIds.size > 0}
+        hasClipboard={clipboard !== null}
         isPlaying={isPlaying}
         isPaused={isPaused}
         loopOn={loopOn}
-        projectName={projectName}
-        hasSelection={selectedNoteIds.size > 0}
-        hasClipboard={clipboard !== null}
-        onOpenRedesign={() => setUiVariant("redesign")}
+        onPlay={handlePlay}
+        onPause={handlePause}
+        onStop={handleStop}
+        onToggleLoop={handleToggleLoop}
+        onSeek={handleSeek}
+        saveStatus={saveStatus}
+        onFlushDraft={flushDraft}
+        onSnapshotRestored={applyRestoredSnapshot}
         masterVolume={masterVolume}
         onMasterVolumeChange={handleMasterVolumeChange}
-        tempo={snapshot.meta.tempo}
         onTempoChange={handleTempoChange}
         metronomeOn={metronomeOn}
         onMetronomeToggle={handleToggleMetronome}
-        onExportAudio={() => setShowExportDialog(true)}
-        onExportMidi={handleExportMidi}
         playbackRate={playbackRate}
         onPlaybackRateChange={handlePlaybackRateChange}
+        onExportMidi={handleExportMidi}
       />
-
-      {/* Save status strip */}
-      <div style={styles.statusBar}>
-        <span style={{ ...styles.statusDot, background: saveStatusColor(saveStatus) }} />
-        <span style={styles.statusText}>
-          {saveStatus === "saved"
-            ? "All changes saved"
-            : saveStatus === "saving"
-              ? "Saving…"
-              : "Unsaved changes"}
-        </span>
-        {trackLimitWarning && (
-          <span style={styles.warningText}>
-            Maximum {MAX_TRACKS} tracks allowed (BR-29)
-          </span>
-        )}
-        <span style={styles.statusMeta}>
-          {snapshot.meta.tempo} BPM · {snapshot.meta.timeSignature.join("/")} ·{" "}
-          {snapshot.notes.length} notes · {snapshot.tracks.length}/{MAX_TRACKS} tracks
-        </span>
-      </div>
-
-      {/* Editor body */}
-      <div style={styles.body}>
-        <TrackList
-          tracks={snapshot.tracks}
-          selectedTrackId={selectedTrackId}
-          onSelectTrack={setSelectedTrackId}
-          onAddTrack={handleAddTrack}
-          onToggleMute={handleToggleMute}
-          onToggleSolo={handleToggleSolo}
-          onDeleteTrack={handleDeleteTrack}
-          onAssignInstrument={handleAssignInstrument}
-          onSetTrackColor={handleSetTrackColor}
-          onSetTrackLabel={handleSetTrackLabel}
-          onSetTrackVolume={handleSetTrackVolume}
-          canAddTrack={snapshot.tracks.length < MAX_TRACKS}
-        />
-        <PianoRoll
-          ref={pianoRollRef}
-          notes={snapshot.notes}
-          tracks={snapshot.tracks}
-          selectedTrackId={selectedTrackId}
-          tool={tool}
-          zoom={zoom}
-          ppq={snapshot.meta.ppq}
-          gridDivision={gridDivision}
-          playheadTick={playheadTick}
-          onNotesChange={handleNotesChange}
-          selectedNoteIds={selectedNoteIds}
-          onSelectedNotesChange={setSelectedNoteIds}
-          isPlaying={isPlaying}
-          onSeek={handleSeek}
-        />
-      </div>
-
-      {/* UC-38: Export project audio dialog */}
-      {showExportDialog && (
-        <ExportDialog
-          snapshot={snapshot}
-          projectName={projectName}
-          onClose={() => setShowExportDialog(false)}
-        />
-      )}
-
       <ConfirmDialog
         open={pendingDeleteTrack !== null}
-        title="Delete track?"
+        title="Xoá track?"
         message={
           <>
-            Delete track &quot;{pendingDeleteTrack?.name}&quot;?
+            Xoá track <strong>&quot;{pendingDeleteTrack?.name}&quot;</strong>?
             <br />
-            This will also delete all notes in this track. This action cannot be undone.
+            Toàn bộ note trong track này cũng sẽ bị xoá. Không thể hoàn tác.
           </>
         }
-        confirmLabel="Delete track"
+        confirmLabel="Xoá track"
         danger
         onConfirm={confirmDeleteTrack}
         onCancel={cancelDeleteTrack}
       />
-    </div>
+    </>
   );
 }
 
-/* ── Helpers ──────────────────────────────────────────────── */
-function saveStatusColor(s: "saved" | "saving" | "unsaved") {
-  if (s === "saved") return "#22c55e";
-  if (s === "saving") return "#f59e0b";
-  return "#ef4444";
-}
-
 const styles: Record<string, React.CSSProperties> = {
-  root: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-    background: "#09090b",
-    color: "#d4d4d8",
-    fontFamily: "'Inter', 'Geist', sans-serif",
-    overflow: "hidden",
-  },
   loading: {
     display: "flex",
     flexDirection: "column",
@@ -1117,40 +1116,5 @@ const styles: Record<string, React.CSSProperties> = {
     borderTopColor: "#6366f1",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
-  },
-  statusBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "3px 12px",
-    background: "#0f0f11",
-    borderBottom: "1px solid #1a1a1f",
-    flexShrink: 0,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: "50%",
-    flexShrink: 0,
-    transition: "background 0.3s",
-  },
-  statusText: {
-    fontSize: 11,
-    color: "#71717a",
-  },
-  warningText: {
-    fontSize: 11,
-    color: "#f59e0b",
-    fontWeight: 600,
-  },
-  statusMeta: {
-    marginLeft: "auto",
-    fontSize: 11,
-    color: "#3f3f46",
-  },
-  body: {
-    flex: 1,
-    display: "flex",
-    overflow: "hidden",
   },
 };
