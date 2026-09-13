@@ -6,6 +6,7 @@
 import { Midi } from "@tonejs/midi";
 import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import type { DraftSnapshot, DraftTrack, DraftNote } from "@stave/shared-types";
+import { getInstrumentById } from "./instruments";
 
 const TRACK_COLORS = [
   "#6366f1",
@@ -51,6 +52,17 @@ export function parseMidiBuffer(
     const trackId = crypto.randomUUID();
     const colorIdx = (existingTrackCount + newTracks.length) % TRACK_COLORS.length;
 
+    // UC-24/UC-30: auto-assign the instrument from the file's own Program
+    // Change data (GM program number 0-127) instead of always leaving it
+    // unset — matches by number, not by @tonejs/midi's own lower-cased name
+    // string (e.g. "acoustic grand piano" vs our "Acoustic Grand Piano"),
+    // since GM_INSTRUMENTS.id is the same 0-127 program number either way.
+    // Percussion (channel 10) has no melodic GM instrument to map to, so it
+    // stays unset — same as before — rather than force-assigning a wrong one.
+    const autoInstrument = midiTrack.instrument.percussion
+      ? null
+      : (getInstrumentById(midiTrack.instrument.number)?.name ?? null);
+
     newTracks.push({
       id: trackId,
       name: midiTrack.name || `Track ${existingTrackCount + newTracks.length + 1}`,
@@ -60,7 +72,7 @@ export function parseMidiBuffer(
       solo: false,
       volume: 1,
       pan: 0,
-      instrument: null, // UC-30: default, user can assign later
+      instrument: autoInstrument, // UC-30: user can still reassign afterward
     });
 
     midiTrack.notes.forEach((n) => {

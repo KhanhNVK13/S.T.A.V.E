@@ -313,6 +313,7 @@ export function TrackList({
                       <span style={styles.instrumentDropdownLabel}>Select Instrument</span>
                       <button
                         onClick={() => setEditingInstrumentTrackId(null)}
+                        title="Đóng"
                         style={styles.instrumentDropdownClose}
                       >
                         ✕
@@ -343,6 +344,7 @@ export function TrackList({
                           onAssignInstrument(track.id, null);
                           setEditingInstrumentTrackId(null);
                         }}
+                        title="Không gán nhạc cụ — dùng oscillator mặc định"
                         style={{
                           ...styles.instrumentOption,
                           ...(track.instrument === null ? styles.instrumentOptionSelected : {}),
@@ -364,6 +366,7 @@ export function TrackList({
                                 onAssignInstrument(track.id, inst.name);
                                 setEditingInstrumentTrackId(null);
                               }}
+                              title={`${inst.name} (${inst.category})`}
                               style={{
                                 ...styles.instrumentOption,
                                 ...(track.instrument === inst.name
@@ -390,6 +393,7 @@ export function TrackList({
                     <span style={styles.colorPickerLabel}>Track Color</span>
                     <button
                       onClick={() => setEditingColorTrackId(null)}
+                      title="Đóng"
                       style={styles.colorPickerClose}
                     >
                       ✕

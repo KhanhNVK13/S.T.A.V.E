@@ -14,7 +14,18 @@
 
 import React, { useState, useCallback } from "react";
 import type { DraftSnapshot } from "@stave/shared-types";
-import { exportAudio } from "../../lib/audio-exporter";
+import { exportAudio, exportAudioPerTrack } from "../../lib/audio-exporter";
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 interface ExportDialogProps {
   snapshot: DraftSnapshot;
@@ -32,11 +43,15 @@ const SAMPLE_RATE_OPTIONS = [
 
 export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogProps) {
   const [sampleRate, setSampleRate] = useState(44100);
+  // Xuất riêng mỗi track thành 1 file WAV thay vì trộn chung — cùng engine,
+  // chỉ khác chỗ mỗi lượt render chỉ "solo" đúng 1 track (xem exportAudioPerTrack).
+  const [perTrack, setPerTrack] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
 
   const hasNotes = snapshot.notes.length > 0;
+  const safeProjectName = projectName.replace(/[^a-z0-9_\-. ]/gi, "_");
 
   const handleExport = useCallback(async () => {
     setPhase("rendering");
@@ -44,20 +59,26 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
     setErrorMsg("");
 
     try {
-      const blob = await exportAudio(snapshot, {
-        sampleRate,
-        onProgress: (p) => setProgress(Math.round(p * 100)),
-      });
-
-      // Trigger browser download
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${projectName.replace(/[^a-z0-9_\-. ]/gi, "_")}.wav`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      if (perTrack) {
+        const results = await exportAudioPerTrack(snapshot, {
+          sampleRate,
+          onProgress: (p) => setProgress(Math.round(p * 100)),
+        });
+        // Stagger downloads slightly — firing many a.click() in the same tick
+        // can get a couple of them silently dropped by the browser's
+        // multi-download prompt/limit.
+        for (let i = 0; i < results.length; i++) {
+          const { track, blob } = results[i];
+          const safeTrackName = track.name.replace(/[^a-z0-9_\-. ]/gi, "_");
+          setTimeout(() => triggerDownload(blob, `${safeProjectName} - ${safeTrackName}.wav`), i * 300);
+        }
+      } else {
+        const blob = await exportAudio(snapshot, {
+          sampleRate,
+          onProgress: (p) => setProgress(Math.round(p * 100)),
+        });
+        triggerDownload(blob, `${safeProjectName}.wav`);
+      }
 
       setPhase("done");
     } catch (err) {
@@ -65,7 +86,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
       setErrorMsg(err instanceof Error ? err.message : "Có lỗi khi xuất file.");
       setPhase("error");
     }
-  }, [snapshot, sampleRate, projectName]);
+  }, [snapshot, sampleRate, perTrack, safeProjectName]);
 
   const noteCount = snapshot.notes.length;
   const trackCount = snapshot.tracks.filter((t) => !t.muted).length;
@@ -120,7 +141,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
               ⚠️ Dự án chưa có note nào — file xuất ra sẽ là im lặng.
             </div>
           )}
-          {snapshot.tracks.some((t) => t.solo) && (
+          {!perTrack && snapshot.tracks.some((t) => t.solo) && (
             <div style={styles.warning}>
               ⚠️ Đang có track được Solo — file xuất ra chỉ gồm (các) track đó, giống như bạn đang nghe.
             </div>
@@ -135,6 +156,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
                   key={sr.value}
                   onClick={() => setSampleRate(sr.value)}
                   disabled={phase === "rendering"}
+                  title={`Xuất ở ${sr.label}`}
                   style={{
                     ...styles.srBtn,
                     ...(sampleRate === sr.value ? styles.srBtnActive : {}),
@@ -145,6 +167,19 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
               ))}
             </div>
           </div>
+
+          {/* Per-track export */}
+          <label style={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={perTrack}
+              onChange={(e) => setPerTrack(e.target.checked)}
+              disabled={phase === "rendering"}
+            />
+            <span>
+              Xuất riêng từng track ({trackCount} file WAV thay vì 1 file trộn chung)
+            </span>
+          </label>
 
           {/* Progress / Status */}
           {phase === "rendering" && (
@@ -164,7 +199,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
 
           {phase === "done" && (
             <div style={styles.successBox}>
-              ✅ Xuất thành công! File WAV đã được tải về máy bạn.
+              ✅ Xuất thành công! {perTrack ? `${trackCount} file WAV đã` : "File WAV đã"} được tải về máy bạn.
             </div>
           )}
 
@@ -181,6 +216,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
             style={styles.cancelBtn}
             onClick={onClose}
             disabled={phase === "rendering"}
+            title={phase === "done" ? "Đóng cửa sổ" : "Huỷ, không xuất file"}
           >
             {phase === "done" ? "Đóng" : "Huỷ"}
           </button>
@@ -191,6 +227,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
             }}
             onClick={() => void handleExport()}
             disabled={phase === "rendering"}
+            title={perTrack ? `Xuất ${trackCount} file WAV riêng biệt` : "Xuất 1 file WAV trộn chung tất cả track"}
           >
             {phase === "rendering" ? (
               <>
@@ -199,6 +236,8 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
               </>
             ) : phase === "done" ? (
               "↓ Xuất lại"
+            ) : perTrack ? (
+              `↓ Xuất ${trackCount} track`
             ) : (
               "↓ Xuất WAV"
             )}
@@ -337,6 +376,14 @@ const styles: Record<string, React.CSSProperties> = {
     borderColor: "#059669",
     background: "rgba(5,150,105,0.15)",
     color: "#34d399",
+  },
+  checkboxRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 12,
+    color: "#d4d4d8",
+    cursor: "pointer",
   },
   progressSection: {
     display: "flex",
