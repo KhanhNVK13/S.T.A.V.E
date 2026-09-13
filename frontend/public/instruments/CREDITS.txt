@@ -1,0 +1,15 @@
+Instrument sample credits
+==========================
+
+The instrument sound samples bundled under this directory (frontend/public/instruments/)
+are pre-rendered per-note MP3 files from the FluidR3_GM SoundFont, sourced from:
+
+  https://github.com/gleitz/midi-js-soundfonts
+
+License: Creative Commons Attribution 3.0 (CC-BY 3.0)
+Original SoundFont author: S. Christian Collins (GeneralUser GS project)
+  https://schristiancollins.com/generaluser.php
+
+These files are used as-is (no modification beyond selecting which instruments/notes
+to bundle) for Tone.Sampler-based playback and audio export in the MIDI Editor
+(see frontend/lib/instrument-samples.ts, frontend/lib/tone-synth-engine.ts).
