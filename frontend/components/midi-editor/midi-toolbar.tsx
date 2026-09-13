@@ -48,6 +48,11 @@ interface MidiToolbarProps {
   onMetronomeToggle: () => void;
   /** UC-38: Mở dialog xuất file âm thanh (WAV) */
   onExportAudio: () => void;
+  /** UC-39: Xuất project ra file .mid */
+  onExportMidi: () => void;
+  /** UC-37: Tốc độ nghe thử (preview) — không đổi tempo thật của project. */
+  playbackRate: number;
+  onPlaybackRateChange: (rate: number) => void;
 }
 
 const TOOLS: { id: ToolMode; label: string; icon: string; title: string }[] = [
@@ -62,6 +67,8 @@ const GRIDS: { value: GridDivision; label: string }[] = [
   { value: 16, label: "1/16" },
   { value: 32, label: "1/32" },
 ];
+
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export function MidiToolbar({
   tool,
@@ -97,6 +104,9 @@ export function MidiToolbar({
   metronomeOn,
   onMetronomeToggle,
   onExportAudio,
+  onExportMidi,
+  playbackRate,
+  onPlaybackRateChange,
 }: MidiToolbarProps) {
   return (
     <div style={styles.bar}>
@@ -134,6 +144,7 @@ export function MidiToolbar({
           <button
             key={g.value}
             onClick={() => onGridChange(g.value)}
+            title={`Snap notes to ${g.label} grid`}
             style={{
               ...styles.btn,
               ...(gridDivision === g.value ? styles.btnActive : {}),
@@ -300,6 +311,22 @@ export function MidiToolbar({
 
       <div style={styles.divider} />
 
+      {/* UC-37: Playback speed (preview only, doesn't touch real tempo) */}
+      <div style={styles.group} title="Tốc độ nghe thử — không đổi tempo thật của project">
+        <span style={styles.label}>Speed</span>
+        <select
+          value={playbackRate}
+          onChange={(e) => onPlaybackRateChange(Number(e.target.value))}
+          style={styles.speedSelect}
+        >
+          {PLAYBACK_RATES.map((r) => (
+            <option key={r} value={r}>{r}×</option>
+          ))}
+        </select>
+      </div>
+
+      <div style={styles.divider} />
+
       {/* Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc,
           thay vì phải chỉnh từng track riêng (xem masterGainRef trong
           midi-editor.tsx). Chỉ ảnh hưởng output lúc phát, không ghi vào
@@ -328,6 +355,15 @@ export function MidiToolbar({
         style={{ ...styles.btn, ...styles.btnImport }}
       >
         ⬆ Import MIDI
+      </button>
+
+      {/* UC-39: Export MIDI file */}
+      <button
+        onClick={onExportMidi}
+        title="Export project as a .mid file (UC-39)"
+        style={{ ...styles.btn, ...styles.btnImport }}
+      >
+        ↓ Export MIDI
       </button>
 
       {/* UC-38: Export project audio (WAV) */}
@@ -464,6 +500,15 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #27272a",
     background: "#111113",
     color: "#e4e4e7",
+  },
+  speedSelect: {
+    padding: "3px 6px",
+    fontSize: 12,
+    borderRadius: 5,
+    border: "1px solid #27272a",
+    background: "#111113",
+    color: "#e4e4e7",
+    cursor: "pointer",
   },
   btnImport: {
     borderColor: "#0ea5e9",

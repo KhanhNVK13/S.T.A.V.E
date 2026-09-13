@@ -2,11 +2,10 @@
  * instrument-waveform.ts
  * UC-37/UC-38: Map a GM instrument name to an OscillatorType.
  *
- * Shared by playback (midi-editor.tsx startPlayback) and audio export
- * (audio-exporter.ts) so both paths synthesize a track with the exact same
- * timbre — before this was split into two copies and export always used a
- * bare sine wave regardless of the track's assigned instrument, so the
- * exported file sounded different from what the user heard on Play.
+ * Used by `tone-synth-engine.ts` to pick each track's Tone.Synth oscillator
+ * type, so playback (midi-editor.tsx) and export (audio-exporter.ts) — both
+ * built on that shared engine — synthesize a track with the exact same
+ * timbre.
  */
 export function getOscillatorType(instrument: string | null): OscillatorType {
   if (!instrument) return "triangle"; // Default

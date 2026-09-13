@@ -174,6 +174,10 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     // Box selection state (UC-32)
     const boxSelectRef = useRef<{ startX: number; startY: number } | null>(null);
     const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
+    // UC-37: true while the user is dragging the ruler or the red playhead
+    // line itself to scrub — kept separate from `dragRef` (which is about
+    // note editing) since seeking has no note/pitch/duration to track.
+    const isSeekDraggingRef = useRef(false);
 
     // px per tick
     const pxPerTick = 0.06 * zoom;
@@ -443,8 +447,14 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
       const { cx, cy } = canvasCoords(e);
 
-      // UC-37: Click on ruler to seek
-      if (cy < HEADER_H) {
+      // UC-37: Click-and-drag the ruler, or grab the red playhead line
+      // directly anywhere over the note area, to scrub through the
+      // project — every subsequent mousemove keeps calling onSeek (see
+      // handleMouseMove) instead of only seeking once on the initial click.
+      const playheadX = KEY_WIDTH + playheadTick * pxPerTick - scrollX;
+      const nearPlayhead = Math.abs(cx - playheadX) <= 4;
+      if (cy < HEADER_H || nearPlayhead) {
+        isSeekDraggingRef.current = true;
         const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
         onSeek(Math.floor(tick));
         return;
@@ -540,9 +550,18 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       const { cx, cy } = canvasCoords(e);
       lastMouseRef.current = { x: cx, y: cy };
 
+      if (isSeekDraggingRef.current) {
+        const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
+        onSeek(Math.floor(tick));
+        return;
+      }
+
       if (!drag) {
         // Update cursor
-        if (tool === "pointer") {
+        const playheadX = KEY_WIDTH + playheadTick * pxPerTick - scrollX;
+        if (cy < HEADER_H || Math.abs(cx - playheadX) <= 4) {
+          canvasRef.current!.style.cursor = "ew-resize";
+        } else if (tool === "pointer") {
           const hit = hitNote(cx, cy);
           if (hit) {
             canvasRef.current!.style.cursor =
@@ -598,6 +617,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     }
 
     function handleMouseUp() {
+      isSeekDraggingRef.current = false;
       const drag = dragRef.current;
       const last = lastMouseRef.current;
 

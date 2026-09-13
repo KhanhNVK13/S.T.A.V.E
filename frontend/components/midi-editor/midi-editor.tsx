@@ -40,9 +40,11 @@ import {
 } from "./redesign/ui-variant";
 import { getDraft, putDraft } from "../../lib/api-client";
 import { parseMidiBuffer } from "../../lib/midi-parser";
+import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
-import { getOscillatorType } from "../../lib/instrument-waveform";
 import { ExportDialog } from "./export-dialog";
+import * as Tone from "tone";
+import { scheduleNotes, disposeTrackVoice, type TrackVoice } from "../../lib/tone-synth-engine";
 
 // Maximum tracks allowed per project (BR-29)
 const MAX_TRACKS = 16;
@@ -85,6 +87,12 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [loopOn, setLoopOn] = useState(false);
   // UC-36: Metronome — click track played alongside notes during playback.
   const [metronomeOn, setMetronomeOn] = useState(false);
+  // UC-37: Playback speed — a preview-only multiplier on scheduling time,
+  // separate from the project's real tempo (snapshot.meta.tempo). Pitch is
+  // unaffected either way since notes are triggered by MIDI pitch, not by
+  // resampling audio, so this is a pure "listen faster/slower" aid, not a
+  // data change — same reasoning as masterVolume below.
+  const [playbackRate, setPlaybackRate] = useState(1);
   // Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc, thay vì
   // phải chỉnh từng track riêng. CỐ Ý là control chỉ ảnh hưởng tới output lúc
   // phát (1 GainNode chung, xem startPlayback), KHÔNG ghi vào `track.volume`
@@ -112,12 +120,22 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Master volume: 1 GainNode chung, đứng giữa mọi panner và ctx.destination
+  // Tone.js voices (1 PolySynth+Panner per track that has notes to play in
+  // this session) created fresh by startPlayback and disposed by stopAudio —
+  // mirrors the old "fresh oscillators per Play" lifecycle, just with real
+  // Tone.js instruments instead of bare OscillatorNodes (Report 3 §4.1/§4.2
+  // specifies Tone.js for in-browser synthesis; the previous engine never
+  // actually used it).
+  const toneVoicesRef = useRef<TrackVoice[]>([]);
+  // Master volume: 1 Tone.Gain chung, đứng giữa mọi panner và Tone.Limiter
   // (xem startPlayback) — chỉnh giá trị này chỉnh âm lượng output của TẤT CẢ
   // track cùng lúc, ngay cả khi đang phát (không cần dừng/phát lại).
-  const masterGainRef = useRef<GainNode | null>(null);
+  const masterGainRef = useRef<Tone.Gain | null>(null);
+  // Chặn clipping khi nhiều note chồng nhau (từng gây rè/nhiễu với oscillator
+  // thô cộng thẳng vào destination không giới hạn biên độ).
+  const masterLimiterRef = useRef<Tone.Limiter | null>(null);
+  const metroSynthRef = useRef<Tone.NoiseSynth | null>(null);
   // UC-37: Refs for playback closure access
   const loopOnRef = useRef(false);
   // Tick that a loop restart (and Stop-then-replay) returns to — set
@@ -580,6 +598,22 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     e.target.value = "";
   }
 
+  // ── UC-39: Export MIDI file ─────────────────────────────────
+  function handleExportMidi() {
+    const bytes = exportMidiFile(snapshot);
+    // Uint8Array isn't a valid BlobPart type on its own in the current DOM
+    // lib types — wrap the backing ArrayBuffer instead.
+    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "audio/midi" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${projectName.replace(/[^a-z0-9_\-. ]/gi, "_")}.mid`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
   // ── Playback (UC-37: instrument, solo, volume, pan, loop, seek) ──────────
   // A single startPlayback(fromTick) drives every entry point (Play, Seek,
   // and the loop-restart at end-of-song) so the auto-stop/loop condition
@@ -588,9 +622,21 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // auto-stop/loop check, so playback ran forever in silence after the
   // first loop or after seeking mid-playback.
   function stopAudio() {
-    if (audioCtxRef.current) {
-      void audioCtxRef.current.close();
-      audioCtxRef.current = null;
+    for (const voice of toneVoicesRef.current) {
+      disposeTrackVoice(voice);
+    }
+    toneVoicesRef.current = [];
+    if (metroSynthRef.current) {
+      metroSynthRef.current.dispose();
+      metroSynthRef.current = null;
+    }
+    if (masterGainRef.current) {
+      masterGainRef.current.dispose();
+      masterGainRef.current = null;
+    }
+    if (masterLimiterRef.current) {
+      masterLimiterRef.current.dispose();
+      masterLimiterRef.current = null;
     }
     if (playTimerRef.current) {
       clearInterval(playTimerRef.current);
@@ -600,15 +646,13 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       clearTimeout(metronomeTimerRef.current);
       metronomeTimerRef.current = null;
     }
-    masterGainRef.current = null;
   }
 
   // ── UC-36: Metronome ──────────────────────────────────────────
-  // Web-Audio lookahead scheduler (same pattern as the playhead interval):
-  // wakes up every SCHEDULE_INTERVAL_MS and queues any click whose exact
-  // audio-clock time falls within the next LOOKAHEAD_SEC, so click timing
-  // comes from the audio clock (sample-accurate) rather than from
-  // setTimeout/setInterval (which drifts).
+  // Same lookahead-scheduler pattern as before (wakes up every
+  // SCHEDULE_INTERVAL_MS, queues any click within the next LOOKAHEAD_SEC of
+  // Tone's audio clock), just triggering a Tone.NoiseSynth instead of a
+  // hand-built noise buffer.
   //
   // `fromTick` anchors the beat count to the song's own tick 0, not to
   // whenever Play was pressed — starting mid-bar still puts the accent
@@ -618,10 +662,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // immediately without restarting playback, and downbeat/beat-time math
   // keeps running underneath even while muted so turning it back on
   // doesn't jump out of alignment.
-  function scheduleMetronome(ctx: AudioContext, startTime: number, fromTick: number) {
+  function scheduleMetronome(startTime: number, fromTick: number) {
     const LOOKAHEAD_SEC = 0.1;
     const SCHEDULE_INTERVAL_MS = 50;
-    const bpm = snapshot.meta.tempo;
+    // Preview speed only — never the value written back to the project.
+    const bpm = snapshot.meta.tempo * playbackRate;
     const ppq = snapshot.meta.ppq;
     const secPerBeat = 60 / bpm;
     // Beats per bar — assumes a quarter-note beat (matches how `ppq`/tick
@@ -629,29 +674,21 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     // would need a different beat unit, out of scope here.
     const beatsPerBar = Math.max(1, snapshot.meta.timeSignature[0] ?? 4);
 
+    const noiseSynth = new Tone.NoiseSynth({
+      noise: { type: "white" },
+      envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.01 },
+    }).toDestination();
+    metroSynthRef.current = noiseSynth;
+
     let nextBeatIndex = Math.round(fromTick / ppq);
     let nextBeatTime = startTime;
 
     function scheduleBeat() {
-      const now = ctx.currentTime;
+      const now = Tone.now();
       while (nextBeatTime < now + LOOKAHEAD_SEC) {
         if (metronomeOnRef.current) {
           const isDownbeat = nextBeatIndex % beatsPerBar === 0;
-
-          const bufLen = Math.floor(ctx.sampleRate * 0.03);
-          const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-          const data = buf.getChannelData(0);
-          for (let i = 0; i < bufLen; i++) {
-            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 8);
-          }
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-
-          const gain = ctx.createGain();
-          gain.gain.value = isDownbeat ? 0.8 : 0.4;
-          src.connect(gain);
-          gain.connect(ctx.destination);
-          src.start(nextBeatTime);
+          noiseSynth.triggerAttackRelease(0.03, nextBeatTime, isDownbeat ? 0.8 : 0.4);
         }
 
         nextBeatTime += secPerBeat;
@@ -663,32 +700,34 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     scheduleBeat();
   }
 
-  function startPlayback(fromTick: number) {
+  async function startPlayback(fromTick: number) {
     stopAudio();
     setIsPlaying(true);
     setIsPaused(false);
 
-    const ctx = new AudioContext();
-    audioCtxRef.current = ctx;
-    const bpm = snapshot.meta.tempo;
-    const ppq = snapshot.meta.ppq;
-    const secPerTick = 60 / (bpm * ppq);
-    const startTime = ctx.currentTime;
+    // Tone.js requires the shared AudioContext to be resumed from a user
+    // gesture — the click that reached here (Play/Seek/Loop toggle) counts.
+    await Tone.start();
 
-    // Master volume: 1 GainNode chung cho toàn bộ track, đứng trước
-    // ctx.destination — chỉnh 1 chỗ này đổi âm lượng của mọi track cùng lúc,
-    // không cần chỉnh từng track riêng. Tạo mới mỗi lần start vì AudioContext
-    // cũng được tạo mới mỗi lần (đóng lại ở stopAudio) — giá trị lấy từ state
-    // hiện tại, và effect ở trên tiếp tục cập nhật sống nếu người dùng kéo
-    // slider trong lúc đang phát.
-    const masterGain = ctx.createGain();
-    masterGain.gain.value = masterVolume;
-    masterGain.connect(ctx.destination);
+    // Preview speed only — never the value written back to the project
+    // (see playbackRate declaration above).
+    const bpm = snapshot.meta.tempo * playbackRate;
+    const ppq = snapshot.meta.ppq;
+    const startTime = Tone.now();
+
+    // Master bus: Gain (master volume, live-adjustable — see the effect
+    // above) → Limiter → speakers. The limiter is what actually fixes the
+    // buzzing/clipping from dense passages: before, every note's Gain
+    // summed straight into the destination with nothing capping the total,
+    // so overlapping notes could push well past 0 dBFS and hard-clip.
+    const limiter = new Tone.Limiter(-1).toDestination();
+    const masterGain = new Tone.Gain(masterVolume).connect(limiter);
     masterGainRef.current = masterGain;
+    masterLimiterRef.current = limiter;
 
     // UC-36: Metronome scheduler — runs independently of note playback so
     // it keeps clicking even through silence.
-    scheduleMetronome(ctx, startTime, fromTick);
+    scheduleMetronome(startTime, fromTick);
 
     const allNotes = snapshot.notes;
     // UC-37: End tick for auto-stop/loop — end of the last note, or the
@@ -697,62 +736,32 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       ? Math.max(...allNotes.map((n) => n.start + n.duration))
       : fromTick;
 
-    // UC-37: Check solo - if any track is solo'd, only play solo tracks
-    const hasSolo = snapshot.tracks.some((t) => t.solo);
-
-    // UC-37: Schedule all notes via Web Audio with instrument, volume, pan
-    allNotes.forEach((n) => {
-      const track = snapshot.tracks.find((t) => t.id === n.trackId);
-      if (!track) return;
-
-      // UC-37: Respect mute/solo
-      if (track.muted) return;
-      if (hasSolo && !track.solo) return;
-
-      const noteStart = (n.start - fromTick) * secPerTick;
-      if (noteStart < 0) return;
-
-      // UC-37: Create audio chain: Oscillator → Gain → Pan → Destination
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const panner = ctx.createStereoPanner();
-
-      // UC-37: Map instrument to oscillator type
-      osc.type = getOscillatorType(track.instrument);
-      osc.frequency.value = 440 * Math.pow(2, (n.pitch - 69) / 12);
-
-      // UC-37: Apply volume (0-1) and velocity (1-127)
-      const volume = (track.volume ?? 1) * (n.velocity / 127) * 0.3;
-      gain.gain.setValueAtTime(0, startTime + noteStart);
-      gain.gain.linearRampToValueAtTime(volume, startTime + noteStart + 0.01);
-
-      const noteDur = n.duration * secPerTick;
-      gain.gain.setValueAtTime(volume, startTime + noteStart + noteDur - 0.01);
-      gain.gain.linearRampToValueAtTime(0, startTime + noteStart + noteDur);
-
-      // UC-37: Apply pan (-1 to 1)
-      panner.pan.value = track.pan ?? 0;
-
-      // Connect: Osc → Gain → Pan → Master Gain → Destination
-      osc.connect(gain);
-      gain.connect(panner);
-      panner.connect(masterGain);
-
-      osc.start(startTime + noteStart);
-      osc.stop(startTime + noteStart + noteDur + 0.01);
+    // UC-37: Schedule all notes — instrument (oscillator type), mute/solo,
+    // volume, pan all handled by the shared Tone.js engine (also used by
+    // UC-38 export, so exported audio matches what Play actually sounds
+    // like).
+    toneVoicesRef.current = scheduleNotes({
+      notes: allNotes,
+      tracks: snapshot.tracks,
+      ppq,
+      bpm,
+      startTime,
+      fromTick,
+      toTick: null,
+      destination: masterGain,
     });
 
     // UC-37: Animate playhead with loop/auto-stop support
     const ticksPerMs = (bpm * ppq) / 60000;
     playTimerRef.current = setInterval(() => {
-      const elapsed = (ctx.currentTime - startTime) * 1000;
+      const elapsed = (Tone.now() - startTime) * 1000;
       const currentTick = Math.floor(fromTick + elapsed * ticksPerMs);
 
       if (currentTick >= endTick) {
         if (loopOnRef.current) {
           // Loop back to wherever this playback session was started from
           // (the tick Play or Seek was last invoked with).
-          startPlayback(loopAnchorRef.current);
+          void startPlayback(loopAnchorRef.current);
         } else {
           handleStop();
         }
@@ -766,7 +775,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   function handlePlay() {
     if (isPlaying) return;
     loopAnchorRef.current = playheadTick;
-    startPlayback(playheadTick);
+    void startPlayback(playheadTick);
   }
 
   function handleStop() {
@@ -797,12 +806,18 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     updateSnapshot({ ...snapshot, meta: { ...snapshot.meta, tempo: bpm } });
   }
 
+  // UC-37: Preview playback speed — takes effect on the next Play/Seek
+  // (same as tempo/loop-region changes), not live mid-note.
+  function handlePlaybackRateChange(rate: number) {
+    setPlaybackRate(rate);
+  }
+
   function handleSeek(tick: number) {
     setPlayheadTick(tick);
     // If currently playing, restart from new position
     if (isPlaying) {
       loopAnchorRef.current = tick;
-      startPlayback(tick);
+      void startPlayback(tick);
     }
   }
 
@@ -953,6 +968,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         metronomeOn={metronomeOn}
         onMetronomeToggle={handleToggleMetronome}
         onExportAudio={() => setShowExportDialog(true)}
+        onExportMidi={handleExportMidi}
+        playbackRate={playbackRate}
+        onPlaybackRateChange={handlePlaybackRateChange}
       />
 
       {/* Save status strip */}
