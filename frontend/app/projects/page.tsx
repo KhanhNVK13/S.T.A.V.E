@@ -129,14 +129,13 @@ function ProjectCard({
 
         {/* Right: actions */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {/* Editor placeholder */}
-          <button
-            disabled
-            title="PLACEHOLDER — chưa xây dựng"
-            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-400"
+          {/* Mở Editor - dẫn trực tiếp đến MIDI Editor */}
+          <Link
+            href={`/projects/${project.id}/edit`}
+            className="flex items-center gap-1 rounded-lg border border-accent-200 bg-accent-50 px-3 py-1.5 text-xs font-medium text-accent-700 hover:bg-accent-100"
           >
             <Piano className="h-3.5 w-3.5" /> Mở Editor
-          </button>
+          </Link>
 
           {isArchived ? (
             <>
