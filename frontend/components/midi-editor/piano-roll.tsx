@@ -12,11 +12,14 @@ import React, {
   useRef,
   useEffect,
   useCallback,
+  useMemo,
   useState,
   forwardRef,
   useImperativeHandle,
 } from "react";
 import type { DraftNote, DraftTrack } from "@stave/shared-types";
+import { pitchName } from "../../lib/midi-note-name";
+import { resolveCssColors } from "../../lib/resolve-css-colors";
 
 export type ToolMode = "pointer" | "pencil" | "eraser";
 export type GridDivision = 4 | 8 | 16 | 32;
@@ -26,50 +29,70 @@ const PITCH_COUNT = 128;
 const RESIZE_HANDLE_PX = 6; // px at right edge = resize zone
 
 /**
- * Hình học + bảng màu — lấy từ mã nguồn thiết kế thật (docs/STAVE design
- * component sample/.../STAVE.dc.html, screen "editor" dòng 232–257: hàng
- * 22px, cột phím 72px, ruler 34px, note bo góc 4px viền #0F2A5C, playhead
- * #B3242E). Trước đây có thêm bảng "classic" cho bản UI gốc (đã xoá cùng
- * toàn bộ UI gốc — xem PROJECT_STATE.md).
+ * Hình học lấy từ mã nguồn thiết kế thật (docs/STAVE design component
+ * sample/.../STAVE.dc.html, screen "editor" dòng 232–257): hàng 22px, cột phím
+ * 72px, ruler 34px, note bo góc 4px. Màu thì KHÔNG còn hardcode nữa — xem
+ * `PAL_COLOR_SPEC` ngay bên dưới.
  */
-const PAL = {
+const PAL_METRICS = {
   rowH: 22,
   keyW: 72,
   headerH: 34,
   noteRadius: 4,
-  noteStroke: "#0F2A5C" as string | null,
   noteTopHighlight: true,
-  keyBorder: "#E3E4E8" as string | null,
-  containerBg: "#ffffff",
-  rowBlack: "#FAFAF8",
-  rowWhite: "#ffffff",
-  cLine: "rgba(29,78,216,0.05)",
-  rowSeparator: "#F3F3F1",
-  gridBar: "#E6E6E2",
-  gridBeat: "#EDEDEA",
-  gridStep: "#F5F5F3",
-  rulerBg: "#FBFBF9",
-  rulerText: "#8A8D93",
-  keyBlack: "#E9E9E6",
-  keyWhite: "#ffffff",
-  keyText: "#8A8D93",
-  drawingNote: "#1D4ED8",
-  playhead: "#B3242E",
-  selectedBorder: "#1F2126",
-  playingGlow: "rgba(29,78,216,0.35)",
-  resizeHandle: "rgba(255,255,255,0.35)",
 } as const;
+
+/**
+ * Màu của canvas, viết bằng biểu thức CSS trỏ vào hệ token (`app/globals.css`)
+ * để piano roll đổi theo theme người dùng chọn (UC-78/79).
+ *
+ * KHÔNG gán trực tiếp mấy chuỗi này cho `ctx.fillStyle`: canvas không resolve
+ * được `var()`/`color-mix()` và sẽ **âm thầm giữ màu cũ**. Chúng phải đi qua
+ * `resolveCssColors()` trước — xem effect trong component.
+ */
+const PAL_COLOR_SPEC = {
+  noteStroke: "var(--accent-hover)",
+  keyBorder: "var(--border)",
+  containerBg: "var(--surface)",
+  rowBlack: "color-mix(in oklab, var(--surface-subtle) 70%, var(--surface))",
+  rowWhite: "var(--surface)",
+  cLine: "color-mix(in oklab, var(--accent) 5%, transparent)",
+  rowSeparator: "color-mix(in oklab, var(--border) 40%, var(--surface))",
+  gridBar: "color-mix(in oklab, var(--border) 70%, var(--surface))",
+  gridBeat: "color-mix(in oklab, var(--border) 50%, var(--surface))",
+  gridStep: "color-mix(in oklab, var(--border) 28%, var(--surface))",
+  rulerBg: "var(--surface-subtle)",
+  rulerText: "var(--muted-foreground)",
+  keyBlack: "var(--surface-muted)",
+  keyWhite: "var(--surface)",
+  keyText: "var(--muted-foreground)",
+  drawingNote: "var(--accent)",
+  playhead: "var(--danger)",
+  selectedBorder: "var(--foreground)",
+  playingGlow: "color-mix(in oklab, var(--accent) 35%, transparent)",
+  resizeHandle: "color-mix(in oklab, var(--surface) 35%, transparent)",
+} as const;
+
+/**
+ * Cột phím rộng bao nhiêu px. Export vì dải velocity (`velocity-lane.tsx`) vẽ
+ * trên một canvas RIÊNG và phải chừa đúng khoảng này thì hai lưới mới thẳng
+ * cột; hardcode lại 72 ở đó là mầm lệch khi sửa mockup.
+ */
+export const PIANO_ROLL_KEY_WIDTH = PAL_METRICS.keyW;
+
+/**
+ * Quy đổi mức zoom thành px trên mỗi tick. Cũng export vì lý do trên: dải
+ * velocity phải dùng CHUNG một công thức, không được tự nhân lại hệ số.
+ */
+export function pxPerTickFor(zoom: number): number {
+  return 0.06 * zoom;
+}
 
 // Piano key helpers
 const BLACK_NOTES = new Set([1, 3, 6, 8, 10]); // semitone % 12
 
 function isBlackKey(pitch: number) {
   return BLACK_NOTES.has(pitch % 12);
-}
-
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-function pitchName(pitch: number) {
-  return NOTE_NAMES[pitch % 12] + Math.floor(pitch / 12 - 1);
 }
 
 // ── Types ──────────────────────────────────────────────────────
@@ -103,6 +126,11 @@ interface PianoRollProps {
   // UC-37: Playback
   isPlaying: boolean;
   onSeek: (tick: number) => void;
+  /**
+   * Báo vị trí cuộn ngang ra ngoài để dải velocity bám theo. Piano roll vẫn
+   * là nơi DUY NHẤT có thanh cuộn ngang — dải kia chỉ vẽ lại theo giá trị này.
+   */
+  onScrollXChange?: (scrollX: number) => void;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -121,10 +149,30 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       onSelectedNotesChange,
       isPlaying,
       onSeek,
+      onScrollXChange,
     },
     ref,
   ) {
-    const pal = PAL;
+    /*
+     * Màu canvas phải là giá trị đã resolve. Theo dõi thuộc tính `data-theme`
+     * trên <html> (thứ mà ThemeProvider đặt) bằng MutationObserver thay vì đọc
+     * context theme: piano roll là component lá, không nên phụ thuộc vào provider
+     * nào — và cách này vẫn bắt được cả những lần đổi theme từ nơi khác.
+     */
+    const [colors, setColors] = useState(() => resolveCssColors(PAL_COLOR_SPEC));
+
+    useEffect(() => {
+      const observer = new MutationObserver(() => {
+        setColors(resolveCssColors(PAL_COLOR_SPEC));
+      });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
+      return () => observer.disconnect();
+    }, []);
+
+    const pal = useMemo(() => ({ ...PAL_METRICS, ...colors }), [colors]);
     const ROW_H = pal.rowH;
     const KEY_WIDTH = pal.keyW;
     const HEADER_H = pal.headerH;
@@ -144,7 +192,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     const isSeekDraggingRef = useRef(false);
 
     // px per tick
-    const pxPerTick = 0.06 * zoom;
+    const pxPerTick = pxPerTickFor(zoom);
     // ticks per grid step
     const gridStep = ppq / (gridDivision / 4);
     // Snap a tick value to the nearest grid boundary
@@ -640,6 +688,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     function handleScroll(e: React.UIEvent<HTMLDivElement>) {
       setScrollX(e.currentTarget.scrollLeft);
       setScrollY(e.currentTarget.scrollTop);
+      onScrollXChange?.(e.currentTarget.scrollLeft);
     }
 
     return (
