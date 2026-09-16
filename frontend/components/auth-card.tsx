@@ -1,14 +1,42 @@
 import type { ReactNode } from "react";
 import { Logo } from "./ui/logo";
+import { MiniRoll } from "./ui/mini-roll";
 
-export function AuthCard({ title, children }: { title?: string; children: ReactNode }) {
+/**
+ * Khung 2 cột cho 4 trang xác thực: cột trái là mảng thương hiệu (ẩn trên
+ * mobile), cột phải là form. Khác hẳn layout phần còn lại của app (nội dung
+ * trong PageHeader) — xem CLAUDE.md 4.7.
+ */
+export function AuthCard({
+  title,
+  eyebrow,
+  description,
+  children,
+}: {
+  title?: string;
+  eyebrow?: string;
+  description?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="mb-6">
+    <div className="grid min-h-full lg:grid-cols-2">
+      <div className="hidden flex-col justify-center border-r border-border bg-surface-subtle p-[9%] lg:flex">
         <Logo />
+        <p className="mt-6 max-w-[360px] text-[28px] font-bold leading-[1.25]">
+          Quản lý phiên bản cho bản nhạc đang hình thành.
+        </p>
+        <MiniRoll className="mt-5 w-full max-w-[540px] rounded-card border border-border" />
       </div>
-      <div className="w-full max-w-sm rounded-card border border-slate-200 bg-white p-6 shadow-card">
-        {title && <h1 className="mb-6 text-lg font-semibold text-slate-900">{title}</h1>}
+
+      <div className="mx-auto w-full max-w-[430px] px-6 py-12 sm:px-11">
+        <div className="mb-6 lg:hidden">
+          <Logo />
+        </div>
+        {eyebrow && (
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent">{eyebrow}</p>
+        )}
+        {title && <h1 className="my-1 text-[23px] font-semibold tracking-tight">{title}</h1>}
+        {description && <p className="mb-6 text-xs text-muted">{description}</p>}
         {children}
       </div>
     </div>
@@ -24,21 +52,21 @@ export function AuthField({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-[11px] font-semibold">{label}</span>
       {children}
     </label>
   );
 }
 
 export const AUTH_INPUT_CLASS =
-  "rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-600 focus:outline-none focus:ring-1 focus:ring-accent-600";
+  "h-[37px] rounded-md border border-border bg-background px-2.5 text-xs placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-muted";
 
 export function AuthDivider() {
   return (
-    <div className="my-4 flex items-center gap-3">
-      <div className="h-px flex-1 bg-slate-200" />
-      <span className="text-xs text-slate-400">hoặc</span>
-      <div className="h-px flex-1 bg-slate-200" />
+    <div className="my-5 flex items-center gap-3">
+      <div className="h-px flex-1 bg-border" />
+      <span className="text-[10px] text-muted">hoặc</span>
+      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -48,7 +76,7 @@ export function GoogleButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+      className="flex h-[37px] w-full items-center justify-center gap-2 rounded-md border border-border bg-surface text-xs font-semibold hover:bg-surface-subtle"
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24">
         <path

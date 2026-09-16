@@ -2,73 +2,139 @@
 
 /*
  * STAVE design tokens — xem CLAUDE.md 4.7 (Design system) trước khi đổi.
- * Chỉ 1 theme sáng (không dark mode — quyết định đã chốt, xem CLAUDE.md 4.7).
+ *
+ * Hệ token SEMANTIC (không phải bảng màu cố định kiểu `accent-600`): mỗi biến
+ * mô tả VAI TRÒ của màu trong giao diện (nền, bề mặt, viền, chữ phụ, accent…).
+ * Bắt buộc phải như vậy vì UC-79 (STAVE+) cho phép người dùng upload 1 ảnh và
+ * toàn bộ UI đổi màu theo palette trích từ ảnh đó — chỉ đổi giá trị của các
+ * biến này, không sửa 1 dòng component nào.
+ *
+ * Theme đổi bằng thuộc tính `data-theme` trên thẻ <html>. Mặc định (không có
+ * data-theme) = preset "unleashed".
+ *
+ * Nguyên tắc dùng màu (rút từ bảng pha màu Gundam PG Unleashed RX-78-2):
+ * - Diện tích lớn LUÔN dùng nhóm trung tính (background/surface/border).
+ * - `--accent` là màu "small dose": chỉ cho CTA chính, link, trạng thái đang
+ *   chọn. KHÔNG tô accent lên nền card/section/sidebar.
  */
-:root {
-  --background: #ffffff;
-  --foreground: #0f172a; /* slate-900 */
+:root,
+[data-theme="unleashed"] {
+  /* Nền & bề mặt */
+  --background: oklch(0.976 0.004 285);
+  --surface: oklch(0.992 0.003 285);
+  --surface-subtle: oklch(0.966 0.006 285);
+  --surface-muted: oklch(0.938 0.011 278);
 
-  /* Accent chính — xanh dương, dùng cho CTA/link/active state */
-  --color-accent-50: #eff6ff;
-  --color-accent-100: #dbeafe;
-  --color-accent-200: #bfdbfe;
-  --color-accent-500: #3b82f6;
-  --color-accent-600: #2563eb;
-  --color-accent-700: #1d4ed8;
-  --color-accent-900: #0f2a5c;
+  /* Chữ */
+  --foreground: oklch(0.26 0.038 260); /* xanh-đen, không phải đen tuyền */
+  --muted-foreground: oklch(0.54 0.02 276);
+
+  /* Viền */
+  --border: oklch(0.891 0.012 285);
+  --border-strong: oklch(0.81 0.018 280);
+
+  /* Accent — small dose */
+  --accent: oklch(0.48 0.19 270);
+  --accent-hover: oklch(0.43 0.18 270);
+  --accent-muted: oklch(0.94 0.025 270);
+  --accent-foreground: oklch(0.99 0.003 285);
 
   /* Trạng thái */
-  --color-success-50: #f0fdf4;
-  --color-success-600: #16a34a;
-  --color-success-700: #15803d;
-  --color-warning-50: #fffbeb;
-  --color-warning-600: #d97706;
-  --color-warning-700: #b45309;
-  --color-danger-50: #fef2f2;
-  --color-danger-600: #dc2626;
-  --color-danger-700: #b91c1c;
+  --success: oklch(0.54 0.085 150);
+  --success-muted: oklch(0.94 0.025 150);
+  --warning: oklch(0.7 0.105 83);
+  --warning-muted: oklch(0.95 0.035 83);
+  --danger: oklch(0.48 0.13 27);
+  --danger-muted: oklch(0.94 0.028 27);
 
-  /* Card/surface */
-  --radius-card: 1rem; /* rounded-2xl */
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  /* Metal — huy hiệu/chi tiết trang trí, dùng rất hạn chế */
+  --metal: oklch(0.73 0.045 82);
+  --metal-muted: oklch(0.94 0.015 82);
+
+  /* Màu phân biệt track trong MIDI Editor (dữ liệu, không phải chrome) */
+  --track-accent: var(--accent);
+  --track-metal: var(--metal);
+  --track-success: var(--success);
+  --track-warning: var(--warning);
+  --track-danger: var(--danger);
+
+  --radius-card: 0.5rem;
+  --shadow-card: none; /* thiết kế dùng viền 1px, không dùng đổ bóng */
 
   /*
    * Container chính cho trang list/content (header/footer/explore/projects/
-   * creator/rankings/home). 105rem (~1680px) — rộng hơn hẳn max-w-7xl (1280px)
-   * cũ để không còn để trắng lớn 2 bên trên màn 1920px+ thật, nhưng vẫn giữ
-   * khoảng lề hợp lý trên màn cực rộng (21:9/31:9). Trang dạng form/đọc hẹp
-   * (auth, /profile, /projects/new...) KHÔNG dùng token này — xem CLAUDE.md 4.7.
+   * creator/rankings/home). Trang dạng form/đọc hẹp (auth, /profile,
+   * /projects/new...) KHÔNG dùng token này — xem CLAUDE.md 4.7.
    */
   --container-page: 105rem;
 }
 
+/*
+ * Preset miễn phí (UC-78) — chỉ đổi token TRANG TRÍ.
+ *
+ * BR-90 (Report 3): "A theme may change decorative colours only. The colours
+ * that carry system meaning — the primary blue for actions, red for warnings
+ * and conflicts, and yellow for modified content — are never overridden."
+ * Vì vậy các preset dưới đây KHÔNG được đụng tới `--accent*`, `--success*`,
+ * `--warning*`, `--danger*`: chỉ retint nhóm nền/bề mặt/viền/chữ + `--metal`.
+ * UC-79 (sinh theme từ ảnh) cũng chịu ràng buộc y hệt (POST-4).
+ */
+[data-theme="moss"] {
+  --background: oklch(0.97 0.009 142);
+  --surface: oklch(0.99 0.006 142);
+  --surface-subtle: oklch(0.95 0.014 142);
+  --surface-muted: oklch(0.92 0.022 142);
+  --foreground: oklch(0.25 0.035 154);
+  --muted-foreground: oklch(0.52 0.025 154);
+  --border: oklch(0.86 0.022 142);
+  --border-strong: oklch(0.78 0.035 142);
+  --metal: oklch(0.68 0.05 80);
+  --metal-muted: oklch(0.93 0.018 80);
+}
+
+[data-theme="claret"] {
+  --background: oklch(0.97 0.008 20);
+  --surface: oklch(0.992 0.004 20);
+  --surface-subtle: oklch(0.95 0.012 20);
+  --surface-muted: oklch(0.92 0.02 20);
+  --foreground: oklch(0.24 0.04 15);
+  --muted-foreground: oklch(0.51 0.028 15);
+  --border: oklch(0.86 0.02 20);
+  --border-strong: oklch(0.78 0.035 20);
+  --metal: oklch(0.69 0.05 72);
+  --metal-muted: oklch(0.94 0.016 72);
+}
+
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-stave-sans);
   --font-mono: var(--font-stave-mono);
 
-  --color-accent-50: var(--color-accent-50);
-  --color-accent-100: var(--color-accent-100);
-  --color-accent-200: var(--color-accent-200);
-  --color-accent-500: var(--color-accent-500);
-  --color-accent-600: var(--color-accent-600);
-  --color-accent-700: var(--color-accent-700);
-  --color-accent-900: var(--color-accent-900);
+  /* Tên semantic — dùng cho mọi code mới */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-muted: var(--surface-muted);
+  --color-muted: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
 
-  --color-success-50: var(--color-success-50);
-  --color-success-600: var(--color-success-600);
-  --color-success-700: var(--color-success-700);
-  --color-warning-50: var(--color-warning-50);
-  --color-warning-600: var(--color-warning-600);
-  --color-warning-700: var(--color-warning-700);
-  --color-danger-50: var(--color-danger-50);
-  --color-danger-600: var(--color-danger-600);
-  --color-danger-700: var(--color-danger-700);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+  --color-metal: var(--metal);
+  --color-metal-muted: var(--metal-muted);
 
   --radius-card: var(--radius-card);
   --shadow-card: var(--shadow-card);
-
   --container-page: var(--container-page);
 }
 

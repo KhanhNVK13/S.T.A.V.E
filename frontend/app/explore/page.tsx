@@ -2,47 +2,51 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search as SearchIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import Link from 'next/link';
+import { Search as SearchIcon, ChevronLeft, ChevronRight, X, Play, GitFork } from 'lucide-react';
 import { listPublicProjects, PublicProjectsResponse } from '../../lib/api-client';
-import { ProjectCard } from '../../components/project-card';
 import { useApiResource } from '../../lib/use-api-resource';
+import { formatRelativeTime } from '../../lib/format-date';
 import { PageHeader } from '../../components/ui/page-header';
 import { EmptyState } from '../../components/ui/empty-state';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Avatar } from '../../components/ui/avatar';
 import { INPUT_CLASS } from '../../components/ui/form';
+import { RowList, RowHeader, RowItem, RowTitle, RowStat, RowTime } from '../../components/ui/row-list';
 
-// Genre filter pills — các thể loại được hỗ trợ
 const GENRE_FILTERS = [
-  { value: '', label: 'Tất cả' },
-  { value: 'Jazz', label: '🎷 Jazz' },
-  { value: 'Rock', label: '🎸 Rock' },
-  { value: 'Pop', label: '🎹 Pop' },
-  { value: 'Lo-Fi', label: '🎧 Lo-Fi' },
-  { value: 'Electronic', label: '⚡ Electronic' },
-  { value: 'Classical', label: '🎻 Classical' },
-  { value: 'Hip-Hop', label: '🎤 Hip-Hop' },
+  { value: '', label: 'Tất cả thể loại' },
+  { value: 'Jazz', label: 'Jazz' },
+  { value: 'Rock', label: 'Rock' },
+  { value: 'Pop', label: 'Pop' },
+  { value: 'Lo-Fi', label: 'Lo-Fi' },
+  { value: 'Electronic', label: 'Electronic' },
+  { value: 'Classical', label: 'Classical' },
+  { value: 'Hip-Hop', label: 'Hip-Hop' },
 ] as const;
 
-// Sort options
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Mới nhất' },
-  { value: 'most_played', label: 'Lượt nghe nhiều nhất' },
+  { value: 'most_played', label: 'Nghe nhiều nhất' },
 ] as const;
 
-function ProjectCardSkeletonGrid() {
+/** Tên | thể loại | lượt nghe | fork | cập nhật — dùng chung cho hàng tiêu đề và hàng dữ liệu. */
+const COLS = 'md:grid-cols-[minmax(0,1fr)_112px_84px_84px_78px]';
+
+function RowSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <RowList>
       {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="animate-pulse rounded-card border border-slate-200 bg-white p-4"
-        >
-          <div className="mb-3 h-32 rounded-lg bg-slate-100" />
-          <div className="mb-2 h-5 w-3/4 rounded bg-slate-100" />
-          <div className="mb-2 h-4 w-1/2 rounded bg-slate-100" />
-          <div className="h-3 w-full rounded bg-slate-100" />
+        <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
+          <div className="h-8 w-8 shrink-0 rounded-full bg-surface-subtle" />
+          <div className="flex-1">
+            <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
+            <div className="h-2.5 w-1/4 rounded bg-surface-subtle" />
+          </div>
         </div>
       ))}
-    </div>
+    </RowList>
   );
 }
 
@@ -50,7 +54,6 @@ function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Filters from URL
   const page = parseInt(searchParams.get('page') ?? '1', 10);
   const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'most_played';
   const genre = searchParams.get('genre') ?? '';
@@ -61,7 +64,7 @@ function ExploreContent() {
     () =>
       listPublicProjects({
         page,
-        limit: 12,
+        limit: 20,
         sort,
         genre: genre || undefined,
         search: search || undefined,
@@ -80,7 +83,6 @@ function ExploreContent() {
         params.set(key, value);
       }
     }
-    // Reset to page 1 when changing filters
     if (
       newParams.sort !== undefined ||
       newParams.genre !== undefined ||
@@ -105,84 +107,63 @@ function ExploreContent() {
 
   return (
     <>
-      {/* Filter Bar */}
-      <div className="mb-6 rounded-card border border-slate-200 bg-white p-4">
-        {/* Search + Sort Row */}
-        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-md">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Tìm kiếm theo tên tác phẩm..."
-              className={`${INPUT_CLASS} w-full pl-10`}
-            />
-          </div>
-
-          {/* Sort Dropdown */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-slate-700">Sắp xếp:</label>
-            <select
-              value={sort}
-              onChange={(e) => updateParams({ sort: e.target.value })}
-              className={`${INPUT_CLASS} w-auto min-w-[160px]`}
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] max-w-[380px] flex-1">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Tìm dự án công khai"
+            className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
+          />
         </div>
 
-        {/* Genre Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-sm font-medium text-slate-600">Thể loại:</span>
+        <select
+          value={genre}
+          onChange={(e) => updateParams({ genre: e.target.value })}
+          aria-label="Lọc theo thể loại"
+          className={`${INPUT_CLASS} h-[34px]`}
+        >
           {GENRE_FILTERS.map((g) => (
-            <button
-              key={g.value}
-              onClick={() => updateParams({ genre: g.value })}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
-                genre === g.value
-                  ? 'bg-accent-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
+            <option key={g.value} value={g.value}>
               {g.label}
-            </button>
+            </option>
           ))}
-        </div>
+        </select>
 
-        {/* Active tag filter (đến từ click #tag trên ProjectCard) */}
+        <select
+          value={sort}
+          onChange={(e) => updateParams({ sort: e.target.value })}
+          aria-label="Sắp xếp"
+          className={`${INPUT_CLASS} h-[34px]`}
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+
         {tag && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">Tag:</span>
-            <button
-              onClick={() => updateParams({ tag: null })}
-              className="flex items-center gap-1 rounded-full bg-accent-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm"
-            >
-              #{tag}
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <button
+            onClick={() => updateParams({ tag: null })}
+            className="flex h-[34px] items-center gap-1.5 rounded-md border border-accent bg-accent-muted px-3 text-xs font-semibold text-accent"
+          >
+            #{tag}
+            <X className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
 
-      {/* Content */}
       {loading ? (
-        <ProjectCardSkeletonGrid />
+        <RowSkeleton />
       ) : error ? (
-        <div className="rounded-card border border-danger-600/20 bg-danger-50 p-8 text-center">
-          <p className="text-danger-600">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700"
-          >
+        <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
+          <p className="text-[13px] text-danger">{error}</p>
+          <Button variant="secondary" onClick={() => window.location.reload()} className="mt-4">
             Thử lại
-          </button>
+          </Button>
         </div>
       ) : items?.length === 0 ? (
         <EmptyState
@@ -190,54 +171,86 @@ function ExploreContent() {
           title="Không tìm thấy dự án nào."
           action={
             search || genre || tag ? (
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setSearchInput('');
                   updateParams({ search: null, genre: null, tag: null });
                 }}
-                className="text-sm text-accent-600 hover:underline"
               >
-                Xóa bộ lọc
-              </button>
+                Xoá bộ lọc
+              </Button>
             ) : undefined
           }
         />
       ) : (
         <>
-          {/* Stats */}
-          <p className="mb-4 text-sm text-slate-500">
+          <p className="mb-2 text-[11px] text-muted">
             {search
               ? `${data?.total ?? 0} kết quả cho "${search}"`
               : `${data?.total ?? 0} dự án công khai`}
           </p>
 
-          {/* Grid - 3 columns responsive */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {items?.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </div>
+          <RowList>
+            <RowHeader cols={COLS}>
+              <span>Dự án</span>
+              <span>Thể loại</span>
+              <span>Lượt nghe</span>
+              <span>Fork</span>
+              <span className="text-right">Cập nhật</span>
+            </RowHeader>
 
-          {/* Pagination */}
+            {items?.map((project) => {
+              const ownerName = project.owner.display_name ?? project.owner.username ?? 'Người dùng';
+              return (
+                <RowItem key={project.id} cols={COLS}>
+                  <RowTitle
+                    href={`/projects/${project.id}`}
+                    name={project.name}
+                    meta={
+                      <>
+                        <Link href={`/creator/${project.owner.id}`} className="hover:text-accent hover:underline">
+                          {ownerName}
+                        </Link>
+                        {project.description ? ` · ${project.description}` : ''}
+                      </>
+                    }
+                    leading={
+                      <Avatar
+                        id={project.owner.id}
+                        label={ownerName}
+                        imageUrl={project.owner.avatar_url}
+                      />
+                    }
+                  />
+                  <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
+                  <RowStat icon={Play} value={project.play_count} title="Lượt nghe" />
+                  <RowStat icon={GitFork} value={project.fork_count} title="Lượt fork" />
+                  <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
+                </RowItem>
+              );
+            })}
+          </RowList>
+
           {data && data.totalPages > 1 && (
-            <div className="mt-8 flex items-center justify-center gap-2">
-              <button
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <Button
+                variant="secondary"
                 onClick={() => updateParams({ page: String(page - 1) })}
                 disabled={page <= 1}
-                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <ChevronLeft className="h-4 w-4" /> Trước
-              </button>
-              <span className="px-4 text-sm text-slate-500">
-                Trang {page} / {data.totalPages}
+                <ChevronLeft className="h-3.5 w-3.5" /> Trước
+              </Button>
+              <span className="px-3 font-mono text-[11px] text-muted">
+                {page} / {data.totalPages}
               </span>
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => updateParams({ page: String(page + 1) })}
                 disabled={page >= data.totalPages}
-                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Sau <ChevronRight className="h-4 w-4" />
-              </button>
+                Sau <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
             </div>
           )}
         </>
@@ -248,10 +261,14 @@ function ExploreContent() {
 
 export default function ExplorePage() {
   return (
-    <div className="mx-auto max-w-page px-4 py-8">
-      <PageHeader title="Khám phá dự án" description="Tìm kiếm cảm hứng từ cộng đồng sáng tác" />
+    <div className="mx-auto max-w-page px-5 py-8">
+      <PageHeader
+        breadcrumbs={[{ label: 'Thư viện công khai' }]}
+        title="Khám phá"
+        description="Tìm dự án MIDI công khai để nghe, học hỏi và fork."
+      />
 
-      <Suspense fallback={<ProjectCardSkeletonGrid />}>
+      <Suspense fallback={<RowSkeleton />}>
         <ExploreContent />
       </Suspense>
     </div>

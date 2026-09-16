@@ -1,7 +1,7 @@
 export function SiteFooter() {
   return (
-    <footer className="border-t border-slate-200">
-      <div className="mx-auto max-w-page px-4 py-4 text-center text-xs text-slate-400">
+    <footer className="border-t border-border bg-surface">
+      <div className="mx-auto max-w-page px-5 py-4 text-center text-[11px] text-muted">
         <p>
           STAVE — Source Tracking and Version Control Environment for Music
           Projects.
@@ -12,7 +12,7 @@ export function SiteFooter() {
             href="https://github.com/gleitz/midi-js-soundfonts"
             target="_blank"
             rel="noreferrer"
-            className="underline hover:text-slate-600"
+            className="underline hover:text-foreground"
           >
             gleitz/midi-js-soundfonts
           </a>{" "}
@@ -21,7 +21,7 @@ export function SiteFooter() {
             href="https://schristiancollins.com/generaluser.php"
             target="_blank"
             rel="noreferrer"
-            className="underline hover:text-slate-600"
+            className="underline hover:text-foreground"
           >
             schristiancollins.com
           </a>{" "}
@@ -30,7 +30,7 @@ export function SiteFooter() {
             href="/instruments/CREDITS.txt"
             target="_blank"
             rel="noreferrer"
-            className="underline hover:text-slate-600"
+            className="underline hover:text-foreground"
           >
             Full credits
           </a>

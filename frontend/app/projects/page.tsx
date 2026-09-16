@@ -15,13 +15,13 @@ import {
 } from '../../lib/api-client';
 import { formatRelativeTime } from '../../lib/format-date';
 import { PageHeader } from '../../components/ui/page-header';
-import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Tabs } from '../../components/ui/tabs';
 import { EmptyState } from '../../components/ui/empty-state';
+import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { INPUT_CLASS } from '../../components/ui/form';
-import { CARD_LIST_CLASS } from '../../components/ui/card-grid';
+import { RowList, RowHeader, RowItem, RowTitle, RowTime } from '../../components/ui/row-list';
 
 interface Project {
   id: string;
@@ -48,6 +48,9 @@ const PAGE_SIZE = 12;
 
 type Tab = 'all' | 'active' | 'archived';
 
+/** Dự án | thể loại | trạng thái | hiển thị | cập nhật | thao tác. */
+const COLS = 'md:grid-cols-[minmax(0,1fr)_104px_108px_92px_78px_auto]';
+
 function VisibilityBadge({ visibility }: { visibility: ProjectVisibility }) {
   const isPublic = visibility === 'public';
   return <Badge variant={isPublic ? 'info' : 'neutral'}>{isPublic ? 'Công khai' : 'Riêng tư'}</Badge>;
@@ -56,18 +59,14 @@ function VisibilityBadge({ visibility }: { visibility: ProjectVisibility }) {
 function StatusBadge({ archivedAt }: { archivedAt: string | null }) {
   const isArchived = !!archivedAt;
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
-        isArchived ? 'bg-warning-50 text-warning-700' : 'bg-success-50 text-success-700'
-      }`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${isArchived ? 'bg-warning-600' : 'bg-success-600'}`} />
+    <Badge variant={isArchived ? 'warning' : 'success'}>
+      <span className={`h-1.5 w-1.5 rounded-full ${isArchived ? 'bg-warning' : 'bg-success'}`} />
       {isArchived ? 'Đã lưu trữ' : 'Hoạt động'}
-    </span>
+    </Badge>
   );
 }
 
-function ProjectCard({
+function ProjectRow({
   project,
   onArchive,
   onUnarchive,
@@ -103,106 +102,56 @@ function ProjectCard({
 
   return (
     <>
-      <Card className="flex flex-col gap-3 p-4 transition-all hover:border-accent-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between">
-        {/* Left: icon + name + meta */}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Music2 className="h-4 w-4 shrink-0 text-slate-400" />
-            <h3 className="truncate font-semibold text-slate-900">{project.name}</h3>
-            <VisibilityBadge visibility={project.visibility} />
-            <StatusBadge archivedAt={project.archived_at} />
-            {project.genre && (
-              <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-500">
-                #{project.genre}
-              </span>
-            )}
-          </div>
+      <RowItem cols={COLS}>
+        <RowTitle
+          href={`/projects/${project.id}/edit`}
+          name={project.name}
+          meta={project.description ?? undefined}
+          leading={<Music2 className="h-4 w-4 shrink-0 text-muted" />}
+        />
 
-          {project.description && (
-            <p className="mt-1 line-clamp-1 text-sm text-slate-500">{project.description}</p>
-          )}
+        <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
+        <span><StatusBadge archivedAt={project.archived_at} /></span>
+        <span><VisibilityBadge visibility={project.visibility} /></span>
+        <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
 
-          <p className="mt-1 font-mono text-xs text-slate-500">
-            Cập nhật: {formatRelativeTime(project.updated_at)}
-          </p>
-        </div>
-
-        {/* Right: actions */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {/* Mở Editor - dẫn trực tiếp đến MIDI Editor */}
+        <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
           <Link
             href={`/projects/${project.id}/edit`}
-            className="flex items-center gap-1 rounded-lg border border-accent-200 bg-accent-50 px-3 py-1.5 text-xs font-medium text-accent-700 hover:bg-accent-100"
+            className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-semibold hover:border-border-strong hover:bg-surface-subtle"
           >
-            <Piano className="h-3.5 w-3.5" /> Mở Editor
+            <Piano className="h-3.5 w-3.5" /> {isArchived ? 'Xem' : 'Mở Editor'}
           </Link>
 
           {isArchived ? (
-            <>
-              <Link
-                href={`/projects/${project.id}/edit`}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Xem
-              </Link>
-              <button
-                onClick={() => void handleUnarchive()}
-                disabled={restoring}
-                className="flex items-center gap-1 rounded-lg border border-success-600/40 px-3 py-1.5 text-xs font-medium text-success-600 hover:bg-success-50 disabled:opacity-50"
-              >
-                <Undo2 className="h-3.5 w-3.5" /> {restoring ? 'Đang khôi phục...' : 'Khôi phục'}
-              </button>
-            </>
+            <Button variant="ghost" onClick={() => void handleUnarchive()} disabled={restoring}>
+              <Undo2 className="h-3.5 w-3.5" /> {restoring ? 'Đang khôi phục…' : 'Khôi phục'}
+            </Button>
           ) : (
-            <>
-              <Link
-                href={`/projects/${project.id}/edit`}
-                className="rounded-lg border border-accent-600 px-3 py-1.5 text-xs font-medium text-accent-700 hover:bg-accent-50"
-              >
-                Chỉnh sửa
-              </Link>
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="flex items-center gap-1 rounded-lg border border-warning-600/40 px-3 py-1.5 text-xs font-medium text-warning-600 hover:bg-warning-50"
-              >
-                <Archive className="h-3.5 w-3.5" /> Lưu trữ
-              </button>
-            </>
+            <Button variant="ghost" onClick={() => setShowConfirm(true)}>
+              <Archive className="h-3.5 w-3.5" /> Lưu trữ
+            </Button>
           )}
 
           <Link
             href={`/projects/${project.id}/settings`}
-            className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
+            title="Cài đặt dự án"
           >
-            <SettingsIcon className="h-3.5 w-3.5" /> Cài đặt
+            <SettingsIcon className="h-3.5 w-3.5" />
           </Link>
         </div>
-      </Card>
+      </RowItem>
 
-      {/* Confirm archive dialog */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <Card className="w-full max-w-sm p-6">
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">Xác nhận lưu trữ</h3>
-            <p className="mb-6 text-sm text-slate-500">
-              Bạn có chắc muốn lưu trữ dự án &quot;{project.name}&quot;? Dự án sẽ chuyển sang
-              phần đã lưu trữ.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowConfirm(false)} disabled={archiving}>
-                Huỷ
-              </Button>
-              <Button
-                onClick={() => void handleArchive()}
-                disabled={archiving}
-                className="bg-warning-600 hover:bg-warning-700"
-              >
-                {archiving ? 'Đang xử lý...' : 'Xác nhận lưu trữ'}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showConfirm}
+        title="Xác nhận lưu trữ"
+        message={`Bạn có chắc muốn lưu trữ dự án "${project.name}"? Dự án sẽ chuyển sang phần đã lưu trữ.`}
+        confirmLabel="Lưu trữ"
+        loading={archiving}
+        onConfirm={() => void handleArchive()}
+        onCancel={() => setShowConfirm(false)}
+      />
     </>
   );
 }
@@ -362,22 +311,23 @@ function ProjectsContent() {
   }
 
   return (
-    <div className="mx-auto max-w-page px-4 py-8">
+    <div className="mx-auto max-w-page px-5 py-8">
       <PageHeader
+        breadcrumbs={[{ label: 'Không gian của bạn' }]}
         title="Dự án của tôi"
+        description="Bản phác, bản phối đã hoàn thiện và những ý tưởng đã lưu trữ."
         action={
           <Link href="/projects/new">
-            <Button className="gap-1.5">
-              <Plus className="h-4 w-4" /> Tạo dự án mới
+            <Button>
+              <Plus className="h-3.5 w-3.5" /> Tạo dự án mới
             </Button>
           </Link>
         }
       />
 
-      {/* Row 1: Search + Sort */}
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] max-w-[380px] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
             type="text"
             value={search}
@@ -385,15 +335,35 @@ function ProjectsContent() {
               setSearch(e.target.value);
               updateUrl({ page: null }); // reset to page 1 on search
             }}
-            placeholder="Tìm theo tên..."
-            className={`${INPUT_CLASS} w-full pl-9`}
+            placeholder="Lọc dự án của bạn"
+            className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
           />
         </div>
+
+        {allGenres.length > 0 && (
+          <select
+            value={genre}
+            onChange={(e) => {
+              setGenre(e.target.value);
+              updateUrl({ page: null });
+            }}
+            aria-label="Lọc theo thể loại"
+            className={`${INPUT_CLASS} h-[34px]`}
+          >
+            <option value="">Tất cả thể loại</option>
+            {allGenres.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortOption)}
-          className={INPUT_CLASS}
+          aria-label="Sắp xếp"
+          className={`${INPUT_CLASS} h-[34px]`}
         >
           {SORT_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -403,40 +373,7 @@ function ProjectsContent() {
         </select>
       </div>
 
-      {/* Row 2: Genre pills (only show if there are genres) */}
-      {allGenres.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">Thể loại:</span>
-          <button
-            onClick={() => {
-              setGenre('');
-              updateUrl({ page: null });
-            }}
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-              genre === '' ? 'bg-accent-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-            }`}
-          >
-            Tất cả
-          </button>
-          {allGenres.map((g) => (
-            <button
-              key={g}
-              onClick={() => {
-                setGenre(g);
-                updateUrl({ page: null });
-              }}
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                genre === g ? 'bg-accent-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-              }`}
-            >
-              #{g}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Row 3: Tabs */}
-      <div className="mb-6">
+      <div className="mb-5">
         <Tabs
           tabs={tabs.map((t) => ({ id: t.value, label: `${t.label} (${t.count})` }))}
           active={tab}
@@ -446,22 +383,25 @@ function ProjectsContent() {
 
       {/* Content */}
       {loading && (
-        <div className={CARD_LIST_CLASS}>
+        <RowList>
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-card border border-slate-200 bg-white p-4">
-              <div className="mb-2 h-5 w-1/3 rounded bg-slate-100" />
-              <div className="h-3 w-2/3 rounded bg-slate-100" />
+            <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
+              <div className="h-4 w-4 shrink-0 rounded bg-surface-subtle" />
+              <div className="flex-1">
+                <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
+                <div className="h-2.5 w-1/2 rounded bg-surface-subtle" />
+              </div>
             </div>
           ))}
-        </div>
+        </RowList>
       )}
 
       {error && (
-        <div className="rounded-card border border-danger-600/20 bg-danger-50 p-4">
-          <p className="text-sm text-danger-600">{error}</p>
+        <div className="rounded-card border border-danger/20 bg-danger-muted p-4">
+          <p className="text-sm text-danger">{error}</p>
           <button
             onClick={() => void fetchProjects()}
-            className="mt-2 rounded-lg border border-danger-600/30 px-3 py-1 text-xs text-danger-600 hover:bg-danger-50"
+            className="mt-2 rounded-lg border border-danger/30 px-3 py-1 text-xs text-danger hover:bg-danger-muted"
           >
             Thử lại
           </button>
@@ -487,7 +427,7 @@ function ProjectsContent() {
                   setGenre('');
                   updateUrl({ page: null });
                 }}
-                className="text-sm text-accent-600 hover:underline"
+                className="text-sm text-accent hover:underline"
               >
                 Xóa bộ lọc
               </button>
@@ -500,7 +440,7 @@ function ProjectsContent() {
             ) : (
               <button
                 onClick={() => updateUrl({ tab: 'all', page: null })}
-                className="text-sm text-accent-600 hover:underline"
+                className="text-sm text-accent hover:underline"
               >
                 Xem tất cả dự án
               </button>
@@ -511,7 +451,7 @@ function ProjectsContent() {
 
       {!loading && !error && filteredProjects.length > 0 && (
         <>
-          <p className="mb-4 text-sm text-slate-500">
+          <p className="mb-2 text-[11px] text-muted">
             {filteredProjects.length === 1
               ? '1 dự án'
               : `${filteredProjects.length} dự án`}
@@ -519,16 +459,25 @@ function ProjectsContent() {
             {search ? ` • "${search}"` : ''}
           </p>
 
-          <div className={CARD_LIST_CLASS}>
+          <RowList>
+            <RowHeader cols={COLS}>
+              <span>Dự án</span>
+              <span>Thể loại</span>
+              <span>Trạng thái</span>
+              <span>Hiển thị</span>
+              <span className="text-right">Cập nhật</span>
+              <span />
+            </RowHeader>
+
             {paginatedProjects.map((project) => (
-              <ProjectCard
+              <ProjectRow
                 key={project.id}
                 project={project}
                 onArchive={handleArchive}
                 onUnarchive={handleUnarchive}
               />
             ))}
-          </div>
+          </RowList>
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -536,24 +485,24 @@ function ProjectsContent() {
               <button
                 onClick={() => updateUrl({ page: String(currentPage - 1) })}
                 disabled={currentPage <= 1}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
 
               {pageNumbers.map((p, i) =>
                 p === '...' ? (
-                  <span key={`ellipsis-${i}`} className="flex h-9 w-9 items-center justify-center text-slate-400">
+                  <span key={`ellipsis-${i}`} className="flex h-8 w-8 items-center justify-center text-xs text-muted">
                     ...
                   </span>
                 ) : (
                   <button
                     key={p}
                     onClick={() => updateUrl({ page: String(p) })}
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-medium ${
+                    className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-xs font-semibold ${
                       p === currentPage
-                        ? 'border-accent-600 bg-accent-600 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        ? 'border-accent bg-accent text-accent-foreground'
+                        : 'border-border bg-surface hover:bg-surface-subtle'
                     }`}
                   >
                     {p}
@@ -564,7 +513,7 @@ function ProjectsContent() {
               <button
                 onClick={() => updateUrl({ page: String(currentPage + 1) })}
                 disabled={currentPage >= totalPages}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -581,19 +530,22 @@ export default function ProjectsPage() {
     <RequireAuth>
       <Suspense
         fallback={
-          <div className="mx-auto max-w-page px-4 py-8">
+          <div className="mx-auto max-w-page px-5 py-8">
             <div className="mb-6 flex items-center justify-between">
-              <div className="h-8 w-40 animate-pulse rounded bg-slate-100" />
-              <div className="h-10 w-40 animate-pulse rounded bg-slate-100" />
+              <div className="h-8 w-40 animate-pulse rounded bg-surface-subtle" />
+              <div className="h-8 w-32 animate-pulse rounded bg-surface-subtle" />
             </div>
-            <div className={CARD_LIST_CLASS}>
+            <RowList>
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="animate-pulse rounded-card border border-slate-200 bg-white p-4">
-                  <div className="mb-2 h-5 w-2/3 rounded bg-slate-100" />
-                  <div className="mb-3 h-3 w-1/2 rounded bg-slate-100" />
+                <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
+                  <div className="h-4 w-4 shrink-0 rounded bg-surface-subtle" />
+                  <div className="flex-1">
+                    <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
+                    <div className="h-2.5 w-1/2 rounded bg-surface-subtle" />
+                  </div>
                 </div>
               ))}
-            </div>
+            </RowList>
           </div>
         }
       >

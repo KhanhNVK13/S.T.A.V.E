@@ -33,15 +33,15 @@ export default function ForgotPasswordPage() {
     return (
       <AuthCard>
         <div className="flex flex-col items-center text-center">
-          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-50">
-            <MailCheck className="h-5 w-5 text-accent-600" />
+          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted">
+            <MailCheck className="h-5 w-5 text-accent" />
           </span>
-          <h2 className="mb-2 text-lg font-semibold text-slate-900">Kiểm tra email</h2>
-          <p className="text-sm text-slate-500">
-            Nếu <span className="font-mono text-slate-700">{email}</span> đã đăng ký, mình
+          <h2 className="mb-2 text-lg font-semibold text-foreground">Kiểm tra email</h2>
+          <p className="text-sm text-muted">
+            Nếu <span className="font-mono text-foreground">{email}</span> đã đăng ký, mình
             đã gửi link đặt lại mật khẩu (hiệu lực 1 giờ, dùng được 1 lần).
           </p>
-          <Link href="/login" className="mt-5 text-sm text-accent-600 hover:underline">
+          <Link href="/login" className="mt-5 text-sm text-accent hover:underline">
             Quay lại đăng nhập
           </Link>
         </div>
@@ -50,8 +50,12 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <AuthCard title="Quên mật khẩu">
-      <p className="mb-4 -mt-2 text-sm text-slate-500">
+    <AuthCard
+      eyebrow="Khôi phục truy cập"
+      title="Quên mật khẩu"
+      description="Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu."
+    >
+      <p className="mb-4 -mt-2 text-sm text-muted">
         Nhập email, mình sẽ gửi link để đặt lại mật khẩu.
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -65,13 +69,13 @@ export default function ForgotPasswordPage() {
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        {error && <p className="text-sm text-danger-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang gửi…" : "Gửi link đặt lại mật khẩu"}
         </Button>
       </form>
-      <p className="mt-5 text-center text-sm text-slate-500">
-        <Link href="/login" className="text-accent-600 hover:underline">
+      <p className="mt-5 text-center text-sm text-muted">
+        <Link href="/login" className="text-accent hover:underline">
           Quay lại đăng nhập
         </Link>
       </p>

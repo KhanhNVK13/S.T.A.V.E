@@ -2,14 +2,11 @@ import { Music2 } from "lucide-react";
 import { colorFromId } from "../../lib/avatar-color";
 
 const GRADIENTS: Record<string, string> = {
-  "bg-blue-100": "from-blue-200 to-blue-100",
-  "bg-indigo-100": "from-indigo-200 to-indigo-100",
-  "bg-emerald-100": "from-emerald-200 to-emerald-100",
-  "bg-amber-100": "from-amber-200 to-amber-100",
-  "bg-rose-100": "from-rose-200 to-rose-100",
-  "bg-violet-100": "from-violet-200 to-violet-100",
-  "bg-cyan-100": "from-cyan-200 to-cyan-100",
-  "bg-orange-100": "from-orange-200 to-orange-100",
+  "bg-accent-muted": "from-accent-muted to-surface",
+  "bg-success-muted": "from-success-muted to-surface",
+  "bg-warning-muted": "from-warning-muted to-surface",
+  "bg-danger-muted": "from-danger-muted to-surface",
+  "bg-metal-muted": "from-metal-muted to-surface",
 };
 
 const SIZE_CLASSES = {
@@ -23,12 +20,20 @@ const ICON_SIZE = {
 } as const;
 
 /** Placeholder trực quan tất định theo id project — không phải waveform dữ liệu thật (chưa có gì để biểu diễn). */
-export function ProjectThumb({ id, size = "lg" }: { id: string; size?: "sm" | "lg" }) {
+export function ProjectThumb({
+  id,
+  size = "lg",
+  className = "",
+}: {
+  id: string;
+  size?: "sm" | "lg";
+  className?: string;
+}) {
   const { bg, text } = colorFromId(id);
-  const gradient = GRADIENTS[bg] ?? "from-slate-200 to-slate-100";
+  const gradient = GRADIENTS[bg] ?? "from-surface-subtle to-surface";
   return (
     <div
-      className={`flex items-center justify-center bg-gradient-to-br ${gradient} ${SIZE_CLASSES[size]}`}
+      className={`flex items-center justify-center bg-gradient-to-br ${gradient} ${SIZE_CLASSES[size]} ${className}`}
     >
       <Music2 className={`${ICON_SIZE[size]} ${text} opacity-70`} />
     </div>

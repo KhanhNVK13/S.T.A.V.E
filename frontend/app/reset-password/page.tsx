@@ -57,8 +57,8 @@ export default function ResetPasswordPage() {
   if (loading || (!session && !waited)) {
     return (
       <AuthCard>
-        <div className="flex flex-col items-center gap-2 py-4 text-sm text-slate-500">
-          <Loader2 className="h-5 w-5 animate-spin text-accent-600" />
+        <div className="flex flex-col items-center gap-2 py-4 text-sm text-muted">
+          <Loader2 className="h-5 w-5 animate-spin text-accent" />
           Đang xử lý link…
         </div>
       </AuthCard>
@@ -68,7 +68,7 @@ export default function ResetPasswordPage() {
   if (!session) {
     return (
       <AuthCard title="Link không hợp lệ hoặc đã hết hạn">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted">
           Yêu cầu 1 link đặt lại mật khẩu mới ở trang Quên mật khẩu.
         </p>
       </AuthCard>
@@ -76,7 +76,11 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <AuthCard title="Đặt mật khẩu mới">
+    <AuthCard
+      eyebrow="Bảo mật tài khoản"
+      title="Đặt mật khẩu mới"
+      description="Chọn mật khẩu mới có ít nhất 8 ký tự."
+    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthField label="Mật khẩu mới">
           <input
@@ -99,7 +103,7 @@ export default function ResetPasswordPage() {
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        {error && <p className="text-sm text-danger-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang lưu…" : "Đặt mật khẩu mới"}
         </Button>

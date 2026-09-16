@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 
-type BadgeVariant = "neutral" | "info" | "success" | "warning" | "danger";
+type BadgeVariant = "neutral" | "info" | "success" | "warning" | "danger" | "metal";
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  neutral: "bg-slate-100 text-slate-700",
-  info: "bg-accent-50 text-accent-700",
-  success: "bg-success-50 text-success-700",
-  warning: "bg-warning-50 text-warning-700",
-  danger: "bg-danger-50 text-danger-700",
+  neutral: "border-border bg-surface-subtle text-muted",
+  info: "border-transparent bg-accent-muted text-accent",
+  success: "border-transparent bg-success-muted text-success",
+  warning: "border-transparent bg-warning-muted text-warning",
+  danger: "border-transparent bg-danger-muted text-danger",
+  metal: "border-transparent bg-metal-muted text-metal",
 };
 
 export function Badge({
@@ -19,7 +20,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${VARIANT_CLASSES[variant]}`}
+      className={`inline-flex w-max items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-bold leading-[17px] ${VARIANT_CLASSES[variant]}`}
     >
       {children}
     </span>

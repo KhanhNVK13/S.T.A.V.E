@@ -12,6 +12,7 @@ import { ExploreModule } from './explore/explore.module';
 import { BranchesModule } from './branches/branches.module';
 import { CommitsModule } from './commits/commits.module';
 import { MergeModule } from './merge/merge.module';
+import { AudioSketchesModule } from './audio-sketches/audio-sketches.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MergeModule } from './merge/merge.module';
     BranchesModule,
     CommitsModule,
     MergeModule,
+    AudioSketchesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

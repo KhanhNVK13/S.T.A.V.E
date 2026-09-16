@@ -57,13 +57,13 @@ export default function RegisterPage() {
     return (
       <AuthCard>
         <div className="flex flex-col items-center text-center">
-          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-50">
-            <MailCheck className="h-5 w-5 text-accent-600" />
+          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted">
+            <MailCheck className="h-5 w-5 text-accent" />
           </span>
-          <h2 className="mb-2 text-lg font-semibold text-slate-900">Kiểm tra email</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="mb-2 text-lg font-semibold text-foreground">Kiểm tra email</h2>
+          <p className="text-sm text-muted">
             Mình đã gửi email xác nhận tới{" "}
-            <span className="font-mono text-slate-700">{email}</span>. Bấm vào link trong
+            <span className="font-mono text-foreground">{email}</span>. Bấm vào link trong
             email để hoàn tất đăng ký.
           </p>
         </div>
@@ -72,7 +72,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthCard title="Đăng ký">
+    <AuthCard
+      eyebrow="Tạo không gian làm việc"
+      title="Tạo tài khoản STAVE"
+      description="Bắt đầu quản lý phiên bản cho các dự án MIDI của bạn."
+    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthField label="Email">
           <input
@@ -105,14 +109,14 @@ export default function RegisterPage() {
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        {error && <p className="text-sm text-danger-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang tạo tài khoản…" : "Đăng ký"}
         </Button>
       </form>
-      <p className="mt-5 text-center text-sm text-slate-500">
+      <p className="mt-5 text-center text-sm text-muted">
         Đã có tài khoản?{" "}
-        <Link href="/login" className="text-accent-600 hover:underline">
+        <Link href="/login" className="text-accent hover:underline">
           Đăng nhập
         </Link>
       </p>

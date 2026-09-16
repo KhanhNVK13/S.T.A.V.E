@@ -653,7 +653,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "none",
     borderWidth: 1.5,
     borderStyle: "dashed",
-    borderColor: "#D3D5DA",
+    borderColor: "var(--border-strong)",
     color: DC.textMuted,
     borderRadius: 8,
     padding: 10,

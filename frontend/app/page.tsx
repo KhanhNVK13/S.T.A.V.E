@@ -1,215 +1,237 @@
 'use client';
 
 import Link from 'next/link';
-import { Flame, Sparkles, Play, GitFork, GitBranch, ScrollText, Music2, AudioLines } from 'lucide-react';
+import { Play, GitFork, GitBranch, ScrollText, Music2, Eye, Plus, CircleUserRound } from 'lucide-react';
 import { useAuth } from '../context/auth-context';
 import { getFeaturedContent, FeaturedContent } from '../lib/api-client';
 import { useApiResource } from '../lib/use-api-resource';
-import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { ProjectThumb } from '../components/ui/project-thumb';
-import { CARD_LIST_CLASS } from '../components/ui/card-grid';
+import { formatRelativeTime } from '../lib/format-date';
+import { RowList, RowHeader, RowItem, RowTitle, RowStat, RowTime } from '../components/ui/row-list';
+
+/** Hạng | dự án | thể loại | lượt nghe | fork | cập nhật. */
+const COLS = 'md:grid-cols-[34px_minmax(0,1fr)_112px_84px_84px_78px]';
 
 export default function HomePage() {
   const { user } = useAuth();
-  // Errors are ignored on purpose — the hero section already has hardcoded placeholder
-  // copy for `data === null`, so there's nothing extra to show on failure.
-  const { data, loading } = useApiResource<FeaturedContent>(
-    () => getFeaturedContent(),
-    [],
-  );
+  // Lỗi tải được bỏ qua có chủ đích — phần đầu trang đã có sẵn nội dung mặc định
+  // cho trường hợp `data === null`, không có gì thêm để hiển thị khi hỏng.
+  const { data, loading } = useApiResource<FeaturedContent>(() => getFeaturedContent(), []);
+
+  const featured = data?.featured_projects[0] ?? null;
+  const featuredOwner =
+    featured?.owner.display_name ?? featured?.owner.username ?? 'Người dùng';
 
   return (
-    <div className="min-h-full">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-accent-900 px-4 py-14 text-white">
-        <div className="absolute inset-0 opacity-10">
-          <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <defs>
-              <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5"/>
-              </pattern>
-            </defs>
-            <rect width="100" height="100" fill="url(#grid)" />
-          </svg>
-        </div>
-
-        <div className="relative mx-auto max-w-3xl text-center">
-          <div className="mb-4 flex justify-center">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
-              <AudioLines className="h-5 w-5" />
-            </span>
-          </div>
-          <h1 className="text-3xl font-bold sm:text-4xl lg:text-5xl">
-            {loading ? 'STAVE' : (data?.hero.title ?? 'Sáng tác nhạc theo phong cách của bạn')}
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base text-white/80">
-            {loading
-              ? 'Đang tải...'
-              : (data?.hero.subtitle ??
-                'Nền tảng quản lý phiên bản cho dự án MIDI. Lưu trữ, phân nhánh, so sánh và hợp nhất các bản nhạc của bạn như cách Git quản lý mã nguồn.')}
+    <div className="mx-auto min-h-full max-w-page px-5 py-8">
+      {/* Đầu trang */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-7">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
+            Không gian cộng đồng
           </p>
-
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href={user ? '/projects' : '/register'}>
-              <Button className="px-6 py-2.5">
-                {loading ? '...' : (data?.hero.cta_primary.label ?? 'Bắt đầu sáng tạo')}
-              </Button>
-            </Link>
-            <Link
-              href="/explore"
-              className="rounded-lg border-2 border-white/30 px-6 py-2.5 font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/10"
-            >
-              {loading ? '...' : (data?.hero.cta_secondary.label ?? 'Khám phá dự án')}
-            </Link>
-          </div>
+          <h1 className="mb-1 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
+            {loading ? 'STAVE' : (data?.hero.title ?? 'Âm nhạc đang chuyển động')}
+          </h1>
+          <p className="max-w-2xl text-sm text-muted">
+            {loading
+              ? 'Đang tải…'
+              : (data?.hero.subtitle ??
+                'Theo dõi ý tưởng khi chúng phân nhánh, thay đổi và trở thành bản nhạc hoàn chỉnh.')}
+          </p>
         </div>
-      </section>
+        <Link href={user ? '/projects/new' : '/register'} className="shrink-0">
+          <Button>
+            <Plus className="h-3.5 w-3.5" />
+            {user ? 'Bắt đầu dự án' : 'Đăng ký miễn phí'}
+          </Button>
+        </Link>
+      </div>
 
-      {/* Stats */}
+      {/* Dự án nổi bật */}
+      {featured && (
+        <section className="mb-7 grid overflow-hidden rounded-card border border-border bg-surface md:grid-cols-[minmax(280px,0.75fr)_1.25fr]">
+          <div className="flex flex-col p-7">
+            <Badge variant="metal">Dự án nổi bật</Badge>
+            <h2 className="mb-1.5 mt-3.5 text-[25px] font-semibold leading-tight tracking-tight">
+              {featured.name}
+            </h2>
+            {featured.description && (
+              <p className="mb-4 text-sm leading-relaxed text-muted">{featured.description}</p>
+            )}
+
+            <div className="flex flex-wrap gap-3.5 text-[11px] text-muted">
+              <Link
+                href={`/creator/${featured.owner.id}`}
+                className="flex items-center gap-1.5 hover:text-accent"
+              >
+                <CircleUserRound className="h-3.5 w-3.5" /> {featuredOwner}
+              </Link>
+              <span className="flex items-center gap-1.5">
+                <GitFork className="h-3.5 w-3.5" />
+                <span className="font-mono">{featured.fork_count.toLocaleString('vi-VN')}</span> fork
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Play className="h-3.5 w-3.5" />
+                <span className="font-mono">{featured.play_count.toLocaleString('vi-VN')}</span> lượt nghe
+              </span>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Link href={`/projects/${featured.id}`}>
+                <Button variant="secondary">
+                  <Eye className="h-3.5 w-3.5" /> Xem dự án
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/*
+            Ảnh đại diện tất định theo id (ProjectThumb) — KHÔNG vẽ waveform/nốt
+            giả cho một dự án có thật (CLAUDE.md 4.7: vẽ giả là bịa dữ liệu).
+          */}
+          <ProjectThumb id={featured.id} size="lg" className="h-full min-h-[220px] rounded-none" />
+        </section>
+      )}
+
+      {/* Số liệu nền tảng */}
       {data && (
-        <section className="border-b border-slate-200 bg-slate-50 py-5">
-          <div className="mx-auto flex max-w-page justify-center gap-8 px-4 sm:gap-16">
-            <div className="text-center">
-              <p className="font-mono text-2xl font-bold text-slate-900">{data.stats.total_projects.toLocaleString()}</p>
-              <p className="text-sm text-slate-500">Dự án công khai</p>
-            </div>
-            <div className="text-center">
-              <p className="font-mono text-2xl font-bold text-slate-900">{data.stats.total_users.toLocaleString()}</p>
-              <p className="text-sm text-slate-500">Người dùng</p>
-            </div>
-            <div className="text-center">
-              <p className="font-mono text-2xl font-bold text-slate-900">{data.stats.total_forks.toLocaleString()}</p>
-              <p className="text-sm text-slate-500">Lượt fork</p>
-            </div>
+        <div className="mb-7 grid grid-cols-3 overflow-hidden rounded-card border border-border bg-surface">
+          <div className="border-r border-border px-5 py-3.5">
+            <p className="font-mono text-[17px] font-bold">
+              {data.stats.total_projects.toLocaleString('vi-VN')}
+            </p>
+            <p className="text-[10px] text-muted">Dự án công khai</p>
           </div>
-        </section>
-      )}
-
-      {/* Trending Projects */}
-      {data && data.trending_projects.length > 0 && (
-        <section className="mx-auto max-w-page px-4 py-10">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-              <Flame className="h-5 w-5 text-warning-600" /> Dự án thịnh hành
-            </h2>
-            <Link href="/rankings" className="text-sm font-medium text-accent-600 hover:underline">
-              Xem tất cả →
-            </Link>
+          <div className="border-r border-border px-5 py-3.5">
+            <p className="font-mono text-[17px] font-bold">
+              {data.stats.total_users.toLocaleString('vi-VN')}
+            </p>
+            <p className="text-[10px] text-muted">Người dùng</p>
           </div>
-
-          <div className={CARD_LIST_CLASS}>
-            {data.trending_projects.slice(0, 6).map((project) => (
-              <Link key={project.id} href={`/explore/${project.id}`} className="group block">
-                <Card className="flex items-center gap-4 p-4 transition-all hover:border-accent-300 hover:shadow-md">
-                  <ProjectThumb id={project.id} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate font-semibold text-slate-900 group-hover:text-accent-700">
-                      {project.name}
-                    </h3>
-                    <div className="mt-1 flex items-center gap-3 font-mono text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Play className="h-3.5 w-3.5" /> {project.play_count.toLocaleString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <GitFork className="h-3.5 w-3.5" /> {project.fork_count.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Recent Projects */}
-      {data && data.featured_projects.length > 0 && (
-        <section className="mx-auto max-w-page px-4 py-10">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-              <Sparkles className="h-5 w-5 text-accent-600" /> Dự án mới
-            </h2>
-            <Link href="/explore" className="text-sm font-medium text-accent-600 hover:underline">
-              Khám phá thêm →
-            </Link>
-          </div>
-
-          <div className={CARD_LIST_CLASS}>
-            {data.featured_projects.slice(0, 6).map((project) => (
-              <Link key={project.id} href={`/explore/${project.id}`} className="group block">
-                <Card className="flex items-center gap-4 p-4 transition-all hover:border-accent-300 hover:shadow-md">
-                  <ProjectThumb id={project.id} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate font-semibold text-slate-900 group-hover:text-accent-700">
-                        {project.name}
-                      </h3>
-                      {project.genre && <Badge variant="info">{project.genre}</Badge>}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">@{project.owner.username ?? 'unknown'}</div>
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Features */}
-      <section className="border-t border-slate-200 bg-slate-50 py-14">
-        <div className="mx-auto max-w-5xl px-4">
-          <h2 className="mb-8 text-center text-2xl font-bold text-slate-900">Tại sao chọn STAVE?</h2>
-
-          <div className="grid gap-8 md:grid-cols-3">
-            <div className="text-center">
-              <div className="mb-4 flex justify-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-50">
-                  <GitBranch className="h-6 w-6 text-accent-600" />
-                </span>
-              </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-900">Branching & Merge</h3>
-              <p className="text-sm text-slate-500">
-                Thử nghiệm nhiều hướng phối khác nhau mà không sợ mất bản gốc. Merge khi đã hài lòng.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="mb-4 flex justify-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-50">
-                  <ScrollText className="h-6 w-6 text-accent-600" />
-                </span>
-              </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-900">Version Diffing</h3>
-              <p className="text-sm text-slate-500">
-                So sánh trực quan các phiên bản. Xem chính xác note nào đã thêm, sửa, xoá.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="mb-4 flex justify-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-50">
-                  <Music2 className="h-6 w-6 text-accent-600" />
-                </span>
-              </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-900">MIDI Editor</h3>
-              <p className="text-sm text-slate-500">
-                Chỉnh sửa MIDI trực tiếp trên trình duyệt với giao diện quen thuộc.
-              </p>
-            </div>
+          <div className="px-5 py-3.5">
+            <p className="font-mono text-[17px] font-bold">
+              {data.stats.total_forks.toLocaleString('vi-VN')}
+            </p>
+            <p className="text-[10px] text-muted">Lượt fork</p>
           </div>
         </div>
-      </section>
+      )}
 
-      {/* CTA — only for guests */}
+      {/* Thịnh hành */}
+      {data && data.trending_projects.length > 0 && (
+        <section className="mb-7">
+          <div className="mb-3 flex items-end justify-between">
+            <div>
+              <h2 className="text-[17px] font-semibold">Thịnh hành tuần này</h2>
+              <p className="mt-1 text-[11px] text-muted">
+                Dự án công khai đang được nghe và fork nhiều nhất.
+              </p>
+            </div>
+            <Link href="/rankings" className="text-xs font-semibold text-accent hover:underline">
+              Xem tất cả
+            </Link>
+          </div>
+
+          <RowList>
+            <RowHeader cols={COLS}>
+              <span>#</span>
+              <span>Dự án</span>
+              <span>Thể loại</span>
+              <span>Lượt nghe</span>
+              <span>Fork</span>
+              <span className="text-right">Cập nhật</span>
+            </RowHeader>
+
+            {data.trending_projects.slice(0, 5).map((project, i) => (
+              <RowItem key={project.id} cols={COLS}>
+                <span className="font-mono text-[10px] text-muted">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <RowTitle
+                  href={`/projects/${project.id}`}
+                  name={project.name}
+                  meta={project.owner.display_name ?? project.owner.username ?? 'Người dùng'}
+                />
+                <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
+                <RowStat icon={Play} value={project.play_count} title="Lượt nghe" />
+                <RowStat icon={GitFork} value={project.fork_count} title="Lượt fork" />
+                <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
+              </RowItem>
+            ))}
+          </RowList>
+        </section>
+      )}
+
+      {/* Dự án mới */}
+      {data && data.featured_projects.length > 1 && (
+        <section className="mb-7">
+          <div className="mb-3 flex items-end justify-between">
+            <div>
+              <h2 className="text-[17px] font-semibold">Dự án mới</h2>
+              <p className="mt-1 text-[11px] text-muted">Vừa được chia sẻ công khai.</p>
+            </div>
+            <Link href="/explore" className="text-xs font-semibold text-accent hover:underline">
+              Khám phá thêm
+            </Link>
+          </div>
+
+          <RowList>
+            {data.featured_projects.slice(1, 6).map((project) => (
+              <RowItem key={project.id} cols="md:grid-cols-[minmax(0,1fr)_112px_84px_78px]">
+                <RowTitle
+                  href={`/projects/${project.id}`}
+                  name={project.name}
+                  meta={project.owner.display_name ?? project.owner.username ?? 'Người dùng'}
+                />
+                <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
+                <RowStat icon={Play} value={project.play_count} title="Lượt nghe" />
+                <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
+              </RowItem>
+            ))}
+          </RowList>
+        </section>
+      )}
+
+      {/* Giới thiệu — chỉ hiện với khách chưa đăng nhập; người đã đăng nhập không cần đọc lại */}
       {!user && (
-        <section className="py-14 text-center">
-          <div className="mx-auto max-w-5xl px-4">
-            <h2 className="text-2xl font-bold text-slate-900">Sẵn sàng bắt đầu?</h2>
-            <p className="mt-2 text-slate-500">Tham gia cùng cộng đồng sáng tác ngay hôm nay.</p>
+        <section className="mt-9 border-t border-border pt-8">
+          <h2 className="mb-5 text-[17px] font-semibold">Vì sao dùng STAVE?</h2>
+          <div className="grid gap-6 md:grid-cols-3">
+            <div>
+              <GitBranch className="mb-2.5 h-5 w-5 text-accent" />
+              <h3 className="mb-1 text-[13px] font-semibold">Phân nhánh &amp; hợp nhất</h3>
+              <p className="text-xs leading-relaxed text-muted">
+                Thử nhiều hướng phối khác nhau mà không sợ mất bản gốc, hợp nhất khi đã hài lòng.
+              </p>
+            </div>
+            <div>
+              <ScrollText className="mb-2.5 h-5 w-5 text-accent" />
+              <h3 className="mb-1 text-[13px] font-semibold">So sánh phiên bản</h3>
+              <p className="text-xs leading-relaxed text-muted">
+                Xem chính xác nốt nào được thêm, sửa hay xoá giữa hai phiên bản.
+              </p>
+            </div>
+            <div>
+              <Music2 className="mb-2.5 h-5 w-5 text-accent" />
+              <h3 className="mb-1 text-[13px] font-semibold">Trình soạn nhạc MIDI</h3>
+              <p className="text-xs leading-relaxed text-muted">
+                Chỉnh sửa MIDI ngay trên trình duyệt, không cần cài đặt phần mềm.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface p-5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold">Sẵn sàng bắt đầu?</p>
+              <p className="mt-0.5 text-xs text-muted">
+                Tham gia cùng cộng đồng sáng tác trên STAVE ngay hôm nay.
+              </p>
+            </div>
             <Link href="/register">
-              <Button className="mt-6 px-6 py-2.5">Đăng ký miễn phí</Button>
+              <Button>Đăng ký miễn phí</Button>
             </Link>
           </div>
         </section>
