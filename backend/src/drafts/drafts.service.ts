@@ -19,9 +19,20 @@ export class DraftsService {
     private readonly projectsService: ProjectsService,
   ) {}
 
-  /** GET /projects/:id/draft — draft của branch mặc định; snapshot rỗng nếu chưa từng ghi. */
+  /**
+   * GET /projects/:id/draft — draft của branch ĐANG MỞ (UC-48), không phải
+   * luôn luôn branch mặc định.
+   *
+   * Branch chưa có row `drafts` thì lấy snapshot của head commit, chỉ khi
+   * branch cũng chưa có commit nào mới trả về bản rỗng. Quan trọng vì kể từ
+   * UC-48, branch đang mở có thể là branch bất kỳ: trả bản rỗng cho một
+   * branch đã có nội dung sẽ hiện ra như "project trống", và autosave ngay
+   * sau đó ghi đúng cái trống ấy xuống DB. Branch tạo qua UC-47 luôn được
+   * `initializeDraftForBranch` gieo sẵn draft — nhánh này là lưới an toàn cho
+   * dữ liệu cũ/bất thường, không phải đường đi thường ngày.
+   */
   async getDraft(projectId: string, ownerId: string): Promise<DraftSnapshot> {
-    const branch = await this.projectsService.getDefaultBranchForOwner(
+    const branch = await this.projectsService.getActiveBranchForOwner(
       projectId,
       ownerId,
     );
@@ -35,16 +46,27 @@ export class DraftsService {
     if (error) {
       throw new InternalServerErrorException('Could not read draft');
     }
-    return data ? data.snapshot : buildDefaultDraftSnapshot();
+    if (data) return data.snapshot;
+
+    if (branch.head_commit_id) {
+      const { data: commit } = await this.supabase
+        .from('commits')
+        .select('snapshot')
+        .eq('id', branch.head_commit_id)
+        .maybeSingle<{ snapshot: DraftSnapshot }>();
+      if (commit) return commit.snapshot;
+    }
+
+    return buildDefaultDraftSnapshot();
   }
 
-  /** PUT /projects/:id/draft — ghi đè toàn bộ snapshot của branch mặc định. */
+  /** PUT /projects/:id/draft — ghi đè toàn bộ snapshot của branch ĐANG MỞ (UC-48). */
   async putDraft(
     projectId: string,
     ownerId: string,
     dto: UpdateDraftDto,
   ): Promise<DraftSnapshot> {
-    const branch = await this.projectsService.getDefaultBranchForOwner(
+    const branch = await this.projectsService.getActiveBranchForOwner(
       projectId,
       ownerId,
     );

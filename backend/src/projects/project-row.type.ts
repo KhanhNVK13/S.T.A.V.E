@@ -16,6 +16,12 @@ export interface ProjectRow {
   moderation_hidden_reason: string | null;
   play_count: number;
   genre: string | null;
+  /**
+   * UC-48: branch mà editor đang mở cho project này. NULL cho tới lần chuyển
+   * nhánh đầu tiên (`POST /branches/switch` là nơi duy nhất ghi cột này) —
+   * khi NULL thì branch đang mở là branch mặc định.
+   */
+  active_branch_id: string | null;
 }
 
 export interface BranchRow {
@@ -26,4 +32,6 @@ export interface BranchRow {
   created_by: string;
   created_at: string;
   base_commit_id: string | null;
+  /** Commit mới nhất của branch. NULL khi branch chưa có commit nào. */
+  head_commit_id: string | null;
 }

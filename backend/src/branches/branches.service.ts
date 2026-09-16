@@ -43,6 +43,12 @@ export interface BranchWithAuthor {
   created_at: string;
   base_commit_id: string | null;
   head_commit_id: string | null;
+  /**
+   * UC-48: branch này có phải branch editor đang mở không. Chỉ
+   * `getProjectBranches` điền (nó là chỗ duy nhất đọc
+   * `projects.active_branch_id`); các response trả về 1 branch lẻ để undefined.
+   */
+  is_active?: boolean;
   author: {
     id: string;
     username: string | null;
@@ -428,7 +434,7 @@ export class BranchesService {
 
     if (project?.active_branch_id === branchId) {
       throw new BadRequestException(
-        'Cannot delete the currently active branch',
+        'Cannot delete the branch currently open in the editor — switch to another branch first',
       );
     }
 
@@ -506,6 +512,21 @@ export class BranchesService {
     const authorIds = [...new Set((branches ?? []).map((b) => b.created_by))];
     const authorsMap = await this.getAuthorsInfo(authorIds);
 
+    // UC-48: cho client biết branch nào đang mở trong editor. `active_branch_id`
+    // còn NULL (project chưa từng chuyển nhánh) thì branch đang mở là branch
+    // mặc định — cùng quy tắc với `ProjectsService.getActiveBranchForOwner`,
+    // nếu sửa một bên phải sửa cả bên kia.
+    const { data: project } = await this.supabase
+      .from('projects')
+      .select('active_branch_id')
+      .eq('id', projectId)
+      .maybeSingle<{ active_branch_id: string | null }>();
+    const activeId =
+      project?.active_branch_id &&
+      (branches ?? []).some((b) => b.id === project.active_branch_id)
+        ? project.active_branch_id
+        : ((branches ?? []).find((b) => b.is_default)?.id ?? null);
+
     return (branches ?? []).map((branch) => ({
       id: branch.id,
       project_id: branch.project_id,
@@ -515,6 +536,7 @@ export class BranchesService {
       created_at: branch.created_at,
       base_commit_id: branch.base_commit_id,
       head_commit_id: branch.head_commit_id,
+      is_active: branch.id === activeId,
       author: authorsMap.get(branch.created_by) ?? {
         id: branch.created_by,
         username: null,
@@ -926,8 +948,8 @@ export class BranchesService {
         name: t.name,
         order: t.order ?? 0,
         color: t.color ?? '#6366f1',
-        muted: t.isMuted ?? false,
-        solo: t.isSolo ?? false,
+        muted: t.muted ?? t.isMuted ?? false,
+        solo: t.solo ?? t.isSolo ?? false,
         volume: t.volume ?? 1,
         pan: t.pan ?? 0,
         instrument: t.instrument ?? null,

@@ -24,6 +24,12 @@ export class DraftSnapshotDto {
     ppq: number;
   };
 
+  /**
+   * Tên trường phải khớp ĐÚNG `DraftTrack` ở `@stave/shared-types` (`muted` /
+   * `solo`). Bản trước khai `isMuted`/`isSolo` — không tồn tại trong snapshot
+   * thật, nên mọi track bị tắt tiếng/solo đều âm thầm bị reset về false khi
+   * chuyển nhánh. `isMuted`/`isSolo` giữ lại chỉ để không vỡ payload cũ.
+   */
   @IsOptional()
   tracks?: Array<{
     id?: string;
@@ -32,6 +38,8 @@ export class DraftSnapshotDto {
     color: string;
     volume: number;
     pan: number;
+    muted?: boolean;
+    solo?: boolean;
     isMuted?: boolean;
     isSolo?: boolean;
     instrument?: string | null;

@@ -91,13 +91,47 @@ export class ProjectsService {
     return data;
   }
 
-  /** Dùng bởi DraftsService: branch mặc định của project, chỉ nếu ownerId sở hữu project. */
+  /** Branch mặc định của project, chỉ nếu ownerId sở hữu project. */
   async getDefaultBranchForOwner(
     projectId: string,
     ownerId: string,
   ): Promise<BranchRow> {
     await this.getOwned(projectId, ownerId);
+    return this.loadDefaultBranch(projectId);
+  }
 
+  /**
+   * UC-48 — dùng bởi DraftsService: branch mà editor đang mở.
+   *
+   * Không phải lúc nào cũng là branch mặc định: sau `POST /branches/switch`,
+   * `projects.active_branch_id` trỏ sang branch người dùng vừa chuyển tới và
+   * `GET|PUT /projects/:id/draft` phải đọc/ghi đúng draft của branch đó —
+   * nếu vẫn bám branch mặc định thì nhánh vừa tạo không thể mở ra để sửa.
+   *
+   * Rơi về branch mặc định trong 2 trường hợp: project chưa từng chuyển nhánh
+   * (cột NULL), hoặc cột trỏ tới branch không còn/không thuộc project này
+   * (dữ liệu hỏng — vẫn phải mở được editor thay vì ném lỗi).
+   */
+  async getActiveBranchForOwner(
+    projectId: string,
+    ownerId: string,
+  ): Promise<BranchRow> {
+    const project = await this.getOwned(projectId, ownerId);
+
+    if (project.active_branch_id) {
+      const { data } = await this.supabase
+        .from('branches')
+        .select('*')
+        .eq('id', project.active_branch_id)
+        .eq('project_id', projectId)
+        .maybeSingle<BranchRow>();
+      if (data) return data;
+    }
+
+    return this.loadDefaultBranch(projectId);
+  }
+
+  private async loadDefaultBranch(projectId: string): Promise<BranchRow> {
     const { data, error } = await this.supabase
       .from('branches')
       .select('*')
