@@ -317,7 +317,13 @@ function ProjectOverview({ id }: { id: string }) {
         </div>
 
         {activeTab === "commits" ? (
-          <CommitHistory projectId={data.id} />
+          <CommitHistory
+            // `key` theo nhánh: bấm "Lịch sử" ở nhánh khác phải nạp lại từ đầu,
+            // không giữ lựa chọn/trang của nhánh trước.
+            key={searchParams.get("branch") ?? "default"}
+            projectId={data.id}
+            initialBranchId={searchParams.get("branch")}
+          />
         ) : activeTab === "branches" ? (
           <BranchList projectId={data.id} />
         ) : (
