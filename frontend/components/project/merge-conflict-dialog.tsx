@@ -72,7 +72,9 @@ export function MergeConflictDialog({
           {bars.map((bar) => (
             <section key={bar} className="border-b border-border last:border-b-0">
               <div className="flex items-center gap-2 bg-surface-subtle px-5 py-2">
-                <Badge variant="neutral">Ô nhịp {Number(bar) + 1}</Badge>
+                {/* Backend đã đánh số ô nhịp từ 1 (`Math.floor(start / ticksPerBar) + 1`) —
+                    cộng thêm 1 ở đây từng làm mọi ô nhịp hiện lệch lên một. */}
+                <Badge variant="neutral">Ô nhịp {bar}</Badge>
                 <span className="text-[10px] text-muted">
                   {result.conflictsByBar[bar].length} nốt
                 </span>
