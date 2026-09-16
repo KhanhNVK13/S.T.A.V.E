@@ -101,6 +101,7 @@ interface EditorRedesignProps {
   onSetTrackColor: (id: string, color: string) => void;
   onSetTrackLabel: (id: string, label: string) => void;
   onSetTrackVolume: (id: string, volume: number) => void;
+  onSetTrackPan: (id: string, pan: number) => void;
   canAddTrack: boolean;
   maxTracks: number;
   trackLimitWarning: boolean;
@@ -153,7 +154,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     selectedTrackId, onSelectTrack, selectedNoteIds, onSelectedNotesChange,
     onNotesChange, playheadTick, pianoRollRef,
     onAddTrack, onToggleMute, onToggleSolo, onDeleteTrack, onAssignInstrument,
-    onSetTrackColor, onSetTrackLabel, onSetTrackVolume, canAddTrack, maxTracks,
+    onSetTrackColor, onSetTrackLabel, onSetTrackVolume, onSetTrackPan, canAddTrack, maxTracks,
     trackLimitWarning,
     onQuantize, onImportMidi, onCopy, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
@@ -496,6 +497,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onSetTrackColor={onSetTrackColor}
           onSetTrackLabel={onSetTrackLabel}
           onSetTrackVolume={onSetTrackVolume}
+          onSetTrackPan={onSetTrackPan}
           canAddTrack={canAddTrack}
           maxTracks={maxTracks}
         />

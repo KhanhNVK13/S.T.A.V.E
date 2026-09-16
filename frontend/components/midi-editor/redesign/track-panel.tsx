@@ -35,6 +35,7 @@ interface TrackPanelProps {
   onSetTrackColor: (id: string, color: string) => void;
   onSetTrackLabel: (id: string, label: string) => void;
   onSetTrackVolume: (id: string, volume: number) => void;
+  onSetTrackPan: (id: string, pan: number) => void;
   canAddTrack: boolean;
   maxTracks: number; // BR-29 — chỉ để hiện đúng số trong tooltip khi đạt giới hạn
 }
@@ -51,6 +52,7 @@ export function TrackPanel({
   onSetTrackColor,
   onSetTrackLabel,
   onSetTrackVolume,
+  onSetTrackPan,
   canAddTrack,
   maxTracks,
 }: TrackPanelProps) {
@@ -109,6 +111,12 @@ export function TrackPanel({
         {tracks.map((track) => {
           const selected = track.id === selectedTrackId;
           const volumePct = Math.round((track.volume ?? 1) * 100);
+          const panValue = track.pan ?? 0;
+          // Display: "L50" / "0" / "R50" style
+          const panPct = Math.round((panValue + 1) * 50); // 0=L100, 50=0, 100=R100
+          const panDisplay = panValue === 0 ? "0"
+            : panValue < 0 ? `L${Math.abs(Math.round(panValue * 100))}`
+            : `R${Math.round(panValue * 100)}`;
 
           return (
             <div key={track.id}>
@@ -247,6 +255,25 @@ export function TrackPanel({
                     />
                   </span>
                   <span style={styles.volValue}>{volumePct}</span>
+                </div>
+
+                {/* Hàng 4 — PAN (UC-41) */}
+                <div style={styles.volRow} onClick={(e) => e.stopPropagation()}>
+                  <span style={styles.volLabel}>PAN</span>
+                  <span style={styles.volTrack}>
+                    <span style={{ ...styles.volFill, width: `${panPct}%` }} />
+                    <span style={{ ...styles.volThumb, left: `${panPct}%` }} />
+                    <input
+                      type="range"
+                      min={-100}
+                      max={100}
+                      value={Math.round(panValue * 100)}
+                      onChange={(e) => onSetTrackPan(track.id, Number(e.target.value) / 100)}
+                      aria-label={`Pan track ${track.name}`}
+                      style={styles.volInput}
+                    />
+                  </span>
+                  <span style={styles.volValue}>{panDisplay}</span>
                 </div>
               </div>
 

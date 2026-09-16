@@ -524,6 +524,20 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     });
   }
 
+  // ── UC-41: Adjust track pan ─────────────────────────────────
+  // Trường `pan` vốn đã có trong snapshot và đã được playback dùng (xem
+  // tone-synth-engine.ts Panner), trước đây chưa có UI chỉnh. Giá trị
+  // -1 = hoàn toàn trái, 0 = giữa, +1 = hoàn toàn phải.
+  function handleSetTrackPan(id: string, pan: number) {
+    const clamped = Math.min(1, Math.max(-1, pan));
+    updateSnapshot({
+      ...snapshot,
+      tracks: snapshot.tracks.map((t) =>
+        t.id === id ? { ...t, pan: clamped } : t,
+      ),
+    });
+  }
+
   // ── UC-34: Set track color ──────────────────────────────────
   function handleSetTrackColor(id: string, color: string) {
     updateSnapshot({
@@ -1045,6 +1059,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onSetTrackColor={handleSetTrackColor}
         onSetTrackLabel={handleSetTrackLabel}
         onSetTrackVolume={handleSetTrackVolume}
+        onSetTrackPan={handleSetTrackPan}
         canAddTrack={snapshot.tracks.length < MAX_TRACKS}
         maxTracks={MAX_TRACKS}
         trackLimitWarning={trackLimitWarning}
