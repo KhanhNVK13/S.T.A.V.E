@@ -47,17 +47,17 @@ export default function NewProjectPage() {
 
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="mx-auto max-w-2xl px-5 py-8">
         <Link
           href="/projects"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-accent-600 hover:underline"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-accent hover:underline"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách dự án
         </Link>
         <PageHeader title="Tạo dự án mới" />
 
         {error && (
-          <div className="mb-4 rounded-card border border-danger-600/20 bg-danger-50 p-4 text-sm text-danger-600">
+          <div className="mb-4 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">
             {error}
           </div>
         )}
@@ -71,7 +71,7 @@ export default function NewProjectPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={120}
-                className={INPUT_CLASS}
+                className={`${INPUT_CLASS} h-[37px]`}
                 placeholder="Nhập tên dự án"
               />
             </Field>
@@ -82,7 +82,7 @@ export default function NewProjectPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={2000}
                 rows={4}
-                className={INPUT_CLASS}
+                className={`${INPUT_CLASS} h-[37px]`}
                 placeholder="Mô tả ngắn về dự án của bạn"
               />
             </Field>
@@ -93,7 +93,7 @@ export default function NewProjectPage() {
                 value={genre}
                 onChange={(e) => setGenre(e.target.value)}
                 maxLength={60}
-                className={INPUT_CLASS}
+                className={`${INPUT_CLASS} h-[37px]`}
                 placeholder="Ví dụ: Pop, Rock, Jazz"
               />
             </Field>

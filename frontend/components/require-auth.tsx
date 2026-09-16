@@ -17,8 +17,8 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (loading || !user) {
     return (
-      <div className="flex items-center justify-center gap-2 p-12 text-sm text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin text-accent-600" /> Đang tải…
+      <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted">
+        <Loader2 className="h-4 w-4 animate-spin text-accent" /> Đang tải…
       </div>
     );
   }

@@ -41,31 +41,31 @@ function SessionsList() {
     }
   }
 
-  if (error) return <p className="text-sm text-danger-600">{error}</p>;
+  if (error) return <p className="text-xs text-danger">{error}</p>;
   if (!sessions) {
     return (
       <div className="flex flex-col gap-2">
         {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="h-16 animate-pulse rounded-card border border-slate-200 bg-slate-50" />
+          <div key={i} className="h-16 animate-pulse rounded-card border border-border bg-surface-subtle" />
         ))}
       </div>
     );
   }
 
   return (
-    <Card className="divide-y divide-slate-100">
+    <Card className="divide-y divide-border">
       {sessions.map((session) => (
-        <div key={session.id} className="flex items-center justify-between gap-4 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100">
-              <Laptop className="h-4 w-4 text-slate-500" />
+        <div key={session.id} className="flex min-h-[68px] flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-subtle">
+              <Laptop className="h-3.5 w-3.5 text-muted" />
             </span>
-            <div>
-              <p className="flex items-center gap-2 text-sm font-medium text-slate-900">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-[13px] font-semibold">
                 {session.device_label ?? "Thiết bị không xác định"}
                 {session.isCurrent && <Badge variant="success">Thiết bị này</Badge>}
               </p>
-              <p className="mt-0.5 font-mono text-xs text-slate-500">
+              <p className="mt-0.5 font-mono text-[10px] text-muted">
                 IP: {session.ip_address ?? "?"} · Hoạt động gần nhất:{" "}
                 {new Date(session.last_active_at).toLocaleString("vi-VN")}
               </p>
@@ -90,7 +90,7 @@ function SessionsList() {
 export default function SessionsPage() {
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="mx-auto max-w-3xl px-5 py-8">
         <PageHeader
           title="Thiết bị đang đăng nhập"
           description="Danh sách phiên đăng nhập của bạn. Có thể đăng xuất từng thiết bị cụ thể."

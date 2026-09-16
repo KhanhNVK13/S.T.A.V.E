@@ -7,6 +7,7 @@ import { useAuth } from "../../../context/auth-context";
 import { apiFetch, ApiError } from "../../../lib/api-client";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Card } from "../../../components/ui/card";
+import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
@@ -31,6 +32,9 @@ interface ListUsersResponse {
 }
 
 type ActionType = "suspend" | "reactivate" | "remove";
+
+/** Người dùng | email | trạng thái | vai trò | thao tác. */
+const COLS = "md:grid-cols-[minmax(0,1fr)_200px_112px_92px_auto]";
 
 function StatusBadge({ status }: { status: AdminUserRow["status"] }) {
   if (status === "active") return <Badge variant="success">Active</Badge>;
@@ -90,11 +94,11 @@ function ActionPanel({
         : `Xoá vĩnh viễn @${user.username}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4">
       <Card className="w-full max-w-sm p-6">
-        <p className="font-semibold text-slate-900">{title}</p>
+        <p className="text-[13px] font-semibold">{title}</p>
         {action === "remove" && (
-          <p className="mt-1 text-sm text-danger-600">
+          <p className="mt-1 text-xs text-danger">
             Không thể hoàn tác. Gõ lại username <strong>{user.username}</strong> để xác nhận.
           </p>
         )}
@@ -113,7 +117,7 @@ function ActionPanel({
             className={`${INPUT_CLASS} mt-3 w-full`}
           />
         )}
-        {error && <p className="mt-2 text-sm text-danger-600">{error}</p>}
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
         <div className="mt-4 flex gap-2">
           <Button
             variant={action === "remove" ? "danger" : "primary"}
@@ -174,19 +178,20 @@ function AdminUsersTable() {
         }}
         className="flex flex-wrap gap-2"
       >
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <div className="relative min-w-[240px] max-w-[380px] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
             placeholder="Tìm theo username hoặc email chính xác"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`${INPUT_CLASS} w-full pl-9`}
+            className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
           />
         </div>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className={INPUT_CLASS}
+          aria-label="Lọc theo trạng thái"
+          className={`${INPUT_CLASS} h-[34px]`}
         >
           <option value="">Tất cả trạng thái</option>
           <option value="active">Active</option>
@@ -197,78 +202,68 @@ function AdminUsersTable() {
         </Button>
       </form>
 
-      {error && <p className="mt-3 text-sm text-danger-600">{error}</p>}
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
 
-      <Card className="mt-4 overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3 font-medium">Người dùng</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Trạng thái</th>
-              <th className="px-4 py-3 font-medium">Vai trò</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {result?.users.map((user) => (
-              <tr key={user.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Avatar id={user.id} label={user.displayName || user.username} size="sm" />
-                    <div>
-                      <p className="font-medium text-slate-900">{user.displayName}</p>
-                      <p className="text-xs text-slate-500">@{user.username}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-600">{user.maskedEmail}</td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={user.status} />
-                </td>
-                <td className="px-4 py-3">
-                  {user.role === "admin" ? (
-                    <Badge variant="info">Admin</Badge>
-                  ) : (
-                    <Badge variant="neutral">User</Badge>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {user.role !== "admin" && (
-                    <div className="flex gap-3">
-                      {user.status === "active" && (
-                        <button
-                          onClick={() => setSelected({ user, action: "suspend" })}
-                          className="text-xs font-medium text-warning-600 hover:underline"
-                        >
-                          Suspend
-                        </button>
-                      )}
-                      {user.status === "suspended" && (
-                        <button
-                          onClick={() => setSelected({ user, action: "reactivate" })}
-                          className="text-xs font-medium text-success-600 hover:underline"
-                        >
-                          Reactivate
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setSelected({ user, action: "remove" })}
-                        className="text-xs font-medium text-danger-600 hover:underline"
+      <div className="mt-3">
+        <RowList>
+          <RowHeader cols={COLS}>
+            <span>Người dùng</span>
+            <span>Email</span>
+            <span>Trạng thái</span>
+            <span>Vai trò</span>
+            <span />
+          </RowHeader>
+
+          {result?.users.map((user) => (
+            <RowItem key={user.id} cols={COLS}>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Avatar id={user.id} label={user.displayName || user.username} />
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-semibold">{user.displayName}</p>
+                  <p className="truncate font-mono text-[10px] text-muted">@{user.username}</p>
+                </div>
+              </div>
+              <span className="truncate font-mono text-[11px] text-muted">{user.maskedEmail}</span>
+              <span>
+                <StatusBadge status={user.status} />
+              </span>
+              <span>
+                {user.role === "admin" ? (
+                  <Badge variant="info">Admin</Badge>
+                ) : (
+                  <Badge variant="neutral">User</Badge>
+                )}
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+                {user.role !== "admin" && (
+                  <>
+                    {user.status === "active" && (
+                      <Button variant="ghost" onClick={() => setSelected({ user, action: "suspend" })}>
+                        Tạm khoá
+                      </Button>
+                    )}
+                    {user.status === "suspended" && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSelected({ user, action: "reactivate" })}
                       >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {result && result.users.length === 0 && (
-          <p className="px-4 py-8 text-center text-sm text-slate-500">Không có kết quả.</p>
-        )}
-      </Card>
+                        Mở khoá
+                      </Button>
+                    )}
+                    <Button variant="danger" onClick={() => setSelected({ user, action: "remove" })}>
+                      Xoá
+                    </Button>
+                  </>
+                )}
+              </div>
+            </RowItem>
+          ))}
+
+          {result && result.users.length === 0 && (
+            <p className="px-4 py-8 text-center text-[13px] text-muted">Không có kết quả.</p>
+          )}
+        </RowList>
+      </div>
 
       {selected && (
         <ActionPanel
@@ -290,10 +285,14 @@ export default function AdminUsersPage() {
 
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <PageHeader title="Quản lý người dùng" />
+      <div className="mx-auto max-w-page px-5 py-8">
+        <PageHeader
+          breadcrumbs={[{ label: "Quản trị" }]}
+          title="Quản lý người dùng"
+          description="Tìm, tạm khoá hoặc xoá tài khoản người dùng trên nền tảng."
+        />
         {loading ? (
-          <p className="text-sm text-slate-500">Đang tải…</p>
+          <p className="text-sm text-muted">Đang tải…</p>
         ) : profile?.role !== "admin" ? (
           <EmptyState
             icon={ShieldAlert}

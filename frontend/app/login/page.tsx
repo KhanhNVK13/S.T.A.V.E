@@ -38,8 +38,12 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard title="Đăng nhập">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <AuthCard
+      eyebrow="Chào mừng trở lại"
+      title="Đăng nhập vào STAVE"
+      description="Tiếp tục từ nơi bản nhạc của bạn đang dang dở."
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <AuthField label="Email">
           <input
             type="email"
@@ -60,7 +64,7 @@ export default function LoginPage() {
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        {error && <p className="text-sm text-danger-600">{error}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang đăng nhập…" : "Đăng nhập"}
         </Button>
@@ -69,11 +73,11 @@ export default function LoginPage() {
       <AuthDivider />
       <GoogleButton onClick={() => void handleGoogle()} />
 
-      <div className="mt-5 flex justify-between text-sm">
-        <Link href="/forgot-password" className="text-accent-600 hover:underline">
+      <div className="mt-5 flex justify-between text-[11px]">
+        <Link href="/forgot-password" className="font-semibold text-accent hover:underline">
           Quên mật khẩu?
         </Link>
-        <Link href="/register" className="text-accent-600 hover:underline">
+        <Link href="/register" className="font-semibold text-accent hover:underline">
           Chưa có tài khoản?
         </Link>
       </div>

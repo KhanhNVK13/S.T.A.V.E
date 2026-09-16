@@ -16,8 +16,8 @@ export default function AuthCallbackPage() {
   }, [loading, session, router]);
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-3 text-sm text-slate-500">
-      <Loader2 className="h-6 w-6 animate-spin text-accent-600" />
+    <div className="flex min-h-full flex-col items-center justify-center gap-3 text-sm text-muted">
+      <Loader2 className="h-6 w-6 animate-spin text-accent" />
       Đang đăng nhập…
     </div>
   );

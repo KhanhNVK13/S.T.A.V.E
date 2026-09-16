@@ -24,7 +24,7 @@ interface ConfirmDialogProps {
  *
  * Theo đúng convention overlay đã có sẵn ở `app/projects/page.tsx` (dialog
  * xác nhận lưu trữ) và `app/admin/users/page.tsx` (dialog suspend/xoá):
- * `bg-slate-900/40` phủ toàn màn hình + `Card` trắng căn giữa.
+ * `bg-foreground/40` phủ toàn màn hình + `Card` trắng căn giữa.
  */
 export function ConfirmDialog({
   open,
@@ -41,7 +41,7 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4"
       onMouseDown={(e) => {
         // Bấm ra ngoài card để huỷ — không cho phép khi đang xử lý, tránh
         // đóng dở dang một request đang gửi.
@@ -49,8 +49,8 @@ export function ConfirmDialog({
       }}
     >
       <Card className="w-full max-w-sm p-6" role="alertdialog" aria-modal="true">
-        <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
-        <div className="mb-6 text-sm leading-relaxed text-slate-500">{message}</div>
+        <h3 className="mb-2 text-lg font-semibold">{title}</h3>
+        <div className="mb-6 text-[13px] leading-relaxed text-muted">{message}</div>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={loading}>
             {cancelLabel}

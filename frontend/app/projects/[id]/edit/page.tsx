@@ -85,10 +85,10 @@ export default function EditProjectPage() {
     <RequireAuth>
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="border-b border-slate-200 bg-white px-4 py-3">
+        <div className="border-b border-border bg-surface px-4 py-3">
           <Link
             href="/projects"
-            className="mb-2 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-accent-600 hover:underline"
+            className="mb-2 inline-flex items-center gap-1 text-sm text-muted hover:text-accent hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách dự án
           </Link>
@@ -98,14 +98,14 @@ export default function EditProjectPage() {
               description={loading ? "" : isArchived ? "Dự án đã lưu trữ" : "Trình soạn nhạc"}
             />
             {/* Tab buttons */}
-            <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            <div className="flex gap-1 rounded-lg bg-surface-subtle p-1">
               <button
                 onClick={() => setActiveTab("editor")}
                 disabled={loading}
                 className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                   activeTab === "editor"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-surface text-foreground shadow-sm"
+                    : "text-muted hover:text-foreground"
                 }`}
               >
                 Trình soạn nhạc
@@ -115,8 +115,8 @@ export default function EditProjectPage() {
                 disabled={loading}
                 className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                   activeTab === "info"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-surface text-foreground shadow-sm"
+                    : "text-muted hover:text-foreground"
                 }`}
               >
                 Thông tin
@@ -131,7 +131,7 @@ export default function EditProjectPage() {
             <div className="h-full">
               {!loading && isArchived && (
                 <div className="flex h-full items-center justify-center px-4">
-                  <div className="flex max-w-md flex-col items-center gap-3 rounded-card border border-warning-600/30 bg-warning-50 p-6 text-center text-sm text-warning-700">
+                  <div className="flex max-w-md flex-col items-center gap-3 rounded-card border border-warning/30 bg-warning-muted p-6 text-center text-sm text-warning">
                     <Lock className="h-5 w-5" />
                     <p>
                       Dự án này đã được lưu trữ nên trình soạn nhạc chỉ ở chế độ chỉ xem thông
@@ -145,12 +145,12 @@ export default function EditProjectPage() {
               )}
               {loading && (
                 <div className="flex h-full items-center justify-center">
-                  <p className="text-slate-500">Đang tải dự án...</p>
+                  <p className="text-muted">Đang tải dự án...</p>
                 </div>
               )}
               {error && !loading && (
                 <div className="flex h-full items-center justify-center">
-                  <div className="rounded-card border border-danger-600/20 bg-danger-50 p-4 text-sm text-danger-600">
+                  <div className="rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">
                     {error}
                   </div>
                 </div>
@@ -159,7 +159,7 @@ export default function EditProjectPage() {
           ) : (
             <div className="mx-auto max-w-2xl px-4 py-10">
               {isArchived && (
-                <div className="mb-6 flex items-start gap-3 rounded-card border border-warning-600/30 bg-warning-50 p-4 text-sm text-warning-700">
+                <div className="mb-6 flex items-start gap-3 rounded-card border border-warning/30 bg-warning-muted p-4 text-sm text-warning">
                   <Lock className="mt-0.5 h-4 w-4 shrink-0" />
                   <p>
                     Dự án này đã được lưu trữ nên chỉ xem được, không chỉnh sửa được. Khôi phục dự
@@ -169,7 +169,7 @@ export default function EditProjectPage() {
               )}
 
               {!loading && (
-                <Card className={`relative p-6 ${isArchived ? "bg-slate-50" : ""}`}>
+                <Card className={`relative p-6 ${isArchived ? "bg-surface-subtle" : ""}`}>
                   <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                     <Field label="Tên dự án *">
                       <input
@@ -203,7 +203,7 @@ export default function EditProjectPage() {
                     </Field>
 
                     {error && submitting && (
-                      <p className="text-sm text-danger-600">{error}</p>
+                      <p className="text-sm text-danger">{error}</p>
                     )}
 
                     <div className="flex gap-3">
@@ -216,7 +216,7 @@ export default function EditProjectPage() {
                   </form>
 
                   {isArchived && (
-                    <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-medium text-warning-700 shadow-card">
+                    <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-1 rounded-full bg-surface px-2 py-1 text-xs font-medium text-warning shadow-card">
                       <TriangleAlert className="h-3.5 w-3.5" /> Chỉ xem
                     </div>
                   )}

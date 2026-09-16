@@ -21,10 +21,10 @@ const ICONS: Record<ToastVariant, typeof Info> = {
 };
 
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
-  info: "border-accent-600/30 bg-accent-50 text-accent-700",
-  success: "border-success-600/30 bg-success-50 text-success-700",
-  warning: "border-warning-600/30 bg-warning-50 text-warning-700",
-  danger: "border-danger-600/30 bg-danger-50 text-danger-700",
+  info: "border-accent/30 bg-accent-muted text-accent",
+  success: "border-success/30 bg-success-muted text-success",
+  warning: "border-warning/30 bg-warning-muted text-warning",
+  danger: "border-danger/30 bg-danger-muted text-danger",
 };
 
 /**

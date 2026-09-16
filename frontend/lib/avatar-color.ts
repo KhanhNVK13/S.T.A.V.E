@@ -1,16 +1,18 @@
 /**
  * Màu avatar suy ra tất định từ id (hash đơn giản) — không dùng Math.random(),
  * để cùng 1 người/project luôn ra cùng 1 màu ở mọi lần render (CLAUDE.md 4.7).
+ *
+ * Chỉ dùng token semantic (accent/success/warning/danger/metal) thay vì bảng
+ * màu Tailwind cố định: avatar phải đổi màu theo theme người dùng chọn
+ * (preset hoặc palette trích từ ảnh — UC-79), không được neo vào 1 gam màu
+ * riêng nằm ngoài hệ token.
  */
 const AVATAR_PALETTE = [
-  { bg: "bg-blue-100", text: "text-blue-700" },
-  { bg: "bg-indigo-100", text: "text-indigo-700" },
-  { bg: "bg-emerald-100", text: "text-emerald-700" },
-  { bg: "bg-amber-100", text: "text-amber-700" },
-  { bg: "bg-rose-100", text: "text-rose-700" },
-  { bg: "bg-violet-100", text: "text-violet-700" },
-  { bg: "bg-cyan-100", text: "text-cyan-700" },
-  { bg: "bg-orange-100", text: "text-orange-700" },
+  { bg: "bg-accent-muted", text: "text-accent" },
+  { bg: "bg-success-muted", text: "text-success" },
+  { bg: "bg-warning-muted", text: "text-warning" },
+  { bg: "bg-danger-muted", text: "text-danger" },
+  { bg: "bg-metal-muted", text: "text-metal" },
 ] as const;
 
 export function colorFromId(id: string): (typeof AVATAR_PALETTE)[number] {
