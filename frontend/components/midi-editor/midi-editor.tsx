@@ -45,7 +45,9 @@ import {
 const MAX_TRACKS = 32;
 
 
-// Color palette for tracks
+// UC-34 — màu phân biệt track: đây là DỮ LIỆU nghiệp vụ (lưu vào snapshot,
+// người dùng chọn được), không phải màu giao diện, nên CỐ Ý không đưa vào hệ
+// token theme — đổi theme không được làm đổi màu track người dùng đã chọn.
 const TRACK_COLORS = [
   "#6366f1","#ec4899","#f59e0b","#10b981",
   "#3b82f6","#ef4444","#8b5cf6","#14b8a6",
@@ -415,6 +417,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       throw err;
     }
   }, [projectId]);
+
+  /**
+   * UC-48: đọc bản nháp đang mở tại đúng thời điểm gọi, để gửi kèm lời gọi
+   * chuyển nhánh (backend lưu nó xuống branch cũ). Đọc từ ref chứ không nhận
+   * `snapshot` qua closure: hàm này phải ổn định, nếu không `switchTo` trong
+   * `use-version-control` sẽ được tạo lại sau mỗi lần sửa một nốt.
+   */
+  const readSnapshot = useCallback(() => snapshotRef.current, []);
 
   /**
    * Nạp lại editor theo snapshot backend trả về sau khi khôi phục (UC-46).
@@ -1084,6 +1094,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onSeek={handleSeek}
         saveStatus={saveStatus}
         onFlushDraft={flushDraft}
+        onReadSnapshot={readSnapshot}
         onSnapshotRestored={applyRestoredSnapshot}
         masterVolume={masterVolume}
         onMasterVolumeChange={handleMasterVolumeChange}
@@ -1121,14 +1132,14 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     height: "100%",
     gap: 16,
-    color: "#71717a",
+    color: "var(--muted-foreground)",
     fontSize: 14,
   },
   spinner: {
     width: 32,
     height: 32,
-    border: "3px solid #27272a",
-    borderTopColor: "#6366f1",
+    border: "3px solid var(--border)",
+    borderTopColor: "var(--accent)",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
   },

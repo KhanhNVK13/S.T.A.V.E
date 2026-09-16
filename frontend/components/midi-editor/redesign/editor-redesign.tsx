@@ -15,6 +15,8 @@
 
 import React, { useState } from "react";
 import {
+  BarChart3,
+  ChevronDown,
   ClipboardPaste,
   Copy,
   Download,
@@ -26,6 +28,7 @@ import {
   MousePointer2,
   Pause,
   Pencil,
+  Mic,
   Play,
   Repeat,
   Square,
@@ -44,7 +47,10 @@ import type { CommitWithAuthor } from "../../../lib/api-client";
 import type { GridDivision, ToolMode } from "../piano-roll";
 import { PianoRoll } from "../piano-roll";
 import type { PianoRollHandle } from "../piano-roll";
+import { VelocityLane } from "../velocity-lane";
+import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
+import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import { TrackPanel } from "./track-panel";
 import { HistoryPanel } from "./history-panel";
 import { CommitDialog } from "./commit-dialog";
@@ -130,6 +136,8 @@ interface EditorRedesignProps {
   saveStatus: "saved" | "saving" | "unsaved";
   /** Ghi ngay bản nháp xuống server (huỷ debounce) — chạy trước mỗi lần commit. */
   onFlushDraft: () => Promise<void>;
+  /** UC-48: đọc bản nháp đang mở để gửi kèm khi chuyển nhánh. */
+  onReadSnapshot: () => DraftSnapshot;
   /** Nạp lại editor theo snapshot backend trả về sau khi khôi phục (UC-46). */
   onSnapshotRestored: (snapshot: DraftSnapshot) => void;
   /** 0..1 — âm lượng chung cho TẤT CẢ track (chỉ ảnh hưởng lúc phát, không ghi vào snapshot). */
@@ -159,7 +167,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     onQuantize, onImportMidi, onCopy, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
     isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
-    saveStatus, onFlushDraft, onSnapshotRestored,
+    saveStatus, onFlushDraft, onReadSnapshot, onSnapshotRestored,
     masterVolume, onMasterVolumeChange,
     onTempoChange, metronomeOn, onMetronomeToggle,
     playbackRate, onPlaybackRateChange, onExportMidi,
@@ -167,19 +175,44 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
   const canStop = isPlaying || isPaused;
   const [showExportAudio, setShowExportAudio] = useState(false);
+  // UC-53: trigger theo SRS là "User selects 'Audio sketch' in the MIDI Editor".
+  const [showAudioSketch, setShowAudioSketch] = useState(false);
 
   // ── Version Control (UC-42/43/44/46) ────────────────────────
   const vc = useVersionControl({
     projectId,
     flushDraft: onFlushDraft,
+    readSnapshot: onReadSnapshot,
     onSnapshotRestored,
   });
   const [commitOpen, setCommitOpen] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<CommitWithAuthor | null>(null);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  // Dải velocity: mặc định HIỆN vì nó là cách duy nhất sửa được velocity
+  // (kể cả velocity đọc từ file MIDI import vào). Cho phép ẩn để lấy lại
+  // chiều cao khi màn hình thấp.
+  const [velocityLaneOpen, setVelocityLaneOpen] = useState(true);
+  // Piano roll là nơi duy nhất cuộn ngang; dải velocity chỉ bám theo giá trị
+  // này để hai lưới thẳng cột.
+  const [rollScrollX, setRollScrollX] = useState(0);
   const branchLabel = vc.branch?.name ?? "main";
   const canCommit = vc.branch !== null && !vc.branchLoading;
 
-  const { clearCommitError, clearRestoreError } = vc;
+  const { clearCommitError, clearRestoreError, clearSwitchError } = vc;
+
+  // UC-48. Nhánh mới tạo ở trang tổng quan project chỉ mở được qua đây; danh
+  // sách có đúng 1 nhánh thì không có gì để chuyển (backend cũng từ chối).
+  const canSwitchBranch = vc.branches.length > 1 && !vc.switching;
+
+  function toggleBranchMenu() {
+    clearSwitchError();
+    setBranchMenuOpen((open) => !open);
+  }
+
+  async function chooseBranch(branchId: string) {
+    setBranchMenuOpen(false);
+    await vc.switchTo(branchId);
+  }
 
   function openCommitDialog() {
     clearCommitError();
@@ -210,10 +243,78 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <span style={styles.projectName} title={projectName}>
             {projectName}
           </span>
-          <span style={styles.branchChip} title="Branch mặc định của project">
-            <GitBranch size={14} color={DC.accent} />
-            <span style={styles.branchName}>{branchLabel}</span>
-          </span>
+          {/* UC-48: chọn nhánh đang mở. Draft của nhánh cũ được backend lưu
+              ngay trong lời gọi chuyển, nên không hỏi xác nhận. */}
+          <div style={styles.branchWrap}>
+            <button
+              type="button"
+              onClick={toggleBranchMenu}
+              disabled={!canSwitchBranch}
+              aria-haspopup="listbox"
+              aria-expanded={branchMenuOpen}
+              title={
+                vc.switching
+                  ? "Đang chuyển nhánh…"
+                  : canSwitchBranch
+                    ? "Đổi nhánh đang mở (UC-48)"
+                    : "Project chỉ có 1 nhánh — tạo thêm ở trang tổng quan project"
+              }
+              style={{
+                ...styles.branchChip,
+                cursor: canSwitchBranch ? "pointer" : "default",
+                opacity: vc.switching ? 0.6 : 1,
+              }}
+            >
+              <GitBranch size={14} color={DC.accent} />
+              <span style={styles.branchName}>{branchLabel}</span>
+              {canSwitchBranch && <ChevronDown size={13} color={DC.textMuted} />}
+            </button>
+
+            {branchMenuOpen && (
+              <>
+                {/* Lớp trong suốt phủ toàn màn hình để bấm ra ngoài là đóng
+                    menu — rẻ hơn và chắc chắn hơn nghe sự kiện trên document. */}
+                <div
+                  style={styles.branchBackdrop}
+                  onClick={() => setBranchMenuOpen(false)}
+                />
+                <div style={styles.branchMenu} role="listbox">
+                  {vc.branches.map((b) => {
+                    const current = b.id === vc.branch?.id;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        role="option"
+                        aria-selected={current}
+                        onClick={() => void chooseBranch(b.id)}
+                        style={{
+                          ...styles.branchMenuItem,
+                          background: current ? DC.accentSoft : "transparent",
+                          fontWeight: current ? 700 : 500,
+                        }}
+                      >
+                        <GitBranch
+                          size={13}
+                          color={current ? DC.accent : DC.textMuted}
+                        />
+                        <span style={styles.branchMenuName}>{b.name}</span>
+                        {b.is_default && (
+                          <span style={styles.branchMenuTag}>mặc định</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {vc.switchError && (
+              <p role="alert" style={styles.branchError}>
+                {vc.switchError}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Transport — segmented control đúng mockup dòng 182–192 */}
@@ -237,7 +338,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
             title="Tạm dừng"
             style={{
               ...styles.transportBtn,
-              color: isPlaying ? DC.text : "#C6C8CD",
+              color: isPlaying ? DC.text : DC.borderSoft,
               cursor: isPlaying ? "pointer" : "not-allowed",
             }}
           >
@@ -249,7 +350,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
             title="Dừng, đưa playhead về đầu"
             style={{
               ...styles.transportBtn,
-              color: canStop ? DC.text : "#C6C8CD",
+              color: canStop ? DC.text : DC.borderSoft,
               cursor: canStop ? "pointer" : "not-allowed",
             }}
           >
@@ -357,6 +458,27 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <span style={styles.zoomValue}>{Math.round(zoom * 100)}%</span>
         <button onClick={() => onZoomChange(Math.min(4, zoom + 0.25))} title="Phóng to" style={styles.iconBtn}>
           <ZoomIn size={14} />
+        </button>
+
+        <span style={styles.stripDivider} />
+
+        {/* Dải velocity — BR-27/BR-28. Report 3 chưa có UC riêng cho việc
+            chỉnh velocity, xem ghi chú đầu file velocity-lane.tsx. */}
+        <button
+          onClick={() => setVelocityLaneOpen((open) => !open)}
+          title={
+            velocityLaneOpen
+              ? "Ẩn dải velocity"
+              : "Hiện dải velocity — kéo cột để đổi độ mạnh nhẹ của note"
+          }
+          aria-pressed={velocityLaneOpen}
+          style={{
+            ...styles.iconBtn,
+            background: velocityLaneOpen ? DC.accentSoft : "transparent",
+            color: velocityLaneOpen ? DC.accent : DC.text,
+          }}
+        >
+          <BarChart3 size={14} />
         </button>
 
         <span style={styles.stripDivider} />
@@ -481,6 +603,14 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <Download size={14} />
           Export Audio
         </button>
+        <button
+          onClick={() => setShowAudioSketch(true)}
+          title="Ghi nhanh ý tưởng bằng micro (UC-53)"
+          style={styles.ghostBtn}
+        >
+          <Mic size={14} />
+          Audio sketch
+        </button>
       </div>
 
       {/* ── Body 3 cột (mockup dòng 201–307) ───────────────────── */}
@@ -518,7 +648,18 @@ export function EditorRedesign(props: EditorRedesignProps) {
             onSelectedNotesChange={onSelectedNotesChange}
             isPlaying={isPlaying}
             onSeek={onSeek}
+            onScrollXChange={setRollScrollX}
           />
+          {velocityLaneOpen && (
+            <VelocityLane
+              notes={notes}
+              tracks={tracks}
+              scrollX={rollScrollX}
+              zoom={zoom}
+              selectedNoteIds={selectedNoteIds}
+              onNotesChange={onNotesChange}
+            />
+          )}
         </div>
 
         <HistoryPanel
@@ -585,6 +726,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onClose={() => setShowExportAudio(false)}
         />
       )}
+
+      {showAudioSketch && (
+        <Modal
+          title="Audio sketch"
+          width={760}
+          onClose={() => setShowAudioSketch(false)}
+        >
+          <AudioSketchPanel projectId={projectId} />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -628,8 +779,75 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     padding: "7px 11px",
     flexShrink: 0,
+    // Là <button> nên phải ép lại màu/cỡ chữ: mặc định của trình duyệt là
+    // font hệ thống nhỏ hơn, không phải font của app.
+    color: DC.text,
+    fontSize: 13,
   },
   branchName: { fontFamily: DC.mono, fontSize: 13, fontWeight: 600 },
+  branchWrap: { position: "relative", flexShrink: 0 },
+  branchBackdrop: { position: "fixed", inset: 0, zIndex: 40 },
+  branchMenu: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    zIndex: 41,
+    minWidth: 220,
+    maxHeight: 280,
+    overflowY: "auto",
+    background: DC.surface,
+    border: `1px solid ${DC.border}`,
+    borderRadius: 8,
+    padding: 4,
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+  },
+  branchMenuItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "7px 9px",
+    border: "none",
+    borderRadius: 6,
+    color: DC.text,
+    fontSize: 13,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  branchMenuName: {
+    fontFamily: DC.mono,
+    flex: 1,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  branchMenuTag: {
+    fontSize: 10,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: DC.textMuted,
+    border: `1px solid ${DC.borderSoft}`,
+    borderRadius: 999,
+    padding: "1px 6px",
+    flexShrink: 0,
+  },
+  branchError: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    zIndex: 41,
+    margin: 0,
+    minWidth: 220,
+    maxWidth: 320,
+    background: DC.dangerSoft,
+    border: `1px solid ${DC.dangerBorder}`,
+    color: DC.danger,
+    borderRadius: 8,
+    padding: "7px 10px",
+    fontSize: 12,
+  },
   transport: {
     display: "flex",
     alignItems: "center",

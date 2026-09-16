@@ -3,11 +3,15 @@
  * Toàn bộ state + lời gọi API của nhóm Version Control cho MIDI Editor:
  *   UC-42 Create Commit · UC-43 Commit History · UC-44 Tag · UC-46 Restore.
  *
- * CHƯA làm ở đây (cố ý, để dành phiên sau theo thứ tự đã thống nhất):
- * UC-45 Compare/Diff, UC-47→52 Branch Management, UC-51/86 Merge/Conflict.
- * Vì vậy hook chỉ làm việc trên **branch mặc định** của project — đúng
- * invariant CLAUDE.md 4.2 (project nào cũng có sẵn 1 branch `main`) và đúng
- * phạm vi của `GET|PUT /projects/:id/draft` (cũng thao tác trên branch này).
+ *   UC-48 Switch Branch (chuyển nhánh đang mở).
+ *
+ * Hook làm việc trên **branch đang mở** của project (`is_active` từ
+ * `GET /projects/:id/branches`), không còn cố định ở branch mặc định:
+ * `GET|PUT /projects/:id/draft` cũng đã đổi sang branch đang mở, hai bên phải
+ * khớp nhau nếu không editor sẽ commit nhầm nhánh.
+ *
+ * CHƯA làm ở đây (cố ý): UC-45 Compare/Diff. UC-47/49/51/52/86 (tạo, xem,
+ * merge, xoá nhánh) nằm ở trang tổng quan project, không nằm trong editor.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DraftSnapshot } from "@stave/shared-types";
@@ -17,6 +21,7 @@ import {
   getCommitHistory,
   listProjectBranches,
   restoreCommit,
+  switchBranch,
   tagCommit,
 } from "../../../lib/api-client";
 import type { Branch, CommitWithAuthor } from "../../../lib/api-client";
@@ -36,19 +41,37 @@ function messageOf(err: unknown, fallback: string): string {
 export interface UseVersionControlOptions {
   projectId: string;
   /**
+   * Đọc bản nháp đang mở NGAY tại thời điểm gọi (UC-48: phải gửi kèm để
+   * backend lưu nó xuống branch cũ trước khi chuyển). Phải là hàm ổn định đọc
+   * từ ref — nhận thẳng `snapshot` làm tham số sẽ tạo lại `switchTo` sau mỗi
+   * nốt nhạc được sửa.
+   */
+  readSnapshot: () => DraftSnapshot;
+  /**
    * Ghi ngay bản nháp đang sửa xuống `drafts` (huỷ debounce autosave) rồi resolve.
    * Bắt buộc gọi trước khi commit: backend lấy snapshot từ bảng `drafts`, nếu
    * còn thay đổi chưa lưu thì commit sẽ ghi lại bản cũ.
    */
   flushDraft: () => Promise<void>;
-  /** Đồng bộ editor về snapshot backend vừa trả sau khi restore (UC-46 POST-4). */
+  /**
+   * Đồng bộ editor về snapshot backend vừa trả — dùng cho cả UC-46 POST-4
+   * (khôi phục) lẫn UC-48 (nạp draft của branch vừa chuyển tới).
+   */
   onSnapshotRestored: (snapshot: DraftSnapshot) => void;
 }
 
 export interface VersionControl {
   branch: Branch | null;
+  /** UC-48: mọi branch của project, branch mặc định đứng đầu. */
+  branches: Branch[];
   branchError: string | null;
   branchLoading: boolean;
+
+  switching: boolean;
+  switchError: string | null;
+  /** UC-48. Trả về true nếu đã chuyển sang branch đó. */
+  switchTo: (branchId: string) => Promise<boolean>;
+  clearSwitchError: () => void;
 
   commits: CommitWithAuthor[];
   total: number;
@@ -82,9 +105,13 @@ export interface VersionControl {
 export function useVersionControl({
   projectId,
   flushDraft,
+  readSnapshot,
   onSnapshotRestored,
 }: UseVersionControlOptions): VersionControl {
   const [branch, setBranch] = useState<Branch | null>(null);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const [branchLoading, setBranchLoading] = useState(true);
   const [branchError, setBranchError] = useState<string | null>(null);
 
@@ -153,9 +180,18 @@ export function useVersionControl({
     let cancelled = false;
 
     listProjectBranches(projectId)
-      .then((branches) => {
+      .then((list) => {
         if (cancelled) return;
-        const target = branches.find((b) => b.is_default) ?? branches[0] ?? null;
+        setBranches(list);
+        // UC-48: mở đúng branch đang active. `is_active` do backend tính (rơi
+        // về branch mặc định khi project chưa từng chuyển nhánh) — cùng quy
+        // tắc mà `GET /projects/:id/draft` dùng để chọn draft, nên hai bên
+        // luôn trỏ về một branch.
+        const target =
+          list.find((b) => b.is_active) ??
+          list.find((b) => b.is_default) ??
+          list[0] ??
+          null;
         if (!target) {
           setBranchError("Project chưa có branch nào");
           return;
@@ -187,8 +223,9 @@ export function useVersionControl({
   const refreshHeadFromServer = useCallback(async () => {
     if (!branchId) return;
     try {
-      const branches = await listProjectBranches(projectId);
-      const fresh = branches.find((b) => b.id === branchId);
+      const list = await listProjectBranches(projectId);
+      const fresh = list.find((b) => b.id === branchId);
+      if (mountedRef.current) setBranches(list);
       if (fresh && mountedRef.current) {
         setBranch(fresh);
         headCommitIdRef.current = fresh.head_commit_id;
@@ -308,17 +345,92 @@ export function useVersionControl({
     [branch, loadHistory, onSnapshotRestored, showNotice],
   );
 
+  // ── UC-48: chuyển branch đang mở ──────────────────────────────
+  const switchTo = useCallback(
+    async (targetBranchId: string): Promise<boolean> => {
+      if (!branch) {
+        setSwitchError("Chưa xác định được branch hiện tại");
+        return false;
+      }
+      // Đã ở đúng branch đó — không gọi API (backend cũng sẽ lưu đè draft một
+      // cách vô nghĩa và reset undo/redo của editor).
+      if (branch.id === targetBranchId) return true;
+
+      setSwitching(true);
+      setSwitchError(null);
+      try {
+        // BẮT BUỘC flush trước, dù `currentDraft` gửi kèm dưới đây cũng đã là
+        // một bản lưu của branch cũ. Lý do là một race thật, không phải phòng
+        // xa: autosave của editor là PUT /projects/:id/draft có debounce 2s,
+        // mà endpoint đó ghi vào branch ĐANG ACTIVE. Nếu timer còn treo và nổ
+        // đúng lúc backend vừa đổi `active_branch_id`, nó sẽ ghi snapshot của
+        // branch CŨ đè lên draft của branch MỚI. flushDraft() huỷ timer đó và
+        // ghi ngay, nên sau lời gọi này không còn PUT nào đang chờ.
+        await flushDraft();
+
+        const result = await switchBranch({
+          currentBranchId: branch.id,
+          targetBranchId,
+          currentDraft: readSnapshot(),
+        });
+
+        headCommitIdRef.current = result.branch.head_commit_id;
+        // Nạp draft của branch mới vào editor. Backend vừa đọc nó từ DB nên
+        // KHÔNG được autosave lại — `onSnapshotRestored` đã huỷ debounce đang
+        // chờ (bản nháp cũ), nếu không nó sẽ ghi đè draft branch mới bằng nội
+        // dung của branch vừa rời đi.
+        onSnapshotRestored(result.activeSnapshot);
+        if (mountedRef.current) {
+          setBranch(result.branch);
+          // `result.branch` không kèm `is_active` (chỉ endpoint danh sách có)
+          // — tự cập nhật tại chỗ để dropdown khỏi phải gọi lại API.
+          setBranches((prev) =>
+            prev.map((b) =>
+              b.id === targetBranchId
+                ? { ...b, ...result.branch, is_active: true }
+                : { ...b, is_active: false },
+            ),
+          );
+        }
+        await loadHistory(targetBranchId);
+        showNotice(`Đã chuyển sang nhánh ${result.branch.name}`);
+        return true;
+      } catch (err) {
+        if (mountedRef.current) {
+          setSwitchError(messageOf(err, "Không chuyển được nhánh"));
+        }
+        return false;
+      } finally {
+        if (mountedRef.current) setSwitching(false);
+      }
+    },
+    [
+      branch,
+      flushDraft,
+      readSnapshot,
+      onSnapshotRestored,
+      loadHistory,
+      showNotice,
+    ],
+  );
+
   const clearCommitError = useCallback(() => setCommitError(null), []);
   const clearTagError = useCallback(() => setTagError(null), []);
   const clearRestoreError = useCallback(() => setRestoreError(null), []);
+  const clearSwitchError = useCallback(() => setSwitchError(null), []);
 
   const headCommit =
     commits.find((c) => c.id === branch?.head_commit_id) ?? null;
 
   return {
     branch,
+    branches,
     branchError,
     branchLoading,
+    switching,
+    switchError,
+    switchTo,
+    clearSwitchError,
     commits,
     total,
     historyLoading,
