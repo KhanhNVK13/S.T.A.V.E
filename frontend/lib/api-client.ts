@@ -217,7 +217,7 @@ export async function getFeaturedContent(): Promise<FeaturedContent> {
 // ============================================
 // Draft API (MIDI Editor)
 // ============================================
-import type { DraftNote, DraftSnapshot } from "@stave/shared-types";
+import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 
 export type { DraftSnapshot };
 
@@ -485,6 +485,84 @@ export async function getCommitHistory(params: {
 /** GET /commits/:id — UC-43, chi tiết 1 commit (kèm author + tag + snapshot). */
 export async function getCommit(commitId: string): Promise<CommitWithAuthor> {
   return apiFetch<CommitWithAuthor>(`/commits/${commitId}`);
+}
+
+// ---------------------------------------------------------------------------
+// UC-45 Compare versions — hình dạng lấy đúng từ `backend/src/commits/diff.service.ts`
+// ---------------------------------------------------------------------------
+
+export interface SnapshotMetaChange {
+  field: "tempo" | "timeSignature" | "ppq";
+  old: unknown;
+  new: unknown;
+}
+
+export interface SnapshotDiff {
+  areIdentical: boolean;
+  metaChanges: SnapshotMetaChange[];
+  summary: {
+    notes: { added: number; removed: number; modified: number; totalChanges: number };
+    tracks: { added: number; removed: number; modified: number };
+  };
+  tracksDiff: {
+    added: DraftTrack[];
+    removed: DraftTrack[];
+    modified: { old: DraftTrack; new: DraftTrack }[];
+    /** Số note của track thêm/xoá nguyên cả track — các note đó KHÔNG nằm trong `changesByBar` (3.E2). */
+    noteCounts: Record<string, number>;
+  };
+  /** Khoá là số ô nhịp, ĐÃ đánh số từ 1. */
+  changesByBar: Record<
+    string,
+    {
+      added: DraftNote[];
+      removed: DraftNote[];
+      modified: { old: DraftNote; new: DraftNote }[];
+    }
+  >;
+}
+
+/** GET /commits/diff — UC-45. `base` là mốc, `target` là bản đem ra so. */
+export async function compareCommits(
+  baseCommitId: string,
+  targetCommitId: string,
+): Promise<SnapshotDiff> {
+  const search = new URLSearchParams({ baseCommitId, targetCommitId });
+  return apiFetch<SnapshotDiff>(`/commits/diff?${search.toString()}`);
+}
+
+// ---------------------------------------------------------------------------
+// UC-50 View branch history
+// ---------------------------------------------------------------------------
+
+export interface BranchHistoryCommit {
+  id: string;
+  branch_id: string;
+  message: string;
+  created_at: string;
+  /** Commit sinh ra trên nhánh này, sau điểm rẽ khỏi nhánh mặc định. */
+  isUniqueToBranch: boolean;
+  /** Commit kế thừa từ trước điểm rẽ nhánh. Với nhánh mặc định luôn là `true`. */
+  isInherited: boolean;
+  author: {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  };
+  tags: { id: string; name: string }[];
+}
+
+export interface BranchHistory {
+  branchId: string;
+  branchName: string;
+  /** Cũ nhất trước. */
+  commits: BranchHistoryCommit[];
+}
+
+/** GET /branches/:id/history — UC-50, gồm cả commit kế thừa từ điểm rẽ nhánh. */
+export async function getBranchHistory(branchId: string): Promise<BranchHistory> {
+  return apiFetch<BranchHistory>(`/branches/${branchId}/history`);
 }
 
 /**

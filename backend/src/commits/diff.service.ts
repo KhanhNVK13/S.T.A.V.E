@@ -6,8 +6,17 @@ import type { DraftSnapshot, DraftNote, DraftTrack } from '@stave/shared-types';
  * Based on BR-46: Note diff grouped by UUID identity
  * Based on BR-28: Note identity preserved via UUID
  */
+/** Một trường của `meta` khác nhau giữa 2 phiên bản (tempo, nhịp, ppq). */
+export interface MetaChange {
+  field: keyof DraftSnapshot['meta'];
+  old: unknown;
+  new: unknown;
+}
+
 export interface SnapshotDiff {
   areIdentical: boolean;
+  /** Tempo / nhịp / ppq đổi — là trạng thái project nên phải báo (POST-1). */
+  metaChanges: MetaChange[];
   summary: {
     notes: {
       added: number;
@@ -25,6 +34,12 @@ export interface SnapshotDiff {
     added: DraftTrack[];
     removed: DraftTrack[];
     modified: Array<{ old: DraftTrack; new: DraftTrack }>;
+    /**
+     * UC-45 3.E2: số note của track được thêm/xoá NGUYÊN CẢ TRACK. Những note
+     * này KHÔNG nằm trong `changesByBar`/`summary.notes` — báo 1 dòng "thêm
+     * track X (N note)" thay vì liệt kê N note lẻ.
+     */
+    noteCounts: Record<string, number>;
   };
   changesByBar: Record<
     number,
@@ -37,15 +52,20 @@ export interface SnapshotDiff {
 }
 
 /**
- * Calculate ticks per bar from time signature and PPQ
- * Example: [4, 4] with PPQ 480 -> 1920 ticks per bar
+ * Calculate ticks per bar from time signature and PPQ.
+ * `ppq` là tick mỗi nốt đen, nên phải quy mẫu số nhịp về nốt đen:
+ * [4, 4] @ 480 -> 1920, [6, 8] @ 480 -> 1440.
+ *
+ * Bản trước lấy `numerator * ppq` (bỏ qua mẫu số) — sai với mọi nhịp không
+ * phải x/4, và lệch với `MergeService.groupConflictsByBar`, khiến cùng 1 note
+ * nằm ở ô nhịp khác nhau giữa màn Compare và màn giải quyết xung đột.
  */
 function calculateTicksPerBar(
   timeSignature: [number, number],
   ppq: number,
 ): number {
-  const [beatsPerBar] = timeSignature;
-  return beatsPerBar * ppq;
+  const [numerator = 4, denominator = 4] = timeSignature ?? [4, 4];
+  return ppq * (numerator / denominator) * 4;
 }
 
 /**
@@ -86,11 +106,16 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 /**
  * Check if a track has been modified
- * Tracks are compared by: name, volume, pan, isMuted, isSolo, color
+ * Tracks are compared by: name, volume, pan, muted, solo, color, instrument, order
+ *
+ * `instrument` từng bị bỏ sót: BR-33 ghi rõ việc gán nhạc cụ "appear in
+ * version comparisons", nên đổi nhạc cụ mà không đổi gì khác phải hiện ra.
  */
 function isTrackModified(oldTrack: DraftTrack, newTrack: DraftTrack): boolean {
   return (
     oldTrack.name !== newTrack.name ||
+    (oldTrack.instrument ?? null) !== (newTrack.instrument ?? null) ||
+    oldTrack.order !== newTrack.order ||
     oldTrack.volume !== newTrack.volume ||
     oldTrack.pan !== newTrack.pan ||
     oldTrack.muted !== newTrack.muted ||
@@ -135,11 +160,12 @@ export class DiffService {
     if (deepEqual(snapshotA, snapshotB)) {
       return {
         areIdentical: true,
+        metaChanges: [],
         summary: {
           notes: { added: 0, removed: 0, modified: 0, totalChanges: 0 },
           tracks: { added: 0, removed: 0, modified: 0 },
         },
-        tracksDiff: { added: [], removed: [], modified: [] },
+        tracksDiff: { added: [], removed: [], modified: [], noteCounts: {} },
         changesByBar: {},
       };
     }
@@ -160,7 +186,10 @@ export class DiffService {
       added: snapshotB.tracks.filter((t) => !tracksA.has(t.id)),
       removed: snapshotA.tracks.filter((t) => !tracksB.has(t.id)),
       modified: [] as Array<{ old: DraftTrack; new: DraftTrack }>,
+      noteCounts: {} as Record<string, number>,
     };
+    const addedTrackIds = new Set(tracksDiff.added.map((t) => t.id));
+    const removedTrackIds = new Set(tracksDiff.removed.map((t) => t.id));
 
     // Modified tracks: exist in both but have different properties
     for (const [id, oldTrack] of tracksA) {
@@ -182,16 +211,25 @@ export class DiffService {
     const removedNotes: DraftNote[] = [];
     const modifiedNotes: Array<{ old: DraftNote; new: DraftNote }> = [];
 
-    // Find added notes (exist in B but not in A)
+    // Find added notes (exist in B but not in A). Note thuộc track mới
+    // thêm nguyên cả track chỉ được đếm vào track đó (3.E2).
     for (const [id, note] of notesB) {
-      if (!notesA.has(id)) {
+      if (notesA.has(id)) continue;
+      if (addedTrackIds.has(note.trackId)) {
+        tracksDiff.noteCounts[note.trackId] =
+          (tracksDiff.noteCounts[note.trackId] ?? 0) + 1;
+      } else {
         addedNotes.push(note);
       }
     }
 
-    // Find removed notes (exist in A but not in B)
+    // Find removed notes (exist in A but not in B) — tương tự cho track bị xoá.
     for (const [id, note] of notesA) {
-      if (!notesB.has(id)) {
+      if (notesB.has(id)) continue;
+      if (removedTrackIds.has(note.trackId)) {
+        tracksDiff.noteCounts[note.trackId] =
+          (tracksDiff.noteCounts[note.trackId] ?? 0) + 1;
+      } else {
         removedNotes.push(note);
       }
     }
@@ -257,8 +295,21 @@ export class DiffService {
     // =========================================================================
     // Build result
     // =========================================================================
+    const metaChanges: MetaChange[] = (
+      ['tempo', 'timeSignature', 'ppq'] as const
+    )
+      .filter(
+        (field) => !deepEqual(snapshotA.meta?.[field], snapshotB.meta?.[field]),
+      )
+      .map((field) => ({
+        field,
+        old: snapshotA.meta?.[field],
+        new: snapshotB.meta?.[field],
+      }));
+
     return {
       areIdentical: false,
+      metaChanges,
       summary: {
         notes: {
           added: addedNotes.length,

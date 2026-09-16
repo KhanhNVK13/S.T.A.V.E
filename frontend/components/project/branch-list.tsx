@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { GitBranch, GitMerge, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { GitBranch, GitMerge, History, Plus, Trash2 } from "lucide-react";
 import {
   ApiError,
   createBranch,
@@ -317,6 +318,14 @@ export function BranchList({ projectId }: { projectId: string }) {
               <RowTime>{formatRelativeTime(branch.created_at)}</RowTime>
 
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+                {/* UC-50 Trigger: "View history" từ menu của nhánh — mở tab Commit
+                    đã lọc sẵn đúng nhánh này. Link bọc Button giống các nút điều
+                    hướng khác của trang dự án. */}
+                <Link href={`/projects/${projectId}?tab=commits&branch=${branch.id}`}>
+                  <Button variant="ghost" title="Xem lịch sử commit của nhánh này">
+                    <History className="h-3.5 w-3.5" /> Lịch sử
+                  </Button>
+                </Link>
                 {!branch.is_default && (
                   <>
                     <Button
