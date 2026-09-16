@@ -78,6 +78,15 @@ export interface CommitInHistory {
   created_at: string;
   isUniqueToBranch: boolean;
   isInherited: boolean;
+  /** UC-50 bước 4: hiện tác giả như màn lịch sử chính (UC-43). */
+  author: {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  };
+  /** UC-50 bước 5: gắn tag/so sánh/khôi phục "exactly as in the main history view". */
+  tags: Array<{ id: string; name: string }>;
 }
 
 /** Branch history response */
@@ -310,15 +319,23 @@ export class BranchesService {
     }
     await this.verifyUserEditPermission(branch.project_id, userId);
 
-    const chainIds = await this.getAncestorIds(branch.head_commit_id); // head -> root
-    if (chainIds.length === 0) {
-      return { branchId: branch.id, branchName: branch.name, commits: [] };
-    }
+    const defaultBranch = await this.getDefaultBranch(branch.project_id);
+    const isDefaultBranch = defaultBranch?.id === branch.id;
 
-    const { data: commits, error } = await this.supabase
+    // Tải MỘT lần toàn bộ commit của project rồi đi chuỗi cha trong bộ nhớ.
+    // `getAncestorIds`/`findMergeBase` tốn 1 truy vấn cho MỖI commit, và màn
+    // này gọi cả hai (≈3 lượt đi chuỗi) — với vài trăm commit là vài trăm
+    // round-trip tới Supabase chỉ để hiện 1 danh sách.
+    const { data: projectBranches } = await this.supabase
+      .from('branches')
+      .select('id')
+      .eq('project_id', branch.project_id);
+    const branchIds = (projectBranches ?? []).map((b) => b.id as string);
+
+    const { data: rows, error } = await this.supabase
       .from('commits')
-      .select('id, branch_id, message, created_at')
-      .in('id', chainIds);
+      .select('id, branch_id, author_id, message, created_at, parent_commit_id')
+      .in('branch_id', branchIds);
 
     if (error) {
       throw new InternalServerErrorException(
@@ -326,17 +343,55 @@ export class BranchesService {
       );
     }
 
-    const defaultBranch = await this.getDefaultBranch(branch.project_id);
-    const mergeBase =
-      defaultBranch && defaultBranch.id !== branch.id
-        ? await this.findMergeBase(
-            branch.head_commit_id,
-            defaultBranch.head_commit_id,
-          )
-        : null;
-    const isDefaultBranch = defaultBranch?.id === branch.id;
+    type HistoryRow = {
+      id: string;
+      branch_id: string;
+      author_id: string;
+      message: string;
+      created_at: string;
+      parent_commit_id: string | null;
+    };
+    const byId = new Map(((rows ?? []) as HistoryRow[]).map((c) => [c.id, c]));
 
-    const byId = new Map((commits ?? []).map((c) => [c.id as string, c]));
+    const walk = (startId: string | null): string[] => {
+      const ids: string[] = [];
+      let current = startId;
+      while (current && byId.has(current) && ids.length < MAX_CHAIN_HOPS) {
+        ids.push(current);
+        current = byId.get(current)!.parent_commit_id;
+      }
+      return ids;
+    };
+
+    const chainIds = walk(branch.head_commit_id); // head -> root
+    if (chainIds.length === 0) {
+      return { branchId: branch.id, branchName: branch.name, commits: [] };
+    }
+
+    // Merge-base = commit đầu tiên trên chuỗi nhánh mặc định cũng nằm trong
+    // chuỗi nhánh này (cùng định nghĩa với `findMergeBase`).
+    let mergeBase: string | null = null;
+    if (defaultBranch && !isDefaultBranch) {
+      const inChain = new Set(chainIds);
+      mergeBase =
+        walk(defaultBranch.head_commit_id).find((id) => inChain.has(id)) ??
+        null;
+    }
+
+    const authorsMap = await this.getAuthorsInfo([
+      ...new Set(chainIds.map((id) => byId.get(id)!.author_id)),
+    ]);
+
+    const { data: tagRows } = await this.supabase
+      .from('commit_tags')
+      .select('id, commit_id, name')
+      .in('commit_id', chainIds);
+    const tagsByCommit = new Map<string, Array<{ id: string; name: string }>>();
+    for (const t of tagRows ?? []) {
+      const list = tagsByCommit.get(t.commit_id as string) ?? [];
+      list.push({ id: t.id as string, name: t.name as string });
+      tagsByCommit.set(t.commit_id as string, list);
+    }
 
     // chainIds is head-first; walk it to know, for each commit, whether we've
     // passed the merge-base yet (everything before it is unique to this
@@ -344,8 +399,7 @@ export class BranchesService {
     let pastMergeBase = isDefaultBranch; // mainline has no "unique vs shared" split
     const commitHistory: CommitInHistory[] = [];
     for (const id of chainIds) {
-      const c = byId.get(id);
-      if (!c) continue;
+      const c = byId.get(id)!;
       if (mergeBase && id === mergeBase) pastMergeBase = true;
       commitHistory.push({
         id: c.id,
@@ -354,6 +408,13 @@ export class BranchesService {
         created_at: c.created_at,
         isUniqueToBranch: !pastMergeBase,
         isInherited: pastMergeBase,
+        author: authorsMap.get(c.author_id) ?? {
+          id: c.author_id,
+          username: null,
+          display_name: null,
+          avatar_url: null,
+        },
+        tags: tagsByCommit.get(c.id) ?? [],
       });
     }
     commitHistory.reverse(); // oldest first, matching the original API shape
