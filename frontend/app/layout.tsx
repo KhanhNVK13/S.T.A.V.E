@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../context/auth-context";
+import { ThemeProvider } from "../context/theme-context";
 import { SiteHeader } from "../components/site-header";
 import { SiteFooter } from "../components/site-footer";
 
@@ -28,9 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${staveSans.variable} ${staveMono.variable} h-full antialiased`}
     >
-      <body className="h-full flex flex-col bg-white font-sans text-slate-900">
+      <body className="h-full flex flex-col bg-background font-sans text-foreground">
         <AuthProvider>
-          <SiteHeader />
+          <ThemeProvider>
+            <SiteHeader />
           {/*
             min-h-0 is required here: a flex item's default min-height is
             `auto` (sizes to content), which overrides `flex-1` and lets
@@ -45,8 +47,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             the bounded `main` and painted over the footer. Pages that fill
             the viewport should size with min-h-full (not 100vh) to match it.
           */}
-          <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
-          <SiteFooter />
+            <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+            <SiteFooter />
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>
