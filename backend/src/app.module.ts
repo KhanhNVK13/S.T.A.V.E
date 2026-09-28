@@ -13,6 +13,7 @@ import { BranchesModule } from './branches/branches.module';
 import { CommitsModule } from './commits/commits.module';
 import { MergeModule } from './merge/merge.module';
 import { AudioSketchesModule } from './audio-sketches/audio-sketches.module';
+import { CustomSoundsModule } from './custom-sounds/custom-sounds.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AudioSketchesModule } from './audio-sketches/audio-sketches.module';
     CommitsModule,
     MergeModule,
     AudioSketchesModule,
+    CustomSoundsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

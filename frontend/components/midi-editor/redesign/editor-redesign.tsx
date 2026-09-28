@@ -25,10 +25,11 @@ import {
   GitBranch,
   GitCommitHorizontal,
   Magnet,
+  Mic,
   MousePointer2,
+  Music,
   Pause,
   Pencil,
-  Mic,
   Play,
   Repeat,
   Square,
@@ -51,6 +52,7 @@ import { VelocityLane } from "../velocity-lane";
 import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
+import { SoundLibraryPanel } from "../../custom-sound/sound-library-panel";
 import { TrackPanel } from "./track-panel";
 import { HistoryPanel } from "./history-panel";
 import { CommitDialog } from "./commit-dialog";
@@ -177,6 +179,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
   const [showExportAudio, setShowExportAudio] = useState(false);
   // UC-53: trigger theo SRS là "User selects 'Audio sketch' in the MIDI Editor".
   const [showAudioSketch, setShowAudioSketch] = useState(false);
+  const [showSoundLibrary, setShowSoundLibrary] = useState(false);
 
   // ── Version Control (UC-42/43/44/46) ────────────────────────
   const vc = useVersionControl({
@@ -611,6 +614,14 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <Mic size={14} />
           Audio sketch
         </button>
+        <button
+          onClick={() => setShowSoundLibrary(true)}
+          title="Quản lý custom sounds (UC-56)"
+          style={styles.ghostBtn}
+        >
+          <Music size={14} />
+          Sounds
+        </button>
       </div>
 
       {/* ── Body 3 cột (mockup dòng 201–307) ───────────────────── */}
@@ -734,6 +745,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onClose={() => setShowAudioSketch(false)}
         >
           <AudioSketchPanel projectId={projectId} />
+        </Modal>
+      )}
+
+      {showSoundLibrary && (
+        <Modal
+          title="Sound Library"
+          width={520}
+          onClose={() => setShowSoundLibrary(false)}
+        >
+          <SoundLibraryPanel />
         </Modal>
       )}
     </div>
