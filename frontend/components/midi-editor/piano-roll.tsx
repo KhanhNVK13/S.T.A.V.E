@@ -123,6 +123,8 @@ interface PianoRollProps {
   onNotesChange: (notes: DraftNote[]) => void;
   selectedNoteIds: Set<string>;
   onSelectedNotesChange: (ids: Set<string>) => void;
+  /** UC-57: right-click note → mở context menu */
+  onNoteRightClick?: (noteId: string, trackId: string, pitch: number, x: number, y: number) => void;
   // UC-37: Playback
   isPlaying: boolean;
   onSeek: (tick: number) => void;
@@ -150,6 +152,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       isPlaying,
       onSeek,
       onScrollXChange,
+      onNoteRightClick,
     },
     ref,
   ) {
@@ -472,10 +475,17 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       }
 
       if (e.button === 2) {
-        // Right-click → delete
+        // Right-click → UC-57: mở context menu assign sound
         const hit = hitNote(cx, cy);
-        if (hit) {
-          onNotesChange(notes.filter((n) => n.id !== hit.note.id));
+        if (hit && onNoteRightClick) {
+          const rect = canvasRef.current!.getBoundingClientRect();
+          onNoteRightClick(
+            hit.note.id,
+            hit.note.trackId,
+            hit.note.pitch,
+            e.clientX - rect.left,
+            e.clientY - rect.top,
+          );
         }
         return;
       }

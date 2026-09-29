@@ -53,6 +53,7 @@ import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import { SoundLibraryPanel } from "../../custom-sound/sound-library-panel";
+import { SoundMappingDialog } from "../../custom-sound/sound-mapping-dialog";
 import { TrackPanel } from "./track-panel";
 import { HistoryPanel } from "./history-panel";
 import { CommitDialog } from "./commit-dialog";
@@ -180,6 +181,13 @@ export function EditorRedesign(props: EditorRedesignProps) {
   // UC-53: trigger theo SRS là "User selects 'Audio sketch' in the MIDI Editor".
   const [showAudioSketch, setShowAudioSketch] = useState(false);
   const [showSoundLibrary, setShowSoundLibrary] = useState(false);
+
+  // UC-57: sound mapping dialog state
+  const [soundMappingTarget, setSoundMappingTarget] = useState<{
+    noteId: string;
+    trackId: string;
+    pitch: number;
+  } | null>(null);
 
   // ── Version Control (UC-42/43/44/46) ────────────────────────
   const vc = useVersionControl({
@@ -660,6 +668,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
             isPlaying={isPlaying}
             onSeek={onSeek}
             onScrollXChange={setRollScrollX}
+            onNoteRightClick={(noteId, trackId, pitch) => {
+              setSoundMappingTarget({ noteId, trackId, pitch });
+            }}
           />
           {velocityLaneOpen && (
             <VelocityLane
@@ -755,6 +766,26 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onClose={() => setShowSoundLibrary(false)}
         >
           <SoundLibraryPanel />
+        </Modal>
+      )}
+
+      {/* UC-57: sound mapping dialog */}
+      {soundMappingTarget && (
+        <Modal
+          title="Assign Sound"
+          width={480}
+          onClose={() => setSoundMappingTarget(null)}
+        >
+          <SoundMappingDialog
+            projectId={projectId}
+            trackId={soundMappingTarget.trackId}
+            pitch={soundMappingTarget.pitch}
+            onClose={() => setSoundMappingTarget(null)}
+            onAssigned={() => {
+              // Refresh mappings if needed — for now just close
+              setSoundMappingTarget(null);
+            }}
+          />
         </Modal>
       )}
     </div>
