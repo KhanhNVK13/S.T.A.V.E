@@ -22,8 +22,8 @@ const ICONS: Record<ToastVariant, typeof Info> = {
 
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
   info: "border-accent/30 bg-accent-muted text-accent",
-  success: "border-success/30 bg-success-muted text-success",
-  warning: "border-warning/30 bg-warning-muted text-warning",
+  success: "border-success/30 bg-success-muted text-success-foreground",
+  warning: "border-warning/30 bg-warning-muted text-warning-foreground",
   danger: "border-danger/30 bg-danger-muted text-danger",
 };
 
@@ -46,7 +46,7 @@ export function Toast({ message, variant = "info", onDismiss, duration = 4000 }:
     <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
       <div
         className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-card border px-4 py-3 text-sm shadow-card ${VARIANT_CLASSES[variant]}`}
-        role="status"
+        role={variant === "danger" ? "alert" : "status"}
       >
         <Icon className="mt-0.5 h-4 w-4 shrink-0" />
         <p className="flex-1">{message}</p>

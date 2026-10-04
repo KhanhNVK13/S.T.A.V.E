@@ -33,7 +33,7 @@ export function AuthCard({
           <Logo />
         </div>
         {eyebrow && (
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent">{eyebrow}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{eyebrow}</p>
         )}
         {title && <h1 className="my-1 text-[23px] font-semibold tracking-tight">{title}</h1>}
         {description && <p className="mb-6 text-xs text-muted">{description}</p>}
@@ -52,20 +52,20 @@ export function AuthField({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold">{label}</span>
+      <span className="text-xs font-semibold">{label}</span>
       {children}
     </label>
   );
 }
 
 export const AUTH_INPUT_CLASS =
-  "h-[37px] rounded-md border border-border bg-background px-2.5 text-xs placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-muted";
+  "h-10 rounded-md border border-border bg-background px-2.5 text-base sm:h-[37px] sm:text-[13px] placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-muted";
 
 export function AuthDivider() {
   return (
     <div className="my-5 flex items-center gap-3">
       <div className="h-px flex-1 bg-border" />
-      <span className="text-[10px] text-muted">hoặc</span>
+      <span className="text-xs text-muted">hoặc</span>
       <div className="h-px flex-1 bg-border" />
     </div>
   );

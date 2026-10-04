@@ -13,22 +13,31 @@
  */
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ArrowLeft,
   BarChart3,
   ChevronDown,
+  CircleHelp,
   ClipboardPaste,
   Copy,
   Download,
   Eraser,
   FileDown,
+  FileMusic,
   GitBranch,
   GitCommitHorizontal,
+  Lightbulb,
   Magnet,
   MousePointer2,
   Pause,
   Pencil,
   Mic,
+  MonitorSmartphone,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Play,
   Repeat,
   Square,
@@ -39,9 +48,11 @@ import {
   Upload,
   Volume2,
   VolumeX,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import Link from "next/link";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { CommitWithAuthor } from "../../../lib/api-client";
 import type { GridDivision, ToolMode } from "../piano-roll";
@@ -51,17 +62,26 @@ import { VelocityLane } from "../velocity-lane";
 import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
+import type { AudioSketchState } from "../../audio-sketch/audio-sketch-panel";
+import { ConfirmDialog } from "../../ui/confirm-dialog";
 import { TrackPanel } from "./track-panel";
 import { HistoryPanel } from "./history-panel";
 import { CommitDialog } from "./commit-dialog";
 import { RestoreDialog } from "./restore-dialog";
+import { HelpDialog } from "./help-dialog";
+import { isDialogOpen } from "../../../lib/use-dialog";
 import { useVersionControl } from "./use-version-control";
+import { summarizeChanges } from "./change-summary";
+import type { SaveStatus } from "../midi-editor";
 import { DC, DC_SIZE } from "./tokens";
+
+const NARROW_QUERY = "(max-width: 767px)";
+const TIP_KEY = "stave-editor-help-tip-dismissed";
 
 const TOOLS: { id: ToolMode; label: string; Icon: typeof Pencil; title: string }[] = [
   { id: "pointer", label: "Select", Icon: MousePointer2, title: "Chọn & di chuyển note" },
-  { id: "pencil", label: "Draw", Icon: Pencil, title: "Vẽ note mới (UC-25)" },
-  { id: "eraser", label: "Erase", Icon: Eraser, title: "Xoá note (UC-27)" },
+  { id: "pencil", label: "Draw", Icon: Pencil, title: "Vẽ note mới" },
+  { id: "eraser", label: "Erase", Icon: Eraser, title: "Xoá note" },
 ];
 
 const GRIDS: { value: GridDivision; label: string }[] = [
@@ -133,7 +153,9 @@ interface EditorRedesignProps {
   onToggleLoop: () => void;
   onSeek: (tick: number) => void;
   // Lưu
-  saveStatus: "saved" | "saving" | "unsaved";
+  saveStatus: SaveStatus;
+  saveRetryInSec: number | null;
+  onRetrySave: () => void;
   /** Ghi ngay bản nháp xuống server (huỷ debounce) — chạy trước mỗi lần commit. */
   onFlushDraft: () => Promise<void>;
   /** UC-48: đọc bản nháp đang mở để gửi kèm khi chuyển nhánh. */
@@ -167,7 +189,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     onQuantize, onImportMidi, onCopy, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
     isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
-    saveStatus, onFlushDraft, onReadSnapshot, onSnapshotRestored,
+    saveStatus, saveRetryInSec, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored,
     masterVolume, onMasterVolumeChange,
     onTempoChange, metronomeOn, onMetronomeToggle,
     playbackRate, onPlaybackRateChange, onExportMidi,
@@ -186,6 +208,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
     onSnapshotRestored,
   });
   const [commitOpen, setCommitOpen] = useState(false);
+  const [commitMessage, setCommitMessage] = useState("");
+  const [sketchState, setSketchState] = useState<AudioSketchState>("idle");
+  const [confirmCloseSketch, setConfirmCloseSketch] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<CommitWithAuthor | null>(null);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   // Dải velocity: mặc định HIỆN vì nó là cách duy nhất sửa được velocity
@@ -195,7 +220,70 @@ export function EditorRedesign(props: EditorRedesignProps) {
   // Piano roll là nơi duy nhất cuộn ngang; dải velocity chỉ bám theo giá trị
   // này để hai lưới thẳng cột.
   const [rollScrollX, setRollScrollX] = useState(0);
+  const [trackPanelOpen, setTrackPanelOpen] = useState(
+    () => typeof window === "undefined" || !window.matchMedia(NARROW_QUERY).matches,
+  );
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(
+    () => typeof window === "undefined" || window.innerWidth >= 1280,
+  );
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [bpmDraft, setBpmDraft] = useState<string | null>(null);
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(NARROW_QUERY).matches,
+  );
+  const [narrowDismissed, setNarrowDismissed] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [tipVisible, setTipVisible] = useState(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage.getItem(TIP_KEY) !== "1";
+    } catch {
+      return true;
+    }
+  });
+
+  function dismissTip() {
+    setTipVisible(false);
+    try {
+      window.localStorage.setItem(TIP_KEY, "1");
+    } catch {}
+  }
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isDialogOpen()) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      e.preventDefault();
+      setHelpOpen(true);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_QUERY);
+    const onChange = () => setIsNarrow(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  function commitBpm() {
+    if (bpmDraft === null) return;
+    const v = parseInt(bpmDraft, 10);
+    if (!isNaN(v)) onTempoChange(Math.min(300, Math.max(20, v)));
+    setBpmDraft(null);
+  }
+
+  function runFileAction(action: () => void) {
+    setFileMenuOpen(false);
+    action();
+  }
   const branchLabel = vc.branch?.name ?? "main";
+  const uncommittedCount = restoreTarget
+    ? vc.headCommit
+      ? summarizeChanges(vc.headCommit.snapshot, snapshot).total
+      : snapshot.tracks.length + snapshot.notes.length
+    : 0;
   const canCommit = vc.branch !== null && !vc.branchLoading;
 
   const { clearCommitError, clearRestoreError, clearSwitchError } = vc;
@@ -221,7 +309,21 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
   async function submitCommit(message: string) {
     const ok = await vc.commit(message);
-    if (ok) setCommitOpen(false);
+    if (ok) {
+      setCommitOpen(false);
+      setCommitMessage("");
+    }
+  }
+
+  function requestCloseSketch() {
+    if (sketchState === "reviewing") setConfirmCloseSketch(true);
+    else closeSketch();
+  }
+
+  function closeSketch() {
+    setConfirmCloseSketch(false);
+    setSketchState("idle");
+    setShowAudioSketch(false);
   }
 
   function openRestoreDialog(commit: CommitWithAuthor) {
@@ -237,9 +339,27 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
   return (
     <div style={styles.root}>
+      {isNarrow && !narrowDismissed && (
+        <div role="alert" style={styles.narrowNotice}>
+          <MonitorSmartphone size={16} />
+          <span>Trình soạn nhạc cần màn hình rộng hơn (máy tính hoặc tablet nằm ngang).</span>
+          <button type="button" onClick={() => setNarrowDismissed(true)} style={styles.saveErrorBtn}>
+            Vẫn tiếp tục
+          </button>
+        </div>
+      )}
+
       {/* ── Header (mockup dòng 159–199) ───────────────────────── */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
+          <Link
+            href={`/projects/${projectId}`}
+            title="Về trang dự án (lịch sử, nhánh, cài đặt)"
+            aria-label="Về trang dự án"
+            style={styles.backLink}
+          >
+            <ArrowLeft size={16} />
+          </Link>
           <span style={styles.projectName} title={projectName}>
             {projectName}
           </span>
@@ -256,7 +376,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 vc.switching
                   ? "Đang chuyển nhánh…"
                   : canSwitchBranch
-                    ? "Đổi nhánh đang mở (UC-48)"
+                    ? "Đổi nhánh đang mở"
                     : "Project chỉ có 1 nhánh — tạo thêm ở trang tổng quan project"
               }
               style={{
@@ -322,7 +442,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             onClick={onPlay}
             disabled={isPlaying}
-            title={isPaused ? "Phát tiếp" : "Phát (UC-37)"}
+            title={isPaused ? "Phát tiếp (Space)" : "Phát (Space)"}
             style={{
               ...styles.transportBtn,
               background: isPlaying ? DC.accent : "transparent",
@@ -335,7 +455,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             onClick={onPause}
             disabled={!isPlaying}
-            title="Tạm dừng"
+            title="Tạm dừng (Space)"
             style={{
               ...styles.transportBtn,
               color: isPlaying ? DC.text : DC.borderSoft,
@@ -370,7 +490,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           </button>
           <button
             onClick={onMetronomeToggle}
-            title={metronomeOn ? "Metronome: ĐANG BẬT" : "Metronome: đang tắt (UC-36)"}
+            title={metronomeOn ? "Metronome: ĐANG BẬT" : "Metronome: đang tắt"}
             style={{
               ...styles.transportBtn,
               background: metronomeOn ? DC.accent : "transparent",
@@ -383,6 +503,55 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
         <div style={styles.headerRight}>
           <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            title="Trợ giúp: khái niệm và phím tắt (?)"
+            aria-label="Help"
+            style={styles.iconBtn}
+          >
+            <CircleHelp size={14} />
+          </button>
+          <button
+            onClick={() => setTrackPanelOpen((open) => !open)}
+            title={trackPanelOpen ? "Ẩn panel Tracks" : "Hiện panel Tracks"}
+            aria-label="Tracks panel"
+            aria-pressed={trackPanelOpen}
+            style={styles.iconBtn}
+          >
+            {trackPanelOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+          </button>
+          <button
+            onClick={() => setHistoryPanelOpen((open) => !open)}
+            title={historyPanelOpen ? "Ẩn panel lịch sử" : "Hiện panel lịch sử"}
+            aria-label="History panel"
+            aria-pressed={historyPanelOpen}
+            style={styles.iconBtn}
+          >
+            {historyPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+          </button>
+          {/* Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc,
+              thay vì phải kéo thanh VOL từng track riêng ở panel Tracks. Chỉ
+              ảnh hưởng output lúc phát (masterGainRef trong midi-editor.tsx),
+              không ghi vào snapshot/track.volume của từng track. */}
+          <div style={styles.masterVolumeGroup} title="Âm lượng chung cho tất cả track">
+            {masterVolume === 0 ? (
+              <VolumeX size={14} color={DC.textMuted} />
+            ) : (
+              <Volume2 size={14} color={DC.textMuted} />
+            )}
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={masterVolume}
+              onChange={(e) => onMasterVolumeChange(Number(e.target.value))}
+              aria-label="Master volume"
+              style={styles.masterVolumeSlider}
+            />
+            <span style={styles.masterVolumeValue}>{Math.round(masterVolume * 100)}%</span>
+          </div>
+          <button
             onClick={openCommitDialog}
             disabled={!canCommit}
             title={
@@ -390,7 +559,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 ? `Không tải được branch: ${vc.branchError}`
                 : vc.branchLoading
                   ? "Đang tải thông tin branch…"
-                  : "Ghi lại phiên bản hiện tại (UC-42)"
+                  : "Ghi lại phiên bản hiện tại"
             }
             style={{
               ...styles.commitBtn,
@@ -403,6 +572,38 @@ export function EditorRedesign(props: EditorRedesignProps) {
           </button>
         </div>
       </header>
+
+      {saveStatus === "error" && (
+        <div role="alert" style={styles.saveErrorBar}>
+          <span>
+            <strong>Không lưu được bản nháp.</strong>{" "}
+            {saveRetryInSec !== null
+              ? `Sẽ tự thử lại sau ${saveRetryInSec} giây.`
+              : "Đang thử lại…"}{" "}
+            Đừng đóng trang cho tới khi thấy &quot;Đã lưu nháp&quot;.
+          </span>
+          <button type="button" onClick={onRetrySave} style={styles.saveErrorBtn}>
+            Thử lại ngay
+          </button>
+        </div>
+      )}
+
+      {tipVisible && (
+        <div role="note" style={styles.tipBar}>
+          <Lightbulb size={15} color={DC.accent} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>
+            Mới dùng STAVE? Bản nháp tự lưu; bấm <strong>Commit Changes</strong> để lưu thành
+            một phiên bản có thể quay lại. Nhấn <kbd style={styles.tipKbd}>?</kbd> để xem khái
+            niệm và phím tắt.
+          </span>
+          <button type="button" onClick={() => setHelpOpen(true)} style={styles.tipAction}>
+            Xem trợ giúp
+          </button>
+          <button type="button" onClick={dismissTip} aria-label="Ẩn gợi ý" title="Ẩn gợi ý" style={styles.tipClose}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── Tool strip ─────────────────────────────────────────── */}
       <div style={styles.toolStrip}>
@@ -445,7 +646,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
             </button>
           ))}
         </div>
-        <button onClick={onQuantize} title="Quantize toàn bộ note về lưới (UC-31)" style={styles.ghostBtn}>
+        <button onClick={onQuantize} title="Quantize toàn bộ note về lưới" style={styles.ghostBtn}>
           <Magnet size={14} />
           Quantize
         </button>
@@ -487,13 +688,20 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <div style={styles.bpmGroup} title="Tempo (BPM)">
           <span style={styles.stripLabel}>BPM</span>
           <input
-            type="number"
-            min={20}
-            max={300}
-            value={tempo}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              if (!isNaN(v) && v >= 20 && v <= 300) onTempoChange(v);
+            type="text"
+            inputMode="numeric"
+            aria-label="Tempo (BPM)"
+            value={bpmDraft ?? String(tempo)}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => setBpmDraft(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+            onBlur={commitBpm}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              else if (e.key === "Escape") setBpmDraft(null);
+              else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                e.preventDefault();
+                onTempoChange(Math.min(300, Math.max(20, tempo + (e.key === "ArrowUp" ? 1 : -1))));
+              }
             }}
             style={styles.bpmInput}
           />
@@ -505,6 +713,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <div style={styles.bpmGroup} title="Tốc độ nghe thử — không đổi tempo thật của project">
           <span style={styles.stripLabel}>SPEED</span>
           <select
+            aria-label="Playback speed"
             value={playbackRate}
             onChange={(e) => onPlaybackRateChange(Number(e.target.value))}
             style={styles.speedSelect}
@@ -517,120 +726,113 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
         <span style={styles.stripDivider} />
 
-        {/* Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc,
-            thay vì phải kéo thanh VOL từng track riêng ở panel Tracks. Chỉ
-            ảnh hưởng output lúc phát (masterGainRef trong midi-editor.tsx),
-            không ghi vào snapshot/track.volume của từng track. */}
-        <div style={styles.masterVolumeGroup} title="Âm lượng chung cho tất cả track">
-          {masterVolume === 0 ? (
-            <VolumeX size={14} color={DC.textMuted} />
-          ) : (
-            <Volume2 size={14} color={DC.textMuted} />
-          )}
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={masterVolume}
-            onChange={(e) => onMasterVolumeChange(Number(e.target.value))}
-            style={styles.masterVolumeSlider}
-          />
-          <span style={styles.masterVolumeValue}>{Math.round(masterVolume * 100)}%</span>
-        </div>
-
-        <span style={styles.stripDivider} />
-
-        <button onClick={onSelectAll} title="Chọn tất cả note (Ctrl+A)" style={styles.ghostBtn}>
+        <button onClick={onSelectAll} title="Chọn tất cả note (Ctrl+A)" aria-label="Select all" style={styles.iconBtn}>
           <SquareCheck size={14} />
-          All
         </button>
         <button
           onClick={onCopy}
           disabled={!hasSelection}
           title={hasSelection ? "Copy note đã chọn (Ctrl+C)" : "Chọn note trước đã"}
-          style={{ ...styles.ghostBtn, opacity: hasSelection ? 1 : 0.4, cursor: hasSelection ? "pointer" : "not-allowed" }}
+          aria-label="Copy"
+          style={{ ...styles.iconBtn, opacity: hasSelection ? 1 : 0.4, cursor: hasSelection ? "pointer" : "not-allowed" }}
         >
           <Copy size={14} />
-          Copy
         </button>
         <button
           onClick={onPaste}
           disabled={!hasClipboard}
           title={hasClipboard ? "Dán note (Ctrl+V)" : "Chưa có gì để dán"}
-          style={{ ...styles.ghostBtn, opacity: hasClipboard ? 1 : 0.4, cursor: hasClipboard ? "pointer" : "not-allowed" }}
+          aria-label="Paste"
+          style={{ ...styles.iconBtn, opacity: hasClipboard ? 1 : 0.4, cursor: hasClipboard ? "pointer" : "not-allowed" }}
         >
           <ClipboardPaste size={14} />
-          Paste
         </button>
-
-        <span style={styles.stripDivider} />
-
         <button
           onClick={onUndo}
           disabled={!canUndo}
           title={canUndo ? "Hoàn tác (Ctrl+Z)" : "Không có gì để hoàn tác"}
-          style={{ ...styles.ghostBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "not-allowed" }}
+          aria-label="Undo"
+          style={{ ...styles.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "not-allowed" }}
         >
           <Undo2 size={14} />
-          Undo
         </button>
         <button
           onClick={onRedo}
           disabled={!canRedo}
           title={canRedo ? "Làm lại (Ctrl+Y / Ctrl+Shift+Z)" : "Không có gì để làm lại"}
-          style={{ ...styles.ghostBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "not-allowed" }}
+          aria-label="Redo"
+          style={{ ...styles.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "not-allowed" }}
         >
           <Redo2 size={14} />
-          Redo
         </button>
 
         <span style={{ flex: 1 }} />
 
         {trackLimitWarning && (
-          <span style={styles.warning}>Tối đa {maxTracks} track (BR-29)</span>
+          <span style={styles.warning}>Tối đa {maxTracks} track</span>
         )}
 
-        <button onClick={onImportMidi} title="Nhập file MIDI (UC-24)" style={styles.primaryGhostBtn}>
-          <Upload size={14} />
-          Import MIDI
-        </button>
-        <button onClick={onExportMidi} title="Xuất project ra file .mid (UC-39)" style={styles.ghostBtn}>
-          <FileDown size={14} />
-          Export MIDI
-        </button>
-        <button onClick={() => setShowExportAudio(true)} title="Xuất âm thanh WAV (UC-38)" style={styles.ghostBtn}>
-          <Download size={14} />
-          Export Audio
-        </button>
-        <button
-          onClick={() => setShowAudioSketch(true)}
-          title="Ghi nhanh ý tưởng bằng micro (UC-53)"
-          style={styles.ghostBtn}
-        >
-          <Mic size={14} />
-          Audio sketch
-        </button>
+        <div style={styles.fileMenuWrap}>
+          <button
+            type="button"
+            onClick={() => setFileMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={fileMenuOpen}
+            style={styles.ghostBtn}
+          >
+            <FileMusic size={14} />
+            File
+            <ChevronDown size={13} />
+          </button>
+          {fileMenuOpen && (
+            <>
+              <div style={styles.branchBackdrop} onClick={() => setFileMenuOpen(false)} />
+              <div
+                role="menu"
+                style={styles.fileMenu}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setFileMenuOpen(false);
+                }}
+              >
+                <button role="menuitem" autoFocus onClick={() => runFileAction(onImportMidi)} title="Nhập file MIDI" style={styles.fileMenuItem}>
+                  <Upload size={14} /> Import MIDI
+                </button>
+                <button role="menuitem" onClick={() => runFileAction(onExportMidi)} title="Xuất project ra file .mid" style={styles.fileMenuItem}>
+                  <FileDown size={14} /> Export MIDI
+                </button>
+                <button role="menuitem" onClick={() => runFileAction(() => setShowExportAudio(true))} title="Xuất âm thanh WAV" style={styles.fileMenuItem}>
+                  <Download size={14} /> Export Audio
+                </button>
+                <button role="menuitem" onClick={() => runFileAction(() => setShowAudioSketch(true))} title="Ghi nhanh ý tưởng bằng micro" style={styles.fileMenuItem}>
+                  <Mic size={14} /> Audio sketch
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
       </div>
 
       {/* ── Body 3 cột (mockup dòng 201–307) ───────────────────── */}
       <div style={styles.body}>
-        <TrackPanel
-          tracks={tracks}
-          selectedTrackId={selectedTrackId}
-          onSelectTrack={onSelectTrack}
-          onAddTrack={onAddTrack}
-          onToggleMute={onToggleMute}
-          onToggleSolo={onToggleSolo}
-          onDeleteTrack={onDeleteTrack}
-          onAssignInstrument={onAssignInstrument}
-          onSetTrackColor={onSetTrackColor}
-          onSetTrackLabel={onSetTrackLabel}
-          onSetTrackVolume={onSetTrackVolume}
-          onSetTrackPan={onSetTrackPan}
-          canAddTrack={canAddTrack}
-          maxTracks={maxTracks}
-        />
+        {trackPanelOpen && (
+          <TrackPanel
+            tracks={tracks}
+            selectedTrackId={selectedTrackId}
+            onSelectTrack={onSelectTrack}
+            onAddTrack={onAddTrack}
+            onToggleMute={onToggleMute}
+            onToggleSolo={onToggleSolo}
+            onDeleteTrack={onDeleteTrack}
+            onAssignInstrument={onAssignInstrument}
+            onSetTrackColor={onSetTrackColor}
+            onSetTrackLabel={onSetTrackLabel}
+            onSetTrackVolume={onSetTrackVolume}
+            onSetTrackPan={onSetTrackPan}
+            canAddTrack={canAddTrack}
+            maxTracks={maxTracks}
+          />
+        )}
 
         <div style={styles.rollWrap}>
           <PianoRoll
@@ -662,14 +864,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
           )}
         </div>
 
-        <HistoryPanel
-          branchName={branchLabel}
-          saveStatus={saveStatus}
-          trackCount={tracks.length}
-          noteCount={notes.length}
-          vc={vc}
-          onRequestRestore={openRestoreDialog}
-        />
+        {historyPanelOpen && (
+          <HistoryPanel
+            branchName={branchLabel}
+            saveStatus={saveStatus}
+            trackCount={tracks.length}
+            noteCount={notes.length}
+            vc={vc}
+            onRequestRestore={openRestoreDialog}
+          />
+        )}
       </div>
 
       {/* ── Footer (mockup dòng 309–315) — chỉ số liệu THẬT ───── */}
@@ -682,7 +886,13 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 saveStatus === "saved" ? DC.success : saveStatus === "saving" ? DC.warning : DC.danger,
             }}
           />
-          {saveStatus === "saved" ? "Đã lưu nháp" : saveStatus === "saving" ? "Đang lưu…" : "Chưa lưu"}
+          {saveStatus === "saved"
+            ? "Đã lưu nháp"
+            : saveStatus === "saving"
+              ? "Đang lưu…"
+              : saveStatus === "error"
+                ? "Không lưu được"
+                : "Chưa lưu"}
         </span>
         <span>
           BPM <strong style={styles.footerStrong}>{tempo}</strong>
@@ -702,6 +912,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           headSnapshot={vc.headCommit?.snapshot ?? null}
           submitting={vc.committing}
           error={vc.commitError}
+          message={commitMessage}
+          onMessageChange={setCommitMessage}
           onSubmit={(message) => void submitCommit(message)}
           onClose={() => setCommitOpen(false)}
         />
@@ -711,6 +923,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <RestoreDialog
           commit={restoreTarget}
           hasUnsavedChanges={saveStatus !== "saved"}
+          uncommittedCount={uncommittedCount}
           submitting={vc.restoring}
           error={vc.restoreError}
           onConfirm={() => void confirmRestore()}
@@ -731,11 +944,25 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <Modal
           title="Audio sketch"
           width={760}
-          onClose={() => setShowAudioSketch(false)}
+          onClose={requestCloseSketch}
+          closeDisabled={sketchState === "recording" || sketchState === "attaching"}
         >
-          <AudioSketchPanel projectId={projectId} />
+          <AudioSketchPanel projectId={projectId} onStateChange={setSketchState} />
         </Modal>
       )}
+
+      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+
+      <ConfirmDialog
+        open={confirmCloseSketch}
+        title="Bỏ bản ghi chưa đính kèm?"
+        message="Bản ghi vừa thu chưa được đính kèm vào dự án. Đóng lúc này sẽ mất bản ghi và không lấy lại được."
+        confirmLabel="Bỏ bản ghi"
+        cancelLabel="Tiếp tục chỉnh"
+        danger
+        onConfirm={closeSketch}
+        onCancel={() => setConfirmCloseSketch(false)}
+      />
     </div>
   );
 }
@@ -824,7 +1051,7 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
   branchMenuTag: {
-    fontSize: 10,
+    fontSize: 11,
     letterSpacing: 0.3,
     textTransform: "uppercase",
     color: DC.textMuted,
@@ -885,15 +1112,111 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   toolStrip: {
-    height: DC_SIZE.toolStripH,
+    minHeight: DC_SIZE.toolStripH,
     flexShrink: 0,
     background: DC.surface,
     borderBottom: `1px solid ${DC.border}`,
     display: "flex",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 6,
-    padding: "0 20px",
-    overflowX: "auto",
+    gap: 5,
+    rowGap: 6,
+    padding: "8px 16px",
+  },
+  backLink: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    border: `1px solid ${DC.border}`,
+    color: DC.textMuted,
+    flexShrink: 0,
+  },
+  fileMenuWrap: { position: "relative", flexShrink: 0 },
+  fileMenu: {
+    position: "absolute",
+    right: 0,
+    top: "calc(100% + 6px)",
+    zIndex: 41,
+    minWidth: 190,
+    display: "flex",
+    flexDirection: "column",
+    padding: 4,
+    background: DC.surface,
+    border: `1px solid ${DC.border}`,
+    borderRadius: 10,
+    boxShadow: "0 12px 28px rgba(15, 42, 92, .14)",
+  },
+  fileMenuItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 10px",
+    borderRadius: 7,
+    border: "none",
+    background: "transparent",
+    color: DC.text,
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  tipBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "7px 16px",
+    background: DC.surface,
+    borderBottom: `1px solid ${DC.border}`,
+    color: DC.text,
+    fontSize: 13,
+    lineHeight: 1.5,
+    flexShrink: 0,
+  },
+  tipKbd: {
+    padding: "0 5px",
+    border: `1px solid ${DC.border}`,
+    borderRadius: 4,
+    font: `600 12px ${DC.mono}`,
+    background: DC.pageBg,
+  },
+  tipAction: {
+    flexShrink: 0,
+    padding: "4px 10px",
+    borderRadius: 7,
+    border: `1px solid ${DC.border}`,
+    background: DC.surface,
+    color: DC.accent,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  tipClose: {
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 26,
+    height: 26,
+    border: "none",
+    borderRadius: 6,
+    background: "transparent",
+    color: DC.textMuted,
+    cursor: "pointer",
+  },
+  narrowNotice: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 16px",
+    background: DC.pageBg,
+    borderBottom: `1px solid ${DC.border}`,
+    color: DC.text,
+    fontSize: 13,
+    lineHeight: 1.5,
+    flexShrink: 0,
   },
   segment: {
     display: "flex",
@@ -917,9 +1240,9 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
-  stripDivider: { width: 1, height: 22, background: DC.border, margin: "0 6px", flexShrink: 0 },
+  stripDivider: { width: 1, height: 22, background: DC.border, margin: "0 3px", flexShrink: 0 },
   stripLabel: {
-    font: `700 10px ${DC.mono}`,
+    font: `700 11px ${DC.mono}`,
     letterSpacing: ".08em",
     color: DC.textMuted,
     flexShrink: 0,
@@ -988,7 +1311,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   bpmInput: {
-    width: 48,
+    width: 52,
+    textAlign: "center",
     padding: "4px 6px",
     fontSize: 12,
     fontFamily: DC.mono,
@@ -1056,6 +1380,30 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "0 18px",
     font: `500 11.5px ${DC.mono}`,
     color: DC.textMuted,
+  },
+  saveErrorBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "8px 16px",
+    background: DC.dangerSoft,
+    borderBottom: `1px solid ${DC.dangerBorder}`,
+    color: DC.danger,
+    fontSize: 13,
+    lineHeight: 1.5,
+    flexShrink: 0,
+  },
+  saveErrorBtn: {
+    flexShrink: 0,
+    padding: "5px 12px",
+    borderRadius: 7,
+    border: `1px solid ${DC.dangerBorder}`,
+    background: DC.surface,
+    color: DC.danger,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: "pointer",
   },
   footerItem: { display: "flex", alignItems: "center", gap: 7 },
   footerDot: { width: 7, height: 7, borderRadius: "50%", flexShrink: 0 },

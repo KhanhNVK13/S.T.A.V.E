@@ -9,7 +9,6 @@ import {
   Tag as TagIcon,
 } from "lucide-react";
 import {
-  ApiError,
   getBranchHistory,
   listProjectBranches,
   restoreCommit,
@@ -25,17 +24,13 @@ import { RowList, RowHeader, RowItem, RowTime } from "../ui/row-list";
 import { Toast } from "../ui/toast";
 import { CommitCompare } from "./commit-compare";
 import type { CompareSide } from "./commit-compare";
+import { apiErrorMessage } from "../../lib/error-message";
+import { APP_LOCALE } from "../../lib/format-date";
 
 /** Chọn | commit | tác giả | mã | thời điểm | thao tác. */
-const COLS = "md:grid-cols-[20px_minmax(0,1fr)_150px_88px_78px_auto]";
+const COLS = "md:grid-cols-[20px_minmax(0,1fr)_150px_88px_96px_auto]";
 
 const PAGE_SIZE = 20;
-
-function messageOf(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) return err.message;
-  if (err instanceof Error && err.message) return err.message;
-  return fallback;
-}
 
 /**
  * UC-43 (xem lịch sử commit) + UC-44 (gắn tag) + UC-45 (so sánh) + UC-46
@@ -73,6 +68,7 @@ export function CommitHistory({
 
   const [restoreTarget, setRestoreTarget] = useState<BranchHistoryCommit | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   /** Tối đa 2 commit được chọn để so sánh; chọn cái thứ 3 thì bỏ cái chọn sớm nhất. */
   const [selected, setSelected] = useState<string[]>([]);
@@ -90,7 +86,7 @@ export function CommitHistory({
       // 2.E2: báo lỗi kèm nút thử lại, không hiện danh sách rỗng dễ gây hiểu
       // nhầm là mất lịch sử.
       setCommits([]);
-      setError(messageOf(err, "Không tải được lịch sử commit."));
+      setError(apiErrorMessage(err, "Không tải được lịch sử commit."));
     } finally {
       setLoading(false);
     }
@@ -118,7 +114,7 @@ export function CommitHistory({
         }
       } catch (err) {
         if (!cancelled) {
-          setError(messageOf(err, "Không tải được danh sách nhánh."));
+          setError(apiErrorMessage(err, "Không tải được danh sách nhánh."));
           setLoading(false);
         }
       }
@@ -148,7 +144,7 @@ export function CommitHistory({
       setNotice(`Đã gắn tag "${name}".`);
       if (branch) await loadHistory(branch.id);
     } catch (err) {
-      setError(messageOf(err, "Không gắn được tag."));
+      setError(apiErrorMessage(err, "Không gắn được tag."));
     } finally {
       setTagBusy(false);
     }
@@ -157,6 +153,7 @@ export function CommitHistory({
   async function handleRestore() {
     if (!restoreTarget || !branch) return;
     setRestoreBusy(true);
+    setRestoreError(null);
     try {
       await restoreCommit(restoreTarget.id, { branch_id: branch.id });
       setRestoreTarget(null);
@@ -165,7 +162,7 @@ export function CommitHistory({
       setSelected([]);
       await loadHistory(branch.id);
     } catch (err) {
-      setError(messageOf(err, "Không khôi phục được phiên bản này."));
+      setRestoreError(apiErrorMessage(err, "Không khôi phục được phiên bản này."));
     } finally {
       setRestoreBusy(false);
     }
@@ -196,7 +193,7 @@ export function CommitHistory({
 
   if (loading && commits.length === 0 && !error) {
     return (
-      <RowList>
+      <RowList cols={COLS}>
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
@@ -218,7 +215,7 @@ export function CommitHistory({
       {notice && <Toast message={notice} variant="success" onDismiss={() => setNotice(null)} />}
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
           <GitBranch className="h-3.5 w-3.5" />
           {/* UC-50 Alt 1.1: đổi bộ lọc lịch sử sang 1 nhánh cụ thể. */}
           <select
@@ -237,7 +234,7 @@ export function CommitHistory({
           </select>
           {commits.length > 0 && (
             <span>
-              <span className="font-mono">{commits.length.toLocaleString("vi-VN")}</span> commit
+              <span className="font-mono">{commits.length.toLocaleString(APP_LOCALE)}</span> commit
               {!isDefault && (
                 <>
                   {" "}
@@ -250,7 +247,7 @@ export function CommitHistory({
 
         {canCompare && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted">
+            <span className="text-xs text-muted">
               {selected.length === 0
                 ? "Tích 2 commit để so sánh"
                 : `Đã chọn ${selected.length}/2`}
@@ -294,11 +291,11 @@ export function CommitHistory({
         <EmptyState
           icon={GitCommitVertical}
           title="Chưa có commit nào."
-          description="Mở trình soạn nhạc, thay đổi bản nhạc rồi tạo commit đầu tiên."
+          description="Commit là một phiên bản có tên của bản nhạc, có thể quay lại bất cứ lúc nào. Mở trình soạn nhạc, thay đổi bản nhạc rồi bấm Commit Changes để tạo commit đầu tiên."
         />
       ) : commits.length > 0 ? (
-        <RowList>
-          <RowHeader cols={COLS}>
+        <RowList cols={COLS}>
+          <RowHeader>
             <span />
             <span>Commit</span>
             <span>Tác giả</span>
@@ -315,7 +312,6 @@ export function CommitHistory({
             return (
               <RowItem
                 key={commit.id}
-                cols={COLS}
                 className={isSelected ? "bg-accent-muted hover:bg-accent-muted" : ""}
               >
                 <span className="flex items-center">
@@ -357,12 +353,12 @@ export function CommitHistory({
                   </div>
                 </div>
 
-                <span className="truncate text-[11px] text-muted">{authorName}</span>
-                <span className="font-mono text-[11px] text-accent">
+                <span className="truncate text-xs text-muted">{authorName}</span>
+                <span className="font-mono text-xs text-accent">
                   {commit.id.slice(0, 7)}
                 </span>
                 <RowTime>
-                  {new Date(commit.created_at).toLocaleString("vi-VN", {
+                  {new Date(commit.created_at).toLocaleString(APP_LOCALE, {
                     day: "2-digit",
                     month: "2-digit",
                     hour: "2-digit",
@@ -380,6 +376,9 @@ export function CommitHistory({
                       className="flex items-center gap-1.5"
                     >
                       <input
+                        name="tagName"
+                        autoComplete="off"
+                        spellCheck={false}
                         autoFocus
                         value={tagName}
                         onChange={(e) => setTagName(e.target.value)}
@@ -438,7 +437,7 @@ export function CommitHistory({
           <Button variant="secondary" onClick={() => setPage(page - 1)} disabled={page <= 1}>
             Trước
           </Button>
-          <span className="px-2 font-mono text-[11px] text-muted">
+          <span className="px-2 font-mono text-xs text-muted">
             {page} / {totalPages}
           </span>
           <Button
@@ -475,8 +474,12 @@ export function CommitHistory({
         }
         confirmLabel="Khôi phục"
         loading={restoreBusy}
+        error={restoreError}
         onConfirm={() => void handleRestore()}
-        onCancel={() => setRestoreTarget(null)}
+        onCancel={() => {
+          setRestoreTarget(null);
+          setRestoreError(null);
+        }}
       />
     </>
   );

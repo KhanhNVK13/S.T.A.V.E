@@ -10,7 +10,6 @@ import {
   archiveProject,
   unarchiveProject,
   listProjects,
-  ApiError,
   type ProjectVisibility,
 } from '../../lib/api-client';
 import { formatRelativeTime } from '../../lib/format-date';
@@ -20,8 +19,10 @@ import { Button } from '../../components/ui/button';
 import { Tabs } from '../../components/ui/tabs';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
+import { Toast } from '../../components/ui/toast';
 import { INPUT_CLASS } from '../../components/ui/form';
 import { RowList, RowHeader, RowItem, RowTitle, RowTime } from '../../components/ui/row-list';
+import { apiErrorMessage } from "../../lib/error-message";
 
 interface Project {
   id: string;
@@ -49,7 +50,7 @@ const PAGE_SIZE = 12;
 type Tab = 'all' | 'active' | 'archived';
 
 /** Dự án | thể loại | trạng thái | hiển thị | cập nhật | thao tác. */
-const COLS = 'md:grid-cols-[minmax(0,1fr)_104px_108px_92px_78px_auto]';
+const COLS = 'md:grid-cols-[minmax(0,1fr)_104px_108px_92px_96px_auto]';
 
 function VisibilityBadge({ visibility }: { visibility: ProjectVisibility }) {
   const isPublic = visibility === 'public';
@@ -77,34 +78,40 @@ function ProjectRow({
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   const isArchived = !!project.archived_at;
 
   async function handleArchive() {
     setArchiving(true);
+    setArchiveError(null);
     try {
       await onArchive(project.id);
       setShowConfirm(false);
-    } catch {
+    } catch (err) {
+      setArchiveError(apiErrorMessage(err, 'Không lưu trữ được dự án.'));
       setArchiving(false);
     }
   }
 
   async function handleUnarchive() {
     setRestoring(true);
+    setRestoreError(null);
     try {
       await onUnarchive(project.id);
-    } catch {
+    } catch (err) {
+      setRestoreError(apiErrorMessage(err, 'Không khôi phục được dự án.'));
       setRestoring(false);
     }
   }
 
   return (
     <>
-      <RowItem cols={COLS}>
+      <RowItem>
         <RowTitle
-          href={`/projects/${project.id}/edit`}
+          href={`/projects/${project.id}`}
           name={project.name}
           meta={project.description ?? undefined}
           leading={<Music2 className="h-4 w-4 shrink-0 text-muted" />}
@@ -116,12 +123,14 @@ function ProjectRow({
         <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
 
         <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
-          <Link
-            href={`/projects/${project.id}/edit`}
-            className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-semibold hover:border-border-strong hover:bg-surface-subtle"
-          >
-            <Piano className="h-3.5 w-3.5" /> {isArchived ? 'Xem' : 'Mở Editor'}
-          </Link>
+          {!isArchived && (
+            <Link
+              href={`/projects/${project.id}/edit`}
+              className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-semibold hover:border-border-strong hover:bg-surface-subtle"
+            >
+              <Piano className="h-3.5 w-3.5" /> Mở Editor
+            </Link>
+          )}
 
           {isArchived ? (
             <Button variant="ghost" onClick={() => void handleUnarchive()} disabled={restoring}>
@@ -149,9 +158,16 @@ function ProjectRow({
         message={`Bạn có chắc muốn lưu trữ dự án "${project.name}"? Dự án sẽ chuyển sang phần đã lưu trữ.`}
         confirmLabel="Lưu trữ"
         loading={archiving}
+        error={archiveError}
         onConfirm={() => void handleArchive()}
-        onCancel={() => setShowConfirm(false)}
+        onCancel={() => {
+          setShowConfirm(false);
+          setArchiveError(null);
+        }}
       />
+      {restoreError && (
+        <Toast message={restoreError} variant="danger" onDismiss={() => setRestoreError(null)} duration={0} />
+      )}
     </>
   );
 }
@@ -177,15 +193,7 @@ function ProjectsContent() {
       setProjects(data);
       setError(null);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else if (err instanceof TypeError && /fetch/i.test(String(err))) {
-        setError(
-          'Không thể kết nối tới máy chủ. Vui lòng kiểm tra backend đang chạy và thử lại.',
-        );
-      } else {
-        setError('Có lỗi xảy ra');
-      }
+      setError(apiErrorMessage(err, 'Không tải được danh sách dự án.'));
     }
   }
 
@@ -297,16 +305,16 @@ function ProjectsContent() {
   ];
 
   // Build page numbers (max 5 shown)
-  const pageNumbers: (number | '...')[] = [];
+  const pageNumbers: (number | '…')[] = [];
   if (totalPages <= 5) {
     for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
   } else {
     pageNumbers.push(1);
-    if (currentPage > 3) pageNumbers.push('...');
+    if (currentPage > 3) pageNumbers.push('…');
     for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
       pageNumbers.push(i);
     }
-    if (currentPage < totalPages - 2) pageNumbers.push('...');
+    if (currentPage < totalPages - 2) pageNumbers.push('…');
     pageNumbers.push(totalPages);
   }
 
@@ -329,7 +337,9 @@ function ProjectsContent() {
         <div className="relative min-w-[200px] max-w-[380px] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
-            type="text"
+            name="q"
+            autoComplete="off"
+            type="search"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -383,7 +393,7 @@ function ProjectsContent() {
 
       {/* Content */}
       {loading && (
-        <RowList>
+        <RowList cols={COLS}>
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
               <div className="h-4 w-4 shrink-0 rounded bg-surface-subtle" />
@@ -451,7 +461,7 @@ function ProjectsContent() {
 
       {!loading && !error && filteredProjects.length > 0 && (
         <>
-          <p className="mb-2 text-[11px] text-muted">
+          <p className="mb-2 text-xs text-muted">
             {filteredProjects.length === 1
               ? '1 dự án'
               : `${filteredProjects.length} dự án`}
@@ -459,8 +469,8 @@ function ProjectsContent() {
             {search ? ` • "${search}"` : ''}
           </p>
 
-          <RowList>
-            <RowHeader cols={COLS}>
+          <RowList cols={COLS}>
+            <RowHeader>
               <span>Dự án</span>
               <span>Thể loại</span>
               <span>Trạng thái</span>
@@ -491,9 +501,9 @@ function ProjectsContent() {
               </button>
 
               {pageNumbers.map((p, i) =>
-                p === '...' ? (
+                p === '…' ? (
                   <span key={`ellipsis-${i}`} className="flex h-8 w-8 items-center justify-center text-xs text-muted">
-                    ...
+                    …
                   </span>
                 ) : (
                   <button
@@ -535,7 +545,7 @@ export default function ProjectsPage() {
               <div className="h-8 w-40 animate-pulse rounded bg-surface-subtle" />
               <div className="h-8 w-32 animate-pulse rounded bg-surface-subtle" />
             </div>
-            <RowList>
+            <RowList cols={COLS}>
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
                   <div className="h-4 w-4 shrink-0 rounded bg-surface-subtle" />

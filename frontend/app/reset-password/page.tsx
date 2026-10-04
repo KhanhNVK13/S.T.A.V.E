@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
+import { authErrorMessage } from "../../lib/error-message";
 import { apiFetch } from "../../lib/api-client";
 import { useAuth } from "../../context/auth-context";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
@@ -42,7 +43,7 @@ export default function ResetPasswordPage() {
     });
     if (updateError) {
       setSubmitting(false);
-      setError(updateError.message);
+      setError(authErrorMessage(updateError));
       return;
     }
 
@@ -84,9 +85,10 @@ export default function ResetPasswordPage() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthField label="Mật khẩu mới">
           <input
+            name="new-password"
+            autoComplete="new-password"
             type="password"
             required
-            minLength={8}
             placeholder="Tối thiểu 8 ký tự"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -95,6 +97,8 @@ export default function ResetPasswordPage() {
         </AuthField>
         <AuthField label="Nhập lại mật khẩu mới">
           <input
+            name="confirm-password"
+            autoComplete="new-password"
             type="password"
             required
             placeholder="••••••••"
@@ -103,7 +107,11 @@ export default function ResetPasswordPage() {
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang lưu…" : "Đặt mật khẩu mới"}
         </Button>

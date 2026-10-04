@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { GitBranch, GitMerge, History, Plus, Trash2 } from "lucide-react";
 import {
-  ApiError,
   createBranch,
   deleteBranch,
   getBranchDeletePreview,
@@ -28,15 +27,10 @@ import { RowList, RowHeader, RowItem, RowTime } from "../ui/row-list";
 import { Toast } from "../ui/toast";
 import { formatRelativeTime } from "../../lib/format-date";
 import { MergeConflictDialog } from "./merge-conflict-dialog";
+import { apiErrorMessage } from "../../lib/error-message";
 
 /** Nhánh | so với mặc định | tác giả | tạo lúc | thao tác. */
-const COLS = "md:grid-cols-[minmax(0,1fr)_150px_140px_78px_auto]";
-
-function messageOf(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) return err.message;
-  if (err instanceof Error && err.message) return err.message;
-  return fallback;
-}
+const COLS = "md:grid-cols-[minmax(0,1fr)_150px_140px_96px_auto]";
 
 /**
  * UC-47 (tạo nhánh) · UC-49 (xem độ lệch ahead/behind) · UC-51 + UC-86 (hợp
@@ -63,9 +57,14 @@ export function BranchList({ projectId }: { projectId: string }) {
 
   const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null);
   const [deletePreview, setDeletePreview] = useState<BranchDeletePreview | null>(null);
+  const [deletePreviewState, setDeletePreviewState] = useState<"loading" | "ready" | "error">("loading");
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
 
   const [mergeSource, setMergeSource] = useState<Branch | null>(null);
+  const [mergeConfirm, setMergeConfirm] = useState<Branch | null>(null);
+  const [mergeError, setMergeError] = useState<string | null>(null);
   const [mergeBusy, setMergeBusy] = useState(false);
   const [conflicts, setConflicts] = useState<MergeConflictResult | null>(null);
 
@@ -94,7 +93,7 @@ export function BranchList({ projectId }: { projectId: string }) {
       setDivergence(nextDivergence);
       setMerged(nextMerged);
     } catch (err) {
-      setError(messageOf(err, "Không tải được danh sách nhánh."));
+      setError(apiErrorMessage(err, "Không tải được danh sách nhánh."));
     } finally {
       setLoading(false);
     }
@@ -117,7 +116,7 @@ export function BranchList({ projectId }: { projectId: string }) {
       setNotice(`Đã tạo nhánh "${name}".`);
       await load();
     } catch (err) {
-      setError(messageOf(err, "Không tạo được nhánh."));
+      setError(apiErrorMessage(err, "Không tạo được nhánh."));
     } finally {
       setCreateBusy(false);
     }
@@ -126,16 +125,20 @@ export function BranchList({ projectId }: { projectId: string }) {
   async function openDelete(branch: Branch) {
     setDeleteTarget(branch);
     setDeletePreview(null);
+    setDeletePreviewState("loading");
+    setDeleteError(null);
     try {
       setDeletePreview(await getBranchDeletePreview(branch.id));
+      setDeletePreviewState("ready");
     } catch {
-      // Không chặn hộp thoại: thiếu preview thì chỉ mất phần cảnh báo số commit.
+      setDeletePreviewState("error");
     }
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleteBusy(true);
+    setDeleteError(null);
     try {
       await deleteBranch(deleteTarget.id);
       setNotice(`Đã xoá nhánh "${deleteTarget.name}".`);
@@ -143,21 +146,28 @@ export function BranchList({ projectId }: { projectId: string }) {
       setDeletePreview(null);
       await load();
     } catch (err) {
-      setError(messageOf(err, "Không xoá được nhánh."));
+      setDeleteError(apiErrorMessage(err, "Không xoá được nhánh."));
     } finally {
       setDeleteBusy(false);
     }
+  }
+
+  function openMergeConfirm(source: Branch) {
+    setMergeError(null);
+    setMergeConfirm(source);
   }
 
   async function handleMerge(source: Branch) {
     if (!defaultBranch) return;
     setMergeSource(source);
     setMergeBusy(true);
+    setMergeError(null);
     try {
       const result = await mergeBranches({
         sourceBranchId: source.id,
         targetBranchId: defaultBranch.id,
       });
+      setMergeConfirm(null);
       if (result.hasConflicts) {
         setConflicts(result);
       } else {
@@ -166,7 +176,7 @@ export function BranchList({ projectId }: { projectId: string }) {
         await load();
       }
     } catch (err) {
-      setError(messageOf(err, "Không hợp nhất được nhánh."));
+      setMergeError(apiErrorMessage(err, "Không hợp nhất được nhánh."));
       setMergeSource(null);
     } finally {
       setMergeBusy(false);
@@ -176,6 +186,7 @@ export function BranchList({ projectId }: { projectId: string }) {
   async function handleResolve(resolutions: { noteId: string; choice: ConflictChoice }[]) {
     if (!mergeSource || !defaultBranch) return;
     setMergeBusy(true);
+    setResolveError(null);
     try {
       await resolveMergeConflicts({
         sourceBranchId: mergeSource.id,
@@ -187,7 +198,7 @@ export function BranchList({ projectId }: { projectId: string }) {
       setMergeSource(null);
       await load();
     } catch (err) {
-      setError(messageOf(err, "Không hoàn tất được việc hợp nhất."));
+      setResolveError(apiErrorMessage(err, "Không hoàn tất được việc hợp nhất."));
     } finally {
       setMergeBusy(false);
     }
@@ -195,7 +206,7 @@ export function BranchList({ projectId }: { projectId: string }) {
 
   if (loading && branches.length === 0) {
     return (
-      <RowList>
+      <RowList cols={COLS}>
         {Array.from({ length: 3 }).map((_, i) => (
           <div
             key={i}
@@ -217,10 +228,16 @@ export function BranchList({ projectId }: { projectId: string }) {
       {notice && <Toast message={notice} variant="success" onDismiss={() => setNotice(null)} />}
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-muted">
-          <span className="font-mono">{branches.length}</span> nhánh · mặc định{" "}
-          <span className="font-mono text-foreground">{defaultBranch?.name ?? "—"}</span>
-        </p>
+        <div className="text-xs text-muted">
+          <p>
+            <span className="font-mono">{branches.length}</span> nhánh · mặc định{" "}
+            <span className="font-mono text-foreground">{defaultBranch?.name ?? "—"}</span>
+          </p>
+          <p className="mt-1">
+            Nhánh là bản làm thử song song: thử ý tưởng mới mà không ảnh hưởng nhánh mặc định,
+            rồi hợp nhất khi hài lòng.
+          </p>
+        </div>
         {!creating && (
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-3.5 w-3.5" /> Tạo nhánh
@@ -234,8 +251,11 @@ export function BranchList({ projectId }: { projectId: string }) {
           className="mb-3 flex flex-wrap items-end gap-2 rounded-card border border-border bg-surface p-4"
         >
           <label className="flex min-w-[220px] flex-1 flex-col gap-1.5">
-            <span className="text-[11px] font-semibold">Tên nhánh mới</span>
+            <span className="text-xs font-semibold">Tên nhánh mới</span>
             <input
+              name="branchName"
+              autoComplete="off"
+              spellCheck={false}
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -244,7 +264,7 @@ export function BranchList({ projectId }: { projectId: string }) {
               className={`${INPUT_CLASS} h-[37px] font-mono`}
             />
           </label>
-          <p className="basis-full text-[10px] text-muted">
+          <p className="basis-full text-xs text-muted">
             Nhánh mới bắt đầu từ commit mới nhất của nhánh mặc định.
           </p>
           <div className="flex gap-2">
@@ -271,8 +291,8 @@ export function BranchList({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <RowList>
-        <RowHeader cols={COLS}>
+      <RowList cols={COLS}>
+        <RowHeader>
           <span>Nhánh</span>
           <span>So với mặc định</span>
           <span>Người tạo</span>
@@ -285,7 +305,7 @@ export function BranchList({ projectId }: { projectId: string }) {
           const authorName =
             branch.author.display_name ?? branch.author.username ?? "Người dùng";
           return (
-            <RowItem key={branch.id} cols={COLS}>
+            <RowItem key={branch.id}>
               <div className="flex min-w-0 items-center gap-2.5">
                 <GitBranch className="h-4 w-4 shrink-0 text-muted" />
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -301,12 +321,12 @@ export function BranchList({ projectId }: { projectId: string }) {
                 </div>
               </div>
 
-              <span className="font-mono text-[11px] text-muted">
+              <span className="font-mono text-xs text-muted">
                 {branch.is_default ? (
                   "—"
                 ) : div ? (
                   <>
-                    <span className="text-success">+{div.ahead}</span>{" "}
+                    <span className="text-success-foreground">+{div.ahead}</span>{" "}
                     <span className="text-danger">-{div.behind}</span>
                   </>
                 ) : (
@@ -314,7 +334,7 @@ export function BranchList({ projectId }: { projectId: string }) {
                 )}
               </span>
 
-              <span className="truncate text-[11px] text-muted">{authorName}</span>
+              <span className="truncate text-xs text-muted">{authorName}</span>
               <RowTime>{formatRelativeTime(branch.created_at)}</RowTime>
 
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
@@ -330,8 +350,13 @@ export function BranchList({ projectId }: { projectId: string }) {
                   <>
                     <Button
                       variant="secondary"
-                      onClick={() => void handleMerge(branch)}
-                      disabled={mergeBusy || !defaultBranch}
+                      onClick={() => openMergeConfirm(branch)}
+                      disabled={mergeBusy || !defaultBranch || div?.ahead === 0}
+                      title={
+                        div?.ahead === 0
+                          ? `Nhánh mặc định đã có mọi commit của nhánh này`
+                          : undefined
+                      }
                     >
                       <GitMerge className="h-3.5 w-3.5" />
                       {mergeBusy && mergeSource?.id === branch.id
@@ -362,7 +387,14 @@ export function BranchList({ projectId }: { projectId: string }) {
         open={!!deleteTarget}
         title={`Xoá nhánh "${deleteTarget?.name}"?`}
         message={
-          deletePreview && deletePreview.unmergedCommitsCount > 0 ? (
+          deletePreviewState === "loading" ? (
+            "Đang kiểm tra các commit chưa hợp nhất…"
+          ) : deletePreviewState === "error" ? (
+            <strong className="text-danger">
+              Không kiểm tra được nhánh này còn commit chưa hợp nhất hay không. Xoá lúc này có
+              thể làm mất commit.
+            </strong>
+          ) : deletePreview && deletePreview.unmergedCommitsCount > 0 ? (
             <>
               Nhánh này còn{" "}
               <strong className="text-danger">
@@ -377,10 +409,35 @@ export function BranchList({ projectId }: { projectId: string }) {
         confirmLabel="Xoá nhánh"
         danger
         loading={deleteBusy}
+        confirmDisabled={deletePreviewState === "loading"}
+        error={deleteError}
         onConfirm={() => void handleDelete()}
         onCancel={() => {
           setDeleteTarget(null);
           setDeletePreview(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!mergeConfirm}
+        title={`Hợp nhất "${mergeConfirm?.name}" vào "${defaultBranch?.name ?? ""}"?`}
+        message={
+          <>
+            {mergeConfirm && divergence[mergeConfirm.id]
+              ? `${divergence[mergeConfirm.id].ahead} commit của nhánh "${mergeConfirm.name}" sẽ được đưa vào "${defaultBranch?.name ?? ""}".`
+              : `Các commit của nhánh "${mergeConfirm?.name}" sẽ được đưa vào "${defaultBranch?.name ?? ""}".`}
+            <br />
+            Nếu cùng một nốt bị sửa khác nhau ở hai nhánh, bạn sẽ được chọn giữ bên nào trước khi
+            hợp nhất.
+          </>
+        }
+        confirmLabel="Hợp nhất"
+        loading={mergeBusy}
+        error={mergeError}
+        onConfirm={() => mergeConfirm && void handleMerge(mergeConfirm)}
+        onCancel={() => {
+          setMergeConfirm(null);
+          setMergeError(null);
         }}
       />
 
@@ -390,9 +447,11 @@ export function BranchList({ projectId }: { projectId: string }) {
           sourceName={mergeSource.name}
           targetName={defaultBranch.name}
           submitting={mergeBusy}
+          error={resolveError}
           onCancel={() => {
             setConflicts(null);
             setMergeSource(null);
+            setResolveError(null);
           }}
           onResolve={(resolutions) => void handleResolve(resolutions)}
         />

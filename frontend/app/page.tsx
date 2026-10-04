@@ -8,11 +8,11 @@ import { useApiResource } from '../lib/use-api-resource';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { ProjectThumb } from '../components/ui/project-thumb';
-import { formatRelativeTime } from '../lib/format-date';
+import { formatRelativeTime, APP_LOCALE } from '../lib/format-date';
 import { RowList, RowHeader, RowItem, RowTitle, RowStat, RowTime } from '../components/ui/row-list';
 
 /** Hạng | dự án | thể loại | lượt nghe | fork | cập nhật. */
-const COLS = 'md:grid-cols-[34px_minmax(0,1fr)_112px_84px_84px_78px]';
+const COLS = 'md:grid-cols-[34px_minmax(0,1fr)_112px_84px_84px_96px]';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -29,7 +29,7 @@ export default function HomePage() {
       {/* Đầu trang */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-7">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
             Không gian cộng đồng
           </p>
           <h1 className="mb-1 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
@@ -62,7 +62,7 @@ export default function HomePage() {
               <p className="mb-4 text-sm leading-relaxed text-muted">{featured.description}</p>
             )}
 
-            <div className="flex flex-wrap gap-3.5 text-[11px] text-muted">
+            <div className="flex flex-wrap gap-3.5 text-xs text-muted">
               <Link
                 href={`/creator/${featured.owner.id}`}
                 className="flex items-center gap-1.5 hover:text-accent"
@@ -71,11 +71,11 @@ export default function HomePage() {
               </Link>
               <span className="flex items-center gap-1.5">
                 <GitFork className="h-3.5 w-3.5" />
-                <span className="font-mono">{featured.fork_count.toLocaleString('vi-VN')}</span> fork
+                <span className="font-mono">{featured.fork_count.toLocaleString(APP_LOCALE)}</span> fork
               </span>
               <span className="flex items-center gap-1.5">
                 <Play className="h-3.5 w-3.5" />
-                <span className="font-mono">{featured.play_count.toLocaleString('vi-VN')}</span> lượt nghe
+                <span className="font-mono">{featured.play_count.toLocaleString(APP_LOCALE)}</span> lượt nghe
               </span>
             </div>
 
@@ -101,21 +101,21 @@ export default function HomePage() {
         <div className="mb-7 grid grid-cols-3 overflow-hidden rounded-card border border-border bg-surface">
           <div className="border-r border-border px-5 py-3.5">
             <p className="font-mono text-[17px] font-bold">
-              {data.stats.total_projects.toLocaleString('vi-VN')}
+              {data.stats.total_projects.toLocaleString(APP_LOCALE)}
             </p>
-            <p className="text-[10px] text-muted">Dự án công khai</p>
+            <p className="text-xs text-muted">Dự án công khai</p>
           </div>
           <div className="border-r border-border px-5 py-3.5">
             <p className="font-mono text-[17px] font-bold">
-              {data.stats.total_users.toLocaleString('vi-VN')}
+              {data.stats.total_users.toLocaleString(APP_LOCALE)}
             </p>
-            <p className="text-[10px] text-muted">Người dùng</p>
+            <p className="text-xs text-muted">Người dùng</p>
           </div>
           <div className="px-5 py-3.5">
             <p className="font-mono text-[17px] font-bold">
-              {data.stats.total_forks.toLocaleString('vi-VN')}
+              {data.stats.total_forks.toLocaleString(APP_LOCALE)}
             </p>
-            <p className="text-[10px] text-muted">Lượt fork</p>
+            <p className="text-xs text-muted">Lượt fork</p>
           </div>
         </div>
       )}
@@ -126,7 +126,7 @@ export default function HomePage() {
           <div className="mb-3 flex items-end justify-between">
             <div>
               <h2 className="text-[17px] font-semibold">Thịnh hành tuần này</h2>
-              <p className="mt-1 text-[11px] text-muted">
+              <p className="mt-1 text-xs text-muted">
                 Dự án công khai đang được nghe và fork nhiều nhất.
               </p>
             </div>
@@ -135,8 +135,8 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <RowList>
-            <RowHeader cols={COLS}>
+          <RowList cols={COLS}>
+            <RowHeader>
               <span>#</span>
               <span>Dự án</span>
               <span>Thể loại</span>
@@ -146,8 +146,8 @@ export default function HomePage() {
             </RowHeader>
 
             {data.trending_projects.slice(0, 5).map((project, i) => (
-              <RowItem key={project.id} cols={COLS}>
-                <span className="font-mono text-[10px] text-muted">
+              <RowItem key={project.id}>
+                <span className="font-mono text-xs text-muted">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <RowTitle
@@ -171,16 +171,16 @@ export default function HomePage() {
           <div className="mb-3 flex items-end justify-between">
             <div>
               <h2 className="text-[17px] font-semibold">Dự án mới</h2>
-              <p className="mt-1 text-[11px] text-muted">Vừa được chia sẻ công khai.</p>
+              <p className="mt-1 text-xs text-muted">Vừa được chia sẻ công khai.</p>
             </div>
             <Link href="/explore" className="text-xs font-semibold text-accent hover:underline">
               Khám phá thêm
             </Link>
           </div>
 
-          <RowList>
+          <RowList cols="md:grid-cols-[minmax(0,1fr)_112px_84px_96px]">
             {data.featured_projects.slice(1, 6).map((project) => (
-              <RowItem key={project.id} cols="md:grid-cols-[minmax(0,1fr)_112px_84px_78px]">
+              <RowItem key={project.id}>
                 <RowTitle
                   href={`/projects/${project.id}`}
                   name={project.name}

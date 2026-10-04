@@ -12,12 +12,13 @@ import {
 } from "lucide-react";
 import { RequireAuth } from "../../components/require-auth";
 import { useAuth } from "../../context/auth-context";
-import { apiFetch, ApiError } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
 import type { Profile } from "../../lib/types";
 import { Button } from "../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
 import { ThemePicker } from "../../components/settings/theme-picker";
+import { apiErrorMessage } from "../../lib/error-message";
 
 type SettingsTab = "profile" | "security" | "personalization";
 
@@ -49,7 +50,7 @@ function ProfileForm() {
       await refreshProfile();
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không lưu được hồ sơ."));
     } finally {
       setSubmitting(false);
     }
@@ -71,13 +72,15 @@ function ProfileForm() {
         />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold">{profile?.email}</p>
-          <p className="text-[11px] text-muted">Email không thể thay đổi</p>
+          <p className="text-xs text-muted">Email không thể thay đổi</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="flex max-w-[560px] flex-col gap-3.5">
         <Field label="Tên hiển thị">
           <input
+            name="displayName"
+            autoComplete="name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             className={`${INPUT_CLASS} h-[37px]`}
@@ -85,6 +88,9 @@ function ProfileForm() {
         </Field>
         <Field label="Username">
           <input
+            name="username"
+            autoComplete="username"
+            spellCheck={false}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className={`${INPUT_CLASS} h-[37px] font-mono`}
@@ -92,6 +98,7 @@ function ProfileForm() {
         </Field>
         <Field label="Giới thiệu">
           <textarea
+            name="bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             rows={3}
@@ -100,14 +107,18 @@ function ProfileForm() {
         </Field>
         <Field label="Avatar URL">
           <input
+            name="avatarUrl"
+            inputMode="url"
+            autoComplete="url"
+            spellCheck={false}
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://..."
+            placeholder="https://…"
             className={`${INPUT_CLASS} h-[37px]`}
           />
         </Field>
         {error && <p className="text-xs text-danger">{error}</p>}
-        {success && <p className="text-xs text-success">Đã lưu.</p>}
+        {success && <p className="text-xs text-success-foreground">Đã lưu.</p>}
         <div>
           <Button type="submit" disabled={submitting}>
             {submitting ? "Đang lưu…" : "Lưu hồ sơ"}
@@ -132,7 +143,7 @@ function SettingRow({
     <div className="flex min-h-[75px] flex-wrap items-center justify-between gap-3 border-t border-border py-3">
       <div className="min-w-0">
         <p className="text-xs font-semibold">{title}</p>
-        {description && <div className="mt-1 text-[11px] text-muted">{description}</div>}
+        {description && <div className="mt-1 text-xs text-muted">{description}</div>}
       </div>
       {children}
     </div>
@@ -166,7 +177,7 @@ function ChangePasswordForm() {
       setSuccess(true);
       setOpen(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không đổi được mật khẩu."));
     } finally {
       setSubmitting(false);
     }
@@ -178,7 +189,7 @@ function ChangePasswordForm() {
         title="Mật khẩu"
         description={
           success ? (
-            <span className="text-success">
+            <span className="text-success-foreground">
               Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất.
             </span>
           ) : (
@@ -195,6 +206,8 @@ function ChangePasswordForm() {
         <form onSubmit={handleSubmit} className="flex max-w-[420px] flex-col gap-3.5 pb-4">
           <Field label="Mật khẩu hiện tại">
             <input
+              name="current-password"
+              autoComplete="current-password"
               type="password"
               required
               value={currentPassword}
@@ -204,9 +217,10 @@ function ChangePasswordForm() {
           </Field>
           <Field label="Mật khẩu mới">
             <input
+              name="new-password"
+              autoComplete="new-password"
               type="password"
               required
-              minLength={8}
               placeholder="Tối thiểu 8 ký tự"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -244,7 +258,7 @@ function DeleteAccountSection() {
       await signOut();
       router.push("/");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không xoá được tài khoản."));
     } finally {
       setSubmitting(false);
     }
@@ -267,6 +281,8 @@ function DeleteAccountSection() {
         <div className="flex max-w-[420px] flex-col gap-3 pb-4">
           <p className="text-xs text-danger">Nhập mật khẩu để xác nhận xoá vĩnh viễn.</p>
           <input
+            name="password"
+            autoComplete="current-password"
             type="password"
             placeholder="Mật khẩu"
             value={password}
@@ -307,7 +323,7 @@ export default function ProfilePage() {
     <RequireAuth>
       <div className="mx-auto max-w-5xl px-5 py-8">
         <div className="mb-6">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
             Cài đặt tài khoản
           </p>
           <h1 className="mb-1 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">

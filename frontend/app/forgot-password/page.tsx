@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { MailCheck } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
+import { authErrorMessage } from "../../lib/error-message";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { Button } from "../../components/ui/button";
 
@@ -23,7 +24,7 @@ export default function ForgotPasswordPage() {
     );
     setSubmitting(false);
     if (resetError) {
-      setError(resetError.message);
+      setError(authErrorMessage(resetError));
       return;
     }
     setDone(true);
@@ -61,6 +62,9 @@ export default function ForgotPasswordPage() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthField label="Email">
           <input
+            name="email"
+            autoComplete="email"
+            spellCheck={false}
             type="email"
             required
             placeholder="ban@email.com"
@@ -69,7 +73,11 @@ export default function ForgotPasswordPage() {
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang gửi…" : "Gửi link đặt lại mật khẩu"}
         </Button>

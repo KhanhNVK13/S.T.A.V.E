@@ -28,6 +28,10 @@ export type GridDivision = 4 | 8 | 16 | 32;
 const PITCH_COUNT = 128;
 const RESIZE_HANDLE_PX = 6; // px at right edge = resize zone
 
+function resizeZonePx(noteWidth: number) {
+  return Math.min(RESIZE_HANDLE_PX, noteWidth * 0.4);
+}
+
 /**
  * Hình học lấy từ mã nguồn thiết kế thật (docs/STAVE design component
  * sample/.../STAVE.dc.html, screen "editor" dòng 232–257): hàng 22px, cột phím
@@ -109,6 +113,7 @@ interface DragState {
   origStart: number;
   origDuration: number;
   origPitch: number;
+  group: Map<string, { start: number; pitch: number; duration: number }>;
 }
 
 interface PianoRollProps {
@@ -237,7 +242,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
           cy <= ny + ROW_H
         ) {
           const zone: "body" | "resize" =
-            cx >= nx + nw - RESIZE_HANDLE_PX ? "resize" : "body";
+            cx >= nx + nw - resizeZonePx(nw) ? "resize" : "body";
           return { note: n, zone };
         }
       }
@@ -250,8 +255,10 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      const W = canvas.width;
-      const H = canvas.height;
+      const dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const W = canvas.width / dpr;
+      const H = canvas.height / dpr;
 
       ctx.clearRect(0, 0, W, H);
 
@@ -307,7 +314,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         const x = KEY_WIDTH + bar * ticksPerBar * pxPerTick - scrollX;
         if (x >= KEY_WIDTH) {
           ctx.fillStyle = pal.rulerText;
-          ctx.font = "10px monospace";
+          ctx.font = "11px monospace";
           ctx.fillText(`${bar + 1}`, x + 3, HEADER_H - 6);
         }
         bar++;
@@ -329,7 +336,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         // Label C notes
         if (pitch % 12 === 0) {
           ctx.fillStyle = pal.keyText;
-          ctx.font = "9px monospace";
+          ctx.font = "11px monospace";
           ctx.fillText(pitchName(pitch), 2, y + ROW_H - 3);
         }
       }
@@ -397,9 +404,10 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         }
 
 
-        // Resize handle highlight
-        ctx.fillStyle = pal.resizeHandle;
-        ctx.fillRect(nx + nw - RESIZE_HANDLE_PX, ny + 1, RESIZE_HANDLE_PX - 1, ROW_H - 2);
+        if (nw >= 12) {
+          ctx.fillStyle = pal.resizeHandle;
+          ctx.fillRect(nx + nw - RESIZE_HANDLE_PX, ny + 1, RESIZE_HANDLE_PX - 1, ROW_H - 2);
+        }
 
         ctx.globalAlpha = 1;
       });
@@ -441,8 +449,11 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       if (!canvas || !container) return;
 
       const ro = new ResizeObserver(() => {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(container.clientWidth * dpr);
+        canvas.height = Math.round(container.clientHeight * dpr);
+        canvas.style.width = `${container.clientWidth}px`;
+        canvas.style.height = `${container.clientHeight}px`;
         draw();
       });
       ro.observe(container);
@@ -457,13 +468,15 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
     function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
       const { cx, cy } = canvasCoords(e);
+      if (cx < KEY_WIDTH) return;
 
       // UC-37: Click-and-drag the ruler, or grab the red playhead line
       // directly anywhere over the note area, to scrub through the
       // project — every subsequent mousemove keeps calling onSeek (see
       // handleMouseMove) instead of only seeking once on the initial click.
       const playheadX = KEY_WIDTH + playheadTick * pxPerTick - scrollX;
-      const nearPlayhead = Math.abs(cx - playheadX) <= 4;
+      const nearPlayhead =
+        tool === "pointer" && Math.abs(cx - playheadX) <= 4 && !hitNote(cx, cy);
       if (cy < HEADER_H || nearPlayhead) {
         isSeekDraggingRef.current = true;
         const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
@@ -517,6 +530,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
           origStart: tick,
           origDuration: gridStep,
           origPitch: pitch,
+          group: new Map(),
         };
         draw();
         return;
@@ -531,20 +545,28 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       }
 
       // UC-32: Handle note selection
+      let selection = selectedNoteIds;
       if (e.shiftKey) {
         // Shift+click: add/remove from selection
-        const newSet = new Set(selectedNoteIds);
-        if (newSet.has(hit.note.id)) {
-          newSet.delete(hit.note.id);
+        selection = new Set(selectedNoteIds);
+        if (selection.has(hit.note.id)) {
+          selection.delete(hit.note.id);
         } else {
-          newSet.add(hit.note.id);
+          selection.add(hit.note.id);
         }
-        onSelectedNotesChange(newSet);
+        onSelectedNotesChange(selection);
       } else if (!selectedNoteIds.has(hit.note.id)) {
         // Click on non-selected note: select only this note
-        onSelectedNotesChange(new Set([hit.note.id]));
+        selection = new Set([hit.note.id]);
+        onSelectedNotesChange(selection);
       }
 
+      const group = new Map<string, { start: number; pitch: number; duration: number }>();
+      for (const n of notes) {
+        if (n.id === hit.note.id || selection.has(n.id)) {
+          group.set(n.id, { start: n.start, pitch: n.pitch, duration: n.duration });
+        }
+      }
       dragRef.current = {
         type: hit.zone === "resize" ? "resize" : "move",
         noteId: hit.note.id,
@@ -553,6 +575,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         origStart: hit.note.start,
         origDuration: hit.note.duration,
         origPitch: hit.note.pitch,
+        group,
       };
     }
 
@@ -570,7 +593,11 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       if (!drag) {
         // Update cursor
         const playheadX = KEY_WIDTH + playheadTick * pxPerTick - scrollX;
-        if (cy < HEADER_H || Math.abs(cx - playheadX) <= 4) {
+        if (
+          cx >= KEY_WIDTH &&
+          (cy < HEADER_H ||
+            (tool === "pointer" && Math.abs(cx - playheadX) <= 4 && !hitNote(cx, cy)))
+        ) {
           canvasRef.current!.style.cursor = "ew-resize";
         } else if (tool === "pointer") {
           const hit = hitNote(cx, cy);
@@ -598,30 +625,38 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       }
 
       if (drag.type === "move") {
-        const deltaTick = dx / pxPerTick;
-        const deltaPitch = -Math.round(dy / ROW_H);
-        const newStart = Math.max(0, snapToGrid(drag.origStart + deltaTick));
-        const newPitch = Math.max(0, Math.min(127, drag.origPitch + deltaPitch));
+        const origs = [...drag.group.values()];
+        const minStart = Math.min(...origs.map((o) => o.start));
+        const minPitch = Math.min(...origs.map((o) => o.pitch));
+        const maxPitch = Math.max(...origs.map((o) => o.pitch));
+        const deltaTick = Math.max(
+          -minStart,
+          snapToGrid(drag.origStart + dx / pxPerTick) - drag.origStart,
+        );
+        const deltaPitch = Math.max(
+          -minPitch,
+          Math.min(127 - maxPitch, -Math.round(dy / ROW_H)),
+        );
         onNotesChange(
-          notes.map((n) =>
-            n.id === drag.noteId
-              ? { ...n, start: newStart, pitch: newPitch }
-              : n,
-          ),
+          notes.map((n) => {
+            const o = drag.group.get(n.id);
+            return o ? { ...n, start: o.start + deltaTick, pitch: o.pitch + deltaPitch } : n;
+          }),
         );
         return;
       }
 
       if (drag.type === "resize") {
-        const deltaTick = dx / pxPerTick;
         const newDuration = Math.max(
           gridStep,
-          snapToGrid(drag.origDuration + deltaTick),
+          snapToGrid(drag.origDuration + dx / pxPerTick),
         );
+        const deltaDuration = newDuration - drag.origDuration;
         onNotesChange(
-          notes.map((n) =>
-            n.id === drag.noteId ? { ...n, duration: newDuration } : n,
-          ),
+          notes.map((n) => {
+            const o = drag.group.get(n.id);
+            return o ? { ...n, duration: Math.max(gridStep, o.duration + deltaDuration) } : n;
+          }),
         );
         return;
       }
@@ -656,6 +691,8 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
             }
           });
           onSelectedNotesChange(boxSelectedIds);
+        } else if (selectedNoteIds.size > 0) {
+          onSelectedNotesChange(new Set());
         }
         boxSelectRef.current = null;
       }

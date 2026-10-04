@@ -56,7 +56,7 @@ export function ThemePicker() {
         <Badge variant="metal">STAVE+</Badge>
       </div>
 
-      <h3 className="mb-2.5 mt-5 text-[11px] uppercase tracking-wide text-muted">
+      <h3 className="mb-2.5 mt-5 text-xs uppercase tracking-wide text-muted">
         Theme có sẵn
       </h3>
 
@@ -75,11 +75,11 @@ export function ThemePicker() {
               <ThemeSwatch preset={item.key} />
               <div className="flex items-center justify-between gap-2 px-1 pb-0.5 pt-2">
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] font-semibold">{item.name}</p>
-                  <p className="truncate text-[9px] text-muted">{item.description}</p>
+                  <p className="truncate text-xs font-semibold">{item.name}</p>
+                  <p className="truncate text-xs text-muted">{item.description}</p>
                 </div>
                 {savedPreset === item.key && (
-                  <span className="flex shrink-0 items-center gap-1 text-[9px] text-muted">
+                  <span className="flex shrink-0 items-center gap-1 text-xs text-muted">
                     <Check className="h-3 w-3" /> Đang dùng
                   </span>
                 )}
@@ -101,7 +101,7 @@ export function ThemePicker() {
           </Button>
         )}
         {isDirty && !saving && (
-          <span className="text-[11px] text-muted">
+          <span className="text-xs text-muted">
             Đang xem trước — chưa lưu vào tài khoản.
           </span>
         )}
@@ -116,7 +116,7 @@ export function ThemePicker() {
         <h3 className="mb-1.5 mt-2.5 text-base font-semibold">
           Tạo theme từ ảnh (PLACEHOLDER)
         </h3>
-        <p className="max-w-[480px] text-[11px] leading-relaxed text-muted">
+        <p className="max-w-[480px] text-xs leading-relaxed text-muted">
           Tải lên ảnh bìa hoặc ảnh chụp, STAVE sẽ trích một bảng màu trung tính từ ảnh và ánh xạ
           vào các vai trò giao diện. Ảnh chỉ dùng để lấy màu, không lưu lại.
         </p>

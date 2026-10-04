@@ -15,6 +15,7 @@
 import React, { useState, useCallback } from "react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { exportAudio, exportAudioPerTrack } from "../../lib/audio-exporter";
+import { useDialog } from "../../lib/use-dialog";
 
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -90,14 +91,23 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
 
   const noteCount = snapshot.notes.length;
   const trackCount = snapshot.tracks.filter((t) => !t.muted).length;
+  const rendering = phase === "rendering";
+  const dialogRef = useDialog<HTMLDivElement>({ onClose, closeDisabled: rendering });
 
   return (
     <>
       {/* Backdrop */}
-      <div style={styles.backdrop} onClick={onClose} />
+      <div style={styles.backdrop} onClick={() => !rendering && onClose()} />
 
       {/* Modal */}
-      <div style={styles.modal} role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <div
+        ref={dialogRef}
+        style={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-title"
+        tabIndex={-1}
+      >
         {/* Header */}
         <div style={styles.header}>
           <div style={styles.headerLeft}>
@@ -106,10 +116,10 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
               <h2 id="export-title" style={styles.title}>
                 Xuất file âm thanh
               </h2>
-              <p style={styles.subtitle}>UC-38 · Export Audio (WAV)</p>
+              <p style={styles.subtitle}>Định dạng WAV, không nén</p>
             </div>
           </div>
-          <button style={styles.closeBtn} onClick={onClose} title="Đóng" disabled={phase === "rendering"}>
+          <button style={styles.closeBtn} onClick={onClose} title="Đóng" aria-label="Đóng" disabled={rendering}>
             ✕
           </button>
         </div>
@@ -149,14 +159,15 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
 
           {/* Sample rate selector */}
           <div style={styles.section}>
-            <label style={styles.sectionLabel}>Sample rate</label>
-            <div style={styles.srRow}>
+            <span id="export-sample-rate" style={styles.sectionLabel}>Sample rate</span>
+            <div style={styles.srRow} role="group" aria-labelledby="export-sample-rate">
               {SAMPLE_RATE_OPTIONS.map((sr) => (
                 <button
                   key={sr.value}
                   onClick={() => setSampleRate(sr.value)}
                   disabled={phase === "rendering"}
                   title={`Xuất ở ${sr.label}`}
+                  aria-pressed={sampleRate === sr.value}
                   style={{
                     ...styles.srBtn,
                     ...(sampleRate === sr.value ? styles.srBtnActive : {}),
@@ -188,7 +199,14 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
                 <span style={styles.progressLabel}>Đang render âm thanh…</span>
                 <span style={styles.progressPct}>{progress}%</span>
               </div>
-              <div style={styles.progressTrack}>
+              <div
+                style={styles.progressTrack}
+                role="progressbar"
+                aria-label="Tiến độ render"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+              >
                 <div style={{ ...styles.progressBar, width: `${progress}%` }} />
               </div>
               <p style={styles.progressHint}>
@@ -255,7 +273,7 @@ const styles: Record<string, React.CSSProperties> = {
     inset: 0,
     background: "color-mix(in oklab, var(--foreground) 40%, transparent)",
     backdropFilter: "blur(4px)",
-    zIndex: 1000,
+    zIndex: 50,
   },
   modal: {
     position: "fixed",
@@ -267,7 +285,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid var(--border)",
     borderRadius: 12,
     boxShadow: "0 24px 60px color-mix(in oklab, var(--foreground) 22%, transparent)",
-    zIndex: 1001,
+    zIndex: 51,
+    outline: "none",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
@@ -327,7 +346,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 2,
   },
   summaryLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: "var(--muted-foreground)",
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -339,7 +358,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   warning: {
     fontSize: 12,
-    color: "var(--warning)",
+    color: "var(--warning-foreground)",
     background: "var(--warning-muted)",
     border: "1px solid color-mix(in oklab, var(--warning) 35%, transparent)",
     borderRadius: 8,
@@ -375,7 +394,7 @@ const styles: Record<string, React.CSSProperties> = {
   srBtnActive: {
     borderColor: "var(--success)",
     background: "var(--success-muted)",
-    color: "var(--success)",
+    color: "var(--success-foreground)",
   },
   checkboxRow: {
     display: "flex",
@@ -399,7 +418,7 @@ const styles: Record<string, React.CSSProperties> = {
   progressLabel: {},
   progressPct: {
     fontWeight: 700,
-    color: "var(--success)",
+    color: "var(--success-foreground)",
   },
   progressTrack: {
     height: 6,
@@ -419,7 +438,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   successBox: {
     fontSize: 12,
-    color: "var(--success)",
+    color: "var(--success-foreground)",
     background: "var(--success-muted)",
     border: "1px solid color-mix(in oklab, var(--success) 35%, transparent)",
     borderRadius: 8,

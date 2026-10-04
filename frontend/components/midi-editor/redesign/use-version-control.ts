@@ -25,18 +25,13 @@ import {
   tagCommit,
 } from "../../../lib/api-client";
 import type { Branch, CommitWithAuthor } from "../../../lib/api-client";
+import { apiErrorMessage } from "../../../lib/error-message";
 
 /**
  * Số commit tải mỗi lần. Response của `GET /commits` kèm nguyên snapshot của
  * từng commit nên không lấy quá nhiều một lúc; `total` vẫn cho biết số thật.
  */
 const HISTORY_PAGE_SIZE = 20;
-
-function messageOf(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) return err.message;
-  if (err instanceof Error && err.message) return err.message;
-  return fallback;
-}
 
 export interface UseVersionControlOptions {
   projectId: string;
@@ -166,7 +161,7 @@ export function useVersionControl({
       setTotal(page.total);
     } catch (err) {
       if (!mountedRef.current) return;
-      setHistoryError(messageOf(err, "Không tải được lịch sử phiên bản"));
+      setHistoryError(apiErrorMessage(err, "Không tải được lịch sử phiên bản"));
     } finally {
       if (mountedRef.current) setHistoryLoading(false);
     }
@@ -202,7 +197,7 @@ export function useVersionControl({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setBranchError(messageOf(err, "Không tải được thông tin branch"));
+        setBranchError(apiErrorMessage(err, "Không tải được thông tin branch"));
       })
       .finally(() => {
         if (!cancelled) setBranchLoading(false);
@@ -271,7 +266,7 @@ export function useVersionControl({
           await loadHistory(branch.id);
         }
         if (mountedRef.current) {
-          setCommitError(messageOf(err, "Không tạo được commit"));
+          setCommitError(apiErrorMessage(err, "Không tạo được commit"));
         }
         return false;
       } finally {
@@ -299,7 +294,7 @@ export function useVersionControl({
         return true;
       } catch (err) {
         if (mountedRef.current) {
-          setTagError(messageOf(err, "Không gắn được tag"));
+          setTagError(apiErrorMessage(err, "Không gắn được tag"));
         }
         return false;
       } finally {
@@ -335,7 +330,7 @@ export function useVersionControl({
         return true;
       } catch (err) {
         if (mountedRef.current) {
-          setRestoreError(messageOf(err, "Không khôi phục được phiên bản này"));
+          setRestoreError(apiErrorMessage(err, "Không khôi phục được phiên bản này"));
         }
         return false;
       } finally {
@@ -397,7 +392,7 @@ export function useVersionControl({
         return true;
       } catch (err) {
         if (mountedRef.current) {
-          setSwitchError(messageOf(err, "Không chuyển được nhánh"));
+          setSwitchError(apiErrorMessage(err, "Không chuyển được nhánh"));
         }
         return false;
       } finally {

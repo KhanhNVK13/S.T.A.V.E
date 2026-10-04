@@ -10,6 +10,7 @@ import { Tabs } from '../../components/ui/tabs';
 import { EmptyState } from '../../components/ui/empty-state';
 import { Button } from '../../components/ui/button';
 import { useState } from 'react';
+import { APP_LOCALE } from '../../lib/format-date';
 
 type RankingType = 'trending' | 'top_forked' | 'top_played';
 
@@ -21,11 +22,11 @@ function RankBadge({ rank }: { rank: number }) {
   // theo theme người dùng chọn, thay vì neo vào bảng màu amber/slate cố định.
   const style =
     rank === 1
-      ? 'bg-metal text-background'
+      ? 'bg-metal text-foreground'
       : rank === 2
-        ? 'bg-border-strong text-background'
+        ? 'bg-border-strong text-foreground'
         : rank === 3
-          ? 'bg-warning text-background'
+          ? 'bg-warning text-foreground'
           : 'bg-surface-subtle text-muted';
   return (
     <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold ${style}`}>
@@ -63,7 +64,7 @@ export default function RankingsPage() {
       </div>
 
       {loading ? (
-        <RowList>
+        <RowList cols={COLS}>
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
               <div className="h-7 w-7 shrink-0 rounded-full bg-surface-subtle" />
@@ -84,8 +85,8 @@ export default function RankingsPage() {
       ) : projects.length === 0 ? (
         <EmptyState icon={Trophy} title="Chưa có dự án nào trong bảng xếp hạng này." />
       ) : (
-        <RowList>
-          <RowHeader cols={COLS}>
+        <RowList cols={COLS}>
+          <RowHeader>
             <span>Hạng</span>
             <span>Dự án</span>
             <span>Thể loại</span>
@@ -98,7 +99,7 @@ export default function RankingsPage() {
             const MetricIcon = type === 'top_forked' ? GitFork : Play;
 
             return (
-              <RowItem key={project.id} cols={COLS}>
+              <RowItem key={project.id}>
                 <RankBadge rank={rank} />
                 <RowTitle
                   href={`/projects/${project.id}`}
@@ -108,7 +109,7 @@ export default function RankingsPage() {
                 <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
                 <span className="flex items-center gap-1.5 font-mono text-[13px] font-bold md:justify-end">
                   <MetricIcon className="h-3.5 w-3.5 text-muted" />
-                  {metric.toLocaleString('vi-VN')}
+                  {metric.toLocaleString(APP_LOCALE)}
                 </span>
               </RowItem>
             );

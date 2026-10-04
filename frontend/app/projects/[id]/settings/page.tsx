@@ -11,14 +11,17 @@ import {
   deleteProject,
   getProject,
   setProjectVisibility,
-  ApiError,
+  updateProject,
   ProjectVisibility,
 } from "../../../../lib/api-client";
 import { PageHeader } from "../../../../components/ui/page-header";
 import { Card } from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
-import { INPUT_CLASS } from "../../../../components/ui/form";
+import { Field, INPUT_CLASS } from "../../../../components/ui/form";
+import { Dialog, DialogActions, DialogError } from "../../../../components/ui/dialog";
+import { apiErrorMessage } from "../../../../lib/error-message";
+import { APP_LOCALE } from "../../../../lib/format-date";
 
 interface Project {
   id: string;
@@ -29,6 +32,135 @@ interface Project {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+function ProjectInfoCard({
+  project,
+  onSaved,
+}: {
+  project: Project;
+  onSaved: (updated: Pick<Project, "name" | "description" | "genre">) => void;
+}) {
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description ?? "");
+  const [genre, setGenre] = useState(project.genre ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const isArchived = !!project.archived_at;
+  const dirty =
+    name.trim() !== project.name ||
+    description !== (project.description ?? "") ||
+    genre !== (project.genre ?? "");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (isArchived || !name.trim()) return;
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await updateProject(project.id, { name: name.trim(), description, genre });
+      onSaved({ name: name.trim(), description: description || null, genre: genre || null });
+      setSaved(true);
+    } catch (err) {
+      setSaveError(apiErrorMessage(err, "Không lưu được thông tin dự án."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="p-6">
+      <h2 className="mb-4 text-base font-semibold text-foreground">Thông tin dự án</h2>
+      {isArchived && (
+        <p className="mb-4 flex items-start gap-2 text-sm text-muted">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+          Dự án đã lưu trữ nên chỉ xem được. Khôi phục dự án ở cuối trang để chỉnh sửa lại.
+        </p>
+      )}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Field label="Tên dự án *">
+          <input
+            name="name"
+            autoComplete="off"
+            type="text"
+            required
+            maxLength={120}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setSaved(false);
+            }}
+            disabled={isArchived}
+            className={INPUT_CLASS}
+          />
+        </Field>
+        <Field label="Mô tả">
+          <textarea
+            name="description"
+            value={description}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              setSaved(false);
+            }}
+            rows={4}
+            maxLength={2000}
+            disabled={isArchived}
+            className={INPUT_CLASS}
+            placeholder="Mô tả ngắn về dự án của bạn"
+          />
+        </Field>
+        <Field label="Thể loại">
+          <input
+            name="genre"
+            autoComplete="off"
+            type="text"
+            maxLength={60}
+            value={genre}
+            onChange={(e) => {
+              setGenre(e.target.value);
+              setSaved(false);
+            }}
+            disabled={isArchived}
+            className={INPUT_CLASS}
+            placeholder="Ví dụ: Lo-Fi, Jazz,…"
+          />
+        </Field>
+        <dl className="grid grid-cols-3 gap-y-2 text-sm">
+          <dt className="text-muted">Trạng thái</dt>
+          <dd className="col-span-2">
+            {isArchived ? (
+              <Badge variant="warning">Đã lưu trữ</Badge>
+            ) : (
+              <Badge variant="success">Đang hoạt động</Badge>
+            )}
+          </dd>
+          <dt className="text-muted">Ngày tạo</dt>
+          <dd className="col-span-2 font-mono text-xs text-foreground">
+            {new Date(project.created_at).toLocaleDateString(APP_LOCALE)}
+          </dd>
+        </dl>
+        {saveError && (
+          <p role="alert" className="text-sm text-danger">
+            {saveError}
+          </p>
+        )}
+        {!isArchived && (
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={saving || !dirty || !name.trim()}>
+              {saving ? "Đang lưu…" : "Lưu thay đổi"}
+            </Button>
+            {saved && (
+              <span role="status" className="text-sm text-success-foreground">
+                Đã lưu.
+              </span>
+            )}
+          </div>
+        )}
+      </form>
+    </Card>
+  );
 }
 
 export default function ProjectSettingsPage() {
@@ -46,6 +178,7 @@ export default function ProjectSettingsPage() {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [visibilitySuccess, setVisibilitySuccess] = useState<string | null>(null);
   const [settingVisibility, setSettingVisibility] = useState(false);
 
@@ -56,12 +189,12 @@ export default function ProjectSettingsPage() {
         const data = (await getProject(projectId)) as Project;
         setProject(data);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+        setError(apiErrorMessage(err, "Không tải được thông tin dự án."));
       } finally {
         setLoading(false);
       }
     })();
-  }, [projectId]);
+  }, [projectId, loadAttempt]);
 
   async function handleArchive() {
     setError(null);
@@ -70,7 +203,7 @@ export default function ProjectSettingsPage() {
       await archiveProject(projectId);
       router.push("/projects");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không lưu trữ được dự án."));
       setArchiving(false);
     }
   }
@@ -82,7 +215,7 @@ export default function ProjectSettingsPage() {
       await unarchiveProject(projectId);
       router.push("/projects");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không khôi phục được dự án."));
       setUnarchiving(false);
     }
   }
@@ -94,7 +227,7 @@ export default function ProjectSettingsPage() {
       await deleteProject(projectId);
       router.push("/projects");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không xoá được dự án."));
       setDeleting(false);
     }
   }
@@ -114,7 +247,7 @@ export default function ProjectSettingsPage() {
       // Auto-dismiss success banner after 4 seconds
       setTimeout(() => setVisibilitySuccess(null), 4000);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không đổi được chế độ hiển thị."));
     } finally {
       setSettingVisibility(false);
     }
@@ -133,46 +266,41 @@ export default function ProjectSettingsPage() {
         </Link>
         <PageHeader title="Cài đặt dự án" description={project?.name} />
 
-        {loading && <p className="text-center text-sm text-muted">Đang tải thông tin dự án...</p>}
+        {loading && <p className="text-center text-sm text-muted">Đang tải thông tin dự án…</p>}
 
         {error && !loading && (
-          <div className="mb-4 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">
-            {error}
+          <div
+            role="alert"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger"
+          >
+            <span>{error}</span>
+            {!project && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setError(null);
+                  setLoadAttempt((n) => n + 1);
+                }}
+              >
+                Thử lại
+              </Button>
+            )}
           </div>
         )}
 
         {!loading && project && (
           <div className="flex flex-col gap-6">
-            <Card className="p-6">
-              <h2 className="mb-4 text-base font-semibold text-foreground">Thông tin dự án</h2>
-              <dl className="grid grid-cols-3 gap-y-3 text-sm">
-                <dt className="text-muted">Tên:</dt>
-                <dd className="col-span-2 font-medium text-foreground">{project.name}</dd>
-                <dt className="text-muted">Mô tả:</dt>
-                <dd className="col-span-2 text-foreground">{project.description || "Không có mô tả"}</dd>
-                <dt className="text-muted">Thể loại:</dt>
-                <dd className="col-span-2 text-foreground">{project.genre || "Không có thể loại"}</dd>
-                <dt className="text-muted">Trạng thái:</dt>
-                <dd className="col-span-2">
-                  {project.archived_at ? (
-                    <Badge variant="warning">Đã lưu trữ</Badge>
-                  ) : (
-                    <Badge variant="success">Đang hoạt động</Badge>
-                  )}
-                </dd>
-                <dt className="text-muted">Ngày tạo:</dt>
-                <dd className="col-span-2 font-mono text-xs text-foreground">
-                  {new Date(project.created_at).toLocaleDateString("vi-VN")}
-                </dd>
-              </dl>
-            </Card>
+            <ProjectInfoCard
+              project={project}
+              onSaved={(updated) => setProject((prev) => (prev ? { ...prev, ...updated } : prev))}
+            />
 
             <Card className="p-6">
               <h2 className="mb-1 text-base font-semibold text-foreground">Hiển thị dự án</h2>
               <p className="mb-4 text-sm text-muted">Chọn ai có thể xem và truy cập dự án này.</p>
 
               {visibilitySuccess && (
-                <div className="mb-4 rounded-card border border-success/20 bg-success-muted p-3 text-sm text-success">
+                <div className="mb-4 rounded-card border border-success/20 bg-success-muted p-3 text-sm text-success-foreground">
                   {visibilitySuccess}
                 </div>
               )}
@@ -224,7 +352,7 @@ export default function ProjectSettingsPage() {
                 </label>
               </div>
 
-              {settingVisibility && <p className="mt-3 text-sm text-muted">Đang cập nhật...</p>}
+              {settingVisibility && <p className="mt-3 text-sm text-muted">Đang cập nhật…</p>}
             </Card>
 
             <Card className="border-danger/20 p-6">
@@ -242,9 +370,9 @@ export default function ProjectSettingsPage() {
                     variant="secondary"
                     onClick={() => setShowUnarchiveConfirm(true)}
                     disabled={unarchiving}
-                    className="gap-1.5 border-warning text-warning hover:bg-warning-muted"
+                    className="gap-1.5 border-warning text-warning-foreground hover:bg-warning-muted"
                   >
-                    <Undo2 className="h-4 w-4" /> {unarchiving ? "Đang khôi phục..." : "Khôi phục dự án"}
+                    <Undo2 className="h-4 w-4" /> {unarchiving ? "Đang khôi phục…" : "Khôi phục dự án"}
                   </Button>
                 ) : (
                   <Button
@@ -253,7 +381,7 @@ export default function ProjectSettingsPage() {
                     disabled={archiving}
                     className="gap-1.5 border-danger text-danger hover:bg-danger-muted"
                   >
-                    <Archive className="h-4 w-4" /> {archiving ? "Đang lưu trữ..." : "Lưu trữ dự án"}
+                    <Archive className="h-4 w-4" /> {archiving ? "Đang lưu trữ…" : "Lưu trữ dự án"}
                   </Button>
                 )}
                 <Button
@@ -272,107 +400,119 @@ export default function ProjectSettingsPage() {
         )}
       </div>
 
-      {showUnarchiveConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4">
-          <Card className="w-full max-w-md p-6">
-            <h3 className="mb-4 text-lg font-semibold text-warning">Khôi phục dự án</h3>
-            <p className="mb-6 text-sm text-muted">
-              Dự án &quot;{project?.name}&quot; sẽ được khôi phục và hiển thị lại trong danh
-              sách dự án chính.
-            </p>
-            {error && <p className="mb-4 text-sm text-danger">{error}</p>}
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowUnarchiveConfirm(false);
-                  setError(null);
-                }}
-                disabled={unarchiving}
-              >
-                Huỷ
-              </Button>
-              <Button
-                onClick={() => void handleUnarchive()}
-                disabled={unarchiving}
-                className="bg-warning hover:bg-warning"
-              >
-                {unarchiving ? "Đang khôi phục..." : "Khôi phục"}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <Dialog
+        open={showUnarchiveConfirm}
+        title="Khôi phục dự án"
+        onClose={() => {
+          setShowUnarchiveConfirm(false);
+          setError(null);
+        }}
+        closeDisabled={unarchiving}
+      >
+        <p className="mb-6 text-sm text-muted">
+          Dự án &quot;{project?.name}&quot; sẽ được khôi phục và hiển thị lại trong danh sách dự
+          án chính.
+        </p>
+        <DialogError message={error} />
+        <DialogActions>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowUnarchiveConfirm(false);
+              setError(null);
+            }}
+            disabled={unarchiving}
+          >
+            Huỷ
+          </Button>
+          <Button onClick={() => void handleUnarchive()} disabled={unarchiving}>
+            {unarchiving ? "Đang khôi phục…" : "Khôi phục"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {showArchiveConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4">
-          <Card className="w-full max-w-md p-6">
-            <h3 className="mb-4 text-lg font-semibold text-foreground">Xác nhận lưu trữ dự án</h3>
-            <p className="mb-6 text-sm text-muted">
-              Bạn có chắc chắn muốn lưu trữ dự án &quot;{project?.name}&quot;? Dự án sẽ được
-              chuyển sang phần dự án đã lưu trữ và không còn xuất hiện trong danh sách chính.
-            </p>
-            {error && <p className="mb-4 text-sm text-danger">{error}</p>}
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowArchiveConfirm(false);
-                  setError(null);
-                }}
-                disabled={archiving}
-              >
-                Huỷ
-              </Button>
-              <Button variant="danger" onClick={() => void handleArchive()} disabled={archiving}>
-                {archiving ? "Đang xử lý..." : "Xác nhận lưu trữ"}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <Dialog
+        open={showArchiveConfirm}
+        title="Xác nhận lưu trữ dự án"
+        onClose={() => {
+          setShowArchiveConfirm(false);
+          setError(null);
+        }}
+        closeDisabled={archiving}
+        role="alertdialog"
+      >
+        <p className="mb-6 text-sm text-muted">
+          Bạn có chắc chắn muốn lưu trữ dự án &quot;{project?.name}&quot;? Dự án sẽ được chuyển
+          sang phần dự án đã lưu trữ và không còn xuất hiện trong danh sách chính.
+        </p>
+        <DialogError message={error} />
+        <DialogActions>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowArchiveConfirm(false);
+              setError(null);
+            }}
+            disabled={archiving}
+          >
+            Huỷ
+          </Button>
+          <Button variant="danger" onClick={() => void handleArchive()} disabled={archiving}>
+            {archiving ? "Đang xử lý…" : "Xác nhận lưu trữ"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4">
-          <Card className="w-full max-w-md p-6">
-            <h3 className="mb-4 text-lg font-semibold text-danger">Xóa dự án vĩnh viễn</h3>
-            <p className="mb-4 text-sm text-muted">
-              Hành động này không thể hoàn tác. Tất cả dữ liệu bao gồm lịch sử phiên bản, các
-              bản nháp và thành viên của dự án &quot;{project?.name}&quot; sẽ bị xóa vĩnh viễn.
-            </p>
-            <label className="mb-4 flex flex-col gap-2 text-sm">
-              <span className="font-medium text-foreground">
-                Để xác nhận, hãy nhập tên dự án:{" "}
-                <span className="font-semibold text-foreground">{project?.name}</span>
-              </span>
-              <input
-                type="text"
-                value={deleteConfirmName}
-                onChange={(e) => setDeleteConfirmName(e.target.value)}
-                placeholder={project?.name ?? ""}
-                className={INPUT_CLASS}
-              />
-            </label>
-            {error && <p className="mb-4 text-sm text-danger">{error}</p>}
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  setDeleteConfirmName("");
-                  setError(null);
-                }}
-                disabled={deleting}
-              >
-                Huỷ
-              </Button>
-              <Button variant="danger" onClick={() => void handleDelete()} disabled={!canDelete || deleting}>
-                {deleting ? "Đang xóa..." : "Xóa vĩnh viễn"}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <Dialog
+        open={showDeleteConfirm}
+        title="Xóa dự án vĩnh viễn"
+        titleClassName="text-danger"
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeleteConfirmName("");
+          setError(null);
+        }}
+        closeDisabled={deleting}
+        role="alertdialog"
+      >
+        <p className="mb-4 text-sm text-muted">
+          Hành động này không thể hoàn tác. Tất cả dữ liệu bao gồm lịch sử phiên bản, các bản
+          nháp và thành viên của dự án &quot;{project?.name}&quot; sẽ bị xóa vĩnh viễn.
+        </p>
+        <label className="mb-4 flex flex-col gap-2 text-sm">
+          <span className="font-medium text-foreground">
+            Để xác nhận, hãy nhập tên dự án:{" "}
+            <span className="font-semibold text-foreground">{project?.name}</span>
+          </span>
+          <input
+            type="text"
+            value={deleteConfirmName}
+            onChange={(e) => setDeleteConfirmName(e.target.value)}
+            placeholder={project?.name ?? ""}
+            autoComplete="off"
+            spellCheck={false}
+            data-autofocus
+            className={INPUT_CLASS}
+          />
+        </label>
+        <DialogError message={error} />
+        <DialogActions>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowDeleteConfirm(false);
+              setDeleteConfirmName("");
+              setError(null);
+            }}
+            disabled={deleting}
+          >
+            Huỷ
+          </Button>
+          <Button variant="danger" onClick={() => void handleDelete()} disabled={!canDelete || deleting}>
+            {deleting ? "Đang xóa…" : "Xóa vĩnh viễn"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </RequireAuth>
   );
 }

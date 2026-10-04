@@ -27,6 +27,7 @@ import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { GridDivision, PianoRollHandle, ToolMode } from "./piano-roll";
 import { EditorRedesign } from "./redesign/editor-redesign";
 import { getDraft, putDraft } from "../../lib/api-client";
+import { isDialogOpen } from "../../lib/use-dialog";
 import { parseMidiBuffer } from "../../lib/midi-parser";
 import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -43,6 +44,10 @@ import {
 
 // Maximum tracks allowed per project (BR-29)
 const MAX_TRACKS = 32;
+
+const SAVE_RETRY_DELAYS_MS = [2000, 5000, 15000, 30000];
+
+export type SaveStatus = "saved" | "saving" | "unsaved" | "error";
 
 
 // UC-34 — màu phân biệt track: đây là DỮ LIỆU nghiệp vụ (lưu vào snapshot,
@@ -67,7 +72,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     notes: [],
   });
   const [loading, setLoading] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [saveRetryInSec, setSaveRetryInSec] = useState<number | null>(null);
   const [tool, setTool] = useState<ToolMode>("pencil");
   const [gridDivision, setGridDivision] = useState<GridDivision>(16);
   const [zoom, setZoom] = useState(1);
@@ -106,6 +114,13 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editVersionRef = useRef(0);
+  const saveAttemptRef = useRef(0);
+  const mountedRef = useRef(true);
+  const saveStatusRef = useRef<SaveStatus>("saved");
+  useEffect(() => {
+    saveStatusRef.current = saveStatus;
+  }, [saveStatus]);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Tone.js voices (1 Sampler-or-PolySynth+Filter+Panner per track) for the
   // current playback session. Disposed by stopAudio() on every Stop/Pause/
@@ -222,22 +237,36 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       .then((snap) => {
         if (cancelled) return;
         setSnapshot(snap);
+        setLoadError(null);
         if (snap.tracks.length > 0) {
           setSelectedTrackId(snap.tracks[0].id);
         }
       })
-      .catch(console.error)
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        console.error(err);
+        setLoadError(
+          err instanceof Error && err.message ? err.message : "Lỗi không xác định",
+        );
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, loadAttempt]);
+
+  function retryLoad() {
+    setLoadError(null);
+    setLoading(true);
+    setLoadAttempt((n) => n + 1);
+  }
 
   // ── Keyboard shortcuts (UC-32/33) ───────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (isDialogOpen()) return;
       // Don't hijack Ctrl/Cmd+A/C/V while the user is typing in a text field
       // (e.g. the track rename input) — those need native select-all/copy/paste.
       const target = e.target as HTMLElement | null;
@@ -252,6 +281,27 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (!mod && !e.altKey) {
+        if (e.key === " " && target?.tagName !== "BUTTON" && target?.tagName !== "SELECT") {
+          e.preventDefault();
+          if (isPlaying) handlePause();
+          else handlePlay();
+          return;
+        }
+        if ((e.key === "Delete" || e.key === "Backspace") && selectedNoteIds.size > 0) {
+          e.preventDefault();
+          updateSnapshot({
+            ...snapshot,
+            notes: snapshot.notes.filter((n) => !selectedNoteIds.has(n.id)),
+          });
+          setSelectedNoteIds(new Set());
+          return;
+        }
+        if (e.key === "Escape" && selectedNoteIds.size > 0) {
+          setSelectedNoteIds(new Set());
+          return;
+        }
+      }
       if (!mod) return;
 
       if (e.key === "c" || e.key === "C") {
@@ -276,20 +326,32 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleCopy, handlePaste, handleSelectAll, handleUndo, handleRedo, selectedTrackId, snapshot]);
+  }, [handleCopy, handlePaste, handleSelectAll, handleUndo, handleRedo, handlePlay, handlePause, updateSnapshot, isPlaying, selectedNoteIds, selectedTrackId, snapshot]);
 
   // ── Flush pending autosave on unmount — a debounced save left running after
   // navigating away can setState on an unmounted component; just clearing the
   // timer would also silently drop the last edit, so fire the save once more
   // instead (best-effort, not awaited — the component is already gone). ─────
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
+      mountedRef.current = false;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (saveStatusRef.current !== "saved") {
         putDraft(projectId, snapshotRef.current).catch(() => {});
       }
     };
   }, [projectId]);
+
+  useEffect(() => {
+    if (saveStatus === "saved") return;
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveStatus]);
 
   // ── Tear down the persistent Tone.js voice cache + master bus on real
   // unmount (navigating away from the editor entirely) — they're kept alive
@@ -318,22 +380,50 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   }, []);
 
   // ── Auto-save (debounce 2s) ─────────────────────────────────
+  const scheduleRetry = useCallback((run: () => Promise<void>) => {
+    const attempt = saveAttemptRef.current;
+    const delay = SAVE_RETRY_DELAYS_MS[Math.min(attempt, SAVE_RETRY_DELAYS_MS.length - 1)];
+    saveAttemptRef.current = attempt + 1;
+    setSaveStatus("error");
+    setSaveRetryInSec(Math.round(delay / 1000));
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => void run(), delay);
+  }, []);
+
+  const runSave = useCallback(async function run(): Promise<void> {
+    saveTimerRef.current = null;
+    const version = editVersionRef.current;
+    setSaveStatus("saving");
+    try {
+      await putDraft(projectId, snapshotRef.current);
+      if (!mountedRef.current) return;
+      if (editVersionRef.current !== version) return;
+      saveAttemptRef.current = 0;
+      setSaveRetryInSec(null);
+      setSaveStatus("saved");
+    } catch {
+      if (!mountedRef.current || editVersionRef.current !== version) return;
+      scheduleRetry(run);
+    }
+  }, [projectId, scheduleRetry]);
+
   const scheduleSave = useCallback(
     (snap: DraftSnapshot) => {
-      setSaveStatus("unsaved");
+      snapshotRef.current = snap;
+      editVersionRef.current += 1;
+      saveAttemptRef.current = 0;
+      setSaveRetryInSec(null);
+      setSaveStatus((s) => (s === "error" ? "error" : "unsaved"));
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(async () => {
-        setSaveStatus("saving");
-        try {
-          await putDraft(projectId, snap);
-          setSaveStatus("saved");
-        } catch {
-          setSaveStatus("unsaved");
-        }
-      }, 2000);
+      saveTimerRef.current = setTimeout(() => void runSave(), 2000);
     },
-    [projectId],
+    [runSave],
   );
+
+  const retrySaveNow = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    void runSave();
+  }, [runSave]);
 
   function updateSnapshot(next: DraftSnapshot) {
     // Chỉ ghi 1 điểm khôi phục ở lần gọi ĐẦU của mỗi "đợt" thay đổi liên tiếp
@@ -408,15 +498,20 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
+    const version = editVersionRef.current;
     setSaveStatus("saving");
     try {
       await putDraft(projectId, snapshotRef.current);
-      setSaveStatus("saved");
+      if (editVersionRef.current === version) {
+        saveAttemptRef.current = 0;
+        setSaveRetryInSec(null);
+        setSaveStatus("saved");
+      }
     } catch (err) {
-      setSaveStatus("unsaved");
+      scheduleRetry(runSave);
       throw err;
     }
-  }, [projectId]);
+  }, [projectId, runSave, scheduleRetry]);
 
   /**
    * UC-48: đọc bản nháp đang mở tại đúng thời điểm gọi, để gửi kèm lời gọi
@@ -457,6 +552,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         ? prev
         : (restored.tracks[0]?.id ?? null),
     );
+    editVersionRef.current += 1;
+    saveAttemptRef.current = 0;
+    setSaveRetryInSec(null);
     setSaveStatus("saved");
   }, []);
 
@@ -1025,7 +1123,22 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     return (
       <div style={styles.loading}>
         <div style={styles.spinner} />
-        <p>Loading draft…</p>
+        <p>Đang tải bản nháp…</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={styles.loading} role="alert">
+        <p style={styles.loadErrorTitle}>Không tải được bản nháp</p>
+        <p style={styles.loadErrorText}>
+          Editor chưa mở để tránh lưu đè bản nháp đang có trên máy chủ. Kiểm tra
+          kết nối mạng rồi thử lại.
+        </p>
+        <button type="button" onClick={retryLoad} style={styles.retryButton}>
+          Thử lại
+        </button>
       </div>
     );
   }
@@ -1093,6 +1206,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onToggleLoop={handleToggleLoop}
         onSeek={handleSeek}
         saveStatus={saveStatus}
+        saveRetryInSec={saveRetryInSec}
+        onRetrySave={retrySaveNow}
         onFlushDraft={flushDraft}
         onReadSnapshot={readSnapshot}
         onSnapshotRestored={applyRestoredSnapshot}
@@ -1142,5 +1257,27 @@ const styles: Record<string, React.CSSProperties> = {
     borderTopColor: "var(--accent)",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
+  },
+  loadErrorTitle: {
+    margin: 0,
+    fontSize: 15,
+    fontWeight: 600,
+    color: "var(--foreground)",
+  },
+  loadErrorText: {
+    margin: 0,
+    maxWidth: 420,
+    textAlign: "center",
+    lineHeight: 1.6,
+  },
+  retryButton: {
+    padding: "8px 16px",
+    borderRadius: 8,
+    border: "none",
+    background: "var(--accent)",
+    color: "var(--accent-foreground)",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
   },
 };

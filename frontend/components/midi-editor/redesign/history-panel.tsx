@@ -18,6 +18,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { GitBranch, GitCommitVertical, History, Tag } from "lucide-react";
 import { TAG_NAME_MAX_LENGTH } from "../../../lib/api-client";
+import type { SaveStatus } from "../midi-editor";
 import type { CommitWithAuthor } from "../../../lib/api-client";
 import { formatRelativeTime } from "../../../lib/format-date";
 import { DC, DC_SIZE } from "./tokens";
@@ -26,7 +27,7 @@ import type { VersionControl } from "./use-version-control";
 interface HistoryPanelProps {
   /** Tên branch đang thao tác — lấy từ branch mặc định thật của project. */
   branchName: string;
-  saveStatus: "saved" | "saving" | "unsaved";
+  saveStatus: SaveStatus;
   trackCount: number;
   noteCount: number;
   vc: VersionControl;
@@ -38,12 +39,14 @@ const SAVE_LABEL: Record<HistoryPanelProps["saveStatus"], string> = {
   saved: "Đã lưu nháp",
   saving: "Đang lưu…",
   unsaved: "Có thay đổi chưa lưu",
+  error: "Không lưu được",
 };
 
 const SAVE_COLOR: Record<HistoryPanelProps["saveStatus"], string> = {
   saved: DC.success,
   saving: DC.warning,
   unsaved: DC.danger,
+  error: DC.danger,
 };
 
 function authorLabel(commit: CommitWithAuthor): string {
@@ -144,7 +147,8 @@ export function HistoryPanel({
             <div style={styles.emptyTitle}>Chưa có phiên bản nào</div>
             <p style={styles.emptyText}>
               Bấm <strong>Commit Changes</strong> ở thanh trên để ghi lại phiên
-              bản đầu tiên của bản nháp này.
+              bản đầu tiên của bản nháp này. Mỗi commit là một mốc bạn có thể
+              quay lại bất cứ lúc nào.
             </p>
           </div>
         ) : (
@@ -206,6 +210,8 @@ export function HistoryPanel({
                         <div style={styles.tagForm}>
                           <div style={styles.tagInputRow}>
                             <input
+                              autoComplete="off"
+                              spellCheck={false}
                               ref={tagInputRef}
                               type="text"
                               value={tagDraft}
@@ -247,7 +253,7 @@ export function HistoryPanel({
                           <button
                             onClick={() => openTagInput(commit)}
                             style={styles.smallGhostBtn}
-                            title="Đặt tên gợi nhớ cho phiên bản này (UC-44)"
+                            title="Đặt tên gợi nhớ cho phiên bản này"
                           >
                             <Tag size={12} />
                             {tagName ? "Đổi tag" : "Gắn tag"}
@@ -263,7 +269,7 @@ export function HistoryPanel({
                             title={
                               isHead
                                 ? "Đây đang là phiên bản hiện tại của branch"
-                                : "Khôi phục bản nháp về phiên bản này (UC-46)"
+                                : "Khôi phục bản nháp về phiên bản này"
                             }
                           >
                             <History size={12} />
@@ -377,7 +383,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   headBadge: {
     flexShrink: 0,
-    font: `700 9px ${DC.mono}`,
+    font: `700 11px ${DC.mono}`,
     letterSpacing: ".06em",
     color: DC.accent,
     background: DC.surface,
@@ -399,7 +405,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 4,
     marginTop: 7,
-    font: `600 10.5px ${DC.mono}`,
+    font: `600 11px ${DC.mono}`,
     color: DC.accent,
     background: DC.accentSoft,
     borderRadius: 5,
@@ -415,7 +421,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   detailRow: { display: "flex", alignItems: "baseline", gap: 8 },
   detailKey: {
-    font: `700 9px ${DC.mono}`,
+    font: `700 11px ${DC.mono}`,
     letterSpacing: ".07em",
     color: DC.textMuted,
     width: 62,
@@ -476,9 +482,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "6px 9px",
     font: `500 12px ${DC.mono}`,
     color: DC.text,
-    outline: "none",
   },
-  tagCounter: { font: `500 10px ${DC.mono}`, color: DC.textMuted, flexShrink: 0 },
+  tagCounter: { font: `500 11px ${DC.mono}`, color: DC.textMuted, flexShrink: 0 },
   tagError: { fontSize: 11.5, fontWeight: 600, color: DC.danger, lineHeight: 1.45 },
   tagActions: { display: "flex", justifyContent: "flex-end", gap: 7 },
   stateBox: {

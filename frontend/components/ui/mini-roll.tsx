@@ -27,7 +27,7 @@ export function MiniRoll({ className = "" }: { className?: string }) {
         backgroundSize: "12.5% 100%, 100% 24px",
       }}
     >
-      <div className="grid h-[25px] grid-cols-4 border-b border-border px-2.5 py-[7px] font-mono text-[10px] text-muted">
+      <div className="grid h-[25px] grid-cols-4 border-b border-border px-2.5 py-[7px] font-mono text-xs text-muted">
         <span>1</span>
         <span>2</span>
         <span>3</span>

@@ -1,28 +1,40 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import { APP_LOCALE } from "../../lib/format-date";
 
 /**
  * Danh sách dạng hàng kiểu GitHub (repo list) — dùng cho MỌI danh sách project
  * (Khám phá / Dự án của tôi / Bảng xếp hạng / trang creator / Home).
  *
- * Hàng tiêu đề và hàng nội dung phải dùng CHUNG một chuỗi grid-template
- * (tham số `cols`) thì cột mới thẳng hàng — đừng canh cột bằng padding tay.
+ * `cols` đặt trên `RowList` (một grid duy nhất); hàng tiêu đề và hàng nội dung
+ * dùng `subgrid` nên cột `auto` được tính chung cho cả danh sách và luôn thẳng
+ * hàng — đừng canh cột bằng padding tay.
  * Dưới `md` grid tự xếp chồng thành 1 cột; những ô phụ nên tự ẩn ở kích thước
  * đó thay vì ép bảng cuộn ngang.
  */
-export function RowList({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function RowList({
+  cols = "",
+  children,
+  className = "",
+}: {
+  cols?: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={`overflow-hidden rounded-card border border-border bg-surface ${className}`}>
+    <div
+      className={`overflow-hidden rounded-card border border-border bg-surface md:grid md:gap-x-3 md:[&>*]:col-span-full ${cols} ${className}`}
+    >
       {children}
     </div>
   );
 }
 
-export function RowHeader({ cols, children }: { cols: string; children: ReactNode }) {
+export function RowHeader({ children }: { children: ReactNode }) {
   return (
     <div
-      className={`hidden h-[34px] items-center gap-3 border-b border-border bg-surface-subtle px-3.5 text-[10px] font-bold uppercase tracking-wide text-muted md:grid ${cols}`}
+      className="hidden h-[34px] items-center border-b border-border bg-surface-subtle px-3.5 text-xs font-bold uppercase tracking-wide text-muted md:grid md:grid-cols-subgrid md:gap-x-3"
     >
       {children}
     </div>
@@ -30,17 +42,15 @@ export function RowHeader({ cols, children }: { cols: string; children: ReactNod
 }
 
 export function RowItem({
-  cols,
   children,
   className = "",
 }: {
-  cols: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <div
-      className={`flex min-h-[68px] flex-col gap-2 border-b border-border px-3.5 py-3 transition-colors last:border-b-0 hover:bg-surface-subtle md:grid md:items-center md:gap-3 ${cols} ${className}`}
+      className={`flex min-h-[68px] flex-col gap-2 border-b border-border px-3.5 py-3 transition-colors last:border-b-0 hover:bg-surface-subtle md:grid md:grid-cols-subgrid md:items-center md:gap-x-3 ${className}`}
     >
       {children}
     </div>
@@ -69,7 +79,7 @@ export function RowTitle({
         <Link href={href} className="truncate text-[13px] font-semibold hover:text-accent hover:underline">
           {name}
         </Link>
-        {meta && <span className="truncate text-[11px] text-muted">{meta}</span>}
+        {meta && <span className="truncate text-xs text-muted">{meta}</span>}
       </div>
     </div>
   );
@@ -86,14 +96,14 @@ export function RowStat({
   title: string;
 }) {
   return (
-    <span title={title} className="flex items-center gap-1.5 font-mono text-[11px] text-muted">
+    <span title={title} className="flex items-center gap-1.5 font-mono text-xs text-muted">
       <Icon className="h-3.5 w-3.5" />
-      {value.toLocaleString("vi-VN")}
+      {value.toLocaleString(APP_LOCALE)}
     </span>
   );
 }
 
 /** Mốc thời gian — luôn dùng mono theo quy ước font (CLAUDE.md 4.7). */
 export function RowTime({ children }: { children: ReactNode }) {
-  return <span className="font-mono text-[10px] text-muted md:text-right">{children}</span>;
+  return <span className="whitespace-nowrap font-mono text-xs text-muted md:text-right">{children}</span>;
 }

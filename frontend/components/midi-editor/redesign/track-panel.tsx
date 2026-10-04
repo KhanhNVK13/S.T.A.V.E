@@ -135,13 +135,14 @@ export function TrackPanel({
                       e.stopPropagation();
                       setOpenColorFor(openColorFor === track.id ? null : track.id);
                     }}
-                    title="Đổi màu track (UC-34)"
+                    title="Đổi màu track"
                     style={{ ...styles.colorDot, background: track.color }}
                   />
 
                   {editingLabelFor === track.id ? (
                     <span style={styles.labelEditWrap}>
                       <input
+                        autoComplete="off"
                         ref={labelInputRef}
                         type="text"
                         value={labelDraft}
@@ -169,7 +170,7 @@ export function TrackPanel({
                         setLabelDraft(track.name);
                         setEditingLabelFor(track.id);
                       }}
-                      title="Đổi tên track (UC-35)"
+                      title="Đổi tên track"
                       style={styles.trackName}
                     >
                       {track.name}
@@ -211,7 +212,7 @@ export function TrackPanel({
                       e.stopPropagation();
                       onDeleteTrack(track.id);
                     }}
-                    title="Xoá track (UC-29)"
+                    title="Xoá track"
                     style={{
                       ...styles.deleteBtn,
                       cursor: "pointer",
@@ -238,7 +239,7 @@ export function TrackPanel({
                 {/* Hàng 3 — VOL (mockup dòng 216–223) */}
                 <div style={styles.volRow} onClick={(e) => e.stopPropagation()}>
                   <span style={styles.volLabel}>VOL</span>
-                  <span style={styles.volTrack}>
+                  <span className="stave-range-track" style={styles.volTrack}>
                     <span style={{ ...styles.volFill, width: `${volumePct}%` }} />
                     <span style={{ ...styles.volThumb, left: `${volumePct}%` }} />
                     {/* Input thật nằm trong suốt phía trên: giữ nguyên hành vi
@@ -260,7 +261,7 @@ export function TrackPanel({
                 {/* Hàng 4 — PAN (UC-41) */}
                 <div style={styles.volRow} onClick={(e) => e.stopPropagation()}>
                   <span style={styles.volLabel}>PAN</span>
-                  <span style={styles.volTrack}>
+                  <span className="stave-range-track" style={styles.volTrack}>
                     <span style={{ ...styles.volFill, width: `${panPct}%` }} />
                     <span style={{ ...styles.volThumb, left: `${panPct}%` }} />
                     <input
@@ -299,8 +300,10 @@ export function TrackPanel({
                     </div>
                     <div style={styles.instrumentSearchWrap}>
                       <input
+                        autoComplete="off"
+                        spellCheck={false}
                         ref={instrumentSearchRef}
-                        type="text"
+                        type="search"
                         value={instrumentSearch}
                         onChange={(e) => setInstrumentSearch(e.target.value)}
                         onKeyDown={(e) => {
@@ -394,7 +397,7 @@ export function TrackPanel({
       <button
         onClick={onAddTrack}
         disabled={!canAddTrack}
-        title={canAddTrack ? "Thêm track mới (UC-28)" : `Đã đạt tối đa ${maxTracks} track (BR-29)`}
+        title={canAddTrack ? "Thêm track mới" : `Đã đạt tối đa ${maxTracks} track`}
         style={{
           ...styles.addBtn,
           cursor: canAddTrack ? "pointer" : "not-allowed",
@@ -489,7 +492,7 @@ const styles: Record<string, React.CSSProperties> = {
     outline: "none",
     boxSizing: "border-box",
   },
-  labelCounter: { font: `500 9px ${DC.mono}`, color: DC.textMuted },
+  labelCounter: { font: `500 11px ${DC.mono}`, color: DC.textMuted },
   msBtn: {
     width: 27,
     height: 27,
@@ -515,7 +518,7 @@ const styles: Record<string, React.CSSProperties> = {
   instrumentChip: {
     alignSelf: "flex-start",
     maxWidth: "100%",
-    font: `500 10px ${DC.mono}`,
+    font: `500 11px ${DC.mono}`,
     color: DC.accent,
     background: DC.accentSoft,
     borderWidth: 1,
@@ -529,7 +532,7 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
   volRow: { display: "flex", alignItems: "center", gap: 10 },
-  volLabel: { font: `500 10px ${DC.mono}`, color: DC.textMuted, flexShrink: 0 },
+  volLabel: { font: `500 11px ${DC.mono}`, color: DC.textMuted, flexShrink: 0 },
   volTrack: {
     flex: 1,
     height: 5,
@@ -583,7 +586,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     padding: "0 16px 6px",
   },
-  dropdownTitle: { font: `700 10px ${DC.mono}`, letterSpacing: ".08em", color: DC.textMuted },
+  dropdownTitle: { font: `700 11px ${DC.mono}`, letterSpacing: ".08em", color: DC.textMuted },
   dropdownClose: {
     border: "none",
     background: "none",
@@ -603,7 +606,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "5px 8px",
     fontSize: 11.5,
     color: DC.text,
-    outline: "none",
   },
   instrumentSearchEmpty: {
     padding: "10px 16px",
@@ -612,7 +614,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
   },
   instrumentCategory: {
-    font: `700 9px ${DC.mono}`,
+    font: `700 11px ${DC.mono}`,
     letterSpacing: ".08em",
     color: DC.textMuted,
     padding: "8px 16px 3px",

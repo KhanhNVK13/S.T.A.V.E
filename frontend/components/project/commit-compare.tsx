@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { ArrowLeftRight, GitCompareArrows, Loader2, X } from "lucide-react";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
-import { ApiError, compareCommits, getCommit } from "../../lib/api-client";
+import { compareCommits, getCommit } from "../../lib/api-client";
 import type { SnapshotDiff, SnapshotMetaChange } from "../../lib/api-client";
 import { pitchName } from "../../lib/midi-note-name";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { INPUT_CLASS } from "../ui/form";
+import { useDialog } from "../../lib/use-dialog";
+import { apiErrorMessage } from "../../lib/error-message";
+import { APP_LOCALE } from "../../lib/format-date";
 
 /** Thông tin tối thiểu để hiện tiêu đề 1 phiên bản trong màn so sánh. */
 export interface CompareSide {
@@ -38,7 +41,7 @@ const KIND_FILL: Record<NoteKind, string> = {
 };
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleString("vi-VN", {
+  return new Date(iso).toLocaleString(APP_LOCALE, {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -149,7 +152,7 @@ export function CommitCompare({
         setDiff(result);
       } catch (err) {
         if (!cancelled)
-          setError(err instanceof ApiError ? err.message : "Không so sánh được hai phiên bản.");
+          setError(apiErrorMessage(err, "Không so sánh được hai phiên bản."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -160,14 +163,8 @@ export function CommitCompare({
     };
   }, [base.id, target.id, reloadKey]);
 
-  // Esc để đóng.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const titleId = useId();
+  const dialogRef = useDialog<HTMLDivElement>({ onClose });
 
   /** 5.1: đảo chiều — cái từng là "thêm" giờ thành "xoá". */
   function swap() {
@@ -245,17 +242,20 @@ export function CommitCompare({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-card border border-border bg-surface"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-card border border-border bg-surface outline-none"
       >
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+            <h2 id={titleId} className="flex items-center gap-2 text-[15px] font-semibold">
               <GitCompareArrows className="h-4 w-4 text-muted" />
               So sánh phiên bản
             </h2>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <VersionChip label="Gốc" side={base} />
               <Button variant="ghost" onClick={swap} title="Đảo chiều so sánh" disabled={loading}>
                 <ArrowLeftRight className="h-3.5 w-3.5" /> Đảo chiều
@@ -316,7 +316,7 @@ export function CommitCompare({
                 diff.tracksDiff.removed.length > 0 ||
                 diff.tracksDiff.modified.length > 0) && (
                 <section className="overflow-hidden rounded-card border border-border">
-                  <h3 className="border-b border-border bg-surface-subtle px-3.5 py-2 text-[10px] font-bold uppercase tracking-wide text-muted">
+                  <h3 className="border-b border-border bg-surface-subtle px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-muted">
                     Thay đổi dự án & track
                   </h3>
                   <ul className="divide-y divide-border text-xs">
@@ -375,7 +375,7 @@ export function CommitCompare({
 
               <section>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                     <Legend className="bg-success" label="Thêm" />
                     <Legend className="bg-danger" label="Xoá" />
                     <Legend className="bg-warning" label="Sửa (viền = vị trí cũ)" />
@@ -402,7 +402,7 @@ export function CommitCompare({
 
               {bars.length > 0 && (
                 <section className="overflow-hidden rounded-card border border-border">
-                  <h3 className="border-b border-border bg-surface-subtle px-3.5 py-2 text-[10px] font-bold uppercase tracking-wide text-muted">
+                  <h3 className="border-b border-border bg-surface-subtle px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-muted">
                     Chi tiết theo ô nhịp
                   </h3>
                   <div className="divide-y divide-border">
@@ -410,15 +410,15 @@ export function CommitCompare({
                       <details key={b.bar} className="group">
                         <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3.5 py-2 text-xs hover:bg-surface-subtle">
                           <Badge variant="neutral">Ô nhịp {b.bar}</Badge>
-                          {b.added.length > 0 && <span className="text-success">+{b.added.length}</span>}
+                          {b.added.length > 0 && <span className="text-success-foreground">+{b.added.length}</span>}
                           {b.removed.length > 0 && <span className="text-danger">−{b.removed.length}</span>}
                           {b.modified.length > 0 && (
-                            <span className="text-warning">~{b.modified.length}</span>
+                            <span className="text-warning-foreground">~{b.modified.length}</span>
                           )}
                         </summary>
-                        <ul className="flex flex-col gap-1 px-3.5 pb-3 font-mono text-[11px]">
+                        <ul className="flex flex-col gap-1 px-3.5 pb-3 font-mono text-xs">
                           {b.added.map((n) => (
-                            <li key={n.id} className="text-success">
+                            <li key={n.id} className="text-success-foreground">
                               + {trackName(n.trackId)} · {describeNote(n)}
                             </li>
                           ))}
@@ -428,7 +428,7 @@ export function CommitCompare({
                             </li>
                           ))}
                           {b.modified.map((m) => (
-                            <li key={m.new.id} className="text-warning">
+                            <li key={m.new.id} className="text-warning-foreground">
                               ~ {trackName(m.new.trackId)} · {describeNote(m.old)} → {describeNote(m.new)}
                             </li>
                           ))}
@@ -449,10 +449,10 @@ export function CommitCompare({
 function VersionChip({ label, side }: { label: string; side: CompareSide }) {
   return (
     <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-border bg-surface-subtle px-2 py-1">
-      <span className="text-[10px] font-bold uppercase tracking-wide text-muted">{label}</span>
+      <span className="text-xs font-bold uppercase tracking-wide text-muted">{label}</span>
       <span className="font-mono text-accent">{side.id.slice(0, 7)}</span>
       <span className="truncate">{side.message}</span>
-      <span className="font-mono text-[10px] text-muted">{formatTime(side.created_at)}</span>
+      <span className="font-mono text-xs text-muted">{formatTime(side.created_at)}</span>
     </span>
   );
 }

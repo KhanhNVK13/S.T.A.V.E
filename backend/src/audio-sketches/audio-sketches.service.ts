@@ -130,7 +130,7 @@ export class AudioSketchesService {
       dto.sizeBytes > MAX_SKETCH_SIZE_BYTES
     ) {
       throw new BadRequestException(
-        'Audio sketch tối đa 3 phút và 20MB (BR-56)',
+        'Audio sketch tối đa 3 phút và 20MB',
       );
     }
 
