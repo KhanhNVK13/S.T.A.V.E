@@ -19,6 +19,7 @@
 import React, {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -26,7 +27,9 @@ import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { GridDivision, PianoRollHandle, ToolMode } from "./piano-roll";
 import { EditorRedesign } from "./redesign/editor-redesign";
-import { getDraft, putDraft } from "../../lib/api-client";
+import { getDraft, putDraft, resolveProjectCustomSounds } from "../../lib/api-client";
+import type { ResolvedCustomSound } from "../../lib/api-client";
+import { collectSoundIds, loadCustomSoundBuffers } from "../../lib/custom-sound-buffers";
 import { isDialogOpen } from "../../lib/use-dialog";
 import { parseMidiBuffer } from "../../lib/midi-parser";
 import { exportMidiFile } from "../../lib/midi-exporter";
@@ -130,6 +133,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // files per instrument, which is what made per-Play rebuilds laggy
   // before — is cached by URL in sample-buffer-cache.ts across sessions.
   const voiceCacheRef = useRef<VoiceCache>(createVoiceCache());
+  const [customSounds, setCustomSounds] = useState<Map<string, ResolvedCustomSound>>(new Map());
+  const customSoundsRef = useRef(customSounds);
+  const [customSoundsNonce, setCustomSoundsNonce] = useState(0);
   // Master bus — also persistent across Play/Stop for the same reason, and
   // because there's no per-track cost to keeping it alive. Created lazily
   // on first Play.
@@ -213,6 +219,23 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
+
+  const soundIdsKey = useMemo(() => collectSoundIds(snapshot).join(","), [snapshot]);
+  useEffect(() => {
+    customSoundsRef.current = customSounds;
+  }, [customSounds]);
+  useEffect(() => {
+    let cancelled = false;
+    const ids = soundIdsKey ? soundIdsKey.split(",") : [];
+    resolveProjectCustomSounds(projectId, ids)
+      .then((list) => {
+        if (!cancelled) setCustomSounds(new Map(list.map((s) => [s.id, s])));
+      })
+      .catch((err) => console.warn("Could not resolve custom sounds:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, soundIdsKey, customSoundsNonce]);
 
   // ── Undo/Redo (Ctrl+Z / Ctrl+Shift+Z hoặc Ctrl+Y) ────────────
   // Mọi chỉnh sửa (note, track, quantize, paste...) đều đi qua updateSnapshot
@@ -632,6 +655,21 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     });
   }
 
+  function handleSetSoundMapping(trackId: string, pitch: number, soundId: string | null) {
+    const key = String(pitch);
+    updateSnapshot({
+      ...snapshot,
+      schemaVersion: Math.max(snapshot.schemaVersion, DRAFT_SCHEMA_VERSION),
+      tracks: snapshot.tracks.map((t) => {
+        if (t.id !== trackId) return t;
+        const next = { ...(t.soundMap ?? {}) };
+        if (soundId) next[key] = soundId;
+        else delete next[key];
+        return { ...t, soundMap: Object.keys(next).length > 0 ? next : undefined };
+      }),
+    });
+  }
+
   // ── UC-41: Adjust track pan ─────────────────────────────────
   // Trường `pan` vốn đã có trong snapshot và đã được playback dùng (xem
   // tone-synth-engine.ts Panner), trước đây chưa có UI chỉnh. Giá trị
@@ -913,6 +951,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     fromTick: number,
     endTick: number,
     voiceByTrack: Map<string, TrackVoice>,
+    customBuffers: Map<string, AudioBuffer>,
   ) {
     const LOOKAHEAD_SEC = 0.15;
     const SCHEDULE_INTERVAL_MS = 50;
@@ -937,6 +976,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           toTick: targetTick,
           anchorTick: fromTick,
           voiceByTrack,
+          customBuffers,
         });
         scheduledUpToTick = targetTick;
       }
@@ -1019,6 +1059,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     );
     if (playSessionRef.current !== mySession) return; // Stop/Play/Seek happened meanwhile — cache already owns these voices, nothing to dispose here
 
+    const customBuffers = await loadCustomSoundBuffers(customSoundsRef.current.values());
+    if (playSessionRef.current !== mySession) return;
+
     const startTime = Tone.now();
 
     // UC-36: Metronome scheduler — runs independently of note playback so
@@ -1027,7 +1070,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
     // UC-37: Note scheduler — lookahead chunks, not "schedule the whole rest
     // of the song right now" (see scheduleNotes above for why).
-    scheduleNotes(allNotes, snapshot.tracks, ppq, bpm, startTime, fromTick, endTick, voiceByTrack);
+    scheduleNotes(allNotes, snapshot.tracks, ppq, bpm, startTime, fromTick, endTick, voiceByTrack, customBuffers);
 
     // UC-37: Animate playhead with loop/auto-stop support
     const ticksPerMs = (bpm * ppq) / 60000;
@@ -1213,6 +1256,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onSnapshotRestored={applyRestoredSnapshot}
         masterVolume={masterVolume}
         onMasterVolumeChange={handleMasterVolumeChange}
+        customSounds={customSounds}
+        onSetSoundMapping={handleSetSoundMapping}
+        onCustomSoundsChanged={() => setCustomSoundsNonce((n) => n + 1)}
         onTempoChange={handleTempoChange}
         metronomeOn={metronomeOn}
         onMetronomeToggle={handleToggleMetronome}

@@ -55,7 +55,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
-import type { CommitWithAuthor } from "../../../lib/api-client";
+import type { CommitWithAuthor, ResolvedCustomSound } from "../../../lib/api-client";
 import type { GridDivision, ToolMode } from "../piano-roll";
 import { PianoRoll } from "../piano-roll";
 import type { PianoRollHandle } from "../piano-roll";
@@ -65,7 +65,7 @@ import { ExportDialog } from "../export-dialog";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import type { AudioSketchState } from "../../audio-sketch/audio-sketch-panel";
 import { ConfirmDialog } from "../../ui/confirm-dialog";
-import { SoundLibraryPanel } from "../../custom-sound/sound-library-panel";
+import { CustomSoundsPanel } from "../../custom-sound/custom-sounds-panel";
 import { TrackPanel } from "./track-panel";
 import { HistoryPanel } from "./history-panel";
 import { CommitDialog } from "./commit-dialog";
@@ -167,6 +167,9 @@ interface EditorRedesignProps {
   /** 0..1 — âm lượng chung cho TẤT CẢ track (chỉ ảnh hưởng lúc phát, không ghi vào snapshot). */
   masterVolume: number;
   onMasterVolumeChange: (v: number) => void;
+  customSounds: Map<string, ResolvedCustomSound>;
+  onSetSoundMapping: (trackId: string, pitch: number, soundId: string | null) => void;
+  onCustomSoundsChanged: () => void;
   /** UC-36: Tempo (BPM) — ghi thẳng vào snapshot.meta.tempo. */
   onTempoChange: (bpm: number) => void;
   /** UC-36: Metronome click trong lúc phát. */
@@ -193,6 +196,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
     saveStatus, saveRetryInSec, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored,
     masterVolume, onMasterVolumeChange,
+    customSounds, onSetSoundMapping, onCustomSoundsChanged,
     onTempoChange, metronomeOn, onMetronomeToggle,
     playbackRate, onPlaybackRateChange, onExportMidi,
   } = props;
@@ -940,6 +944,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
       {/* UC-38: Export project audio dialog */}
       {showExportAudio && (
         <ExportDialog
+          projectId={projectId}
           snapshot={snapshot}
           projectName={projectName}
           onClose={() => setShowExportAudio(false)}
@@ -976,7 +981,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
           width={560}
           onClose={() => setShowSoundLibrary(false)}
         >
-          <SoundLibraryPanel />
+          <CustomSoundsPanel
+            key={selectedTrackId ?? "none"}
+            track={tracks.find((t) => t.id === selectedTrackId) ?? null}
+            defaultPitch={
+              notes.find((n) => selectedNoteIds.has(n.id) && n.trackId === selectedTrackId)?.pitch ?? 60
+            }
+            customSounds={customSounds}
+            onSetSoundMapping={onSetSoundMapping}
+            onLibraryChange={onCustomSoundsChanged}
+          />
         </Modal>
       )}
     </div>

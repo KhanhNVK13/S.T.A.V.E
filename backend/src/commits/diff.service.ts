@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { DraftSnapshot, DraftNote, DraftTrack } from '@stave/shared-types';
+import type {
+  DraftSnapshot,
+  DraftNote,
+  DraftTrack,
+  SoundMap,
+} from '@stave/shared-types';
 
 /**
  * Result structure for snapshot comparison (UC-45)
@@ -106,7 +111,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 /**
  * Check if a track has been modified
- * Tracks are compared by: name, volume, pan, muted, solo, color, instrument, order
+ * Tracks are compared by: name, volume, pan, muted, solo, color, instrument, order, soundMap
  *
  * `instrument` từng bị bỏ sót: BR-33 ghi rõ việc gán nhạc cụ "appear in
  * version comparisons", nên đổi nhạc cụ mà không đổi gì khác phải hiện ra.
@@ -120,8 +125,15 @@ function isTrackModified(oldTrack: DraftTrack, newTrack: DraftTrack): boolean {
     oldTrack.pan !== newTrack.pan ||
     oldTrack.muted !== newTrack.muted ||
     oldTrack.solo !== newTrack.solo ||
-    oldTrack.color !== newTrack.color
+    oldTrack.color !== newTrack.color ||
+    !soundMapsEqual(oldTrack.soundMap, newTrack.soundMap)
   );
+}
+
+function soundMapsEqual(a?: SoundMap, b?: SoundMap): boolean {
+  const keysA = Object.keys(a ?? {});
+  if (keysA.length !== Object.keys(b ?? {}).length) return false;
+  return keysA.every((key) => a![key] === b?.[key]);
 }
 
 /**

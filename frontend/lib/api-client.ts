@@ -741,3 +741,19 @@ export async function deleteCustomSound(
     method: "DELETE",
   });
 }
+
+export interface ResolvedCustomSound {
+  id: string;
+  name: string | null;
+  playable: boolean;
+  reason: "missing" | "deleted" | null;
+  playbackUrl: string | null;
+}
+
+export async function resolveProjectCustomSounds(
+  projectId: string,
+  ids: string[],
+): Promise<ResolvedCustomSound[]> {
+  if (ids.length === 0) return [];
+  return apiFetch(`/projects/${projectId}/custom-sounds?ids=${ids.map(encodeURIComponent).join(",")}`);
+}

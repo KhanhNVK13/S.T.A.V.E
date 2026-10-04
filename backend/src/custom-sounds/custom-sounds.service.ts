@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -47,6 +48,14 @@ export interface CustomSoundResponse {
   playbackUrl: string | null;
 }
 
+export interface ResolvedCustomSound {
+  id: string;
+  name: string | null;
+  playable: boolean;
+  reason: 'missing' | 'deleted' | null;
+  playbackUrl: string | null;
+}
+
 export interface CustomSoundLibrary {
   items: CustomSoundResponse[];
   usedBytes: number;
@@ -71,6 +80,95 @@ export class CustomSoundsService {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
   ) {}
+
+  private async loadViewableProject(
+    projectId: string,
+    userId: string,
+  ): Promise<{ owner_id: string }> {
+    const { data: project, error } = await this.supabase
+      .from('projects')
+      .select('owner_id, visibility')
+      .eq('id', projectId)
+      .maybeSingle<{ owner_id: string; visibility: string }>();
+
+    if (error) throw new InternalServerErrorException('Could not read project');
+    if (!project) throw new NotFoundException('Project not found');
+    if (project.owner_id === userId || project.visibility === 'public') {
+      return project;
+    }
+
+    const { data: collab } = await this.supabase
+      .from('project_collaborators')
+      .select('permission_level')
+      .eq('project_id', projectId)
+      .eq('user_id', userId)
+      .maybeSingle<{ permission_level: string }>();
+    if (collab) return project;
+
+    throw new ForbiddenException('You do not have access to this project');
+  }
+
+  async resolveForProject(
+    userId: string,
+    projectId: string,
+    ids: string[],
+  ): Promise<ResolvedCustomSound[]> {
+    const project = await this.loadViewableProject(projectId, userId);
+    if (ids.length === 0) return [];
+
+    const [{ data: rows, error }, { data: refs, error: refError }] =
+      await Promise.all([
+        this.supabase
+          .from('custom_sounds')
+          .select('*')
+          .in('id', ids)
+          .returns<CustomSoundRow[]>(),
+        this.supabase
+          .from('sound_mappings')
+          .select('custom_sound_id')
+          .eq('project_id', projectId)
+          .in('custom_sound_id', ids)
+          .returns<{ custom_sound_id: string }[]>(),
+      ]);
+    if (error || refError) {
+      throw new InternalServerErrorException('Could not resolve custom sounds');
+    }
+
+    const referenced = new Set((refs ?? []).map((r) => r.custom_sound_id));
+    const byId = new Map((rows ?? []).map((r) => [r.id, r]));
+
+    return Promise.all(
+      ids.map(async (id): Promise<ResolvedCustomSound> => {
+        const row = byId.get(id);
+        const visible = row && (row.owner_id === userId || referenced.has(id));
+        if (!row || !visible) {
+          return {
+            id,
+            name: null,
+            playable: false,
+            reason: 'missing',
+            playbackUrl: null,
+          };
+        }
+        if (row.deleted_at && row.owner_id === project.owner_id) {
+          return {
+            id,
+            name: row.name,
+            playable: false,
+            reason: 'deleted',
+            playbackUrl: null,
+          };
+        }
+        return {
+          id,
+          name: row.name,
+          playable: true,
+          reason: null,
+          playbackUrl: await this.signPlayback(row.file_url),
+        };
+      }),
+    );
+  }
 
   private pathFor(ownerId: string, soundId: string): string {
     return `${ownerId}/${soundId}.wav`;

@@ -23,6 +23,8 @@ export interface ExportOptions {
   sampleRate?: number;
   /** Called with 0–1 progress values during render */
   onProgress?: (p: number) => void;
+  /** Decoded custom sounds by id (see custom-sound-buffers.ts). */
+  customBuffers?: Map<string, AudioBuffer>;
 }
 
 /** Synthesise and export the project audio. Returns a downloadable WAV Blob. */
@@ -30,7 +32,7 @@ export async function exportAudio(
   snapshot: DraftSnapshot,
   options: ExportOptions = {},
 ): Promise<Blob> {
-  const { sampleRate = 44100, onProgress } = options;
+  const { sampleRate = 44100, onProgress, customBuffers } = options;
   const { meta, notes, tracks } = snapshot;
   const bpm = meta.tempo;
   const ppq = meta.ppq;
@@ -45,7 +47,11 @@ export async function exportAudio(
     if (end > lastEndTick) lastEndTick = end;
   }
   // Add 1 bar of silence at the end so notes don't cut abruptly
-  const totalSec = lastEndTick * secPerTick + (60 / bpm) * 4;
+  let longestCustomSec = 0;
+  for (const buffer of customBuffers?.values() ?? []) {
+    longestCustomSec = Math.max(longestCustomSec, buffer.duration);
+  }
+  const totalSec = lastEndTick * secPerTick + Math.max((60 / bpm) * 4, longestCustomSec);
 
   onProgress?.(0.1);
 
@@ -72,6 +78,7 @@ export async function exportAudio(
       fromTick: 0,
       toTick: null,
       voiceByTrack,
+      customBuffers,
     });
   }, totalSec, 2, sampleRate);
 

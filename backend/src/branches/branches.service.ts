@@ -8,7 +8,11 @@ import {
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { DraftSnapshot } from '@stave/shared-types';
+import {
+  DRAFT_SCHEMA_VERSION,
+  sanitizeSoundMap,
+  type DraftSnapshot,
+} from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { SwitchBranchDto, DraftSnapshotDto } from './dto/switch-branch.dto';
@@ -1014,6 +1018,7 @@ export class BranchesService {
         volume: t.volume ?? 1,
         pan: t.pan ?? 0,
         instrument: t.instrument ?? null,
+        soundMap: sanitizeSoundMap(t.soundMap),
       })),
       notes: (dto.notes ?? []).map((n) => ({
         id: n.id ?? uuidv4(),
@@ -1028,7 +1033,7 @@ export class BranchesService {
 
   private getEmptySnapshot(): DraftSnapshot {
     return {
-      schemaVersion: 1,
+      schemaVersion: DRAFT_SCHEMA_VERSION,
       meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
       tracks: [],
       notes: [],
