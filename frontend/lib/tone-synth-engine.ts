@@ -254,11 +254,19 @@ export interface TriggerNotesParams {
   /** Tick playback stops at (loop/export range end), or null to play to the last note. */
   toTick: number | null;
   voiceByTrack: Map<string, TrackVoice>;
+  /** Decoded custom sounds by id; a note whose pitch is in its track's soundMap plays that sample whole instead of the instrument. */
+  customBuffers?: Map<string, AudioBuffer>;
+}
+
+function playCustomSound(buffer: AudioBuffer, voice: TrackVoice, time: number, gain: number) {
+  const source = new Tone.ToneBufferSource(buffer).connect(voice.panner);
+  source.onended = () => source.dispose();
+  source.start(time, 0, undefined, gain);
 }
 
 /** Schedules every audible note's triggerAttackRelease using already-prepared voices (see prepareVoices). */
 export function triggerNotes(params: TriggerNotesParams): void {
-  const { notes, tracks, ppq, bpm, startTime, fromTick, toTick, voiceByTrack } = params;
+  const { notes, tracks, ppq, bpm, startTime, fromTick, toTick, voiceByTrack, customBuffers } = params;
   const anchorTick = params.anchorTick ?? fromTick;
   const secPerTick = 60 / (bpm * ppq);
 
@@ -272,8 +280,12 @@ export function triggerNotes(params: TriggerNotesParams): void {
     const velocity = Math.min(1, Math.max(0, (n.velocity / 127) * (track.volume ?? 1)));
     const durSec = n.duration * secPerTick;
     const time = startTime + (n.start - anchorTick) * secPerTick;
+    const soundId = track.soundMap?.[String(n.pitch)];
+    const custom = soundId ? customBuffers?.get(soundId) : undefined;
     try {
-      if (voice.kit) {
+      if (custom) {
+        playCustomSound(custom, voice, time, velocity);
+      } else if (voice.kit) {
         voice.kit.trigger(n.pitch, n.velocity, track.volume ?? 1, time, durSec);
       } else if (voice.synth) {
         voice.synth.triggerAttackRelease(freq, durSec, time, velocity);

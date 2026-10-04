@@ -16,6 +16,7 @@ import type {
   TagRow,
   PaginatedCommitHistory,
 } from '@stave/shared-types';
+import { DRAFT_SCHEMA_VERSION, sanitizeSoundMap } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectsService } from '../projects/projects.service';
 import { DiffService } from './diff.service';
@@ -726,7 +727,7 @@ export class CommitsService {
     if (error || !draft) {
       // Return empty snapshot if no draft exists
       return {
-        schemaVersion: 1,
+        schemaVersion: DRAFT_SCHEMA_VERSION,
         meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
         tracks: [],
         notes: [],
@@ -755,11 +756,12 @@ export class CommitsService {
         name: t.name,
         order: t.order ?? 0,
         color: t.color ?? '#6366f1',
-        muted: t.isMuted ?? false,
-        solo: t.isSolo ?? false,
+        muted: t.muted ?? t.isMuted ?? false,
+        solo: t.solo ?? t.isSolo ?? false,
         volume: t.volume ?? 1,
         pan: t.pan ?? 0,
         instrument: t.instrument ?? null,
+        soundMap: sanitizeSoundMap(t.soundMap),
       })),
       notes: (snapshot.notes ?? []).map((n) => ({
         id: n.id ?? uuidv4(),

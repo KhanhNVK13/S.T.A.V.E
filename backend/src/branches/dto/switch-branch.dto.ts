@@ -43,6 +43,7 @@ export class DraftSnapshotDto {
     isMuted?: boolean;
     isSolo?: boolean;
     instrument?: string | null;
+    soundMap?: unknown;
   }>;
 
   @IsOptional()

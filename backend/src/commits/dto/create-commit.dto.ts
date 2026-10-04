@@ -13,7 +13,10 @@ import {
   MinLength,
   MaxLength,
   IsNotEmpty,
+  IsBoolean,
 } from 'class-validator';
+import type { SoundMap } from '@stave/shared-types';
+import { IsSoundMap } from '../../common/decorators/is-sound-map.decorator';
 
 /** Note structure within snapshot - supports both UUID and auto-generated IDs */
 export class DraftNoteDto {
@@ -75,6 +78,14 @@ export class DraftTrackDto {
   pan!: number;
 
   @IsOptional()
+  @IsBoolean()
+  muted?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  solo?: boolean;
+
+  @IsOptional()
   isMuted?: boolean;
 
   @IsOptional()
@@ -84,6 +95,10 @@ export class DraftTrackDto {
   @IsOptional()
   @IsString()
   instrument?: string | null;
+
+  @IsOptional()
+  @IsSoundMap()
+  soundMap?: SoundMap;
 }
 
 /**

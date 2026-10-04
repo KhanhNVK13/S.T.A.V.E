@@ -15,6 +15,7 @@
 import React, { useState, useCallback } from "react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { exportAudio, exportAudioPerTrack } from "../../lib/audio-exporter";
+import { resolveAndLoadCustomSounds } from "../../lib/custom-sound-buffers";
 import { useDialog } from "../../lib/use-dialog";
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -29,6 +30,7 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 interface ExportDialogProps {
+  projectId: string;
   snapshot: DraftSnapshot;
   projectName: string;
   onClose: () => void;
@@ -42,7 +44,7 @@ const SAMPLE_RATE_OPTIONS = [
   { value: 22050, label: "22.05 kHz (Nhỏ gọn)" },
 ];
 
-export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogProps) {
+export function ExportDialog({ projectId, snapshot, projectName, onClose }: ExportDialogProps) {
   const [sampleRate, setSampleRate] = useState(44100);
   // Xuất riêng mỗi track thành 1 file WAV thay vì trộn chung — cùng engine,
   // chỉ khác chỗ mỗi lượt render chỉ "solo" đúng 1 track (xem exportAudioPerTrack).
@@ -60,9 +62,13 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
     setErrorMsg("");
 
     try {
+      const customBuffers = await resolveAndLoadCustomSounds(projectId, snapshot).catch(
+        () => new Map<string, AudioBuffer>(),
+      );
       if (perTrack) {
         const results = await exportAudioPerTrack(snapshot, {
           sampleRate,
+          customBuffers,
           onProgress: (p) => setProgress(Math.round(p * 100)),
         });
         // Stagger downloads slightly — firing many a.click() in the same tick
@@ -76,6 +82,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
       } else {
         const blob = await exportAudio(snapshot, {
           sampleRate,
+          customBuffers,
           onProgress: (p) => setProgress(Math.round(p * 100)),
         });
         triggerDownload(blob, `${safeProjectName}.wav`);
@@ -87,7 +94,7 @@ export function ExportDialog({ snapshot, projectName, onClose }: ExportDialogPro
       setErrorMsg(err instanceof Error ? err.message : "Có lỗi khi xuất file.");
       setPhase("error");
     }
-  }, [snapshot, sampleRate, perTrack, safeProjectName]);
+  }, [projectId, snapshot, sampleRate, perTrack, safeProjectName]);
 
   const noteCount = snapshot.notes.length;
   const trackCount = snapshot.tracks.filter((t) => !t.muted).length;

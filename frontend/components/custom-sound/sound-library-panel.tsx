@@ -270,20 +270,25 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
   const [deleting, setDeleting] = useState<CustomSound | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const onLibraryChangeRef = useRef(onLibraryChange);
+
+  useEffect(() => {
+    onLibraryChangeRef.current = onLibraryChange;
+  }, [onLibraryChange]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const next = await listCustomSounds();
       setLibrary(next);
-      onLibraryChange?.(next);
+      onLibraryChangeRef.current?.(next);
       setError(null);
     } catch (err) {
       setError(apiErrorMessage(err, "Không tải được thư viện âm thanh."));
     } finally {
       setLoading(false);
     }
-  }, [onLibraryChange]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- nạp danh sách lần đầu

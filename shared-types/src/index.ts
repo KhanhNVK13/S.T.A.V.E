@@ -4,7 +4,7 @@
  * Read by MIDI Editor, Version Control, and the projects/drafts API alike —
  * do not diverge per-module.
  */
-export const DRAFT_SCHEMA_VERSION = 2;
+export const DRAFT_SCHEMA_VERSION = 3;
 
 export interface DraftMeta {
   tempo: number;
@@ -25,6 +25,39 @@ export interface DraftTrack {
   pan: number;
   /** UC-30: General MIDI instrument name, null = default (sine oscillator) */
   instrument: string | null;
+  /** UC-57 (schemaVersion 3): pitch "0".."127" → custom_sound id; absent on older snapshots. */
+  soundMap?: SoundMap;
+}
+
+export type SoundMap = Record<string, string>;
+
+export const MAX_SOUND_MAP_ENTRIES = 128;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Keeps only valid "pitch → sound id" entries; returns undefined when nothing valid is left. */
+export function sanitizeSoundMap(value: unknown): SoundMap | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: SoundMap = {};
+  let count = 0;
+  for (const [key, soundId] of Object.entries(value as Record<string, unknown>)) {
+    if (count >= MAX_SOUND_MAP_ENTRIES) break;
+    if (!/^\d{1,3}$/.test(key)) continue;
+    const pitch = Number(key);
+    if (pitch < 0 || pitch > 127) continue;
+    if (typeof soundId !== "string" || !UUID_PATTERN.test(soundId)) continue;
+    out[String(pitch)] = soundId;
+    count++;
+  }
+  return count > 0 ? out : undefined;
+}
+
+export function isValidSoundMap(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "object" || Array.isArray(value)) return false;
+  const size = Object.keys(value).length;
+  if (size > MAX_SOUND_MAP_ENTRIES) return false;
+  return Object.keys(sanitizeSoundMap(value) ?? {}).length === size;
 }
 
 export interface DraftNote {

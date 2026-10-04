@@ -14,6 +14,7 @@ import type {
   DraftTrack,
   CommitRow,
 } from '@stave/shared-types';
+import { DRAFT_SCHEMA_VERSION } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { BranchesService } from '../branches/branches.service';
 import { MergeBranchDto } from './dto/merge-branch.dto';
@@ -347,7 +348,7 @@ export class MergeService {
     }
 
     const mergedSnapshot: DraftSnapshot = {
-      schemaVersion: source.schemaVersion ?? 1,
+      schemaVersion: DRAFT_SCHEMA_VERSION,
       meta: source.meta ??
         target.meta ??
         base.meta ?? { tempo: 120, timeSignature: [4, 4], ppq: 480 },
@@ -570,7 +571,7 @@ export class MergeService {
     }
 
     return {
-      schemaVersion: source.schemaVersion ?? 1,
+      schemaVersion: DRAFT_SCHEMA_VERSION,
       meta: source.meta ?? target.meta ?? base.meta,
       tracks: resultTracks,
       notes: resultNotes,
@@ -710,7 +711,7 @@ export class MergeService {
 
   private createEmptySnapshot(): DraftSnapshot {
     return {
-      schemaVersion: 1,
+      schemaVersion: DRAFT_SCHEMA_VERSION,
       meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
       tracks: [],
       notes: [],

@@ -86,7 +86,19 @@ function trackFieldChanges(a: DraftTrack, b: DraftTrack) {
   if (a.color !== b.color) out.push({ label: "Màu", from: a.color, to: b.color });
   if (a.order !== b.order)
     out.push({ label: "Thứ tự", from: String(a.order + 1), to: String(b.order + 1) });
+  if (!sameSoundMap(a.soundMap, b.soundMap))
+    out.push({ label: "Âm thanh riêng", from: describeSoundMap(a.soundMap), to: describeSoundMap(b.soundMap) });
   return out;
+}
+
+function sameSoundMap(a: DraftTrack["soundMap"], b: DraftTrack["soundMap"]) {
+  const keys = Object.keys(a ?? {});
+  return keys.length === Object.keys(b ?? {}).length && keys.every((k) => a![k] === b?.[k]);
+}
+
+function describeSoundMap(map: DraftTrack["soundMap"]) {
+  const pitches = Object.keys(map ?? {}).map(Number).sort((x, y) => x - y);
+  return pitches.length === 0 ? "Không có" : `Nốt ${pitches.map(pitchName).join(", ")}`;
 }
 
 function describeNote(n: DraftNote) {

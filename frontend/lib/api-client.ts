@@ -742,44 +742,18 @@ export async function deleteCustomSound(
   });
 }
 
-// ============================================
-// Sound Mapping — UC-57
-// ============================================
-
-export interface SoundMapping {
+export interface ResolvedCustomSound {
   id: string;
-  owner_id: string;
-  project_id: string;
-  track_id: string;
-  pitch: number;
-  sound_id: string;
-  sound_name: string | null;
-  sound_duration_sec: number | null;
-  sound_playback_url: string | null;
-  created_at: string;
+  name: string | null;
+  playable: boolean;
+  reason: "missing" | "deleted" | null;
+  playbackUrl: string | null;
 }
 
-/** UC-57 — tạo/update mapping sound cho note (track_id + pitch unique). */
-export async function createSoundMapping(payload: {
-  projectId: string;
-  trackId: string;
-  pitch: number;
-  soundId: string;
-}): Promise<SoundMapping> {
-  return apiFetch(`/projects/${payload.projectId}/sound-mappings`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-/** UC-57 — lấy danh sách mapping của project. */
-export async function listSoundMappings(projectId: string): Promise<SoundMapping[]> {
-  return apiFetch(`/projects/${projectId}/sound-mappings`);
-}
-
-/** UC-57 — xoá mapping (unassign sound). */
-export async function deleteSoundMapping(mappingId: string): Promise<void> {
-  await apiFetch<void>(`/projects/sound-mappings/${mappingId}`, {
-    method: "DELETE",
-  });
+export async function resolveProjectCustomSounds(
+  projectId: string,
+  ids: string[],
+): Promise<ResolvedCustomSound[]> {
+  if (ids.length === 0) return [];
+  return apiFetch(`/projects/${projectId}/custom-sounds?ids=${ids.map(encodeURIComponent).join(",")}`);
 }

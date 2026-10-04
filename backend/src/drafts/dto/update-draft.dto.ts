@@ -19,7 +19,9 @@ import type {
   DraftNote,
   DraftSnapshot,
   DraftTrack,
+  SoundMap,
 } from '@stave/shared-types';
+import { IsSoundMap } from '../../common/decorators/is-sound-map.decorator';
 
 /** BR-29: a project may have at most this many tracks. */
 export const MAX_DRAFT_TRACKS = 32;
@@ -69,6 +71,10 @@ export class DraftTrackDto implements DraftTrack {
   @IsOptional()
   @IsIn(GM_INSTRUMENT_NAMES)
   instrument!: string | null;
+
+  @IsOptional()
+  @IsSoundMap()
+  soundMap?: SoundMap;
 }
 
 export class DraftNoteDto implements DraftNote {
