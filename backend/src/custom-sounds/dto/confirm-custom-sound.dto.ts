@@ -1,28 +1,16 @@
-import { IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsString, IsUUID, MaxLength } from 'class-validator';
+
+export const CUSTOM_SOUND_SOURCES = ['uploaded', 'recorded'] as const;
+export type CustomSoundSource = (typeof CUSTOM_SOUND_SOURCES)[number];
 
 export class ConfirmCustomSoundDto {
   @IsUUID()
   soundId!: string;
 
   @IsString()
-  @MaxLength(255)
+  @MaxLength(100, { message: 'Tên âm thanh tối đa 100 ký tự' })
   name!: string;
 
-  @IsString()
-  @MaxLength(255)
-  originalFilename!: string;
-
-  @IsNumber()
-  @Min(0.1)
-  @Max(30)
-  durationSec!: number;
-
-  @IsInt()
-  @Min(1)
-  @Max(10 * 1024 * 1024)
-  sizeBytes!: number;
-
-  @IsString()
-  @MaxLength(50)
-  mimeType!: string;
+  @IsIn(CUSTOM_SOUND_SOURCES)
+  source!: CustomSoundSource;
 }

@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -12,148 +14,205 @@ import {
   MAX_SOUND_DURATION_SEC,
   MAX_SOUND_SIZE_BYTES,
 } from './dto/create-upload-url.dto';
+import type { CustomSoundSource } from './dto/confirm-custom-sound.dto';
+import { readWavInfo } from './wav-info';
 
-/** Bucket private; đường dẫn quy ước `{userId}/{soundId}.{ext}`. */
-const BUCKET = 'custom-sounds';
+export const CUSTOM_SOUNDS_BUCKET = 'custom-sounds';
 
-/** Thời hạn link nghe lại. Đủ dài để nghe hết sound, đủ ngắn để link rò ra ngoài cũng chóng hết hạn. */
 const PLAYBACK_URL_TTL_SEC = 60 * 60;
+const DEFAULT_QUOTA_BYTES = 50 * 1024 * 1024;
+const QUOTA_SETTING_KEY = 'custom_sound_quota_bytes';
+const DURATION_TOLERANCE_SEC = 0.05;
+const UNIQUE_VIOLATION = '23505';
 
-/** 1 dòng của bảng `custom_sounds` (cột thật, cần tạo trên Supabase). */
 export interface CustomSoundRow {
   id: string;
   owner_id: string;
   name: string;
-  original_filename: string | null;
+  file_url: string;
   duration_sec: number;
   size_bytes: number;
-  storage_path: string;
-  mime_type: string | null;
+  source: CustomSoundSource;
   created_at: string;
+  deleted_at: string | null;
 }
 
-/** Sound trả về cho client, kèm link nghe có thời hạn. */
-export interface CustomSoundResponse extends CustomSoundRow {
+export interface CustomSoundResponse {
+  id: string;
+  name: string;
+  durationSec: number;
+  sizeBytes: number;
+  source: CustomSoundSource;
+  createdAt: string;
   playbackUrl: string | null;
+}
+
+export interface CustomSoundLibrary {
+  items: CustomSoundResponse[];
+  usedBytes: number;
+  quotaBytes: number;
+}
+
+function cleanName(raw: string): string {
+  return Array.from(raw)
+    .filter((ch) => {
+      const code = ch.charCodeAt(0);
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join('')
+    .trim();
 }
 
 @Injectable()
 export class CustomSoundsService {
+  private readonly logger = new Logger(CustomSoundsService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
   ) {}
 
-  /**
-   * UC-56 bước 1-2 — cấp signed URL để trình duyệt upload thẳng lên
-   * Supabase Storage, file không đi qua backend.
-   *
-   * Kiểm BR-60 (≤30s, ≤10MB) trước khi cấp URL để client khỏi tải lên
-   * hàng chục MB rồi mới bị từ chối.
-   */
+  private pathFor(ownerId: string, soundId: string): string {
+    return `${ownerId}/${soundId}.wav`;
+  }
+
+  async getQuotaBytes(): Promise<number> {
+    const { data } = await this.supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', QUOTA_SETTING_KEY)
+      .maybeSingle<{ value: unknown }>();
+    const value = Number(data?.value);
+    return Number.isFinite(value) && value > 0 ? value : DEFAULT_QUOTA_BYTES;
+  }
+
+  async getUsedBytes(ownerId: string): Promise<number> {
+    const { data, error } = await this.supabase.rpc(
+      'custom_sound_usage_bytes',
+      { p_owner_id: ownerId },
+    );
+    if (error) {
+      throw new InternalServerErrorException(
+        'Could not read custom sound usage',
+      );
+    }
+    return Number(data ?? 0);
+  }
+
+  private async assertWithinQuota(ownerId: string, extraBytes: number) {
+    const [used, quota] = await Promise.all([
+      this.getUsedBytes(ownerId),
+      this.getQuotaBytes(),
+    ]);
+    if (used + extraBytes > quota) {
+      throw new BadRequestException(
+        `Thư viện âm thanh đã đầy (tối đa ${Math.round(quota / 1024 / 1024)}MB). Hãy xoá bớt âm thanh cũ rồi thử lại.`,
+      );
+    }
+  }
+
   async createUploadUrl(
-    userId: string,
-    payload: {
-      durationSec: number;
-      sizeBytes: number;
-      name: string;
-      mimeType: string;
-    },
+    ownerId: string,
+    payload: { durationSec: number; sizeBytes: number },
   ): Promise<{ soundId: string; path: string; token: string }> {
     if (
       payload.durationSec > MAX_SOUND_DURATION_SEC ||
       payload.sizeBytes > MAX_SOUND_SIZE_BYTES
     ) {
-      throw new BadRequestException(
-        `Custom sound tối đa ${MAX_SOUND_DURATION_SEC} giây và ${MAX_SOUND_SIZE_BYTES / 1024 / 1024}MB (BR-60)`,
-      );
+      throw new BadRequestException('Âm thanh tối đa 30 giây và 10MB');
     }
+    await this.assertWithinQuota(ownerId, payload.sizeBytes);
 
     const soundId = randomUUID();
-    // Lấy extension từ mimeType
-    const ext = mimeTypeToExt(payload.mimeType) || 'bin';
-    const path = `${userId}/${soundId}.${ext}`;
-
+    const path = this.pathFor(ownerId, soundId);
     const { data, error } = await this.supabase.storage
-      .from(BUCKET)
+      .from(CUSTOM_SOUNDS_BUCKET)
       .createSignedUploadUrl(path);
 
     if (error || !data) {
       throw new InternalServerErrorException('Could not create upload URL');
     }
-
     return { soundId, path, token: data.token };
   }
 
-  /**
-   * UC-56 bước 3 — ghi sound sau khi client upload xong.
-   *
-   * Bắt buộc kiểm file có thật trong bucket trước khi insert: nếu không, client
-   * gọi thẳng endpoint này là tạo được bản ghi trỏ tới file không tồn tại.
-   */
   async confirmUpload(
-    userId: string,
-    payload: {
-      soundId: string;
-      name: string;
-      originalFilename: string;
-      durationSec: number;
-      sizeBytes: number;
-      mimeType: string;
-    },
+    ownerId: string,
+    payload: { soundId: string; name: string; source: CustomSoundSource },
   ): Promise<CustomSoundResponse> {
-    if (
-      payload.durationSec > MAX_SOUND_DURATION_SEC ||
-      payload.sizeBytes > MAX_SOUND_SIZE_BYTES
-    ) {
+    const name = cleanName(payload.name);
+    if (!name) {
+      throw new BadRequestException('Tên âm thanh không được để trống');
+    }
+
+    const path = this.pathFor(ownerId, payload.soundId);
+    const { data: blob, error: downloadError } = await this.supabase.storage
+      .from(CUSTOM_SOUNDS_BUCKET)
+      .download(path);
+    if (downloadError || !blob) {
       throw new BadRequestException(
-        `Custom sound tối đa ${MAX_SOUND_DURATION_SEC} giây và ${MAX_SOUND_SIZE_BYTES / 1024 / 1024}MB (BR-60)`,
+        'Chưa thấy file đã tải lên cho âm thanh này',
       );
     }
 
-    const ext = mimeTypeToExt(payload.mimeType) || 'bin';
-    const storagePath = `${userId}/${payload.soundId}.${ext}`;
+    const file = Buffer.from(await blob.arrayBuffer());
+    const reject = async (message: string): Promise<never> => {
+      await this.removeFiles([path]);
+      throw new BadRequestException(message);
+    };
 
-    // Verify file exists in bucket
-    const { data: found, error: listError } = await this.supabase.storage
-      .from(BUCKET)
-      .list(userId, { search: `${payload.soundId}.${ext}`, limit: 1 });
+    if (file.length > MAX_SOUND_SIZE_BYTES) {
+      return reject('Âm thanh tối đa 10MB');
+    }
+    const info = readWavInfo(file);
+    if (!info || info.durationSec <= 0) {
+      return reject('File tải lên không phải âm thanh WAV hợp lệ');
+    }
+    if (info.durationSec > MAX_SOUND_DURATION_SEC + DURATION_TOLERANCE_SEC) {
+      return reject('Âm thanh tối đa 30 giây');
+    }
 
-    if (listError) {
-      throw new InternalServerErrorException('Could not verify uploaded file');
+    try {
+      await this.assertWithinQuota(ownerId, file.length);
+    } catch (err) {
+      await this.removeFiles([path]);
+      throw err;
     }
-    if (!found?.some((f) => f.name === `${payload.soundId}.${ext}`)) {
-      throw new BadRequestException('Chưa thấy file đã tải lên cho sound này');
-    }
+
+    const durationSec =
+      Math.round(Math.min(info.durationSec, MAX_SOUND_DURATION_SEC) * 1000) /
+      1000;
 
     const { data, error } = await this.supabase
       .from('custom_sounds')
       .insert({
         id: payload.soundId,
-        owner_id: userId,
-        name: payload.name,
-        original_filename: payload.originalFilename,
-        duration_sec: payload.durationSec,
-        size_bytes: payload.sizeBytes,
-        storage_path: storagePath,
-        mime_type: payload.mimeType,
+        owner_id: ownerId,
+        name,
+        file_url: path,
+        duration_sec: durationSec,
+        size_bytes: file.length,
+        source: payload.source,
       })
       .select('*')
       .single<CustomSoundRow>();
 
+    if (error?.code === UNIQUE_VIOLATION) {
+      throw new ConflictException('Âm thanh này đã được lưu');
+    }
     if (error || !data) {
+      this.logger.error(`Insert custom sound failed: ${error?.message}`);
       throw new InternalServerErrorException('Could not save custom sound');
     }
 
-    return { ...data, playbackUrl: await this.signPlayback(data.storage_path) };
+    return this.toResponse(data, await this.signPlayback(data.file_url));
   }
 
-  /** UC-58 — danh sách sound của user hiện tại, kèm link nghe có thời hạn. */
-  async list(userId: string): Promise<CustomSoundResponse[]> {
+  async list(ownerId: string): Promise<CustomSoundLibrary> {
     const { data, error } = await this.supabase
       .from('custom_sounds')
       .select('*')
-      .eq('owner_id', userId)
+      .eq('owner_id', ownerId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .returns<CustomSoundRow[]>();
 
@@ -162,71 +221,132 @@ export class CustomSoundsService {
     }
 
     const rows = data ?? [];
-    const urls = await Promise.all(
-      rows.map((r) => this.signPlayback(r.storage_path)),
-    );
-    return rows.map((row, i) => ({ ...row, playbackUrl: urls[i] }));
+    const [urls, quotaBytes] = await Promise.all([
+      Promise.all(rows.map((r) => this.signPlayback(r.file_url))),
+      this.getQuotaBytes(),
+    ]);
+    return {
+      items: rows.map((row, i) => this.toResponse(row, urls[i])),
+      usedBytes: rows.reduce((sum, r) => sum + Number(r.size_bytes), 0),
+      quotaBytes,
+    };
   }
 
-  /** UC-59 — xoá sound (chỉ chủ sở hữu). */
-  async delete(userId: string, soundId: string): Promise<void> {
-    // Lấy sound trước để biết storage_path cần xoá
-    const { data: sound, error: fetchError } = await this.supabase
+  async getUsage(
+    ownerId: string,
+    soundId: string,
+  ): Promise<{ externalProjectCount: number }> {
+    const { data: sound } = await this.supabase
       .from('custom_sounds')
-      .select('storage_path')
+      .select('id')
       .eq('id', soundId)
-      .eq('owner_id', userId)
-      .maybeSingle<{ storage_path: string }>();
+      .eq('owner_id', ownerId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (!sound) throw new NotFoundException('Custom sound not found');
 
-    if (fetchError) {
-      throw new InternalServerErrorException('Could not find custom sound');
+    const { data, error } = await this.supabase.rpc(
+      'custom_sound_external_project_count',
+      { p_sound_id: soundId },
+    );
+    if (error) {
+      throw new InternalServerErrorException(
+        'Could not read custom sound usage',
+      );
     }
-    if (!sound) {
-      throw new NotFoundException('Custom sound not found');
-    }
+    return { externalProjectCount: Number(data ?? 0) };
+  }
 
-    // Xoá file trong storage
-    const { error: storageError } = await this.supabase.storage
-      .from(BUCKET)
-      .remove([sound.storage_path]);
-
-    if (storageError) {
-      // Log nhưng không chặn — row đã mất thì file cũng không dùng được
-      console.error('Failed to delete sound file:', storageError);
-    }
-
-    // Xoá row trong database
-    const { error: deleteError } = await this.supabase
-      .from('custom_sounds')
-      .delete()
-      .eq('id', soundId)
-      .eq('owner_id', userId);
-
-    if (deleteError) {
+  async delete(
+    ownerId: string,
+    soundId: string,
+    mode: 'self' | 'hard',
+  ): Promise<{ removed: boolean; affectedProjects: number }> {
+    const { data, error } = await this.supabase.rpc('delete_custom_sound', {
+      p_sound_id: soundId,
+      p_owner_id: ownerId,
+      p_hard: mode === 'hard',
+    });
+    if (error) {
+      this.logger.error(`delete_custom_sound failed: ${error.message}`);
       throw new InternalServerErrorException('Could not delete custom sound');
     }
+
+    const row = (
+      data as
+        | {
+            removed: boolean;
+            file_url: string | null;
+            affected_projects: number;
+          }[]
+        | null
+    )?.[0];
+    if (!row) throw new NotFoundException('Custom sound not found');
+
+    if (row.removed && row.file_url) await this.removeFiles([row.file_url]);
+    await this.collectGarbage();
+
+    return { removed: row.removed, affectedProjects: row.affected_projects };
   }
 
-  /** Bucket là private nên mọi lần nghe đều cần link ký lại. */
-  private async signPlayback(path: string): Promise<string | null> {
+  async collectGarbage(): Promise<void> {
+    const { data, error } = await this.supabase.rpc(
+      'collect_custom_sound_garbage',
+    );
+    if (error) {
+      this.logger.error(
+        `collect_custom_sound_garbage failed: ${error.message}`,
+      );
+      return;
+    }
+    const paths = ((data ?? []) as { file_url: string }[])
+      .map((r) => r.file_url)
+      .filter(Boolean);
+    await this.removeFiles(paths);
+  }
+
+  async removeAllFilesOf(ownerId: string): Promise<void> {
+    const { data, error } = await this.supabase.storage
+      .from(CUSTOM_SOUNDS_BUCKET)
+      .list(ownerId, { limit: 1000 });
+    if (error) {
+      this.logger.error(`List custom sound files failed: ${error.message}`);
+      return;
+    }
+    await this.removeFiles((data ?? []).map((f) => `${ownerId}/${f.name}`));
+  }
+
+  private async removeFiles(paths: string[]): Promise<void> {
+    for (let i = 0; i < paths.length; i += 100) {
+      const chunk = paths.slice(i, i + 100);
+      const { error } = await this.supabase.storage
+        .from(CUSTOM_SOUNDS_BUCKET)
+        .remove(chunk);
+      if (error) {
+        this.logger.error(`Remove custom sound files failed: ${error.message}`);
+      }
+    }
+  }
+
+  async signPlayback(path: string): Promise<string | null> {
     const { data } = await this.supabase.storage
-      .from(BUCKET)
+      .from(CUSTOM_SOUNDS_BUCKET)
       .createSignedUrl(path, PLAYBACK_URL_TTL_SEC);
     return data?.signedUrl ?? null;
   }
-}
 
-/** Chuyển mimeType thành extension đơn giản. */
-function mimeTypeToExt(mimeType: string): string | null {
-  const map: Record<string, string> = {
-    'audio/wav': 'wav',
-    'audio/x-wav': 'wav',
-    'audio/mp3': 'mp3',
-    'audio/mpeg': 'mp3',
-    'audio/ogg': 'ogg',
-    'audio/flac': 'flac',
-    'audio/webm': 'webm',
-    'audio/webm;codecs=opus': 'webm',
-  };
-  return map[mimeType] ?? null;
+  private toResponse(
+    row: CustomSoundRow,
+    playbackUrl: string | null,
+  ): CustomSoundResponse {
+    return {
+      id: row.id,
+      name: row.name,
+      durationSec: Number(row.duration_sec),
+      sizeBytes: Number(row.size_bytes),
+      source: row.source,
+      createdAt: row.created_at,
+      playbackUrl,
+    };
+  }
 }

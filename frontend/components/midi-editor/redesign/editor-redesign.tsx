@@ -972,8 +972,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
       {showSoundLibrary && (
         <Modal
-          title="Sound Library"
-          width={520}
+          title="Custom sounds"
+          width={560}
           onClose={() => setShowSoundLibrary(false)}
         >
           <SoundLibraryPanel />

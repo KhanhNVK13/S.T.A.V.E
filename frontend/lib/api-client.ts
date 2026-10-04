@@ -683,32 +683,28 @@ export async function listAudioSketches(projectId: string): Promise<AudioSketch[
 }
 
 // ============================================
-// Custom Sound — UC-56/58/59
+// Custom Sound — UC-56/58/59/118
 // ============================================
 
 export interface CustomSound {
   id: string;
-  owner_id: string;
   name: string;
-  original_filename: string | null;
-  duration_sec: number;
-  size_bytes: number;
-  storage_path: string;
-  mime_type: string | null;
-  created_at: string;
-  /** Link nghe có thời hạn (bucket là private). */
+  durationSec: number;
+  sizeBytes: number;
+  source: "uploaded" | "recorded";
+  createdAt: string;
   playbackUrl: string | null;
 }
 
-/**
- * UC-56 bước 1 — xin signed URL để upload.
- * Backend kiểm ≤30s/≤10MB (BR-60) trước khi cấp token.
- */
+export interface CustomSoundLibrary {
+  items: CustomSound[];
+  usedBytes: number;
+  quotaBytes: number;
+}
+
 export async function createCustomSoundUploadUrl(payload: {
   durationSec: number;
   sizeBytes: number;
-  name: string;
-  mimeType: string;
 }): Promise<{ soundId: string; path: string; token: string }> {
   return apiFetch("/users/me/custom-sounds/upload-url", {
     method: "POST",
@@ -716,16 +712,10 @@ export async function createCustomSoundUploadUrl(payload: {
   });
 }
 
-/**
- * UC-56 bước 2 — xác nhận upload xong, lưu vào database.
- */
 export async function confirmCustomSoundUpload(payload: {
   soundId: string;
   name: string;
-  originalFilename: string;
-  durationSec: number;
-  sizeBytes: number;
-  mimeType: string;
+  source: "uploaded" | "recorded";
 }): Promise<CustomSound> {
   return apiFetch("/users/me/custom-sounds", {
     method: "POST",
@@ -733,14 +723,21 @@ export async function confirmCustomSoundUpload(payload: {
   });
 }
 
-/** UC-58 — danh sách sound của user hiện tại (kèm link nghe có thời hạn). */
-export async function listCustomSounds(): Promise<CustomSound[]> {
+export async function listCustomSounds(): Promise<CustomSoundLibrary> {
   return apiFetch("/users/me/custom-sounds");
 }
 
-/** UC-59 — xoá sound (chỉ chủ sở hữu). */
-export async function deleteCustomSound(soundId: string): Promise<void> {
-  await apiFetch<void>(`/users/me/custom-sounds/${soundId}`, {
+export async function getCustomSoundUsage(
+  soundId: string,
+): Promise<{ externalProjectCount: number }> {
+  return apiFetch(`/users/me/custom-sounds/${soundId}/usage`);
+}
+
+export async function deleteCustomSound(
+  soundId: string,
+  mode: "self" | "hard",
+): Promise<{ removed: boolean; affectedProjects: number }> {
+  return apiFetch(`/users/me/custom-sounds/${soundId}?mode=${mode}`, {
     method: "DELETE",
   });
 }

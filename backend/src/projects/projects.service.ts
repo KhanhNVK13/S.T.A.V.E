@@ -10,6 +10,7 @@ import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 import type { BranchRow, ProjectRow } from './project-row.type';
+import { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 
 export const DEFAULT_BRANCH_NAME = 'main';
 
@@ -21,6 +22,7 @@ export class ProjectsService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    private readonly customSounds: CustomSoundsService,
   ) {}
 
   /** UC-18 (core): tạo project + branch mặc định 'main' đi kèm. */
@@ -229,6 +231,8 @@ export class ProjectsService {
     if (error) {
       throw new InternalServerErrorException('Could not delete project');
     }
+
+    await this.customSounds.collectGarbage();
   }
 
   /** Shared getOwned → update → error-check pattern for archive/unarchive/setVisibility. */

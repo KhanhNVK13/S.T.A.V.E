@@ -10,6 +10,7 @@ import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { maskEmail } from '../common/utils/mask-email.util';
 import type { UserRow } from '../users/user-row.type';
 import type { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 
 const PERMANENT_BAN = '87600h'; // ~10 years — GoTrue has no infinite ban value.
 
@@ -18,6 +19,7 @@ export class AdminService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    private readonly customSounds: CustomSoundsService,
   ) {}
 
   /** UC-96 */
@@ -183,5 +185,7 @@ export class AdminService {
     await this.revokeAllSessions(targetId);
     await this.supabase.from('users').delete().eq('id', targetId);
     await this.supabase.auth.admin.deleteUser(targetId);
+    await this.customSounds.removeAllFilesOf(targetId);
+    await this.customSounds.collectGarbage();
   }
 }
