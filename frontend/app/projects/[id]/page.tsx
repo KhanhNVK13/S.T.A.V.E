@@ -13,6 +13,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import { getPublicProject, getProject, ApiError } from "../../../lib/api-client";
+import { apiErrorMessage } from "../../../lib/error-message";
 import type { PublicProject } from "../../../lib/api-client";
 import { useAuth } from "../../../context/auth-context";
 import { Badge } from "../../../components/ui/badge";
@@ -22,7 +23,8 @@ import { ProjectThumb } from "../../../components/ui/project-thumb";
 import { Toast } from "../../../components/ui/toast";
 import { CommitHistory } from "../../../components/project/commit-history";
 import { BranchList } from "../../../components/project/branch-list";
-import { formatRelativeTime } from "../../../lib/format-date";
+import { VersionSummary } from "../../../components/project/version-summary";
+import { formatRelativeTime, APP_LOCALE } from "../../../lib/format-date";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -134,9 +136,13 @@ function ProjectOverview({ id }: { id: string }) {
               : null,
             isOwner: true,
           });
-        } catch {
+        } catch (ownErr) {
           if (!cancelled) {
-            setError("Không tìm thấy dự án này, hoặc bạn không có quyền xem.");
+            setError(
+              ownErr instanceof ApiError && (ownErr.status === 404 || ownErr.status === 403)
+                ? "Không tìm thấy dự án này, hoặc bạn không có quyền xem."
+                : apiErrorMessage(ownErr, "Không tải được dự án."),
+            );
           }
         }
       } finally {
@@ -187,13 +193,18 @@ function ProjectOverview({ id }: { id: string }) {
     return (
       <div className="mx-auto max-w-page px-5 py-8">
         <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
-          <h1 className="text-lg font-semibold text-danger">Không tìm thấy</h1>
-          <p className="mt-2 text-[13px] text-muted">{error ?? "Dự án này không tồn tại."}</p>
-          <Link href="/explore">
-            <Button variant="secondary" className="mt-4">
-              Quay lại Khám phá
+          <h1 className="text-lg font-semibold text-danger">Không mở được dự án</h1>
+          <p role="alert" className="mt-2 text-[13px] text-muted">
+            {error ?? "Dự án này không tồn tại."}
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button variant="secondary" onClick={() => window.location.reload()}>
+              Thử lại
             </Button>
-          </Link>
+            <Link href={user ? "/projects" : "/explore"}>
+              <Button variant="ghost">{user ? "Về Dự án của tôi" : "Quay lại Khám phá"}</Button>
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -223,7 +234,7 @@ function ProjectOverview({ id }: { id: string }) {
       <div className="mx-auto max-w-page px-5 py-8">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <p className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
+            <p className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent">
               {data.owner ? (
                 <Link href={`/creator/${data.owner.id}`} className="hover:underline">
                   {ownerName}
@@ -255,7 +266,7 @@ function ProjectOverview({ id }: { id: string }) {
                     <GitFork className="h-3.5 w-3.5" /> Fork (PLACEHOLDER)
                     {data.forkCount !== null && (
                       <span className="font-mono">
-                        {data.forkCount.toLocaleString("vi-VN")}
+                        {data.forkCount.toLocaleString(APP_LOCALE)}
                       </span>
                     )}
                   </>
@@ -334,8 +345,8 @@ function ProjectOverview({ id }: { id: string }) {
                   <div className="flex min-w-0 items-center gap-2.5">
                     <FileMusic className="h-4 w-4 shrink-0 text-muted" />
                     <div className="min-w-0">
-                      <p className="truncate font-mono text-[11px] font-bold">{data.name}.mid</p>
-                      <p className="text-[9px] text-muted">
+                      <p className="truncate font-mono text-xs font-bold">{data.name}.mid</p>
+                      <p className="text-xs text-muted">
                         Cập nhật {formatRelativeTime(data.updatedAt)}
                       </p>
                     </div>
@@ -357,6 +368,8 @@ function ProjectOverview({ id }: { id: string }) {
                 />
               </section>
 
+              {data.isOwner && <VersionSummary projectId={data.id} onOpenTab={switchTab} />}
+
               <section className="mt-5 border-t border-border pt-4">
                 <h2 className="mb-2 text-[13px] font-semibold">Về dự án này</h2>
                 <p className="text-[13px] leading-relaxed text-muted">
@@ -377,7 +390,7 @@ function ProjectOverview({ id }: { id: string }) {
             <aside className="flex flex-col gap-4">
               {data.owner && (
                 <div className="rounded-card border border-border bg-surface p-4">
-                  <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
                     Tác giả
                   </h3>
                   <Link
@@ -391,7 +404,7 @@ function ProjectOverview({ id }: { id: string }) {
                     />
                     <div className="min-w-0">
                       <p className="truncate text-[13px] font-semibold">{ownerName}</p>
-                      <p className="truncate font-mono text-[10px] text-muted">
+                      <p className="truncate font-mono text-xs text-muted">
                         @{data.owner.username ?? "unknown"}
                       </p>
                     </div>
@@ -402,21 +415,21 @@ function ProjectOverview({ id }: { id: string }) {
               <div className="grid grid-cols-2 overflow-hidden rounded-card border border-border bg-surface">
                 <div className="border-r border-border px-4 py-3">
                   <p className="font-mono text-[17px] font-bold">
-                    {data.playCount.toLocaleString("vi-VN")}
+                    {data.playCount.toLocaleString(APP_LOCALE)}
                   </p>
-                  <p className="text-[10px] text-muted">Lượt nghe</p>
+                  <p className="text-xs text-muted">Lượt nghe</p>
                 </div>
                 <div className="px-4 py-3">
                   <p className="font-mono text-[17px] font-bold">
-                    {data.forkCount !== null ? data.forkCount.toLocaleString("vi-VN") : "—"}
+                    {data.forkCount !== null ? data.forkCount.toLocaleString(APP_LOCALE) : "—"}
                   </p>
-                  <p className="text-[10px] text-muted">Lượt fork</p>
+                  <p className="text-xs text-muted">Lượt fork</p>
                 </div>
               </div>
 
               {!user && (
                 <div className="rounded-card border border-border bg-surface p-4">
-                  <p className="flex items-start gap-2 text-[11px] leading-relaxed text-muted">
+                  <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
                     <CircleUserRound className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
                       <Link

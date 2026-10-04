@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, Pause, Trash2, Loader2, AudioWaveform } from "lucide-react";
 import {
-  ApiError,
   attachAudioSketch,
   createSketchUploadUrl,
   listAudioSketches,
@@ -21,6 +20,8 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { EmptyState } from "../ui/empty-state";
 import { INPUT_CLASS } from "../ui/form";
+import { apiErrorMessage } from "../../lib/error-message";
+import { APP_LOCALE } from "../../lib/format-date";
 
 const BUCKET = "audio-sketches";
 /** BR-56 — nâng từ 10MB lên 20MB ngày 16/09/2026, xem PROJECT_STATE §33. */
@@ -30,12 +31,6 @@ const PEAK_COUNT = 160;
 function formatTime(sec: number): string {
   const total = Math.floor(sec);
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
-function messageOf(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) return err.message;
-  if (err instanceof Error && err.message) return err.message;
-  return fallback;
 }
 
 /** Dạng sóng tĩnh + 2 tay cầm cắt (UC-54). */
@@ -147,7 +142,15 @@ function TrimmableWaveform({
  * cấp — backend chỉ quyết định quyền (BR-26) và giới hạn (BR-56), không nhận
  * byte file (kiến trúc đã chốt, PROJECT_STATE §31).
  */
-export function AudioSketchPanel({ projectId }: { projectId: string }) {
+export type AudioSketchState = "idle" | "recording" | "reviewing" | "attaching";
+
+export function AudioSketchPanel({
+  projectId,
+  onStateChange,
+}: {
+  projectId: string;
+  onStateChange?: (state: AudioSketchState) => void;
+}) {
   const recorder = useAudioRecorder();
 
   const [sketches, setSketches] = useState<AudioSketch[]>([]);
@@ -171,7 +174,7 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
       setSketches(await listAudioSketches(projectId));
       setError(null);
     } catch (err) {
-      setError(messageOf(err, "Không tải được danh sách audio sketch."));
+      setError(apiErrorMessage(err, "Không tải được danh sách audio sketch."));
     } finally {
       setLoading(false);
     }
@@ -197,7 +200,7 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
         setTrim({ start: 0, end: decoded.duration });
         setPreviewUrl(url);
         setName(
-          `Sketch ${new Date().toLocaleString("vi-VN", {
+          `Sketch ${new Date().toLocaleString(APP_LOCALE, {
             day: "2-digit",
             month: "2-digit",
             hour: "2-digit",
@@ -285,7 +288,7 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
       discardRecording();
       await load();
     } catch (err) {
-      setError(messageOf(err, "Không đính kèm được audio sketch."));
+      setError(apiErrorMessage(err, "Không đính kèm được audio sketch."));
     } finally {
       setAttaching(false);
     }
@@ -320,6 +323,18 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
 
   const recording = recorder.status === "recording";
   const reviewing = !!buffer;
+  const busyRecording = recording || recorder.status === "requesting";
+  const sketchState: AudioSketchState = attaching
+    ? "attaching"
+    : busyRecording
+      ? "recording"
+      : reviewing
+        ? "reviewing"
+        : "idle";
+
+  useEffect(() => {
+    onStateChange?.(sketchState);
+  }, [sketchState, onStateChange]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -342,7 +357,7 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
       )}
       {recorder.warning && (
         <div className="rounded-card border border-warning/30 bg-warning-muted px-4 py-3">
-          <p className="text-xs text-warning">{recorder.warning}</p>
+          <p className="text-xs text-warning-foreground">{recorder.warning}</p>
         </div>
       )}
 
@@ -354,7 +369,7 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
               <span className="flex items-center gap-2 font-mono text-[17px] font-bold">
                 <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-danger" />
                 {formatTime(recorder.elapsedSec)}
-                <span className="text-[11px] font-normal text-muted">
+                <span className="text-xs font-normal text-muted">
                   / {formatTime(MAX_RECORDING_SEC)}
                 </span>
               </span>
@@ -380,9 +395,9 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold">Ghi nhanh một ý tưởng</p>
-                <p className="mt-0.5 text-[11px] text-muted">
+                <p className="mt-0.5 text-xs text-muted">
                   Tối đa 3 phút. Bản ghi là tư liệu tham chiếu, không trộn vào bản phối và
-                  không nằm trong bản xuất (BR-57).
+                  không nằm trong bản xuất.
                 </p>
               </div>
               <Button
@@ -409,7 +424,7 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
         <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[13px] font-semibold">Cắt đầu/cuối rồi đính kèm</p>
-            <span className="font-mono text-[11px] text-muted">
+            <span className="font-mono text-xs text-muted">
               Giữ lại {formatTime(trim.end - trim.start)} / {formatTime(buffer.duration)}
             </span>
           </div>
@@ -422,15 +437,17 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
             onChange={(next) => setTrim(next)}
           />
 
-          <p className="text-[10px] text-muted">
+          <p className="text-xs text-muted">
             Kéo 2 thanh dọc để chọn đoạn giữ lại. Bản ghi gốc vẫn được lưu nguyên vẹn nên
-            có thể chỉnh lại điểm cắt sau (UC-54).
+            có thể chỉnh lại điểm cắt sau.
           </p>
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex min-w-[220px] flex-1 flex-col gap-1.5">
-              <span className="text-[11px] font-semibold">Tên sketch</span>
+              <span className="text-xs font-semibold">Tên sketch</span>
               <input
+                name="sketchName"
+                autoComplete="off"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
@@ -487,7 +504,7 @@ export function AudioSketchPanel({ projectId }: { projectId: string }) {
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-semibold">{sketch.name}</p>
-                  <p className="font-mono text-[10px] text-muted">
+                  <p className="font-mono text-xs text-muted">
                     {formatTime(heard)} · {(sketch.size_bytes / 1024 / 1024).toFixed(1)}MB
                   </p>
                 </div>

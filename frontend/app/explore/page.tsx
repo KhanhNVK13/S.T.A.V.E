@@ -32,11 +32,11 @@ const SORT_OPTIONS = [
 ] as const;
 
 /** Tên | thể loại | lượt nghe | fork | cập nhật — dùng chung cho hàng tiêu đề và hàng dữ liệu. */
-const COLS = 'md:grid-cols-[minmax(0,1fr)_112px_84px_84px_78px]';
+const COLS = 'md:grid-cols-[minmax(0,1fr)_112px_84px_84px_96px]';
 
 function RowSkeleton() {
   return (
-    <RowList>
+    <RowList cols={COLS}>
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
           <div className="h-8 w-8 shrink-0 rounded-full bg-surface-subtle" />
@@ -111,7 +111,9 @@ function ExploreContent() {
         <div className="relative min-w-[200px] max-w-[380px] flex-1">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
-            type="text"
+            name="q"
+            autoComplete="off"
+            type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Tìm dự án công khai"
@@ -185,14 +187,14 @@ function ExploreContent() {
         />
       ) : (
         <>
-          <p className="mb-2 text-[11px] text-muted">
+          <p className="mb-2 text-xs text-muted">
             {search
               ? `${data?.total ?? 0} kết quả cho "${search}"`
               : `${data?.total ?? 0} dự án công khai`}
           </p>
 
-          <RowList>
-            <RowHeader cols={COLS}>
+          <RowList cols={COLS}>
+            <RowHeader>
               <span>Dự án</span>
               <span>Thể loại</span>
               <span>Lượt nghe</span>
@@ -203,7 +205,7 @@ function ExploreContent() {
             {items?.map((project) => {
               const ownerName = project.owner.display_name ?? project.owner.username ?? 'Người dùng';
               return (
-                <RowItem key={project.id} cols={COLS}>
+                <RowItem key={project.id}>
                   <RowTitle
                     href={`/projects/${project.id}`}
                     name={project.name}
@@ -241,7 +243,7 @@ function ExploreContent() {
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> Trước
               </Button>
-              <span className="px-3 font-mono text-[11px] text-muted">
+              <span className="px-3 font-mono text-xs text-muted">
                 {page} / {data.totalPages}
               </span>
               <Button

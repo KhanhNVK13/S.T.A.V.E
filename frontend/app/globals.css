@@ -27,7 +27,7 @@
 
   /* Chữ */
   --foreground: oklch(0.26 0.038 260); /* xanh-đen, không phải đen tuyền */
-  --muted-foreground: oklch(0.54 0.02 276);
+  --muted-foreground: oklch(0.5 0.02 276);
 
   /* Viền */
   --border: oklch(0.891 0.012 285);
@@ -42,14 +42,17 @@
   /* Trạng thái */
   --success: oklch(0.54 0.085 150);
   --success-muted: oklch(0.94 0.025 150);
+  --success-foreground: oklch(0.47 0.085 150);
   --warning: oklch(0.7 0.105 83);
   --warning-muted: oklch(0.95 0.035 83);
+  --warning-foreground: oklch(0.5 0.1 70);
   --danger: oklch(0.48 0.13 27);
   --danger-muted: oklch(0.94 0.028 27);
 
   /* Metal — huy hiệu/chi tiết trang trí, dùng rất hạn chế */
   --metal: oklch(0.73 0.045 82);
   --metal-muted: oklch(0.94 0.015 82);
+  --metal-foreground: oklch(0.5 0.05 80);
 
   /* Màu phân biệt track trong MIDI Editor (dữ liệu, không phải chrome) */
   --track-accent: var(--accent);
@@ -85,7 +88,7 @@
   --surface-subtle: oklch(0.95 0.014 142);
   --surface-muted: oklch(0.92 0.022 142);
   --foreground: oklch(0.25 0.035 154);
-  --muted-foreground: oklch(0.52 0.025 154);
+  --muted-foreground: oklch(0.49 0.025 154);
   --border: oklch(0.86 0.022 142);
   --border-strong: oklch(0.78 0.035 142);
   --metal: oklch(0.68 0.05 80);
@@ -98,7 +101,7 @@
   --surface-subtle: oklch(0.95 0.012 20);
   --surface-muted: oklch(0.92 0.02 20);
   --foreground: oklch(0.24 0.04 15);
-  --muted-foreground: oklch(0.51 0.028 15);
+  --muted-foreground: oklch(0.49 0.028 15);
   --border: oklch(0.86 0.02 20);
   --border-strong: oklch(0.78 0.035 20);
   --metal: oklch(0.69 0.05 72);
@@ -126,12 +129,15 @@
 
   --color-success: var(--success);
   --color-success-muted: var(--success-muted);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-muted: var(--warning-muted);
+  --color-warning-foreground: var(--warning-foreground);
   --color-danger: var(--danger);
   --color-danger-muted: var(--danger-muted);
   --color-metal: var(--metal);
   --color-metal-muted: var(--metal-muted);
+  --color-metal-foreground: var(--metal-foreground);
 
   --radius-card: var(--radius-card);
   --shadow-card: var(--shadow-card);
@@ -147,5 +153,17 @@ body {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+.stave-range-track:has(> input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 }

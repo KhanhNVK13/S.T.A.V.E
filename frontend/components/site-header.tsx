@@ -47,6 +47,7 @@ export function SiteHeader() {
     await signOut();
   }
 
+  const isEditor = /^\/projects\/[^/]+\/edit$/.test(pathname);
   const displayLabel = profile?.display_name ?? user?.email?.split("@")[0] ?? "";
 
   function navClass(href: string) {
@@ -60,7 +61,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-page items-center gap-5 px-5">
+      <div className={`mx-auto flex ${isEditor ? "h-11" : "h-14"} max-w-page items-center gap-5 px-5`}>
         <Logo />
 
         <nav className="hidden items-center gap-0.5 md:flex">

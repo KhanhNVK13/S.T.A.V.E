@@ -17,7 +17,7 @@ const staveMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "STAVE",
+  title: { template: "%s · STAVE", default: "STAVE — Quản lý phiên bản cho dự án nhạc MIDI" },
   description:
     "Source Tracking and Version Control Environment for MIDI Music Projects",
 };
@@ -25,13 +25,19 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
+      lang="vi"
       suppressHydrationWarning
       className={`${staveSans.variable} ${staveMono.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col bg-background font-sans text-foreground">
         <AuthProvider>
           <ThemeProvider>
+            <a
+              href="#main"
+              className="sr-only z-50 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+            >
+              Bỏ qua tới nội dung chính
+            </a>
             <SiteHeader />
           {/*
             min-h-0 is required here: a flex item's default min-height is
@@ -47,7 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             the bounded `main` and painted over the footer. Pages that fill
             the viewport should size with min-h-full (not 100vh) to match it.
           */}
-            <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+            <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">{children}</main>
             <SiteFooter />
           </ThemeProvider>
         </AuthProvider>

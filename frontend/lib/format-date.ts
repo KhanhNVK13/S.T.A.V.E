@@ -1,3 +1,5 @@
+export const APP_LOCALE = 'vi-VN';
+
 /**
  * Format a date string to relative time (Vietnamese).
  * E.g. "vừa xong", "5 phút trước", "2 giờ trước", "3 ngày trước", "dd/MM/yyyy"
@@ -37,7 +39,7 @@ export function formatMonthYear(dateStr: string | null | undefined): string {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
 
-  return date.toLocaleDateString('vi-VN', { year: 'numeric', month: 'long' });
+  return date.toLocaleDateString(APP_LOCALE, { year: 'numeric', month: 'long' });
 }
 
 /**

@@ -9,7 +9,8 @@
  */
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useId } from "react";
+import { useDialog } from "../../../lib/use-dialog";
 import { DC } from "./tokens";
 
 interface ModalProps {
@@ -28,16 +29,8 @@ export function Modal({
   width = 460,
   children,
 }: ModalProps) {
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && !closeDisabled) {
-        e.stopPropagation();
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, closeDisabled]);
+  const titleId = useId();
+  const ref = useDialog<HTMLDivElement>({ onClose, closeDisabled });
 
   return (
     <div
@@ -46,8 +39,17 @@ export function Modal({
         if (e.target === e.currentTarget && !closeDisabled) onClose();
       }}
     >
-      <div style={{ ...styles.card, width }} role="dialog" aria-label={title}>
-        <div style={styles.header}>{title}</div>
+      <div
+        ref={ref}
+        style={{ ...styles.card, width }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        <h2 id={titleId} style={styles.header}>
+          {title}
+        </h2>
         <div style={styles.body}>{children}</div>
       </div>
     </div>
@@ -61,7 +63,11 @@ export function ModalActions({ children }: { children: React.ReactNode }) {
 
 /** Hộp lỗi đỏ dùng chung trong dialog. */
 export function ModalError({ message }: { message: string }) {
-  return <div style={styles.error}>{message}</div>;
+  return (
+    <div role="alert" style={styles.error}>
+      {message}
+    </div>
+  );
 }
 
 export const modalButtonStyles: Record<string, React.CSSProperties> = {
@@ -122,8 +128,10 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${DC.border}`,
     borderRadius: 12,
     boxShadow: "0 18px 40px rgba(15, 42, 92, .18)",
+    outline: "none",
   },
   header: {
+    margin: 0,
     padding: "16px 20px",
     borderBottom: `1px solid ${DC.border}`,
     fontSize: 15,

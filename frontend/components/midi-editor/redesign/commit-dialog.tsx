@@ -10,7 +10,7 @@
  */
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { GitCommitHorizontal } from "lucide-react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../../../lib/api-client";
@@ -26,6 +26,8 @@ interface CommitDialogProps {
   headSnapshot: DraftSnapshot | null;
   submitting: boolean;
   error: string | null;
+  message: string;
+  onMessageChange: (message: string) => void;
   onSubmit: (message: string) => void;
   onClose: () => void;
 }
@@ -43,16 +45,11 @@ export function CommitDialog({
   headSnapshot,
   submitting,
   error,
+  message,
+  onMessageChange,
   onSubmit,
   onClose,
 }: CommitDialogProps) {
-  const [message, setMessage] = useState("");
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
   const summary = headSnapshot ? summarizeChanges(headSnapshot, snapshot) : null;
   const trimmed = message.trim();
   // BR-39: 1–200 ký tự. Server vẫn validate lại; chặn ở đây chỉ để đỡ 1 vòng mạng.
@@ -97,8 +94,8 @@ export function CommitDialog({
             </div>
             {summary.total === 0 && (
               <div style={styles.summaryWarn}>
-                Không phát hiện thay đổi nào so với commit gần nhất — server sẽ
-                từ chối commit trùng (BR-40).
+                Bản nháp chưa có thay đổi nào so với commit gần nhất — hãy sửa
+                bản nhạc trước khi commit.
               </div>
             )}
           </>
@@ -125,12 +122,13 @@ export function CommitDialog({
         </div>
         <textarea
           id="commit-message"
-          ref={inputRef}
+          data-autofocus
           value={message}
           maxLength={COMMIT_MESSAGE_MAX_LENGTH}
           rows={3}
           placeholder="Mô tả thay đổi của phiên bản này…"
-          onChange={(e) => setMessage(e.target.value)}
+          aria-describedby="commit-message-hint"
+          onChange={(e) => onMessageChange(e.target.value)}
           onKeyDown={(e) => {
             // Ctrl/Cmd+Enter gửi nhanh; Enter thường vẫn xuống dòng.
             if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSubmit) {
@@ -139,8 +137,16 @@ export function CommitDialog({
           }}
           style={styles.textarea}
         />
-        {trimmed.length === 0 && message.length > 0 && (
-          <div style={styles.hint}>Nội dung commit không được để trống.</div>
+        {trimmed.length === 0 && message.length > 0 ? (
+          <div id="commit-message-hint" style={styles.hint}>
+            Nội dung commit không được để trống.
+          </div>
+        ) : (
+          <div id="commit-message-hint" style={styles.helper}>
+            {trimmed.length === 0
+              ? "Nhập nội dung để bật nút Tạo commit."
+              : "Ctrl+Enter để tạo commit nhanh."}
+          </div>
         )}
       </div>
 
@@ -192,7 +198,7 @@ const styles: Record<string, React.CSSProperties> = {
   summaryLine: { fontSize: 12.5, lineHeight: 1.6, color: DC.textMuted },
   summaryRow: { display: "flex", alignItems: "center", gap: 10 },
   summaryKey: {
-    font: `700 10px ${DC.mono}`,
+    font: `700 11px ${DC.mono}`,
     letterSpacing: ".08em",
     color: DC.textMuted,
     width: 76,
@@ -225,7 +231,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     color: DC.text,
     fontFamily: "inherit",
-    outline: "none",
   },
   hint: { marginTop: 6, fontSize: 12, color: DC.danger, fontWeight: 600 },
+  helper: { marginTop: 6, fontSize: 12, color: DC.textMuted },
 };

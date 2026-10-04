@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import { Search, ShieldAlert } from "lucide-react";
 import { RequireAuth } from "../../../components/require-auth";
 import { useAuth } from "../../../context/auth-context";
-import { apiFetch, ApiError } from "../../../lib/api-client";
+import { apiFetch } from "../../../lib/api-client";
 import { PageHeader } from "../../../components/ui/page-header";
-import { Card } from "../../../components/ui/card";
 import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
 import { INPUT_CLASS } from "../../../components/ui/form";
 import { EmptyState } from "../../../components/ui/empty-state";
+import { Dialog, DialogActions, DialogError } from "../../../components/ui/dialog";
+import { apiErrorMessage } from "../../../lib/error-message";
 
 interface AdminUserRow {
   id: string;
@@ -80,7 +81,7 @@ function ActionPanel({
       }
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không thực hiện được thao tác."));
     } finally {
       setSubmitting(false);
     }
@@ -94,48 +95,60 @@ function ActionPanel({
         : `Xoá vĩnh viễn @${user.username}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4">
-      <Card className="w-full max-w-sm p-6">
-        <p className="text-[13px] font-semibold">{title}</p>
-        {action === "remove" && (
-          <p className="mt-1 text-xs text-danger">
-            Không thể hoàn tác. Gõ lại username <strong>{user.username}</strong> để xác nhận.
-          </p>
-        )}
+    <Dialog
+      title={title}
+      titleClassName="text-foreground text-base"
+      onClose={onCancel}
+      closeDisabled={submitting}
+      role={action === "remove" ? "alertdialog" : "dialog"}
+      className="max-w-sm p-6"
+    >
+      {action === "remove" && (
+        <p className="-mt-2 mb-3 text-xs text-danger">
+          Không thể hoàn tác. Gõ lại username <strong>{user.username}</strong> để xác nhận.
+        </p>
+      )}
+      <label className="mb-3 flex flex-col gap-1.5 text-[13px]">
+        <span className="font-medium">Lý do</span>
         <textarea
-          placeholder="Lý do"
+          name="reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={2}
-          className={`${INPUT_CLASS} mt-3 w-full`}
+          data-autofocus
+          className={`${INPUT_CLASS} w-full`}
         />
-        {action === "remove" && (
+      </label>
+      {action === "remove" && (
+        <label className="mb-3 flex flex-col gap-1.5 text-[13px]">
+          <span className="font-medium">Username xác nhận</span>
           <input
-            placeholder="Gõ lại username để xác nhận"
             value={confirmUsername}
             onChange={(e) => setConfirmUsername(e.target.value)}
-            className={`${INPUT_CLASS} mt-3 w-full`}
+            autoComplete="off"
+            spellCheck={false}
+            className={`${INPUT_CLASS} w-full`}
           />
-        )}
-        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
-        <div className="mt-4 flex gap-2">
-          <Button
-            variant={action === "remove" ? "danger" : "primary"}
-            onClick={() => void handleConfirm()}
-            disabled={
-              submitting ||
-              !reason ||
-              (action === "remove" && confirmUsername !== user.username)
-            }
-          >
-            {submitting ? "Đang xử lý…" : "Xác nhận"}
-          </Button>
-          <Button variant="secondary" onClick={onCancel}>
-            Huỷ
-          </Button>
-        </div>
-      </Card>
-    </div>
+        </label>
+      )}
+      <DialogError message={error} />
+      <DialogActions>
+        <Button variant="secondary" onClick={onCancel} disabled={submitting}>
+          Huỷ
+        </Button>
+        <Button
+          variant={action === "remove" ? "danger" : "primary"}
+          onClick={() => void handleConfirm()}
+          disabled={
+            submitting ||
+            !reason ||
+            (action === "remove" && confirmUsername !== user.username)
+          }
+        >
+          {submitting ? "Đang xử lý…" : "Xác nhận"}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -159,7 +172,7 @@ function AdminUsersTable() {
       );
       setResult(data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
+      setError(apiErrorMessage(err, "Không tải được danh sách người dùng."));
     }
   }
 
@@ -181,6 +194,10 @@ function AdminUsersTable() {
         <div className="relative min-w-[240px] max-w-[380px] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
+            type="search"
+            name="q"
+            autoComplete="off"
+            spellCheck={false}
             placeholder="Tìm theo username hoặc email chính xác"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -205,8 +222,8 @@ function AdminUsersTable() {
       {error && <p className="mt-3 text-xs text-danger">{error}</p>}
 
       <div className="mt-3">
-        <RowList>
-          <RowHeader cols={COLS}>
+        <RowList cols={COLS}>
+          <RowHeader>
             <span>Người dùng</span>
             <span>Email</span>
             <span>Trạng thái</span>
@@ -215,15 +232,15 @@ function AdminUsersTable() {
           </RowHeader>
 
           {result?.users.map((user) => (
-            <RowItem key={user.id} cols={COLS}>
+            <RowItem key={user.id}>
               <div className="flex min-w-0 items-center gap-2.5">
                 <Avatar id={user.id} label={user.displayName || user.username} />
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-semibold">{user.displayName}</p>
-                  <p className="truncate font-mono text-[10px] text-muted">@{user.username}</p>
+                  <p className="truncate font-mono text-xs text-muted">@{user.username}</p>
                 </div>
               </div>
-              <span className="truncate font-mono text-[11px] text-muted">{user.maskedEmail}</span>
+              <span className="truncate font-mono text-xs text-muted">{user.maskedEmail}</span>
               <span>
                 <StatusBadge status={user.status} />
               </span>

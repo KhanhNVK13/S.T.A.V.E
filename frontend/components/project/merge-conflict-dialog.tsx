@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { GitMerge, TriangleAlert } from "lucide-react";
 import type { ConflictChoice, MergeConflictResult, MergeNoteConflict } from "../../lib/api-client";
 import { pitchName } from "../../lib/midi-note-name";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { DialogError } from "../ui/dialog";
+import { useDialog } from "../../lib/use-dialog";
 
 /**
  * UC-86 — chọn giữ bên nào cho từng nốt xung đột, gom theo ô nhịp (bar) đúng
@@ -21,6 +23,7 @@ export function MergeConflictDialog({
   sourceName,
   targetName,
   submitting,
+  error = null,
   onCancel,
   onResolve,
 }: {
@@ -28,6 +31,7 @@ export function MergeConflictDialog({
   sourceName: string;
   targetName: string;
   submitting: boolean;
+  error?: string | null;
   onCancel: () => void;
   onResolve: (resolutions: { noteId: string; choice: ConflictChoice }[]) => void;
 }) {
@@ -41,6 +45,9 @@ export function MergeConflictDialog({
     return initial;
   });
 
+  const titleId = useId();
+  const dialogRef = useDialog<HTMLDivElement>({ onClose: onCancel, closeDisabled: submitting });
+
   const bars = Object.keys(result.conflictsByBar).sort(
     (a, b) => Number(a) - Number(b),
   );
@@ -52,14 +59,21 @@ export function MergeConflictDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8">
-      <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-card border border-border bg-surface">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-card border border-border bg-surface outline-none"
+      >
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
-            <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-              <TriangleAlert className="h-4 w-4 text-warning" />
+            <h2 id={titleId} className="flex items-center gap-2 text-[15px] font-semibold">
+              <TriangleAlert className="h-4 w-4 text-warning-foreground" />
               Có xung đột cần xử lý trước khi hợp nhất
             </h2>
-            <p className="mt-1 text-[11px] text-muted">
+            <p className="mt-1 text-xs text-muted">
               Hợp nhất <span className="font-mono text-foreground">{sourceName}</span> vào{" "}
               <span className="font-mono text-foreground">{targetName}</span> — cùng một nốt bị
               sửa khác nhau ở hai nhánh. Chọn giữ bên nào cho từng nốt.
@@ -75,7 +89,7 @@ export function MergeConflictDialog({
                 {/* Backend đã đánh số ô nhịp từ 1 (`Math.floor(start / ticksPerBar) + 1`) —
                     cộng thêm 1 ở đây từng làm mọi ô nhịp hiện lệch lên một. */}
                 <Badge variant="neutral">Ô nhịp {bar}</Badge>
-                <span className="text-[10px] text-muted">
+                <span className="text-xs text-muted">
                   {result.conflictsByBar[bar].length} nốt
                 </span>
               </div>
@@ -88,11 +102,11 @@ export function MergeConflictDialog({
                   conflict.type === "DELETE_VS_MODIFY" && !conflict.sourceNote;
 
                 return (
-                  <div key={conflict.noteId} className="px-5 py-3">
-                    <p className="mb-2 font-mono text-[11px] text-muted">
+                  <fieldset key={conflict.noteId} className="px-5 py-3">
+                    <legend className="mb-2 font-mono text-xs text-muted">
                       {conflict.baseNote ? pitchName(conflict.baseNote.pitch) : "Nốt mới"} ·{" "}
                       {conflict.noteId.slice(0, 8)}
-                    </p>
+                    </legend>
 
                     <div className="grid gap-2.5 md:grid-cols-2">
                       <label
@@ -104,6 +118,7 @@ export function MergeConflictDialog({
                       >
                         <input
                           type="radio"
+                          name={`conflict-${conflict.noteId}`}
                           className="mt-0.5 accent-accent"
                           checked={choice === "PICK_TARGET"}
                           onChange={() =>
@@ -111,10 +126,10 @@ export function MergeConflictDialog({
                           }
                         />
                         <span className="min-w-0">
-                          <span className="block text-[10px] font-bold uppercase tracking-wide text-muted">
+                          <span className="block text-xs font-bold uppercase tracking-wide text-muted">
                             Giữ bên ta · {targetName}
                           </span>
-                          <span className="mt-0.5 block font-mono text-[11px]">
+                          <span className="mt-0.5 block font-mono text-xs">
                             {describe(conflict.targetNote, targetDeleted)}
                           </span>
                         </span>
@@ -129,6 +144,7 @@ export function MergeConflictDialog({
                       >
                         <input
                           type="radio"
+                          name={`conflict-${conflict.noteId}`}
                           className="mt-0.5 accent-accent"
                           checked={choice === "PICK_SOURCE"}
                           onChange={() =>
@@ -136,24 +152,29 @@ export function MergeConflictDialog({
                           }
                         />
                         <span className="min-w-0">
-                          <span className="block text-[10px] font-bold uppercase tracking-wide text-muted">
+                          <span className="block text-xs font-bold uppercase tracking-wide text-muted">
                             Lấy bên kia · {sourceName}
                           </span>
-                          <span className="mt-0.5 block font-mono text-[11px]">
+                          <span className="mt-0.5 block font-mono text-xs">
                             {describe(conflict.sourceNote, sourceDeleted)}
                           </span>
                         </span>
                       </label>
                     </div>
-                  </div>
+                  </fieldset>
                 );
               })}
             </section>
           ))}
         </div>
 
+        {error && (
+          <div className="border-t border-border px-5 pt-3">
+            <DialogError message={error} />
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
-          <p className="text-[10px] text-muted">
+          <p className="text-xs text-muted">
             Mặc định giữ bên ta cho mọi nốt — đổi từng nốt ở trên nếu muốn lấy thay đổi của nhánh
             nguồn.
           </p>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase-browser";
+import { authErrorMessage } from "../../lib/error-message";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { Button } from "../../components/ui/button";
 import { MailCheck } from "lucide-react";
@@ -37,7 +38,7 @@ export default function RegisterPage() {
     setSubmitting(false);
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(authErrorMessage(signUpError));
       return;
     }
 
@@ -80,6 +81,9 @@ export default function RegisterPage() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthField label="Email">
           <input
+            name="email"
+            autoComplete="email"
+            spellCheck={false}
             type="email"
             required
             placeholder="ban@email.com"
@@ -90,9 +94,10 @@ export default function RegisterPage() {
         </AuthField>
         <AuthField label="Mật khẩu">
           <input
+            name="new-password"
+            autoComplete="new-password"
             type="password"
             required
-            minLength={8}
             placeholder="Tối thiểu 8 ký tự"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -101,6 +106,8 @@ export default function RegisterPage() {
         </AuthField>
         <AuthField label="Nhập lại mật khẩu">
           <input
+            name="confirm-password"
+            autoComplete="new-password"
             type="password"
             required
             placeholder="••••••••"
@@ -109,7 +116,11 @@ export default function RegisterPage() {
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Đang tạo tài khoản…" : "Đăng ký"}
         </Button>

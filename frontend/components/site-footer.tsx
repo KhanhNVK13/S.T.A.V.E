@@ -1,7 +1,14 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
 export function SiteFooter() {
+  const pathname = usePathname();
+  if (/^\/projects\/[^/]+\/edit$/.test(pathname)) return null;
+
   return (
     <footer className="border-t border-border bg-surface">
-      <div className="mx-auto max-w-page px-5 py-4 text-center text-[11px] text-muted">
+      <div className="mx-auto max-w-page px-5 py-4 text-center text-xs text-muted">
         <p>
           STAVE — Source Tracking and Version Control Environment for Music
           Projects.

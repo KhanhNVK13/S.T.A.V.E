@@ -10,6 +10,7 @@ import { PageHeader } from "../../../components/ui/page-header";
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../../components/ui/form";
+import { apiErrorMessage } from "../../../lib/error-message";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function NewProjectPage() {
       if (err instanceof ApiError && err.status === 409) {
         setError("Một dự án với tên này đã tồn tại trong tài khoản của bạn.");
       } else {
-        setError(err instanceof Error ? err.message : "Có lỗi xảy ra");
+        setError(apiErrorMessage(err, "Không tạo được dự án."));
       }
     } finally {
       // Only re-enable on error; on success we navigate away anyway
@@ -66,6 +67,8 @@ export default function NewProjectPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
             <Field label="Tên dự án *">
               <input
+                name="name"
+                autoComplete="off"
                 type="text"
                 required
                 value={name}
@@ -78,6 +81,7 @@ export default function NewProjectPage() {
 
             <Field label="Mô tả">
               <textarea
+                name="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={2000}
@@ -89,6 +93,8 @@ export default function NewProjectPage() {
 
             <Field label="Thể loại">
               <input
+                name="genre"
+                autoComplete="off"
                 type="text"
                 value={genre}
                 onChange={(e) => setGenre(e.target.value)}
@@ -100,7 +106,7 @@ export default function NewProjectPage() {
 
             <div className="flex gap-3">
               <Button type="submit" disabled={submitting || !name.trim()}>
-                {submitting ? "Đang tạo..." : "Tạo dự án"}
+                {submitting ? "Đang tạo…" : "Tạo dự án"}
               </Button>
               <Link href="/projects">
                 <Button type="button" variant="secondary">

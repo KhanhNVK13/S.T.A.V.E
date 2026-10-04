@@ -4,8 +4,8 @@
  * Hộp thoại xác nhận BẮT BUỘC trước khi khôi phục, vì thao tác này:
  *   1. ghi thêm 1 commit mới vào lịch sử (BR-47 — không xoá gì cả), và
  *   2. ghi đè bản nháp đang mở bằng snapshot của phiên bản được chọn.
- * SRS yêu cầu cảnh báo khi draft còn thay đổi chưa lưu — cảnh báo đó là khối
- * đỏ bên dưới, chỉ hiện khi đúng là còn thay đổi chưa lưu.
+ * SRS yêu cầu cảnh báo khi draft còn thay đổi chưa lưu hoặc chưa commit — cảnh
+ * báo đó là khối đỏ bên dưới.
  */
 "use client";
 
@@ -20,6 +20,7 @@ interface RestoreDialogProps {
   commit: CommitWithAuthor;
   /** Bản nháp còn thay đổi chưa lưu xuống server hay không. */
   hasUnsavedChanges: boolean;
+  uncommittedCount: number;
   submitting: boolean;
   error: string | null;
   onConfirm: () => void;
@@ -29,6 +30,7 @@ interface RestoreDialogProps {
 export function RestoreDialog({
   commit,
   hasUnsavedChanges,
+  uncommittedCount,
   submitting,
   error,
   onConfirm,
@@ -56,17 +58,20 @@ export function RestoreDialog({
       <ul style={styles.list}>
         <li>
           Lịch sử <strong>không bị xoá</strong>: hệ thống tạo thêm 1 commit mới
-          mang đúng nội dung của phiên bản này (BR-47).
+          mang đúng nội dung của phiên bản này.
         </li>
         <li>
           Bản nháp đang mở sẽ được thay bằng nội dung của phiên bản này.
         </li>
       </ul>
 
-      {hasUnsavedChanges && (
-        <div style={styles.warn}>
-          Bản nháp đang có thay đổi chưa lưu — những thay đổi này sẽ bị ghi đè
-          bởi bản khôi phục và không lấy lại được.
+      {(hasUnsavedChanges || uncommittedCount > 0) && (
+        <div role="alert" style={styles.warn}>
+          {uncommittedCount > 0
+            ? `Bản nháp đang có ${uncommittedCount} thay đổi chưa commit`
+            : "Bản nháp đang có thay đổi chưa lưu"}{" "}
+          — khôi phục sẽ ghi đè và những thay đổi này không lấy lại được. Muốn
+          giữ lại, hãy huỷ và commit trước.
         </div>
       )}
 

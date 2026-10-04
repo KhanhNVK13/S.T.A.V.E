@@ -12,12 +12,12 @@ export class CreateUploadUrlDto {
   @IsNumber()
   @Min(0.1, { message: 'Bản ghi quá ngắn' })
   @Max(MAX_SKETCH_DURATION_SEC, {
-    message: 'Audio sketch tối đa 3 phút (BR-56)',
+    message: 'Audio sketch tối đa 3 phút',
   })
   durationSec!: number;
 
   @IsInt()
   @Min(1)
-  @Max(MAX_SKETCH_SIZE_BYTES, { message: 'Audio sketch tối đa 20MB (BR-56)' })
+  @Max(MAX_SKETCH_SIZE_BYTES, { message: 'Audio sketch tối đa 20MB' })
   sizeBytes!: number;
 }

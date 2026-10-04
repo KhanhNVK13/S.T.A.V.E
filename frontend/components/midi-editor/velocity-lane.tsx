@@ -137,8 +137,10 @@ export function VelocityLane({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const W = canvas.width;
-    const H = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = canvas.width / dpr;
+    const H = canvas.height / dpr;
 
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = colors.bg;
@@ -162,7 +164,9 @@ export function VelocityLane({
       ctx.lineTo(W, y + 0.5);
       ctx.stroke();
       ctx.fillStyle = colors.axisText;
-      ctx.fillText(String(level), 6, y + 3);
+      ctx.textAlign = "right";
+      ctx.fillText(String(level), KEY_W - 6, y + 3);
+      ctx.textAlign = "left";
     }
 
     // ── Cột velocity của từng note ─────────────────────────────
@@ -202,8 +206,11 @@ export function VelocityLane({
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
     const ro = new ResizeObserver(() => {
-      canvas.width = wrap.clientWidth;
-      canvas.height = wrap.clientHeight;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(wrap.clientWidth * dpr);
+      canvas.height = Math.round(wrap.clientHeight * dpr);
+      canvas.style.width = `${wrap.clientWidth}px`;
+      canvas.style.height = `${wrap.clientHeight}px`;
       draw();
     });
     ro.observe(wrap);
@@ -255,13 +262,13 @@ export function VelocityLane({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const { cx, cy } = coords(e);
-    const hit = hitBar(cx, cy, canvas.height);
+    const hit = hitBar(cx, cy, canvas.clientHeight);
     if (!hit) return;
 
     const originals = new Map<string, number>();
     notes.forEach((n) => originals.set(n.id, n.velocity));
     dragRef.current = { noteId: hit.id, originalVelocities: originals };
-    applyVelocity(hit, velocityFromY(cy, canvas.height), originals);
+    applyVelocity(hit, velocityFromY(cy, canvas.clientHeight), originals);
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -273,14 +280,14 @@ export function VelocityLane({
       // Con trỏ đổi hình khi ở trên 1 cột, để người dùng biết chỗ nào kéo được.
       const { cx, cy } = coords(e);
       canvas.style.cursor =
-        !readOnly && hitBar(cx, cy, canvas.height) ? "ns-resize" : "default";
+        !readOnly && hitBar(cx, cy, canvas.clientHeight) ? "ns-resize" : "default";
       return;
     }
 
     const grabbed = notes.find((n) => n.id === drag.noteId);
     if (!grabbed) return;
     const { cy } = coords(e);
-    applyVelocity(grabbed, velocityFromY(cy, canvas.height), drag.originalVelocities);
+    applyVelocity(grabbed, velocityFromY(cy, canvas.clientHeight), drag.originalVelocities);
   }
 
   // Thả chuột ngoài canvas (kéo vượt mép) vẫn phải kết thúc thao tác — nghe

@@ -155,7 +155,7 @@ export function useAudioRecorder(): AudioRecorder {
       setElapsedSec(elapsed);
       // UC-53 luồng 5.1 — chạm giới hạn thì tự dừng và nói rõ lý do.
       if (elapsed >= MAX_RECORDING_SEC) {
-        setWarning("Đã đạt giới hạn 3 phút nên bản ghi tự dừng (BR-56).");
+        setWarning("Đã đạt giới hạn 3 phút nên bản ghi tự dừng.");
         if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       }
     }, 100);

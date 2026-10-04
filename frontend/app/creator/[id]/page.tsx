@@ -4,7 +4,7 @@ import { use } from 'react';
 import Link from 'next/link';
 import { CalendarDays, FolderOpen, Play, GitFork } from 'lucide-react';
 import { getPublicUserProfile, getUserPublicProjects, PublicUserProfile, PublicProject } from '../../../lib/api-client';
-import { formatMonthYear, formatRelativeTime } from '../../../lib/format-date';
+import { formatMonthYear, formatRelativeTime, APP_LOCALE } from '../../../lib/format-date';
 import { useApiResource } from '../../../lib/use-api-resource';
 import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
@@ -17,7 +17,7 @@ interface Props {
 }
 
 /** Tên | thể loại | lượt nghe | fork | cập nhật. */
-const COLS = 'md:grid-cols-[minmax(0,1fr)_112px_84px_84px_78px]';
+const COLS = 'md:grid-cols-[minmax(0,1fr)_112px_84px_84px_96px]';
 
 interface CreatorPageData {
   profile: PublicUserProfile;
@@ -86,13 +86,13 @@ export default function CreatorProfilePage({ params }: Props) {
             size="lg"
           />
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent">Hồ sơ tác giả</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Hồ sơ tác giả</p>
             <h1 className="mb-0.5 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
               {profile.display_name ?? profile.username ?? 'Người dùng'}
             </h1>
             <p className="font-mono text-xs text-muted">@{profile.username ?? 'unknown'}</p>
             {profile.bio && <p className="mt-2 max-w-2xl text-[13px] text-muted">{profile.bio}</p>}
-            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted">
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
               <CalendarDays className="h-3.5 w-3.5" /> Tham gia {joinDate}
             </p>
           </div>
@@ -101,15 +101,15 @@ export default function CreatorProfilePage({ params }: Props) {
         <div className="grid shrink-0 grid-cols-2 overflow-hidden rounded-card border border-border bg-surface">
           <div className="border-r border-border px-5 py-3">
             <p className="font-mono text-[17px] font-bold">
-              {profile.total_public_projects.toLocaleString('vi-VN')}
+              {profile.total_public_projects.toLocaleString(APP_LOCALE)}
             </p>
-            <p className="text-[10px] text-muted">Dự án công khai</p>
+            <p className="text-xs text-muted">Dự án công khai</p>
           </div>
           <div className="px-5 py-3">
             <p className="font-mono text-[17px] font-bold">
-              {profile.total_forks.toLocaleString('vi-VN')}
+              {profile.total_forks.toLocaleString(APP_LOCALE)}
             </p>
-            <p className="text-[10px] text-muted">Lượt fork</p>
+            <p className="text-xs text-muted">Lượt fork</p>
           </div>
         </div>
       </div>
@@ -118,8 +118,8 @@ export default function CreatorProfilePage({ params }: Props) {
       {projects.length === 0 ? (
         <EmptyState icon={FolderOpen} title="Người dùng này chưa có dự án công khai nào." />
       ) : (
-        <RowList>
-          <RowHeader cols={COLS}>
+        <RowList cols={COLS}>
+          <RowHeader>
             <span>Dự án</span>
             <span>Thể loại</span>
             <span>Lượt nghe</span>
@@ -128,7 +128,7 @@ export default function CreatorProfilePage({ params }: Props) {
           </RowHeader>
 
           {projects.map((project) => (
-            <RowItem key={project.id} cols={COLS}>
+            <RowItem key={project.id}>
               <RowTitle
                 href={`/projects/${project.id}`}
                 name={project.name}
