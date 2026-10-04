@@ -29,10 +29,11 @@ import {
   GitCommitHorizontal,
   Lightbulb,
   Magnet,
+  Mic,
   MousePointer2,
+  Music,
   Pause,
   Pencil,
-  Mic,
   MonitorSmartphone,
   PanelLeftClose,
   PanelLeftOpen,
@@ -64,6 +65,7 @@ import { ExportDialog } from "../export-dialog";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import type { AudioSketchState } from "../../audio-sketch/audio-sketch-panel";
 import { ConfirmDialog } from "../../ui/confirm-dialog";
+import { SoundLibraryPanel } from "../../custom-sound/sound-library-panel";
 import { TrackPanel } from "./track-panel";
 import { HistoryPanel } from "./history-panel";
 import { CommitDialog } from "./commit-dialog";
@@ -199,6 +201,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
   const [showExportAudio, setShowExportAudio] = useState(false);
   // UC-53: trigger theo SRS là "User selects 'Audio sketch' in the MIDI Editor".
   const [showAudioSketch, setShowAudioSketch] = useState(false);
+  const [showSoundLibrary, setShowSoundLibrary] = useState(false);
 
   // ── Version Control (UC-42/43/44/46) ────────────────────────
   const vc = useVersionControl({
@@ -806,6 +809,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 <button role="menuitem" onClick={() => runFileAction(() => setShowAudioSketch(true))} title="Ghi nhanh ý tưởng bằng micro" style={styles.fileMenuItem}>
                   <Mic size={14} /> Audio sketch
                 </button>
+                <button role="menuitem" onClick={() => runFileAction(() => setShowSoundLibrary(true))} title="Tải lên, ghi âm và quản lý âm thanh riêng" style={styles.fileMenuItem}>
+                  <Music size={14} /> Custom sounds
+                </button>
               </div>
             </>
           )}
@@ -963,6 +969,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
         onConfirm={closeSketch}
         onCancel={() => setConfirmCloseSketch(false)}
       />
+
+      {showSoundLibrary && (
+        <Modal
+          title="Custom sounds"
+          width={560}
+          onClose={() => setShowSoundLibrary(false)}
+        >
+          <SoundLibraryPanel />
+        </Modal>
+      )}
     </div>
   );
 }

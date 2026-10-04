@@ -29,7 +29,11 @@ export interface AudioRecorder {
  * có micro, 4.E1 bản ghi bị ngắt giữa chừng (vẫn giữ phần đã ghi), 5.1 tự dừng
  * khi chạm 3 phút.
  */
-export function useAudioRecorder(): AudioRecorder {
+function formatLimit(sec: number): string {
+  return sec >= 60 && sec % 60 === 0 ? `${sec / 60} phút` : `${sec} giây`;
+}
+
+export function useAudioRecorder(maxSec: number = MAX_RECORDING_SEC): AudioRecorder {
   const [status, setStatus] = useState<RecorderStatus>("idle");
   const [elapsedSec, setElapsedSec] = useState(0);
   const [level, setLevel] = useState(0);
@@ -154,15 +158,15 @@ export function useAudioRecorder(): AudioRecorder {
       const elapsed = (Date.now() - startedAtRef.current) / 1000;
       setElapsedSec(elapsed);
       // UC-53 luồng 5.1 — chạm giới hạn thì tự dừng và nói rõ lý do.
-      if (elapsed >= MAX_RECORDING_SEC) {
-        setWarning("Đã đạt giới hạn 3 phút nên bản ghi tự dừng.");
+      if (elapsed >= maxSec) {
+        setWarning(`Đã đạt giới hạn ${formatLimit(maxSec)} nên bản ghi tự dừng.`);
         if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       }
     }, 100);
 
     recorder.start();
     setStatus("recording");
-  }, [releaseHardware]);
+  }, [releaseHardware, maxSec]);
 
   const reset = useCallback(() => {
     releaseHardware();

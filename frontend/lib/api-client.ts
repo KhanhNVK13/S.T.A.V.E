@@ -681,3 +681,63 @@ export async function attachAudioSketch(
 export async function listAudioSketches(projectId: string): Promise<AudioSketch[]> {
   return apiFetch(`/projects/${projectId}/audio-sketches`);
 }
+
+// ============================================
+// Custom Sound — UC-56/58/59/118
+// ============================================
+
+export interface CustomSound {
+  id: string;
+  name: string;
+  durationSec: number;
+  sizeBytes: number;
+  source: "uploaded" | "recorded";
+  createdAt: string;
+  playbackUrl: string | null;
+}
+
+export interface CustomSoundLibrary {
+  items: CustomSound[];
+  usedBytes: number;
+  quotaBytes: number;
+}
+
+export async function createCustomSoundUploadUrl(payload: {
+  durationSec: number;
+  sizeBytes: number;
+}): Promise<{ soundId: string; path: string; token: string }> {
+  return apiFetch("/users/me/custom-sounds/upload-url", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function confirmCustomSoundUpload(payload: {
+  soundId: string;
+  name: string;
+  source: "uploaded" | "recorded";
+}): Promise<CustomSound> {
+  return apiFetch("/users/me/custom-sounds", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listCustomSounds(): Promise<CustomSoundLibrary> {
+  return apiFetch("/users/me/custom-sounds");
+}
+
+export async function getCustomSoundUsage(
+  soundId: string,
+): Promise<{ externalProjectCount: number }> {
+  return apiFetch(`/users/me/custom-sounds/${soundId}/usage`);
+}
+
+export async function deleteCustomSound(
+  soundId: string,
+  mode: "self" | "hard",
+): Promise<{ removed: boolean; affectedProjects: number }> {
+  return apiFetch(`/users/me/custom-sounds/${soundId}?mode=${mode}`, {
+    method: "DELETE",
+  });
+}

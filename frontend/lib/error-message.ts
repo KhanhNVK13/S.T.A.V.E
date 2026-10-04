@@ -14,6 +14,7 @@ const API_MESSAGES: Record<string, string> = {
   "Current branch not found": "Không tìm thấy nhánh đang mở. Hãy tải lại trang.",
   "Default branch not found": "Dự án chưa có nhánh mặc định.",
   "User not found": "Không tìm thấy người dùng.",
+  "Custom sound not found": "Không tìm thấy âm thanh này. Có thể bạn vừa xoá nó ở thẻ khác — hãy tải lại.",
   "Profile not found": "Không tìm thấy hồ sơ.",
   "You do not have access to this project": "Bạn không có quyền truy cập dự án này.",
   "You do not have edit access to this project": "Bạn không có quyền chỉnh sửa dự án này.",
