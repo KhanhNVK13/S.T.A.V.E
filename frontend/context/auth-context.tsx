@@ -28,7 +28,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function ensureBusinessSession(): Promise<void> {
+let pendingBusinessSession: Promise<void> | null = null;
+
+function ensureBusinessSession(): Promise<void> {
+  if (!pendingBusinessSession) {
+    pendingBusinessSession = createBusinessSession().finally(() => {
+      pendingBusinessSession = null;
+    });
+  }
+  return pendingBusinessSession;
+}
+
+async function createBusinessSession(): Promise<void> {
   if (getStoredSessionId()) return;
   await apiFetch("/auth/sync-profile", { method: "POST" });
   const { sessionId } = await apiFetch<{ sessionId: string }>(

@@ -118,6 +118,12 @@ export class AuthService {
       .single<UserRow>();
 
     if (error || !created) {
+      const { data: raced } = await this.supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle<UserRow>();
+      if (raced) return raced;
       throw new UnauthorizedException('Could not provision profile');
     }
     return created;
