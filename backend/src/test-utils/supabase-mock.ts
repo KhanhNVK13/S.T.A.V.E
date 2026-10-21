@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface QueryResult {
   data?: unknown;
   error?: unknown;
+  count?: number | null;
 }
 
 const CHAIN_METHODS = [
@@ -105,6 +106,8 @@ function makeBuilder(queue: QueryResult[]): Record<string, jest.Mock> {
   for (const method of CHAIN_METHODS) {
     builder[method] = jest.fn(() => builder);
   }
+
+  builder.select = jest.fn(() => builder);
 
   for (const method of TERMINAL_METHODS) {
     builder[method] = jest.fn(() => settled(take, queue, method));
