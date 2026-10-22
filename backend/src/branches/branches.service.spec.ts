@@ -846,6 +846,25 @@ describe('BE-BRN-04 BranchesService.getBranchHistory', () => {
     );
   });
 
+  it('UTCID04 marks all commits unique when the default branch has no head', async () => {
+    const { service } = makeService({
+      branches: [
+        { data: branch },
+        { data: { ...defaultBranch, head_commit_id: null } },
+        { data: [{ id: branchId }, { id: defaultId }] },
+      ],
+      projects: [{ data: { owner_id: userId } }],
+      commits: [{ data: [{ ...rows[1], parent_commit_id: null }] }],
+      users: [{ data: [{ id: userId }] }],
+      commit_tags: [{ data: [] }],
+    });
+    const result = await service.getBranchHistory(branchId, userId);
+    expect(result.commits).toHaveLength(1);
+    expect(result.commits.every((commit) => commit.isUniqueToBranch)).toBe(
+      true,
+    );
+  });
+
   it('UTCID05 returns an empty history for a null head', async () => {
     const { service } = makeService({
       branches: [
@@ -1321,6 +1340,18 @@ describe('BE-BRN-08 BranchesService.verifyUserEditPermission', () => {
       new NotFoundException('Project not found'),
     );
   });
+
+  it.each([
+    ['UTCID05', userId],
+    ['UTCID06', ''],
+  ])('%s forbids a user who is not the owner', async (_id, caller) => {
+    const { service } = makeService({
+      projects: [{ data: { owner_id: otherBranchId } }],
+    });
+    await expect(service.getProjectBranches(projectId, caller)).rejects.toThrow(
+      new ForbiddenException('You do not have edit permission on this project'),
+    );
+  });
 });
 
 describe('BE-BRN-09 BranchesService.determineStartCommit', () => {
@@ -1530,6 +1561,24 @@ describe('BE-BRN-09 BranchesService.determineStartCommit', () => {
     ).resolves.toEqual(expect.objectContaining({ head_commit_id: commitId }));
   });
 
+  it('UTCID10 uses the head of the branch returned by the default lookup even when it is not flagged default', async () => {
+    const { service } = makeService({
+      branches: [
+        { data: [{ id: sourceId }] },
+        { data: null },
+        { data: { ...startBranch, is_default: false } },
+        { data: makeBranch({ head_commit_id: commitId }) },
+      ],
+      commits: [{ data: [{ id: commitId }] }, { data: { snapshot: {} } }],
+      projects: [{ data: { owner_id: userId } }],
+      drafts: [{ data: null, error: null }],
+      users: [{ data: { id: userId } }],
+    });
+    await expect(
+      service.createBranch(projectId, { name: 'feature-start' }, userId),
+    ).resolves.toEqual(expect.objectContaining({ head_commit_id: commitId }));
+  });
+
   it('UTCID11 returns null when the default branch has no head', async () => {
     const { service } = makeService({
       branches: [
@@ -1616,9 +1665,14 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
     expect(result.activeSnapshot).toEqual(snapshot);
   });
 
-  it.each(['UTCID03', 'UTCID05'])(
+  it.each(['UTCID03', 'UTCID04', 'UTCID05'])(
     '%s uses the empty snapshot when no snapshot is available',
     async (_id) => {
+      const targetRow = {
+        UTCID03: { data: { head_commit_id: null } },
+        UTCID04: { data: null },
+        UTCID05: { data: { head_commit_id: commitId } },
+      }[_id as 'UTCID03' | 'UTCID04' | 'UTCID05'];
       const { service } = makeService({
         projects: [{ data: { owner_id: userId } }, { data: null, error: null }],
         branches: [
@@ -1626,13 +1680,13 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
           {
             data: makeBranch({
               id: otherBranchId,
-              head_commit_id: _id === 'UTCID03' ? null : commitId,
+              head_commit_id: _id === 'UTCID05' ? commitId : null,
             }),
           },
-          { data: _id === 'UTCID03' ? null : { head_commit_id: commitId } },
+          targetRow,
         ],
         drafts: [{ data: null, error: null }, { data: null }],
-        commits: _id === 'UTCID03' ? [] : [{ data: null }],
+        commits: _id === 'UTCID05' ? [{ data: null }] : [],
         users: [{ data: { id: userId } }],
       });
       const result = await service.switchBranch(
@@ -1734,6 +1788,18 @@ describe('BE-BRN-12 BranchesService.findMergeBase', () => {
       commits: [{ data: null }, { data: null }],
     });
     await expect(service.findMergeBase('a', 'z')).resolves.toBeNull();
+  });
+
+  it('UTCID07 gives up after the maximum number of hops', async () => {
+    const { service } = makeService({
+      commits: [
+        { data: { parent_commit_id: null } },
+        ...Array.from({ length: 2000 }, (_, i) => ({
+          data: { parent_commit_id: `n${i + 1}` },
+        })),
+      ],
+    });
+    await expect(service.findMergeBase('a', 'n0')).resolves.toBeNull();
   });
 
   it('UTCID06 returns an ancestor in the other chain', async () => {

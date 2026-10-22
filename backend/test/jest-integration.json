@@ -1,0 +1,14 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".int-spec.ts$",
+  "setupFiles": ["<rootDir>/support/load-test-env.ts"],
+  "testTimeout": 60000,
+  "moduleNameMapper": {
+    "^uuid$": "<rootDir>/support/uuid-shim.ts"
+  },
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  }
+}
