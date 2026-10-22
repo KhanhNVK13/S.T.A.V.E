@@ -11,6 +11,7 @@ out/
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # gitleaks local binary (mỗi dev tự tải qua script, không commit binary)
 .tools/

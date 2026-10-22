@@ -34,3 +34,35 @@ jobs:
       - run: npm run build --workspace=backend
       - run: npm run lint --workspace=backend
       - run: npm test --workspace=backend -- --passWithNoTests
+
+  backend-integration:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      TEST_DB_PROJECT_REF: ${{ secrets.TEST_DB_PROJECT_REF }}
+      TEST_RUN_TAG: ci
+    steps:
+      - name: Check test database secrets
+        id: gate
+        run: |
+          if [ -z "$TEST_DB_PROJECT_REF" ]; then
+            echo "Test database secrets are not set, skipping integration tests."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.gate.outputs.run == 'true'
+        run: rm -f package-lock.json
+      - if: steps.gate.outputs.run == 'true'
+        run: npm install
+      - if: steps.gate.outputs.run == 'true'
+        run: npm run test:int --workspace=backend
