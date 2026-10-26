@@ -16,6 +16,7 @@ import { AudioSketchesModule } from './audio-sketches/audio-sketches.module';
 import { CustomSoundsModule } from './custom-sounds/custom-sounds.module';
 import { ProjectAccessModule } from './project-access/project-access.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { CollaborationModule } from './collaboration/collaboration.module';
     CustomSoundsModule,
     ProjectAccessModule,
     CollaborationModule,
+    CommentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

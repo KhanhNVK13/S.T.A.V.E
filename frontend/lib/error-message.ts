@@ -79,6 +79,15 @@ const API_MESSAGES: Record<string, string> = {
   "Collaborator not found": "Không tìm thấy cộng tác viên này — có thể vừa được gỡ. Hãy tải lại.",
   "Invitation not found": "Lời mời này không còn tồn tại — có thể đã được xử lý. Hãy tải lại.",
   "The project owner cannot be removed": "Không thể gỡ chủ dự án khỏi danh sách cộng tác viên.",
+  // UC-63 (bình luận ghim) — thêm cuối bảng, không sửa dòng cũ.
+  "Comment not found": "Bình luận này không còn tồn tại. Hãy tải lại trang.",
+  "Comment body must not be empty": "Nội dung bình luận không được để trống.",
+  "Comment body must not exceed 1000 characters":
+    "Bình luận tối đa 1000 ký tự.",
+  "Only one level of replies is allowed":
+    "Chỉ được trả lời 1 cấp — không thể trả lời bình luận đã là trả lời.",
+  "You are not allowed to delete this comment":
+    "Bạn không thể xoá bình luận của người khác.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
