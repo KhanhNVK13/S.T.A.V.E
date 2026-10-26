@@ -11,6 +11,7 @@ import { PatchCollaboratorDto } from './dto/patch-collaborator.dto';
 // keeps every mock in this spec self-contained (no shared config change)
 // and produces real v4-format ids so assertions stay format-accurate.
 jest.mock('uuid', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   v4: () => require('crypto').randomUUID(),
 }));
 

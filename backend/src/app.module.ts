@@ -15,6 +15,7 @@ import { MergeModule } from './merge/merge.module';
 import { AudioSketchesModule } from './audio-sketches/audio-sketches.module';
 import { CustomSoundsModule } from './custom-sounds/custom-sounds.module';
 import { ProjectAccessModule } from './project-access/project-access.module';
+import { CollaborationModule } from './collaboration/collaboration.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ProjectAccessModule } from './project-access/project-access.module';
     AudioSketchesModule,
     CustomSoundsModule,
     ProjectAccessModule,
+    CollaborationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
