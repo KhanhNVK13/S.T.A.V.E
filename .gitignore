@@ -17,6 +17,8 @@ out/
 
 # turborepo / test / misc
 coverage/
+test-results/
+*-results*.json
 *.tsbuildinfo
 .DS_Store
 npm-debug.log*
