@@ -66,6 +66,19 @@ const API_MESSAGES: Record<string, string> = {
   "Branch name must not exceed 50 characters": "Tên nhánh tối đa 50 ký tự.",
   "username must be 3-20 chars: lowercase letters, digits, _":
     "Username dài 3–20 ký tự, chỉ gồm chữ thường, chữ số và dấu gạch dưới.",
+  // Collaboration (UC-60/61/62) — thêm cuối bảng, không sửa dòng cũ.
+  "No account matches the provided identifier":
+    "Không tìm thấy tài khoản ứng với thông tin này.",
+  "An invitation is already pending for this person":
+    "Lời mời cho người này đang chờ — không cần mời lại.",
+  "This person is already a collaborator": "Người này đã là cộng tác viên của dự án.",
+  "You are the project owner and already have full access":
+    "Bạn là chủ dự án, không cần mời chính mình.",
+  "The project already has 10 collaborators (including pending invitations)":
+    "Dự án đã đủ 10 cộng tác viên (kể cả lời mời đang chờ).",
+  "Collaborator not found": "Không tìm thấy cộng tác viên này — có thể vừa được gỡ. Hãy tải lại.",
+  "Invitation not found": "Lời mời này không còn tồn tại — có thể đã được xử lý. Hãy tải lại.",
+  "The project owner cannot be removed": "Không thể gỡ chủ dự án khỏi danh sách cộng tác viên.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;

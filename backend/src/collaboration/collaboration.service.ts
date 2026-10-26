@@ -7,6 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type {
+  CollaboratorItem,
+  CollaborationInvitation,
+} from '@stave/shared-types';
 import { v4 as uuidv4 } from 'uuid';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
@@ -25,42 +29,15 @@ interface CollaboratorRow {
   responded_at: string | null;
 }
 
-/** Collaborator list item, with the invited user's profile. */
-export interface CollaboratorItem {
-  id: string;
-  userId: string;
-  permissionLevel: 'view' | 'edit';
-  status: 'pending' | 'accepted';
-  respondedAt: string | null;
-  invitedBy: string;
-  createdAt: string;
-  user: {
-    id: string;
-    username: string | null;
-    displayName: string | null;
-    avatarUrl: string | null;
-  };
-}
-
-/** Invitation row returned to /users/me/collaboration-invitations. */
-export interface InvitationItem {
-  id: string;
-  projectId: string;
-  permissionLevel: 'view' | 'edit';
-  projectName: string | null;
-  inviterName: string | null;
-  invitedAt: string;
-}
-
-/** Cap on collaborators per project, counting pending invitations. */
-const MAX_COLLABORATORS = 10;
-
 /**
  * UC-60/61/62: collaborator invitations, permissions, removal.
  *
  * A collaborator with status = 'pending' has no access at all (BR-65) —
  * access is enforced centrally by ProjectAccessService.
  */
+/** Cap on collaborators per project, counting pending invitations. */
+const MAX_COLLABORATORS = 10;
+
 @Injectable()
 export class CollaborationService {
   constructor(
@@ -189,7 +166,7 @@ export class CollaborationService {
   // UC-60: My pending invitations + accept / decline
   // ==========================================================================
 
-  async getMyInvitations(userId: string): Promise<InvitationItem[]> {
+  async getMyInvitations(userId: string): Promise<CollaborationInvitation[]> {
     const { data: fetched, error } = await this.supabase
       .from('project_collaborators')
       .select('*')
