@@ -846,3 +846,82 @@ describe('BE-AUTH-06 AuthService.listSessions(userId, currentSessionId)', () => 
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-07 (AuthService.revokeSession)
+// ============================================================================
+describe('BE-AUTH-07 AuthService.revokeSession(userId, sessionId)', () => {
+  const makeService = (result: QueryResult) => {
+    const { client, builder } = createSupabaseMock([result]);
+    return { service: new AuthService(client, {} as ConfigService), builder };
+  };
+
+  it('UTCID01 revokes a session owned by the user and resolves void', async () => {
+    const { service, builder } = makeService({ data: { id: 'ses_other' } });
+
+    await expect(
+      service.revokeSession('usr_1', 'ses_other'),
+    ).resolves.toBeUndefined();
+
+    expect(builder.update).toHaveBeenCalledWith({
+      revoked_at: expect.any(String),
+    });
+    expect(builder.eq).toHaveBeenCalledWith('id', 'ses_other');
+    expect(builder.eq).toHaveBeenCalledWith('user_id', 'usr_1');
+  });
+
+  it('UTCID02 revokes the current session on logout and resolves void', async () => {
+    const { service, builder } = makeService({ data: { id: 'ses_current' } });
+
+    await expect(
+      service.revokeSession('usr_1', 'ses_current'),
+    ).resolves.toBeUndefined();
+
+    expect(builder.update).toHaveBeenCalledWith({
+      revoked_at: expect.any(String),
+    });
+    expect(builder.eq).toHaveBeenCalledWith('id', 'ses_current');
+    expect(builder.eq).toHaveBeenCalledWith('user_id', 'usr_1');
+  });
+
+  it('UTCID03 reports the session is no longer active and leaves revoked_at unchanged', async () => {
+    const { service } = makeService({
+      data: { id: 'ses_other', revoked_at: '2026-01-01T00:00:00Z' },
+    });
+
+    const promise = service.revokeSession('usr_1', 'ses_other');
+
+    await expect(promise).rejects.toBeInstanceOf(HttpException);
+    await expect(promise).rejects.toThrow(/no longer active/i);
+  });
+
+  it('UTCID04 throws UnauthorizedException when the session belongs to another user', async () => {
+    const { service } = makeService({ data: null });
+
+    const promise = service.revokeSession('usr_1', 'ses_other');
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Session not found');
+  });
+
+  it('UTCID05 throws UnauthorizedException when the session id does not exist', async () => {
+    const { service } = makeService({ data: null });
+
+    const promise = service.revokeSession('usr_1', 'ses_other');
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Session not found');
+  });
+
+  it('UTCID06 throws UnauthorizedException when the update returns an error', async () => {
+    const { service } = makeService({
+      data: null,
+      error: { message: 'update failed' },
+    });
+
+    const promise = service.revokeSession('usr_1', 'ses_other');
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Session not found');
+  });
+});
+
+// ============================================================================
