@@ -298,3 +298,141 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-03 (AuthService.syncProfile)
+// ============================================================================
+describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
+  const makeUser = (overrides = {}) =>
+    ({
+      id: 'usr_123',
+      email: 'user@stave.io',
+      identities: [{ provider: 'google', id: 'google_456' }],
+      user_metadata: { name: 'Test User' },
+      ...overrides,
+    }) as any;
+
+  const existingRow = {
+    id: 'usr_123',
+    email: 'user@stave.io',
+    username: 'testuser',
+    display_name: 'Test User',
+    google_id: 'google_456',
+  };
+
+  it('UTCID01 returns the existing row unchanged', async () => {
+    const { client, builder } = createSupabaseMock([{ data: existingRow }]);
+    const service = new AuthService(client, {} as ConfigService);
+
+    const result = await service.syncProfile(makeUser());
+
+    expect(result).toBe(existingRow);
+    expect(builder.insert).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 inserts a new row with google_id taken from the Google identity', async () => {
+    const createdRow = { ...existingRow };
+    const { client, builder } = createSupabaseMock([
+      { data: null }, // 1. User check -> không có
+      { data: null }, // 2. Username check -> không trùng
+      { data: createdRow, error: null }, // 3. Insert -> thành công
+    ]);
+    const service = new AuthService(client, {} as ConfigService);
+
+    const result = await service.syncProfile(makeUser());
+
+    expect(result).toEqual(createdRow);
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ google_id: 'google_456' }),
+    );
+  });
+
+  it('UTCID03 inserts a new row with google_id = null when only an email identity exists', async () => {
+    const createdRow = { ...existingRow, google_id: null };
+    const { client, builder } = createSupabaseMock([
+      { data: null },
+      { data: null },
+      { data: createdRow, error: null },
+    ]);
+    const service = new AuthService(client, {} as ConfigService);
+
+    const userWithoutGoogle = makeUser({
+      identities: [{ provider: 'email', id: 'email_123' }],
+    });
+
+    const result = await service.syncProfile(userWithoutGoogle);
+
+    expect(result).toEqual(createdRow);
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ google_id: null }),
+    );
+  });
+
+  it('UTCID04 seeds the username from "user" when email and identities are undefined', async () => {
+    const createdRow = { ...existingRow, username: 'user123' };
+    const { client, builder } = createSupabaseMock([
+      { data: null },
+      { data: null },
+      { data: createdRow, error: null },
+    ]);
+    const service = new AuthService(client, {} as ConfigService);
+
+    const anonymousUser = makeUser({
+      email: undefined,
+      identities: undefined,
+    });
+
+    const result = await service.syncProfile(anonymousUser);
+
+    expect(result).toEqual(createdRow);
+    expect(builder.insert).toHaveBeenCalled();
+  });
+
+  // --- UTCID05 ---
+  it('UTCID05 throws "Could not provision profile" when the insert returns an error', async () => {
+    const { client } = createSupabaseMock([
+      { data: null }, // 1. SELECT profile
+      { data: null }, // 2. SELECT username (seed "an" chưa ai dùng)
+      { data: null, error: new Error('Insert failed') }, // 3. INSERT -> lỗi DB
+      { data: null }, // 4. SELECT lại sau race -> vẫn không có
+    ]);
+
+    const service = new AuthService(client, {} as ConfigService);
+
+    const promise = service.syncProfile(makeUser());
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Could not provision profile');
+  });
+
+  // --- UTCID06 ---
+  it('UTCID06 throws "Could not provision profile" when the insert returns null data', async () => {
+    const { client } = createSupabaseMock([
+      { data: null }, // 1. SELECT profile
+      { data: null }, // 2. SELECT username (seed "an" chưa ai dùng)
+      { data: null, error: null }, // 3. INSERT -> data null
+      { data: null }, // 4. SELECT lại sau race -> vẫn không có
+    ]);
+
+    const service = new AuthService(client, {} as ConfigService);
+
+    const promise = service.syncProfile(makeUser());
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Could not provision profile');
+  });
+  it('UTCID07 (proposed) returns the row created by a concurrent request when the insert hits a duplicate key', async () => {
+    const concurrentRow = { ...existingRow };
+    const { client } = createSupabaseMock([
+      { data: null },
+      { data: null },
+      { data: null, error: { code: '23505' } }, // Duplicate key error
+      { data: concurrentRow }, // Refetch fallback
+    ]);
+    const service = new AuthService(client, {} as ConfigService);
+
+    const result = await service.syncProfile(makeUser());
+
+    expect(result).toEqual(concurrentRow);
+  });
+});
+
+// ============================================================================
