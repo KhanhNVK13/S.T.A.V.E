@@ -1,9 +1,12 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ExploreService } from './explore.service';
 import {
   createSupabaseMock,
   type QueryResult,
-} from '../../test-utils/supabase-mock';
+} from '../test-utils/supabase-mock';
 import type { PublicProjectsQueryDto } from '../projects/dto/public-projects-query.dto';
 
 // ============================================================================
@@ -39,7 +42,11 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
 
   const makeService = (
     main: QueryResult,
-    extra: { fork?: QueryResult; tagIds?: QueryResult; tags?: QueryResult } = {},
+    extra: {
+      fork?: QueryResult;
+      tagIds?: QueryResult;
+      tags?: QueryResult;
+    } = {},
   ) => {
     const tables: Record<string, QueryResult[]> = {
       projects: [main, ...(extra.fork ? [extra.fork] : [])],
@@ -55,9 +62,7 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
   const call = (
     service: ExploreService,
     query: PublicProjectsQueryDto,
-  ): Promise<
-    Awaited<ReturnType<ExploreService['listPublicProjects']>>
-  > =>
+  ): Promise<Awaited<ReturnType<ExploreService['listPublicProjects']>>> =>
     service.listPublicProjects(query);
 
   it('UTCID01 returns 20 per page and totalPages 2 by SRS defaults, ordered created_at desc', async () => {
@@ -157,8 +162,14 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
       sort: 'newest',
     });
 
-    expect(mock.builders.projects.ilike).toHaveBeenCalledWith('genre', '%lofi%');
-    expect(mock.builders.projects.ilike).toHaveBeenCalledWith('name', '%piano%');
+    expect(mock.builders.projects.ilike).toHaveBeenCalledWith(
+      'genre',
+      '%lofi%',
+    );
+    expect(mock.builders.projects.ilike).toHaveBeenCalledWith(
+      'name',
+      '%piano%',
+    );
     expect(result.items).toHaveLength(25);
   });
 
@@ -174,10 +185,7 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
 
     const result = await call(service, { tag: 'chill', sort: 'newest' });
 
-    expect(mock.builders.projects.in).toHaveBeenCalledWith('id', [
-      'p1',
-      'p2',
-    ]);
+    expect(mock.builders.projects.in).toHaveBeenCalledWith('id', ['p1', 'p2']);
     expect(result.items.map((i) => i.id)).toEqual(['p1', 'p2']);
   });
 
@@ -213,9 +221,7 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
       error: { message: 'db error' },
     });
 
-    await expect(
-      call(service, { sort: 'newest' }),
-    ).rejects.toThrow(
+    await expect(call(service, { sort: 'newest' })).rejects.toThrow(
       new InternalServerErrorException('Could not list public projects'),
     );
   });
@@ -232,5 +238,138 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
     const result = await call(service, { sort: 'newest' });
 
     expect(result.items.map((i) => i.id)).toEqual(['pa']);
+  });
+});
+
+// ============================================================================
+// SHEET: BE-EXP-02 (ExploreService.getPublicProject)
+//
+// Mock order per call:
+//   1. projects maybeSingle (main select)
+//   2. rpc increment_project_play_count (only when a row is returned)
+//   3. enrichProjectCards: projects fork-counts + project_tags enrichment
+//      (only when a row is returned)
+// Per-table queues keep the order deterministic.
+// ============================================================================
+describe('BE-EXP-02 ExploreService.getPublicProject(id)', () => {
+  const row = (ownerId: string) => ({
+    id: 'proj_1',
+    name: 'Detail Project',
+    description: null,
+    genre: null,
+    visibility: 'public' as const,
+    archived_at: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    play_count: 42,
+    owner: {
+      id: ownerId,
+      username: 'owner',
+      display_name: null,
+      avatar_url: null,
+    },
+  });
+
+  const makeService = (
+    main: QueryResult,
+    rpcResult?: QueryResult,
+    extra: { fork?: QueryResult; tags?: QueryResult } = {},
+  ) => {
+    const tables: Record<string, QueryResult[]> = {
+      projects: [main, ...(extra.fork ? [extra.fork] : [])],
+      project_tags: extra.tags ? [extra.tags] : [],
+    };
+    const options: Parameters<typeof createSupabaseMock>[1] = { tables };
+    if (rpcResult) {
+      options.rpc = {
+        increment_project_play_count: [rpcResult],
+      };
+    }
+    const mock = createSupabaseMock([], options);
+    return { service: new ExploreService(mock.client), mock };
+  };
+
+  it('UTCID01 returns the card without incrementing play_count on view, even when the RPC returns 43', async () => {
+    const { service, mock } = makeService(
+      { data: row('usr_active') },
+      { data: 43 },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    const result = await service.getPublicProject('proj_1');
+
+    expect(result.id).toBe('proj_1');
+    expect(mock.rpc).toHaveBeenCalledWith('increment_project_play_count', {
+      p_project_id: 'proj_1',
+    });
+    expect(result.play_count).toBe(42);
+  });
+
+  it('UTCID02 returns the card with play_count left at 42 when the RPC returns an error', async () => {
+    const { service } = makeService(
+      { data: row('usr_active') },
+      { data: null, error: { message: 'rpc failed' } },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    const result = await service.getPublicProject('proj_1');
+
+    expect(result.id).toBe('proj_1');
+    expect(result.play_count).toBe(42);
+  });
+
+  it('UTCID03 throws NotFoundException when the project is private', async () => {
+    const { service } = makeService({ data: null });
+
+    await expect(service.getPublicProject('proj_1')).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+  });
+
+  it('UTCID04 throws NotFoundException when the project is archived', async () => {
+    const { service } = makeService({ data: null });
+
+    await expect(service.getPublicProject('proj_1')).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+  });
+
+  it('UTCID05 throws NotFoundException when the project is moderation-hidden', async () => {
+    const { service } = makeService({ data: null });
+
+    await expect(service.getPublicProject('proj_1')).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+  });
+
+  it('UTCID06 throws NotFoundException when the project id is not found', async () => {
+    const { service } = makeService({ data: null });
+
+    await expect(service.getPublicProject('nope')).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+  });
+
+  it('UTCID07 throws NotFoundException when the Supabase select returns an error', async () => {
+    const { service } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    await expect(service.getPublicProject('proj_1')).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+  });
+
+  it('UTCID08 throws NotFoundException for a public project of a suspended owner (BR-109)', async () => {
+    const { service } = makeService(
+      { data: row('usr_suspended') },
+      { data: 43 },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    await expect(service.getPublicProject('proj_1')).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
   });
 });
