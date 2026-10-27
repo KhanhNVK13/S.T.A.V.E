@@ -373,3 +373,127 @@ describe('BE-EXP-02 ExploreService.getPublicProject(id)', () => {
     );
   });
 });
+
+// ============================================================================
+// SHEET: BE-EXP-03 (ExploreService.getPublicUserProfile)
+//
+// Mock order per call:
+//   1. users maybeSingle (profile)
+//   2. projects owned query (count exact) - error not checked
+//   3. (ids > 0) projects fork query
+// Per-table queues keep the order deterministic.
+// ============================================================================
+describe('BE-EXP-03 ExploreService.getPublicUserProfile(id)', () => {
+  const userRow = {
+    id: 'usr_1',
+    username: 'creator',
+    display_name: 'Creator',
+    avatar_url: 'https://x.io/a.png',
+    bio: 'bio',
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
+  const owned = (ids: string[], error = false): QueryResult => ({
+    data: error ? null : ids.map((id) => ({ id })),
+    error: error ? { message: 'db error' } : undefined,
+    count: error ? null : ids.length,
+  });
+
+  const makeService = (user: QueryResult, projects?: QueryResult[]) => {
+    const tables: Record<string, QueryResult[]> = { users: [user] };
+    if (projects) tables.projects = projects;
+    const mock = createSupabaseMock([], { tables });
+    return { service: new ExploreService(mock.client), mock };
+  };
+
+  it('UTCID01 returns the profile with totals of 3 public projects and 5 forks', async () => {
+    const { service, mock } = makeService({ data: userRow }, [
+      owned(['p1', 'p2', 'p3']),
+      { data: [], count: 5 },
+    ]);
+
+    const result = await service.getPublicUserProfile('usr_1');
+
+    expect(result.username).toBe('creator');
+    expect(result.bio).toBe('bio');
+    expect(result.total_public_projects).toBe(3);
+    expect(result.total_forks).toBe(5);
+    expect(mock.builders.projects.in).toHaveBeenCalledWith(
+      'forked_from_project_id',
+      ['p1', 'p2', 'p3'],
+    );
+  });
+
+  it('UTCID02 returns zero totals and skips the fork query when the user has no public projects', async () => {
+    const { service, mock } = makeService({ data: userRow }, [owned([])]);
+
+    const result = await service.getPublicUserProfile('usr_1');
+
+    expect(result.total_public_projects).toBe(0);
+    expect(result.total_forks).toBe(0);
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+  });
+
+  it('UTCID03 returns 3 public projects and 0 forks when nothing was forked', async () => {
+    const { service } = makeService({ data: userRow }, [
+      owned(['p1', 'p2', 'p3']),
+      { data: [], count: 0 },
+    ]);
+
+    const result = await service.getPublicUserProfile('usr_1');
+
+    expect(result.total_public_projects).toBe(3);
+    expect(result.total_forks).toBe(0);
+  });
+
+  it('UTCID04 returns the profile with zero totals when the projects query errors', async () => {
+    const { service } = makeService({ data: userRow }, [
+      { data: null, error: { message: 'db error' }, count: null },
+    ]);
+
+    const result = await service.getPublicUserProfile('usr_1');
+
+    expect(result.id).toBe('usr_1');
+    expect(result.total_public_projects).toBe(0);
+    expect(result.total_forks).toBe(0);
+  });
+
+  it('UTCID05 throws NotFoundException when the user is not found', async () => {
+    const { service } = makeService({ data: null });
+
+    await expect(service.getPublicUserProfile('nope')).rejects.toThrow(
+      new NotFoundException('User not found'),
+    );
+  });
+
+  it('UTCID06 throws NotFoundException when the user select returns an error', async () => {
+    const { service } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    await expect(service.getPublicUserProfile('usr_1')).rejects.toThrow(
+      new NotFoundException('User not found'),
+    );
+  });
+
+  it('UTCID07 throws NotFoundException for a suspended account (UC-10 1.E2)', async () => {
+    const { service } = makeService({ data: userRow }, [owned([])]);
+
+    await expect(service.getPublicUserProfile('usr_1')).rejects.toThrow(
+      new NotFoundException('User not found'),
+    );
+  });
+
+  it('UTCID08 counts only visible public projects, excluding the moderation-hidden one', async () => {
+    const { service } = makeService({ data: userRow }, [
+      owned(['p1', 'p2', 'p3', 'p4']),
+      { data: [], count: 0 },
+    ]);
+
+    const result = await service.getPublicUserProfile('usr_1');
+
+    expect(result.total_public_projects).toBe(3);
+    expect(result.total_forks).toBe(0);
+  });
+});
