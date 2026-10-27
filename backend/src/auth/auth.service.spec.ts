@@ -999,3 +999,139 @@ describe('BE-AUTH-08 AuthService.revokeOtherSessions(userId, accessToken, curren
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-09 (AuthService.changePassword)
+// ============================================================================
+describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, newPassword, accessToken, currentSessionId)', () => {
+  const makeService = (signOut: QueryResult = { data: null, error: null }) => {
+    const mock = createSupabaseMock([{ data: null, error: null }], {
+      authAdmin: { signOut },
+    });
+    return {
+      service: new AuthService(mock.client, {} as ConfigService),
+      builder: mock.builder,
+      signOut: mock.auth.admin.signOut,
+    };
+  };
+
+  const change = (
+    service: AuthService,
+    newPassword: string,
+    currentPassword = 'OldPass#1',
+  ) =>
+    service.changePassword(
+      'usr_1',
+      'user@stave.io',
+      currentPassword,
+      newPassword,
+      'token_1',
+      'ses_current',
+    );
+
+  const stubCollaborators = (
+    service: AuthService,
+    opts: {
+      verified?: boolean;
+      selfUpdate?: () => Promise<void>;
+    } = {},
+  ) => {
+    const { verified = true, selfUpdate } = opts;
+    const verifySpy = jest
+      .spyOn(
+        service as unknown as { verifyPassword: () => Promise<boolean> },
+        'verifyPassword',
+      )
+      .mockResolvedValue(verified);
+    const selfUpdateSpy = jest
+      .spyOn(
+        service as unknown as { selfUpdatePassword: () => Promise<void> },
+        'selfUpdatePassword',
+      )
+      .mockImplementation(selfUpdate ?? (() => Promise.resolve(undefined)));
+    const revokeSpy = jest
+      .spyOn(
+        service as unknown as {
+          revokeOtherSessions: () => Promise<void>;
+        },
+        'revokeOtherSessions',
+      )
+      .mockResolvedValue(undefined);
+    return { verifySpy, selfUpdateSpy, revokeSpy };
+  };
+
+  it('UTCID01 updates the password, revokes other sessions and sends the notification email', async () => {
+    const { service, builder } = makeService();
+    const { verifySpy, selfUpdateSpy, revokeSpy } = stubCollaborators(service);
+
+    await expect(change(service, 'NewPass#2026')).resolves.toBeUndefined();
+
+    expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'OldPass#1');
+    expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'NewPass#2026');
+    expect(revokeSpy).toHaveBeenCalledWith('usr_1', 'token_1', 'ses_current');
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'usr_1',
+        type: expect.stringMatching(/password/i),
+      }),
+    );
+  });
+
+  it('UTCID02 updates the password, revokes other sessions and sends the notification email for an 8-char password', async () => {
+    const { service, builder } = makeService();
+    const { verifySpy, selfUpdateSpy, revokeSpy } = stubCollaborators(service);
+
+    await expect(change(service, 'abcdefgh')).resolves.toBeUndefined();
+
+    expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'OldPass#1');
+    expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'abcdefgh');
+    expect(revokeSpy).toHaveBeenCalledWith('usr_1', 'token_1', 'ses_current');
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'usr_1',
+        type: expect.stringMatching(/password/i),
+      }),
+    );
+  });
+
+  it('UTCID03 throws UnauthorizedException when the current password is incorrect', async () => {
+    const { service } = makeService();
+    const { selfUpdateSpy, revokeSpy } = stubCollaborators(service, {
+      verified: false,
+    });
+
+    const promise = change(service, 'NewPass#2026', 'wrong');
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Current password is incorrect');
+    expect(selfUpdateSpy).not.toHaveBeenCalled();
+    expect(revokeSpy).not.toHaveBeenCalled();
+  });
+
+  it('UTCID04 propagates UnauthorizedException when the password update fails', async () => {
+    const { service } = makeService();
+    const { selfUpdateSpy, revokeSpy } = stubCollaborators(service, {
+      selfUpdate: () =>
+        Promise.reject(new UnauthorizedException('Could not update password')),
+    });
+
+    const promise = change(service, 'NewPass#2026');
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Could not update password');
+    expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'NewPass#2026');
+    expect(revokeSpy).not.toHaveBeenCalled();
+  });
+
+  it('UTCID05 throws BadRequestException when the new password equals the current one', async () => {
+    const { service } = makeService();
+    const { selfUpdateSpy, revokeSpy } = stubCollaborators(service);
+
+    const promise = change(service, 'OldPass#1');
+
+    await expect(promise).rejects.toBeInstanceOf(BadRequestException);
+    await expect(promise).rejects.toThrow(/differ/i);
+    expect(selfUpdateSpy).not.toHaveBeenCalled();
+    expect(revokeSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
