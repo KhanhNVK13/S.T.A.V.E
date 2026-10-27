@@ -158,11 +158,25 @@ function fakeProjectAccess(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** UC-64: the gateway only *emits* here; its real behavior has its own spec. */
+function fakeGateway() {
+  return {
+    emitPermissionChanged: jest.fn(),
+    revokeUserAccess: jest.fn(),
+    emitBranchMoved: jest.fn(),
+  };
+}
+
 function makeService(
   rows: Record<string, Row[]> = {},
   access = fakeProjectAccess(),
+  gateway = fakeGateway(),
 ) {
-  return new CollaborationService(mockSupabase(rows), access as never);
+  return new CollaborationService(
+    mockSupabase(rows),
+    access as never,
+    gateway as never,
+  );
 }
 
 const OWNER = 'owner-1';

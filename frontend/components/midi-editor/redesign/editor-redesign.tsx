@@ -66,6 +66,8 @@ import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
 import { CollaboratorsDialog } from "../../collaboration/collaborators-dialog";
 import { CommentsPanel } from "../../collaboration/comments-panel";
+import { PresenceAvatars } from "../../collaboration/presence-avatars";
+import { useAuth } from "../../../context/auth-context";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import type { AudioSketchState } from "../../audio-sketch/audio-sketch-panel";
 import { ConfirmDialog } from "../../ui/confirm-dialog";
@@ -250,6 +252,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
   // UC-63: panel "Bình luận ghim" mép phải — chỉ gắn 1 nút toggle, không
   // đụng logic soạn nhạc hiện có.
   const [commentsOpen, setCommentsOpen] = useState(false);
+  // UC-64: stack avatar người đang cùng mở project (chỉ thêm 1 component).
+  const { user: currentUser } = useAuth();
   const [tipVisible, setTipVisible] = useState(() => {
     try {
       return typeof window !== "undefined" && window.localStorage.getItem(TIP_KEY) !== "1";
@@ -537,6 +541,12 @@ export function EditorRedesign(props: EditorRedesignProps) {
           >
             <Users size={14} />
           </button>
+          {/* UC-64: người đang xem cùng project — ẩn khi không có ai khác. */}
+          <PresenceAvatars
+            projectId={projectId}
+            myId={currentUser?.id ?? null}
+            onBranchMoved={() => vc.reloadHistory()}
+          />
           {/* UC-63: bật/tắt panel bình luận ghim — chỉ thêm, không đổi logic. */}
           <button
             type="button"

@@ -38,3 +38,22 @@ export interface CollaborationInvitation {
   inviterName: string | null;
   invitedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// UC-64 Presence — live "who is in this project right now" over Socket.IO.
+// Pure in-RAM server state (BR-70: never persisted to the DB).
+// ---------------------------------------------------------------------------
+
+/** One person currently viewing a project. Multiple tabs = one avatar. */
+export interface PresenceUser {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+/** Payload of `presence:update` — the full room roster after a join/leave. */
+export interface PresenceUpdatePayload {
+  projectId: string;
+  users: PresenceUser[];
+}

@@ -14,6 +14,7 @@ import type {
 import { v4 as uuidv4 } from 'uuid';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import { CollaborationGateway } from './collaboration.gateway';
 import { InviteCollaboratorDto } from './dto/invite-collaborator.dto';
 import { PatchCollaboratorDto } from './dto/patch-collaborator.dto';
 
@@ -44,6 +45,7 @@ export class CollaborationService {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly projectAccess: ProjectAccessService,
+    private readonly gateway: CollaborationGateway,
   ) {}
 
   // ==========================================================================
@@ -272,11 +274,14 @@ export class CollaborationService {
 
     const updated = { ...row, permission_level: dto.permissionLevel };
 
-    // Notify the changed person. If they are currently in the project and
-    // lost edit access, the browser picks it up live via
-    // `collab:permission_changed` on the collab gateway.
-    // TODO(UC-64): replace with CollaborationGateway.toRoom(projectId).emit(
-    //   'collab:permission_changed', { collaboratorId, permissionLevel }).
+    // UC-61 3.E1: the changed person's open tabs hear about it live via
+    // `collab:permission_changed` on the collab gateway — a downgraded user
+    // keeps their draft but loses commit access immediately.
+    this.gateway.emitPermissionChanged(projectId, {
+      collaboratorId: row.id,
+      userId: row.user_id,
+      permissionLevel: dto.permissionLevel,
+    });
     this.emitNotification({
       userId: row.user_id,
       type: 'collab.permission_changed',
@@ -338,10 +343,10 @@ export class CollaborationService {
       // row.user_id) once the shared function exists — do not patch
       // DraftsService from this module.
       //
-      // Their open tabs hear about it via `collab:access_revoked` on the
-      // collab gateway and redirect to /projects (5.E1).
-      // TODO(UC-64): replace with CollaborationGateway.toRoom(projectId)
-      //   .emit('collab:access_revoked', { userId: row.user_id }).
+      // UC-62 5.E1: their open tabs hear about it live via
+      // `collab:access_revoked` — show "your access ended", redirect to
+      // /projects, and get force-disconnected from the presence room.
+      this.gateway.revokeUserAccess(projectId, row.user_id, row.id);
       this.emitNotification({
         userId: row.user_id,
         type: 'collab.access_removed',

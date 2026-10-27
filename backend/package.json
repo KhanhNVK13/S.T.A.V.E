@@ -24,6 +24,8 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.2.8",
+    "@nestjs/websockets": "^11.2.8",
     "@stave/shared-types": "0.0.1",
     "@supabase/supabase-js": "^2.112.4",
     "@types/uuid": "^10.0.0",
@@ -31,6 +33,7 @@
     "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.4",
     "uuid": "^14.0.2"
   },
   "devDependencies": {
