@@ -497,3 +497,105 @@ describe('BE-EXP-03 ExploreService.getPublicUserProfile(id)', () => {
     expect(result.total_forks).toBe(0);
   });
 });
+
+// ============================================================================
+// SHEET: BE-EXP-04 (ExploreService.getUserPublicProjects)
+//
+// Mock order per call:
+//   1. projects main query (await directly, ordered created_at desc)
+//   2. (items > 0) project_tags + projects fork-counts enrichment
+// Per-table queues keep the order deterministic.
+// ============================================================================
+describe('BE-EXP-04 ExploreService.getUserPublicProjects(id)', () => {
+  const row = (id: string, ownerId: string, createdAt: string) => ({
+    id,
+    name: `Project ${id}`,
+    description: null,
+    genre: null,
+    visibility: 'public' as const,
+    archived_at: null,
+    created_at: createdAt,
+    updated_at: createdAt,
+    play_count: 0,
+    owner: {
+      id: ownerId,
+      username: 'owner',
+      display_name: null,
+      avatar_url: null,
+    },
+  });
+
+  const makeService = (
+    main: QueryResult,
+    extra: { fork?: QueryResult; tags?: QueryResult } = {},
+  ) => {
+    const tables: Record<string, QueryResult[]> = {
+      projects: [main, ...(extra.fork ? [extra.fork] : [])],
+      project_tags: extra.tags ? [extra.tags] : [],
+    };
+    const mock = createSupabaseMock([], { tables });
+    return { service: new ExploreService(mock.client), mock };
+  };
+
+  it('UTCID01 returns the 2 enriched cards, newest first', async () => {
+    const { service, mock } = makeService(
+      {
+        data: [
+          row('p2', 'usr_1', '2026-02-01T00:00:00Z'),
+          row('p1', 'usr_1', '2026-01-01T00:00:00Z'),
+        ],
+      },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    const result = await service.getUserPublicProjects('usr_1');
+
+    expect(mock.builders.projects.order).toHaveBeenCalledWith('created_at', {
+      ascending: false,
+    });
+    expect(result.map((c) => c.id)).toEqual(['p2', 'p1']);
+  });
+
+  it('UTCID02 returns [] when the user has no visible public projects', async () => {
+    const { service } = makeService({ data: [] });
+
+    const result = await service.getUserPublicProjects('usr_1');
+
+    expect(result).toEqual([]);
+  });
+
+  it('UTCID03 returns [] for a non-existent user id', async () => {
+    const { service } = makeService({ data: [] });
+
+    const result = await service.getUserPublicProjects('nope');
+
+    expect(result).toEqual([]);
+  });
+
+  it('UTCID04 throws InternalServerErrorException when the query errors', async () => {
+    const { service } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    await expect(service.getUserPublicProjects('usr_1')).rejects.toThrow(
+      new InternalServerErrorException('Could not list user projects'),
+    );
+  });
+
+  it('UTCID05 returns [] for a suspended owner with 2 public projects (BR-109)', async () => {
+    const { service } = makeService(
+      {
+        data: [
+          row('p2', 'usr_suspended', '2026-02-01T00:00:00Z'),
+          row('p1', 'usr_suspended', '2026-01-01T00:00:00Z'),
+        ],
+      },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    const result = await service.getUserPublicProjects('usr_suspended');
+
+    expect(result).toEqual([]);
+  });
+});
