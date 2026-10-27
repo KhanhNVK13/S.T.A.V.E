@@ -925,3 +925,77 @@ describe('BE-AUTH-07 AuthService.revokeSession(userId, sessionId)', () => {
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-08 (AuthService.revokeOtherSessions)
+// ============================================================================
+describe('BE-AUTH-08 AuthService.revokeOtherSessions(userId, accessToken, currentSessionId)', () => {
+  const makeService = (
+    updateResult: QueryResult,
+    signOut: QueryResult = { data: null, error: null },
+  ) => {
+    const mock = createSupabaseMock([updateResult], {
+      authAdmin: { signOut },
+    });
+    return {
+      service: new AuthService(mock.client, {} as ConfigService),
+      builder: mock.builder,
+      signOut: mock.auth.admin.signOut,
+    };
+  };
+
+  it('UTCID01 revokes the other active sessions and keeps the current one', async () => {
+    const { service, builder, signOut } = makeService({
+      data: [{ id: 'ses_a' }, { id: 'ses_b' }],
+    });
+
+    await expect(
+      service.revokeOtherSessions('usr_1', 'token_1', 'ses_current'),
+    ).resolves.toBeUndefined();
+
+    expect(builder.update).toHaveBeenCalledWith({
+      revoked_at: expect.any(String),
+    });
+    expect(builder.eq).toHaveBeenCalledWith('user_id', 'usr_1');
+    expect(builder.is).toHaveBeenCalledWith('revoked_at', null);
+    expect(builder.neq).toHaveBeenCalledWith('id', 'ses_current');
+    expect(signOut).toHaveBeenCalledWith('token_1', 'others');
+  });
+
+  it('UTCID02 updates no rows and still calls signOut when only the current session is active', async () => {
+    const { service, builder, signOut } = makeService({ data: [] });
+
+    await expect(
+      service.revokeOtherSessions('usr_1', 'token_1', 'ses_current'),
+    ).resolves.toBeUndefined();
+
+    expect(builder.neq).toHaveBeenCalledWith('id', 'ses_current');
+    expect(signOut).toHaveBeenCalledWith('token_1', 'others');
+  });
+
+  it('UTCID03 resolves void and ignores the error when the update fails', async () => {
+    const { service, signOut } = makeService({
+      data: null,
+      error: { message: 'update failed' },
+    });
+
+    await expect(
+      service.revokeOtherSessions('usr_1', 'token_1', 'ses_current'),
+    ).resolves.toBeUndefined();
+
+    expect(signOut).toHaveBeenCalledWith('token_1', 'others');
+  });
+
+  it('UTCID04 resolves void and ignores the error when signOut returns an error', async () => {
+    const { service, signOut } = makeService(
+      { data: [{ id: 'ses_a' }] },
+      { data: null, error: { message: 'sign out failed' } },
+    );
+
+    await expect(
+      service.revokeOtherSessions('usr_1', 'token_1', 'ses_current'),
+    ).resolves.toBeUndefined();
+
+    expect(signOut).toHaveBeenCalledWith('token_1', 'others');
+  });
+});
+
+// ============================================================================
