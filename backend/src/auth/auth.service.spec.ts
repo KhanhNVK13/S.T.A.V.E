@@ -1,138 +1,163 @@
-import { UnauthorizedException } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
-import type { User } from '@supabase/supabase-js';
-import { createSupabaseMock } from '../test-utils/supabase-mock';
-import type { UserRow } from '../users/user-row.type';
 import { AuthService } from './auth.service';
+import { ConfigService } from '@nestjs/config';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { Request as ExpressRequest } from 'express';
+import {
+  createSupabaseMock,
+  type QueryResult,
+} from '../test-utils/supabase-mock';
 
-function makeUser(overrides: Partial<User> = {}): User {
-  return {
-    id: 'a3b1c9f0-4d2e-4f6a-9c1b-0a1b2c3d4e5f',
-    email: 'an@stave.io',
-    identities: [],
-    ...overrides,
-  } as User;
-}
+// ============================================================================
+// SHEET: BE-AUTH-01 (AuthService.verifyPassword)
+// ============================================================================
+describe('BE-AUTH-01 AuthService.verifyPassword(email, password)', () => {
+  const originalFetch = global.fetch;
 
-function makeService(results: Parameters<typeof createSupabaseMock>[0]) {
-  const mock = createSupabaseMock(results);
-  const service = new AuthService(mock.client, {} as ConfigService);
-  return { service, ...mock };
-}
-
-describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
-  const existingRow = { id: 'a3b1c9f0', username: 'an' } as unknown as UserRow;
-  const createdRow = { id: 'a3b1c9f0', username: 'an' } as unknown as UserRow;
-
-  it('UTCID01 returns the existing row unchanged', async () => {
-    const { service, builder } = makeService([{ data: existingRow }]);
-
-    const result = await service.syncProfile(makeUser());
-
-    expect(result).toBe(existingRow);
-    expect(builder.insert).not.toHaveBeenCalled();
+  afterEach(() => {
+    jest.restoreAllMocks();
+    global.fetch = originalFetch;
   });
 
-  it('UTCID02 inserts a new row with google_id taken from the Google identity', async () => {
-    const { service, builder } = makeService([
-      { data: null },
-      { data: null },
-      { data: createdRow },
-    ]);
-    const user = makeUser({
-      identities: [{ provider: 'google', id: 'g-123' }] as User['identities'],
-    });
+  const makeConfig = (missingKey?: string) =>
+    ({
+      getOrThrow: jest.fn((key: string) => {
+        if (key === missingKey) {
+          throw new TypeError(`Configuration key "${key}" does not exist`);
+        }
+        if (key === 'SUPABASE_URL') return 'https://example.supabase.co';
+        if (key === 'SUPABASE_SERVICE_ROLE_KEY') return 'service-role-key';
+        throw new TypeError(`Configuration key "${key}" does not exist`);
+      }),
+    }) as unknown as ConfigService;
 
-    const result = await service.syncProfile(user);
+  const makeService = (missingKey?: string) => {
+    const { client } = createSupabaseMock();
+    return new AuthService(client, makeConfig(missingKey));
+  };
 
-    expect(result).toBe(createdRow);
-    expect(builder.insert).toHaveBeenCalledWith(
+  const callVerifyPassword = (
+    service: AuthService,
+    email: string,
+    password: string,
+  ): Promise<boolean> =>
+    (
+      service as unknown as {
+        verifyPassword(email: string, password: string): Promise<boolean>;
+      }
+    ).verifyPassword(email, password);
+
+  it('UTCID01 returns true when the token endpoint responds 200 OK', async () => {
+    const service = makeService();
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ access_token: 'valid-token' }),
+    } as unknown as Response);
+
+    const result = await callVerifyPassword(
+      service,
+      'user@stave.io',
+      'Correct#123',
+    );
+
+    expect(result).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.supabase.co/auth/v1/token?grant_type=password',
       expect.objectContaining({
-        id: user.id,
-        email: 'an@stave.io',
-        username: 'an',
-        display_name: 'an',
-        google_id: 'g-123',
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'user@stave.io',
+          password: 'Correct#123',
+        }),
       }),
     );
   });
 
-  it('UTCID03 inserts a new row with google_id = null when only an email identity exists', async () => {
-    const { service, builder } = makeService([
-      { data: null },
-      { data: null },
-      { data: createdRow },
-    ]);
-    const user = makeUser({
-      identities: [{ provider: 'email', id: 'e-1' }] as User['identities'],
-    });
+  it('UTCID02 returns false when the token endpoint responds 400 invalid_grant', async () => {
+    const service = makeService();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ error: 'invalid_grant' }),
+    } as unknown as Response);
 
-    const result = await service.syncProfile(user);
+    const result = await callVerifyPassword(service, 'user@stave.io', 'wrong');
 
-    expect(result).toBe(createdRow);
-    expect(builder.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ google_id: null }),
-    );
+    expect(result).toBe(false);
   });
 
-  it('UTCID04 seeds the username from "user" when email and identities are undefined', async () => {
-    const { service, builder } = makeService([
-      { data: null },
-      { data: null },
-      { data: createdRow },
-    ]);
-    const user = makeUser({ email: undefined, identities: undefined });
+  it('UTCID03 returns false when the token endpoint responds 500', async () => {
+    const service = makeService();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ error: 'internal_server_error' }),
+    } as unknown as Response);
 
-    const result = await service.syncProfile(user);
-
-    expect(result).toBe(createdRow);
-    expect(builder.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ username: 'user', google_id: null }),
+    const result = await callVerifyPassword(
+      service,
+      'user@stave.io',
+      'Correct#123',
     );
+
+    expect(result).toBe(false);
   });
 
-  it('UTCID05 throws "Could not provision profile" when the insert returns an error', async () => {
-    const { service } = makeService([
-      { data: null },
-      { data: null },
-      { data: null, error: { code: '23505', message: 'duplicate key' } },
-      { data: null },
-    ]);
-    const user = makeUser({
-      identities: [{ provider: 'google', id: 'g-123' }] as User['identities'],
-    });
+  it('UTCID04 returns false when the token endpoint responds 400 for an empty email', async () => {
+    const service = makeService();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ error: 'invalid_grant' }),
+    } as unknown as Response);
 
-    await expect(service.syncProfile(user)).rejects.toThrow(
-      new UnauthorizedException('Could not provision profile'),
-    );
+    const result = await callVerifyPassword(service, '', 'Correct#123');
+
+    expect(result).toBe(false);
   });
 
-  it('UTCID06 throws "Could not provision profile" when the insert returns null data', async () => {
-    const { service } = makeService([
-      { data: null },
-      { data: null },
-      { data: null, error: null },
-      { data: null },
-    ]);
-    const user = makeUser({
-      identities: [{ provider: 'email', id: 'e-1' }] as User['identities'],
-    });
+  it('UTCID05 throws TypeError when SUPABASE_URL is missing in config', async () => {
+    const service = makeService('SUPABASE_URL');
+    const fetchMock = jest.spyOn(global, 'fetch');
 
-    await expect(service.syncProfile(user)).rejects.toThrow(
-      new UnauthorizedException('Could not provision profile'),
+    await expect(
+      callVerifyPassword(service, 'user@stave.io', 'Correct#123'),
+    ).rejects.toThrow(
+      new TypeError('Configuration key "SUPABASE_URL" does not exist'),
     );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('UTCID07 (proposed) returns the row created by a concurrent request when the insert hits a duplicate key', async () => {
-    const { service } = makeService([
-      { data: null },
-      { data: null },
-      { data: null, error: { code: '23505', message: 'duplicate key' } },
-      { data: existingRow },
-    ]);
+  it('UTCID06 throws TypeError when the fetch call rejects', async () => {
+    const service = makeService();
+    jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValue(new TypeError('fetch failed'));
 
-    const result = await service.syncProfile(makeUser());
+    await expect(
+      callVerifyPassword(service, 'user@stave.io', 'Correct#123'),
+    ).rejects.toThrow(new TypeError('fetch failed'));
+  });
 
-    expect(result).toBe(existingRow);
+  it('UTCID07 throws TypeError when SUPABASE_SERVICE_ROLE_KEY is missing in config', async () => {
+    const service = makeService('SUPABASE_SERVICE_ROLE_KEY');
+    const fetchMock = jest.spyOn(global, 'fetch');
+
+    await expect(
+      callVerifyPassword(service, 'user@stave.io', 'Correct#123'),
+    ).rejects.toThrow(
+      new TypeError(
+        'Configuration key "SUPABASE_SERVICE_ROLE_KEY" does not exist',
+      ),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+// ============================================================================
