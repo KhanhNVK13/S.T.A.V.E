@@ -538,3 +538,212 @@ describe('BE-AUTH-04 AuthService.generateUniqueUsername(email)', () => {
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-05 (AuthService.registerSession)
+// ============================================================================
+describe('BE-AUTH-05 AuthService.registerSession(userId, accessToken, req, deviceLabel)', () => {
+  const makeReq = (
+    overrides: {
+      userAgent?: string | string[];
+      ip?: string;
+    } = {},
+  ) =>
+    ({
+      headers:
+        overrides.userAgent === undefined
+          ? {}
+          : { 'user-agent': overrides.userAgent },
+      ip: overrides.ip,
+    }) as unknown as ExpressRequest;
+
+  const makeService = (
+    results: QueryResult[],
+    signOut: QueryResult = { data: null, error: null },
+  ) => {
+    const mock = createSupabaseMock(results, {
+      authAdmin: { signOut },
+    });
+    return {
+      service: new AuthService(mock.client, {} as ConfigService),
+      builder: mock.builder,
+      signOut: mock.auth.admin.signOut,
+    };
+  };
+
+  it('UTCID01 returns the session id and stores the given device label', async () => {
+    const { service, builder, signOut } = makeService([
+      { data: { status: 'active' } },
+      { data: { id: 'ses_123' } },
+    ]);
+
+    const result = await service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        ip: '203.0.113.5',
+      }),
+      'Chrome on Windows',
+    );
+
+    expect(result).toEqual({ sessionId: 'ses_123' });
+    expect(builder.insert).toHaveBeenCalledWith({
+      user_id: 'usr_123',
+      device_label: 'Chrome on Windows',
+      ip_address: '203.0.113.5',
+    });
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 truncates the device label to 200 characters', async () => {
+    const longLabel = 'a'.repeat(201);
+    const { service, builder } = makeService([
+      { data: { status: 'active' } },
+      { data: { id: 'ses_123' } },
+    ]);
+
+    const result = await service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        ip: '203.0.113.5',
+      }),
+      longLabel,
+    );
+
+    expect(result).toEqual({ sessionId: 'ses_123' });
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ device_label: 'a'.repeat(200) }),
+    );
+    expect(builder.insert.mock.calls[0][0].device_label).toHaveLength(200);
+  });
+
+  it('UTCID03 falls back to the user-agent when no device label is given', async () => {
+    const { service, builder } = makeService([
+      { data: { status: 'active' } },
+      { data: { id: 'ses_123' } },
+    ]);
+
+    const result = await service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        ip: '203.0.113.5',
+      }),
+      undefined,
+    );
+
+    expect(result).toEqual({ sessionId: 'ses_123' });
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        device_label: 'Mozilla/5.0 (Windows NT 10.0)',
+      }),
+    );
+  });
+
+  it('UTCID04 falls back to "Unknown device" and stores a null ip when the user-agent is missing', async () => {
+    const { service, builder } = makeService([
+      { data: { status: 'active' } },
+      { data: { id: 'ses_123' } },
+    ]);
+
+    const result = await service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq(),
+      undefined,
+    );
+
+    expect(result).toEqual({ sessionId: 'ses_123' });
+    expect(builder.insert).toHaveBeenCalledWith({
+      user_id: 'usr_123',
+      device_label: 'Unknown device',
+      ip_address: null,
+    });
+  });
+
+  it('UTCID05 stores an empty device label without falling back to the user-agent', async () => {
+    const { service, builder } = makeService([
+      { data: { status: 'active' } },
+      { data: { id: 'ses_123' } },
+    ]);
+
+    const result = await service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        ip: '203.0.113.5',
+      }),
+      '',
+    );
+
+    expect(result).toEqual({ sessionId: 'ses_123' });
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ device_label: '' }),
+    );
+  });
+
+  it('UTCID06 signs the user out and throws ForbiddenException for a suspended account', async () => {
+    const { service, builder, signOut } = makeService([
+      { data: { status: 'suspended' } },
+    ]);
+
+    const promise = service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        ip: '203.0.113.5',
+      }),
+      'Chrome on Windows',
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(promise).rejects.toThrow('Account is not active');
+    expect(signOut).toHaveBeenCalledWith('access-token', 'global');
+    expect(builder.insert).not.toHaveBeenCalled();
+  });
+
+  it('UTCID07 signs the user out and throws ForbiddenException when the profile is not found', async () => {
+    const { service, builder, signOut } = makeService([{ data: null }]);
+
+    const promise = service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        ip: '203.0.113.5',
+      }),
+      'Chrome on Windows',
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(promise).rejects.toThrow('Account is not active');
+    expect(signOut).toHaveBeenCalledWith('access-token', 'global');
+    expect(builder.insert).not.toHaveBeenCalled();
+  });
+
+  it('UTCID08 throws UnauthorizedException when the session insert fails', async () => {
+    const { service } = makeService([
+      { data: { status: 'active' } },
+      { data: null, error: { message: 'insert failed' } },
+    ]);
+
+    const promise = service.registerSession(
+      'usr_123',
+      'access-token',
+      makeReq({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        ip: '203.0.113.5',
+      }),
+      'Chrome on Windows',
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Could not create session');
+  });
+});
+
+// ============================================================================
