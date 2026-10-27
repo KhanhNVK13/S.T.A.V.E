@@ -17,6 +17,7 @@ const CHAIN_METHODS = [
   'is',
   'in',
   'not',
+  'or',
   'ilike',
   'like',
   'gt',
