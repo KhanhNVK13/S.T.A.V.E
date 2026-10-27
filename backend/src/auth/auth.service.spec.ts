@@ -436,3 +436,105 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-04 (AuthService.generateUniqueUsername)
+// ============================================================================
+describe('BE-AUTH-04 AuthService.generateUniqueUsername(email)', () => {
+  const originalRandom = Math.random;
+  const originalNow = Date.now;
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    Math.random = originalRandom;
+    Date.now = originalNow;
+  });
+
+  const makeService = (results: QueryResult[]) => {
+    const { client, builder } = createSupabaseMock(results);
+    return { service: new AuthService(client, {} as ConfigService), builder };
+  };
+
+  const callGenerateUniqueUsername = (
+    service: AuthService,
+    email: string,
+  ): Promise<string> =>
+    (
+      service as unknown as {
+        generateUniqueUsername(email: string): Promise<string>;
+      }
+    ).generateUniqueUsername(email);
+
+  it('UTCID01 returns the seed when the username is free', async () => {
+    const { service, builder } = makeService([{ data: null }]);
+
+    const result = await callGenerateUniqueUsername(
+      service,
+      'Nguyen.Van@gmail.com',
+    );
+
+    expect(result).toBe('nguyen_van');
+    expect(builder.eq).toHaveBeenCalledWith('username', 'nguyen_van');
+    expect(builder.maybeSingle).toHaveBeenCalledTimes(1);
+  });
+
+  it('UTCID02 returns the seed with a 4-digit suffix when the seed is taken', async () => {
+    const { service, builder } = makeService([
+      { data: { id: 'usr_taken' } },
+      { data: null },
+    ]);
+    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const result = await callGenerateUniqueUsername(
+      service,
+      'Nguyen.Van@gmail.com',
+    );
+
+    expect(result).toBe('nguyen_van_5500');
+    expect(result).toMatch(/^nguyen_van_\d{4}$/);
+    expect(builder.eq).toHaveBeenCalledWith('username', 'nguyen_van_5500');
+    expect(builder.maybeSingle).toHaveBeenCalledTimes(2);
+  });
+
+  it('UTCID03 returns the seed with Date.now() when all 5 candidates are taken', async () => {
+    const { service, builder } = makeService([
+      { data: { id: 'usr_1' } },
+      { data: { id: 'usr_2' } },
+      { data: { id: 'usr_3' } },
+      { data: { id: 'usr_4' } },
+      { data: { id: 'usr_5' } },
+    ]);
+    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    jest.spyOn(Date, 'now').mockReturnValue(1760000000000);
+
+    const result = await callGenerateUniqueUsername(
+      service,
+      'Nguyen.Van@gmail.com',
+    );
+
+    expect(result).toBe('nguyen_van_1760000000000');
+    expect(builder.maybeSingle).toHaveBeenCalledTimes(5);
+  });
+
+  it('UTCID04 returns "user" when the email has an empty local part', async () => {
+    const { service, builder } = makeService([{ data: null }]);
+
+    const result = await callGenerateUniqueUsername(service, '@x.com');
+
+    expect(result).toBe('user');
+    expect(builder.eq).toHaveBeenCalledWith('username', 'user');
+  });
+
+  it('UTCID05 returns a 20-character seed for a 30-character local part', async () => {
+    const { service, builder } = makeService([{ data: null }]);
+
+    const result = await callGenerateUniqueUsername(
+      service,
+      'abcdefghijklmnopqrstuvwxyz0123@x.com',
+    );
+
+    expect(result).toBe('abcdefghijklmnopqrst');
+    expect(result).toHaveLength(20);
+    expect(builder.eq).toHaveBeenCalledWith('username', 'abcdefghijklmnopqrst');
+  });
+});
+
+// ============================================================================
