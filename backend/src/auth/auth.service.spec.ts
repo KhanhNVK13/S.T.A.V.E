@@ -747,3 +747,102 @@ describe('BE-AUTH-05 AuthService.registerSession(userId, accessToken, req, devic
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-06 (AuthService.listSessions)
+// ============================================================================
+describe('BE-AUTH-06 AuthService.listSessions(userId, currentSessionId)', () => {
+  const makeService = (result: QueryResult) => {
+    const { client, builder } = createSupabaseMock([result]);
+    return { service: new AuthService(client, {} as ConfigService), builder };
+  };
+
+  it('UTCID01 returns sessions sorted by last_active with one isCurrent true', async () => {
+    const { service, builder } = makeService({
+      data: [
+        {
+          id: 's2',
+          user_id: 'usr_1',
+          last_active_at: '2026-01-03T00:00:00Z',
+          revoked_at: null,
+        },
+        {
+          id: 's3',
+          user_id: 'usr_1',
+          last_active_at: '2026-01-02T00:00:00Z',
+          revoked_at: null,
+        },
+        {
+          id: 's1',
+          user_id: 'usr_1',
+          last_active_at: '2026-01-01T00:00:00Z',
+          revoked_at: null,
+        },
+      ],
+    });
+
+    const result = await service.listSessions('usr_1', 's2');
+
+    expect(result).toHaveLength(3);
+    expect(result[0].id).toBe('s2');
+    expect(result[0].isCurrent).toBe(true);
+    expect(result[1].id).toBe('s3');
+    expect(result[1].isCurrent).toBe(false);
+    expect(result[2].id).toBe('s1');
+    expect(result[2].isCurrent).toBe(false);
+    expect(builder.order).toHaveBeenCalledWith('last_active_at', {
+      ascending: false,
+    });
+    expect(builder.is).toHaveBeenCalledWith('revoked_at', null);
+    expect(builder.eq).toHaveBeenCalledWith('user_id', 'usr_1');
+  });
+
+  it('UTCID02 returns all isCurrent false when none match currentSessionId', async () => {
+    const { service } = makeService({
+      data: [
+        {
+          id: 's1',
+          user_id: 'usr_1',
+          last_active_at: '2026-01-03T00:00:00Z',
+          revoked_at: null,
+        },
+        {
+          id: 's2',
+          user_id: 'usr_1',
+          last_active_at: '2026-01-02T00:00:00Z',
+          revoked_at: null,
+        },
+      ],
+    });
+
+    const result = await service.listSessions('usr_1', 'unknown');
+
+    expect(result).toHaveLength(2);
+    expect(result.every((s) => s.isCurrent === false)).toBe(true);
+    expect(result[0].id).toBe('s1');
+    expect(result[1].id).toBe('s2');
+  });
+
+  it('UTCID03 returns empty array when no active sessions', async () => {
+    const { service } = makeService({ data: [] });
+
+    const result = await service.listSessions('usr_1', 's2');
+
+    expect(result).toEqual([]);
+    expect(result).toHaveLength(0);
+  });
+
+  it('UTCID04 throws InternalServerErrorException when the select returns an error', async () => {
+    const { service } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    await expect(service.listSessions('usr_1', 's2')).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    await expect(service.listSessions('usr_1', 's2')).rejects.toThrow(
+      'list cannot be retrieved',
+    );
+  });
+});
+
+// ============================================================================
