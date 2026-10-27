@@ -599,3 +599,226 @@ describe('BE-EXP-04 ExploreService.getUserPublicProjects(id)', () => {
     expect(result).toEqual([]);
   });
 });
+
+// ============================================================================
+// SHEET: BE-EXP-05 (ExploreService.getRankings)
+//
+// Mock order per call:
+//   trending/top_played:
+//     1. projects main (DB-ordered by play_count, limit 10)
+//     2. (items > 0) project_tags + projects fork-counts enrichment
+//   top_forked:
+//     1. projects main (all visible rows)
+//     2. (ids > 0) projects fork-counts query
+//     3. project_tags enrichment only (fork counts precomputed)
+// Per-table queues keep the order deterministic.
+// ============================================================================
+describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
+  const rankRow = (
+    id: string,
+    ownerId: string,
+    plays: number,
+    index: number,
+  ) => ({
+    id,
+    name: `Project ${id}`,
+    description: null,
+    genre: null,
+    visibility: 'public' as const,
+    archived_at: null,
+    created_at: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+    updated_at: '2026-01-01T00:00:00Z',
+    play_count: plays,
+    owner: {
+      id: ownerId,
+      username: 'owner',
+      display_name: null,
+      avatar_url: null,
+    },
+  });
+
+  /** plays p1..p10 = 10..1 (DB-ordered by play_count desc, as the mock plays DB). */
+  const top10 = () =>
+    [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((plays, i) =>
+      rankRow(`p${i + 1}`, 'usr_active', plays, i),
+    );
+
+  const forkRows = (counts: Record<string, number>) =>
+    Object.entries(counts).flatMap(([pid, n]) =>
+      Array.from({ length: n }, () => ({ forked_from_project_id: pid })),
+    );
+
+  const makeService = (
+    main: QueryResult,
+    extra: { fork?: QueryResult; tags?: QueryResult } = {},
+  ) => {
+    const tables: Record<string, QueryResult[]> = {
+      projects: [main, ...(extra.fork ? [extra.fork] : [])],
+      project_tags: extra.tags ? [extra.tags] : [],
+    };
+    const mock = createSupabaseMock([], { tables });
+    return { service: new ExploreService(mock.client), mock };
+  };
+
+  it('UTCID01 ranks trending by the SRS composite (weekly plays+forks) per account', async () => {
+    const { service } = makeService(
+      { data: top10() },
+      {
+        fork: { data: forkRows({ p6: 40, p7: 35, p8: 30, p9: 25, p10: 20 }) },
+        tags: { data: [] },
+      },
+    );
+
+    const result = await service.getRankings('trending');
+
+    expect(result.map((c) => c.id)).toEqual([
+      'p6',
+      'p7',
+      'p8',
+      'p9',
+      'p10',
+      'p1',
+      'p2',
+      'p3',
+      'p4',
+      'p5',
+    ]);
+  });
+
+  it('UTCID02 ranks top_played by play_count desc', async () => {
+    const { service, mock } = makeService(
+      { data: top10() },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    const result = await service.getRankings('top_played');
+
+    expect(mock.builders.projects.order).toHaveBeenCalledWith('play_count', {
+      ascending: false,
+    });
+    expect(result.map((c) => c.id)).toEqual([
+      'p1',
+      'p2',
+      'p3',
+      'p4',
+      'p5',
+      'p6',
+      'p7',
+      'p8',
+      'p9',
+      'p10',
+    ]);
+  });
+
+  it('UTCID03 defaults to trending when the type is undefined', async () => {
+    const { service, mock } = makeService(
+      { data: top10() },
+      {
+        fork: { data: forkRows({ p6: 40, p7: 35, p8: 30, p9: 25, p10: 20 }) },
+        tags: { data: [] },
+      },
+    );
+
+    const result = await service.getRankings();
+
+    expect(mock.builders.projects.order).toHaveBeenCalledWith('play_count', {
+      ascending: false,
+    });
+    expect(result.map((c) => c.id)).toEqual([
+      'p6',
+      'p7',
+      'p8',
+      'p9',
+      'p10',
+      'p1',
+      'p2',
+      'p3',
+      'p4',
+      'p5',
+    ]);
+  });
+
+  it('UTCID04 ranks top_forked by fork count desc (P2, P1, then the rest)', async () => {
+    const rows = Array.from({ length: 15 }, (_, i) =>
+      rankRow(`p${i + 1}`, 'usr_active', 0, i),
+    );
+    const { service } = makeService(
+      { data: rows },
+      {
+        fork: { data: forkRows({ p1: 4, p2: 9 }) },
+        tags: { data: [] },
+      },
+    );
+
+    const result = await service.getRankings('top_forked');
+
+    expect(result.map((c) => c.id)).toEqual([
+      'p2',
+      'p1',
+      'p3',
+      'p4',
+      'p5',
+      'p6',
+      'p7',
+      'p8',
+      'p9',
+      'p10',
+    ]);
+  });
+
+  it('UTCID05 returns [] for top_forked when no projects are visible', async () => {
+    const { service, mock } = makeService({ data: [] });
+
+    const result = await service.getRankings('top_forked');
+
+    expect(result).toEqual([]);
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+  });
+
+  it('UTCID06 returns [] for trending when no projects are visible', async () => {
+    const { service } = makeService({ data: [] });
+
+    const result = await service.getRankings('trending');
+
+    expect(result).toEqual([]);
+  });
+
+  it('UTCID07 throws InternalServerErrorException for trending when the query errors', async () => {
+    const { service } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    await expect(service.getRankings('trending')).rejects.toThrow(
+      new InternalServerErrorException('Could not get rankings'),
+    );
+  });
+
+  it('UTCID08 throws InternalServerErrorException for top_forked when the query errors', async () => {
+    const { service } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    await expect(service.getRankings('top_forked')).rejects.toThrow(
+      new InternalServerErrorException('Could not get rankings'),
+    );
+  });
+
+  it('UTCID09 excludes projects of suspended owners from trending (BR-109)', async () => {
+    const rows = [
+      rankRow('p1', 'usr_suspended', 15, 0),
+      ...[14, 13, 12, 11, 10, 9, 8, 7, 6].map((plays, i) =>
+        rankRow(`p${i + 2}`, 'usr_active', plays, i + 1),
+      ),
+    ];
+    const { service } = makeService(
+      { data: rows },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    const result = await service.getRankings('trending');
+
+    expect(result.map((c) => c.id)).not.toContain('p1');
+  });
+});
