@@ -1135,3 +1135,116 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
 });
 
 // ============================================================================
+// SHEET: BE-AUTH-10 (AuthService.deleteAccount)
+// ============================================================================
+describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => {
+  const makeService = (
+    opts: {
+      sessions?: QueryResult[];
+      users?: QueryResult[];
+      projects?: QueryResult[];
+      deleteUser?: QueryResult;
+    } = {},
+  ) => {
+    const mock = createSupabaseMock([], {
+      tables: {
+        sessions: opts.sessions ?? [{ data: null, error: null }],
+        users: opts.users ?? [{ data: null, error: null }],
+        projects: opts.projects ?? [{ data: null, error: null }],
+      },
+      storage: {
+        'custom-sounds': { remove: [{ data: null, error: null }] },
+      },
+      authAdmin: {
+        deleteUser: opts.deleteUser ?? { data: null, error: null },
+      },
+    });
+    return { service: new AuthService(mock.client, {} as ConfigService), mock };
+  };
+
+  const stubVerify = (service: AuthService, ok: boolean) =>
+    jest
+      .spyOn(
+        service as unknown as {
+          verifyPassword(email: string, password: string): Promise<boolean>;
+        },
+        'verifyPassword',
+      )
+      .mockResolvedValue(ok);
+
+  const del = (service: AuthService, password: string) =>
+    service.deleteAccount('usr_1', 'user@stave.io', password);
+
+  it('UTCID01 revokes sessions and deletes the user, projects and sound files when the password is correct', async () => {
+    const { service, mock } = makeService();
+    const verifySpy = stubVerify(service, true);
+
+    await expect(del(service, 'Correct#123')).resolves.toBeUndefined();
+
+    expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'Correct#123');
+    expect(mock.builders.sessions.update).toHaveBeenCalledWith({
+      revoked_at: expect.any(String),
+    });
+    expect(mock.builders.sessions.eq).toHaveBeenCalledWith('user_id', 'usr_1');
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+    expect(mock.builders.users.eq).toHaveBeenCalledWith('id', 'usr_1');
+    expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith('usr_1');
+    expect(mock.builders.projects.delete).toHaveBeenCalled();
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith('owner_id', 'usr_1');
+    expect(mock.storage.from).toHaveBeenCalledWith('custom-sounds');
+    const order = mock.auth.admin.deleteUser.mock.invocationCallOrder[0];
+    expect(order).toBeGreaterThan(
+      mock.builders.projects.delete.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('UTCID02 throws UnauthorizedException when the password is wrong', async () => {
+    const { service, mock } = makeService();
+    const verifySpy = stubVerify(service, false);
+
+    const promise = del(service, 'wrong');
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Password is incorrect');
+    expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'wrong');
+    expect(mock.builders.sessions.update).not.toHaveBeenCalled();
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('UTCID03 throws UnauthorizedException when the password is empty', async () => {
+    const { service, mock } = makeService();
+    const verifySpy = stubVerify(service, false);
+
+    const promise = del(service, '');
+
+    await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(promise).rejects.toThrow('Password is incorrect');
+    expect(verifySpy).toHaveBeenCalledWith('user@stave.io', '');
+    expect(mock.builders.sessions.update).not.toHaveBeenCalled();
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('UTCID04 reports the deletion failure when the users delete returns an error', async () => {
+    const { service } = makeService({
+      users: [{ data: null, error: { message: 'delete failed' } }],
+    });
+    stubVerify(service, true);
+
+    const promise = del(service, 'Correct#123');
+
+    await expect(promise).rejects.toBeInstanceOf(InternalServerErrorException);
+    await expect(promise).rejects.toThrow(/deletion|failed/i);
+  });
+
+  it('UTCID05 reports the deletion failure when auth.admin.deleteUser returns an error', async () => {
+    const { service } = makeService({
+      deleteUser: { data: null, error: { message: 'auth delete failed' } },
+    });
+    stubVerify(service, true);
+
+    const promise = del(service, 'Correct#123');
+
+    await expect(promise).rejects.toBeInstanceOf(InternalServerErrorException);
+    await expect(promise).rejects.toThrow(/deletion|failed/i);
+  });
+});
