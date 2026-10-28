@@ -223,8 +223,12 @@ export class AuthService {
       .is('revoked_at', null)
       .order('last_active_at', { ascending: false });
 
-    if (error || !data) return [];
-    return (data as SessionRow[]).map((session) => ({
+    if (error) {
+      throw new InternalServerErrorException(
+        'Session list cannot be retrieved',
+      );
+    }
+    return ((data ?? []) as SessionRow[]).map((session) => ({
       ...session,
       isCurrent: session.id === currentSessionId,
     }));
@@ -237,11 +241,12 @@ export class AuthService {
       .update({ revoked_at: new Date().toISOString() })
       .eq('id', sessionId)
       .eq('user_id', userId)
+      .is('revoked_at', null)
       .select('id')
       .maybeSingle();
 
     if (error || !data) {
-      throw new UnauthorizedException('Session not found');
+      throw new UnauthorizedException('Session not found or no longer active');
     }
   }
 
