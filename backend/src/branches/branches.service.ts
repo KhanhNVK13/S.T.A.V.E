@@ -86,6 +86,7 @@ export interface CommitInHistory {
   isUniqueToBranch: boolean;
   isInherited: boolean;
   parent_commit_id: string | null;
+  merged_from_commit_id: string | null;
   /** UC-50 bước 4: hiện tác giả như màn lịch sử chính (UC-43). */
   author: {
     id: string;
@@ -450,6 +451,7 @@ export class BranchesService {
         isUniqueToBranch: !inherited,
         isInherited: inherited,
         parent_commit_id: c.parent_commit_id,
+        merged_from_commit_id: c.merged_from_commit_id,
         author: authorsMap.get(c.author_id) ?? {
           id: c.author_id,
           username: null,

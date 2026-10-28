@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { GitBranch, GitMerge, History, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, GitBranch, GitMerge, History, Plus, Trash2 } from "lucide-react";
 import {
   compareCommits,
   deleteBranch,
   getBranchDeletePreview,
   getBranchDetails,
+  getBranchHistory,
   listProjectBranches,
   mergeBranches,
   resolveMergeConflicts,
@@ -16,6 +17,7 @@ import type {
   Branch,
   BranchDeletePreview,
   BranchDivergence,
+  BranchHistoryCommit,
   ConflictChoice,
   MergeConflictResult,
 } from "../../lib/api-client";
@@ -29,6 +31,7 @@ import { RowList, RowHeader, RowItem, RowTime } from "../ui/row-list";
 import { Toast } from "../ui/toast";
 import { formatRelativeTime } from "../../lib/format-date";
 import { MergeConflictDialog } from "./merge-conflict-dialog";
+import { BranchGraph } from "./branch-graph";
 import { apiErrorMessage } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
 
@@ -50,6 +53,9 @@ export function BranchList({ projectId }: { projectId: string }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [divergence, setDivergence] = useState<Record<string, BranchDivergence>>({});
   const [merged, setMerged] = useState<Record<string, boolean>>({});
+  const [commitsById, setCommitsById] = useState<Map<string, BranchHistoryCommit>>(new Map());
+  const [graphState, setGraphState] = useState<"loading" | "ready" | "error">("loading");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -101,6 +107,19 @@ export function BranchList({ projectId }: { projectId: string }) {
       }
       setDivergence(nextDivergence);
       setMerged(nextMerged);
+
+      const histories = await Promise.allSettled(list.map((b) => getBranchHistory(b.id)));
+      const byId = new Map<string, BranchHistoryCommit>();
+      let failed = false;
+      for (const h of histories) {
+        if (h.status === "fulfilled") {
+          for (const c of h.value.commits) byId.set(c.id, c);
+        } else {
+          failed = true;
+        }
+      }
+      setCommitsById(byId);
+      setGraphState(failed ? "error" : "ready");
     } catch (err) {
       setError(apiErrorMessage(err, "Không tải được danh sách nhánh."));
     } finally {
@@ -351,6 +370,24 @@ export function BranchList({ projectId }: { projectId: string }) {
         </div>
       )}
 
+      <section aria-label="Đồ thị nhánh" className="mb-4">
+        <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">Đồ thị nhánh</h3>
+        {graphState === "loading" ? (
+          <p className="rounded-card border border-border bg-surface-subtle px-4 py-3 text-xs text-muted">
+            Đang vẽ đồ thị…
+          </p>
+        ) : (
+          <>
+            {graphState === "error" && (
+              <p role="alert" className="mb-2 rounded-card border border-danger/20 bg-danger-muted px-4 py-2 text-xs text-danger">
+                Không tải được lịch sử của một số nhánh nên đồ thị có thể thiếu commit.
+              </p>
+            )}
+            <BranchGraph branches={branches} commits={commitsById} />
+          </>
+        )}
+      </section>
+
       <RowList cols={COLS}>
         <RowHeader>
           <span>Nhánh</span>
@@ -363,9 +400,29 @@ export function BranchList({ projectId }: { projectId: string }) {
         {branches.map((branch) => {
           const div = divergence[branch.id];
           const authorName = formatAuthorName(branch.author);
+          const isOpen = expanded.has(branch.id);
+          const base = branch.base_commit_id ? commitsById.get(branch.base_commit_id) : undefined;
+          const head = branch.head_commit_id ? commitsById.get(branch.head_commit_id) : undefined;
           return (
-            <RowItem key={branch.id}>
+            <Fragment key={branch.id}>
+            <RowItem>
               <div className="flex min-w-0 items-center gap-2.5">
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  aria-label={`${isOpen ? "Thu gọn" : "Xem chi tiết"} nhánh ${branch.name}`}
+                  onClick={() =>
+                    setExpanded((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(branch.id)) next.delete(branch.id);
+                      else next.add(branch.id);
+                      return next;
+                    })
+                  }
+                  className="rounded p-0.5 text-muted hover:bg-surface-muted hover:text-foreground"
+                >
+                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
                 <GitBranch className="h-4 w-4 shrink-0 text-muted" />
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="truncate font-mono text-[13px] font-semibold">
@@ -450,6 +507,37 @@ export function BranchList({ projectId }: { projectId: string }) {
                 )}
               </div>
             </RowItem>
+            {isOpen && (
+              <dl className="grid gap-x-6 gap-y-2 border-b border-border bg-surface-subtle px-3.5 py-3 text-xs last:border-b-0 sm:grid-cols-3">
+                <div>
+                  <dt className="font-bold uppercase tracking-wide text-muted">Điểm bắt đầu</dt>
+                  <dd className="mt-1">
+                    {branch.is_default
+                      ? "Nhánh gốc của dự án"
+                      : base
+                        ? <><span className="font-mono text-accent">{base.id.slice(0, 7)}</span> · {base.message}</>
+                        : branch.base_commit_id
+                          ? <span className="font-mono text-accent">{branch.base_commit_id.slice(0, 7)}</span>
+                          : "Chưa xác định"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-bold uppercase tracking-wide text-muted">Commit mới nhất</dt>
+                  <dd className="mt-1">
+                    {head
+                      ? <><span className="font-mono text-accent">{head.id.slice(0, 7)}</span> · {head.message}</>
+                      : branch.head_commit_id
+                        ? <span className="font-mono text-accent">{branch.head_commit_id.slice(0, 7)}</span>
+                        : "Nhánh chưa có commit"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-bold uppercase tracking-wide text-muted">Tác giả commit mới nhất</dt>
+                  <dd className="mt-1">{head ? formatAuthorName(head.author) : "—"}</dd>
+                </div>
+              </dl>
+            )}
+            </Fragment>
           );
         })}
       </RowList>
