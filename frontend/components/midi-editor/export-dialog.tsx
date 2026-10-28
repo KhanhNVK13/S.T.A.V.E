@@ -1,14 +1,9 @@
 /**
  * export-dialog.tsx
- * UC-38: Export project audio (WAV)
+ * UC-38: Export project audio (WAV or MP3)
  *
- * Modal dialog that lets the user choose sample rate, shows a progress bar
- * while rendering, and triggers a browser download.
- *
- * Only WAV is offered — a real MP3 encoder needs an extra dependency
- * (e.g. lamejs) that hasn't been added yet. Renaming a WAV file to .mp3
- * would silently mislabel the format, so MP3 is left out entirely rather
- * than shown as a working option (see CLAUDE.md §4.7 on placeholders).
+ * Modal dialog that lets the user choose format and sample rate, shows a
+ * progress bar while rendering, and triggers a browser download.
  */
 "use client";
 
@@ -37,7 +32,7 @@ interface ExportDialogProps {
   onClose: () => void;
 }
 
-type ExportFormat = "wav" | "bundle";
+type ExportFormat = "wav" | "mp3" | "bundle";
 
 type Phase = "idle" | "rendering" | "done" | "error";
 
@@ -89,6 +84,7 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
         const results = await exportAudioPerTrack(snapshot, {
           sampleRate,
           customBuffers,
+          format,
           onProgress: (p) => setProgress(Math.round(p * 100)),
         });
         // Stagger downloads slightly — firing many a.click() in the same tick
@@ -97,15 +93,16 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
         for (let i = 0; i < results.length; i++) {
           const { track, blob } = results[i];
           const safeTrackName = track.name.replace(/[^a-z0-9_\-. ]/gi, "_");
-          setTimeout(() => triggerDownload(blob, `${safeProjectName} - ${safeTrackName}.wav`), i * 300);
+          setTimeout(() => triggerDownload(blob, `${safeProjectName} - ${safeTrackName}.${format}`), i * 300);
         }
       } else {
         const blob = await exportAudio(snapshot, {
           sampleRate,
           customBuffers,
+          format,
           onProgress: (p) => setProgress(Math.round(p * 100)),
         });
-        triggerDownload(blob, `${safeProjectName}.wav`);
+        triggerDownload(blob, `${safeProjectName}.${format}`);
       }
 
       setPhase("done");
@@ -127,7 +124,8 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
     snapshot.tracks.filter((t) => (anySolo ? t.solo : !t.muted)).map((t) => t.id),
   );
   const hasAudibleContent = snapshot.notes.some((n) => audibleTrackIds.has(n.trackId));
-  const blockedByNoAudio = format === "wav" && !hasAudibleContent;
+  const isAudioFile = format === "wav" || format === "mp3";
+  const blockedByNoAudio = isAudioFile && !hasAudibleContent;
   const rendering = phase === "rendering";
   const dialogRef = useDialog<HTMLDivElement>({ onClose, closeDisabled: rendering });
 
@@ -154,7 +152,11 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
                 Xuất file âm thanh
               </h2>
               <p style={styles.subtitle}>
-                {format === "bundle" ? "Gói .zip: MIDI, WAV và âm thanh riêng" : "Định dạng WAV, không nén"}
+                {format === "bundle"
+                  ? "Gói .zip: MIDI, WAV và âm thanh riêng"
+                  : format === "mp3"
+                    ? "Định dạng MP3, nén 192 kbps"
+                    : "Định dạng WAV, không nén"}
               </p>
             </div>
           </div>
@@ -190,7 +192,7 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               ⚠️ Dự án chưa có note nào — file xuất ra sẽ là im lặng.
             </div>
           )}
-          {hasNotes && !hasAudibleContent && format === "wav" && (
+          {hasNotes && !hasAudibleContent && isAudioFile && (
             <div role="alert" style={styles.warning}>
               ⚠️ Không có nội dung nghe được: mọi track có nốt đều đang tắt tiếng. Hãy bật tiếng ít nhất một track rồi xuất lại.
             </div>
@@ -228,6 +230,7 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
             <div style={styles.srRow} role="group" aria-labelledby="export-format">
               {([
                 { value: "wav", label: "WAV (âm thanh)" },
+                { value: "mp3", label: "MP3 (nén, nhẹ hơn)" },
                 { value: "bundle", label: "Gói .zip (MIDI + WAV + âm thanh riêng)" },
               ] as const).map((f) => (
                 <button
@@ -247,7 +250,7 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
           </div>
 
           {/* Per-track export */}
-          {format === "wav" && (
+          {isAudioFile && (
           <label style={styles.checkboxRow}>
             <input
               type="checkbox"
@@ -256,7 +259,7 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               disabled={phase === "rendering"}
             />
             <span>
-              Xuất riêng từng track ({trackCount} file WAV thay vì 1 file trộn chung)
+              Xuất riêng từng track ({trackCount} file {format.toUpperCase()} thay vì 1 file trộn chung)
             </span>
           </label>
           )}
@@ -290,8 +293,8 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               {format === "bundle"
                 ? "Gói .zip đã"
                 : perTrack
-                  ? `${trackCount} file WAV đã`
-                  : "File WAV đã"}{" "}
+                  ? `${trackCount} file ${format.toUpperCase()} đã`
+                  : `File ${format.toUpperCase()} đã`}{" "}
               được tải về máy bạn.
               {skippedNote && <div>{skippedNote}</div>}
             </div>
@@ -325,8 +328,8 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               format === "bundle"
                 ? "Xuất một gói .zip gồm MIDI, WAV và các âm thanh riêng"
                 : perTrack
-                  ? `Xuất ${trackCount} file WAV riêng biệt`
-                  : "Xuất 1 file WAV trộn chung tất cả track"
+                  ? `Xuất ${trackCount} file ${format.toUpperCase()} riêng biệt`
+                  : `Xuất 1 file ${format.toUpperCase()} trộn chung tất cả track`
             }
           >
             {phase === "rendering" ? (
@@ -341,7 +344,7 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
             ) : perTrack ? (
               `↓ Xuất ${trackCount} track`
             ) : (
-              "↓ Xuất WAV"
+              `↓ Xuất ${format.toUpperCase()}`
             )}
           </button>
         </div>
