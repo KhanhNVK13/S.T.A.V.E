@@ -9,7 +9,7 @@ import {
   type SupabaseMockOptions,
 } from '../test-utils/supabase-mock';
 import type { NotificationsService } from '../notifications/notifications.service';
-import { ForksService, forkNameCandidate } from './forks.service';
+import { ForksService } from './forks.service';
 
 const projectId = '33333333-3333-4333-8333-333333333333';
 const ownerId = '44444444-4444-4444-8444-444444444444';
@@ -44,28 +44,13 @@ function makeService(
 
 const baseTables = (extra: Record<string, unknown> = {}) =>
   ({
-    projects: [{ data: source() }, { data: [] }],
+    projects: [{ data: source() }],
     users: [
       { data: { status: 'active' } },
       { data: { display_name: 'An', username: 'an' } },
     ],
     ...extra,
   }) as SupabaseMockOptions['tables'];
-
-describe('forkNameCandidate', () => {
-  it('uses the original name first, then numbered fork suffixes', () => {
-    expect(forkNameCandidate('Bài', 0)).toBe('Bài');
-    expect(forkNameCandidate('Bài', 1)).toBe('Bài (fork)');
-    expect(forkNameCandidate('Bài', 2)).toBe('Bài (fork 2)');
-  });
-
-  it('keeps the name within the length limit', () => {
-    const long = 'a'.repeat(100);
-    expect(forkNameCandidate(long, 0)).toHaveLength(100);
-    expect(forkNameCandidate(long, 1)).toHaveLength(100);
-    expect(forkNameCandidate(long, 1).endsWith(' (fork)')).toBe(true);
-  });
-});
 
 describe('ForksService.fork', () => {
   it('forks a public project of someone else and notifies the owner', async () => {
@@ -136,36 +121,29 @@ describe('ForksService.fork', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('adds a fork suffix when the caller already has a project with that name', async () => {
-    const { service, rpc } = makeService(
-      baseTables({
-        projects: [
-          { data: source() },
-          { data: [{ name: 'Bài hát' }, { name: 'Bài hát (fork)' }] },
-        ],
-      }),
-    );
+  it('keeps the original name even when the caller already has a project with that name', async () => {
+    const { service, rpc } = makeService(baseTables());
     await service.fork(projectId, userId);
+    expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith(
       'fork_project',
-      expect.objectContaining({ p_name: 'Bài hát (fork 2)' }),
+      expect.objectContaining({ p_name: 'Bài hát' }),
     );
   });
 
-  it('retries with the next name when the database reports a duplicate', async () => {
-    const { service, rpc } = makeService(baseTables(), {
-      fork_project: [
-        { data: null, error: { code: '23505', message: 'duplicate' } },
-        { data: newId, error: null },
+  it('cuts a name longer than 100 characters', async () => {
+    const long = 'a'.repeat(120);
+    const { service, rpc } = makeService({
+      projects: [{ data: source({ name: long }) }],
+      users: [
+        { data: { status: 'active' } },
+        { data: { display_name: 'An', username: 'an' } },
       ],
     });
-    await expect(service.fork(projectId, userId)).resolves.toEqual({
-      id: newId,
-    });
-    expect(rpc).toHaveBeenNthCalledWith(
-      2,
+    await service.fork(projectId, userId);
+    expect(rpc).toHaveBeenCalledWith(
       'fork_project',
-      expect.objectContaining({ p_name: 'Bài hát (fork)' }),
+      expect.objectContaining({ p_name: 'a'.repeat(100) }),
     );
   });
 
