@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Patch,
+  Post,
   Put,
   Req,
   UseGuards,
@@ -13,6 +15,7 @@ import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SetThemeDto } from './dto/set-theme.dto';
+import { ConfirmAvatarDto, CreateAvatarUploadDto } from './dto/avatar.dto';
 
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
 @Controller('users')
@@ -27,6 +30,30 @@ export class UsersController {
   @Patch('me')
   updateMe(@Req() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.id, dto);
+  }
+
+  @Post('me/avatar/upload-url')
+  createAvatarUploadUrl(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateAvatarUploadDto,
+  ) {
+    return this.usersService.createAvatarUploadUrl(
+      req.user.id,
+      dto.contentType,
+    );
+  }
+
+  @Post('me/avatar/confirm')
+  confirmAvatar(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: ConfirmAvatarDto,
+  ) {
+    return this.usersService.confirmAvatar(req.user.id, dto.path);
+  }
+
+  @Delete('me/avatar')
+  removeAvatar(@Req() req: AuthenticatedRequest) {
+    return this.usersService.removeAvatar(req.user.id);
   }
 
   /** UC-78: theme đang áp dụng (null = chưa chọn, dùng preset mặc định). */

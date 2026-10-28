@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -49,6 +51,17 @@ export class AudioSketchesController {
     @Body() dto: AttachSketchDto,
   ) {
     return this.audioSketchesService.attach(projectId, req.user.id, dto);
+  }
+
+  /** UC-117: xoá vĩnh viễn sketch và file ghi âm. */
+  @Delete(':sketchId')
+  @HttpCode(204)
+  async remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Param('sketchId', ParseUUIDPipe) sketchId: string,
+  ): Promise<void> {
+    await this.audioSketchesService.remove(projectId, sketchId, req.user.id);
   }
 
   /** Danh sách sketch của project, kèm link nghe có thời hạn. */

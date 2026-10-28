@@ -20,6 +20,7 @@ import React, {
 import type { DraftNote, DraftTrack } from "@stave/shared-types";
 import { pitchName } from "../../lib/midi-note-name";
 import { resolveCssColors } from "../../lib/resolve-css-colors";
+import { trimOverlappingNotes } from "../../lib/paste-pattern";
 
 export type ToolMode = "pointer" | "pencil" | "eraser";
 export type GridDivision = 4 | 8 | 16 | 32;
@@ -124,6 +125,7 @@ interface PianoRollProps {
   zoom: number; // pixels per tick (base = 0.06)
   ppq: number;
   gridDivision: GridDivision;
+  snapEnabled?: boolean;
   playheadTick: number;
   onNotesChange: (notes: DraftNote[]) => void;
   selectedNoteIds: Set<string>;
@@ -131,6 +133,7 @@ interface PianoRollProps {
   // UC-37: Playback
   isPlaying: boolean;
   onSeek: (tick: number) => void;
+  onNotify?: (message: string, variant: "success" | "warning" | "info") => void;
   /**
    * Báo vị trí cuộn ngang ra ngoài để dải velocity bám theo. Piano roll vẫn
    * là nơi DUY NHẤT có thanh cuộn ngang — dải kia chỉ vẽ lại theo giá trị này.
@@ -148,12 +151,14 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       zoom,
       ppq,
       gridDivision,
+      snapEnabled = true,
       playheadTick,
       onNotesChange,
       selectedNoteIds,
       onSelectedNotesChange,
       isPlaying,
       onSeek,
+      onNotify,
       onScrollXChange,
     },
     ref,
@@ -195,6 +200,13 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     // line itself to scrub — kept separate from `dragRef` (which is about
     // note editing) since seeking has no note/pitch/duration to track.
     const isSeekDraggingRef = useRef(false);
+    const pitchRejectNotedRef = useRef(false);
+
+    useEffect(() => {
+      const container = containerRef.current;
+      if (container) container.scrollTop = (128 - 72) * ROW_H;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ đồng bộ vị trí cuộn lúc mở
+    }, []);
 
     // px per tick
     const pxPerTick = pxPerTickFor(zoom);
@@ -202,8 +214,8 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     const gridStep = ppq / (gridDivision / 4);
     // Snap a tick value to the nearest grid boundary
     const snapToGrid = useCallback(
-      (tick: number) => Math.round(tick / gridStep) * gridStep,
-      [gridStep],
+      (tick: number) => (snapEnabled ? Math.round(tick / gridStep) * gridStep : Math.round(tick)),
+      [gridStep, snapEnabled],
     );
     // total canvas width (ticks) — 128 bars
     const totalTicks = ppq * 4 * 128;
@@ -480,7 +492,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       if (cy < HEADER_H || nearPlayhead) {
         isSeekDraggingRef.current = true;
         const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
-        onSeek(Math.floor(tick));
+        onSeek(Math.max(0, Math.round(snapToGrid(tick))));
         return;
       }
 
@@ -502,6 +514,11 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       }
 
       if (tool === "pencil") {
+        const existing = hitNote(cx, cy);
+        if (existing) {
+          onSelectedNotesChange(new Set([existing.note.id]));
+          return;
+        }
         // Start drawing a new note
         const rawTick = (cx - KEY_WIDTH + scrollX) / pxPerTick;
         const tick = snapToGrid(rawTick);
@@ -586,7 +603,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
       if (isSeekDraggingRef.current) {
         const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
-        onSeek(Math.floor(tick));
+        onSeek(Math.max(0, Math.round(snapToGrid(tick))));
         return;
       }
 
@@ -633,10 +650,13 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
           -minStart,
           snapToGrid(drag.origStart + dx / pxPerTick) - drag.origStart,
         );
-        const deltaPitch = Math.max(
-          -minPitch,
-          Math.min(127 - maxPitch, -Math.round(dy / ROW_H)),
-        );
+        const requestedPitch = -Math.round(dy / ROW_H);
+        const outOfRange = minPitch + requestedPitch < 0 || maxPitch + requestedPitch > 127;
+        if (outOfRange && !pitchRejectNotedRef.current) {
+          pitchRejectNotedRef.current = true;
+          onNotify?.("Các nốt giữ nguyên cao độ vì sẽ vượt ngoài khoảng 0 đến 127.", "warning");
+        }
+        const deltaPitch = outOfRange ? 0 : requestedPitch;
         onNotesChange(
           notes.map((n) => {
             const o = drag.group.get(n.id);
@@ -703,6 +723,28 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         drawNoteRef.current = null;
         draw();
       }
+      if (drag?.type === "move") {
+        const movedIds = new Set(drag.group.keys());
+        const moving = notes.filter((n) => movedIds.has(n.id));
+        const others = notes.filter((n) => !movedIds.has(n.id));
+        const didMove = moving.some((n) => {
+          const o = drag.group.get(n.id);
+          return o !== undefined && (o.start !== n.start || o.pitch !== n.pitch);
+        });
+        const resolved = didMove
+          ? trimOverlappingNotes(others, moving)
+          : { notes: others, trimmed: 0, removed: 0, split: 0 };
+        const touched = resolved.trimmed + resolved.removed + resolved.split;
+        if (touched > 0) {
+          onNotesChange([...resolved.notes, ...moving]);
+          const detail: string[] = [];
+          if (resolved.trimmed > 0) detail.push(`cắt bớt ${resolved.trimmed} nốt`);
+          if (resolved.split > 0) detail.push(`tách ${resolved.split} nốt`);
+          if (resolved.removed > 0) detail.push(`xoá ${resolved.removed} nốt bị phủ hoàn toàn`);
+          onNotify?.(`Các nốt cùng cao độ bị chồng nên đã ${detail.join(", ")}.`, "warning");
+        }
+      }
+      pitchRejectNotedRef.current = false;
       dragRef.current = null;
     }
 

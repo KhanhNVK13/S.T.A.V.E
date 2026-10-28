@@ -56,6 +56,20 @@ export class AuthController {
     return { success: true };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('sessions/reset')
+  resetSessions(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: RegisterSessionDto,
+  ) {
+    return this.authService.resetSessionsAfterRecovery(
+      req.user.id,
+      req.accessToken,
+      req,
+      dto.deviceLabel,
+    );
+  }
+
   @UseGuards(JwtAuthGuard, SessionAuthGuard)
   @Post('sessions/revoke-others')
   async revokeOthers(@Req() req: AuthenticatedRequest) {

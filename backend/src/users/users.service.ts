@@ -4,7 +4,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
+import { InternalServerErrorException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  AVATARS_BUCKET,
+  AVATAR_MAX_BYTES,
+  purgeUserAvatars,
+} from '../common/utils/avatar-storage.util';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 import type { PresetThemeKey } from './dto/set-theme.dto';
@@ -27,11 +35,18 @@ export interface ActiveTheme {
   generatedPalette: Record<string, string> | null;
 }
 
+const AVATAR_EXTENSIONS = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+} as const;
+
 @Injectable()
 export class UsersService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    private readonly config: ConfigService,
   ) {}
 
   /** UC-14 */
@@ -46,13 +61,88 @@ export class UsersService {
     return data;
   }
 
+  async createAvatarUploadUrl(
+    userId: string,
+    contentType: 'image/jpeg' | 'image/png' | 'image/webp',
+  ): Promise<{ path: string; token: string }> {
+    const { data: profile } = await this.supabase
+      .from('users')
+      .select('avatar_url')
+      .eq('id', userId)
+      .maybeSingle<{ avatar_url: string | null }>();
+    await purgeUserAvatars(
+      this.supabase,
+      userId,
+      this.ownAvatarFileName(userId, profile?.avatar_url ?? null),
+    );
+
+    const extension = AVATAR_EXTENSIONS[contentType];
+    const path = `${userId}/${randomUUID()}.${extension}`;
+    const { data, error } = await this.supabase.storage
+      .from(AVATARS_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !data) {
+      throw new InternalServerErrorException('Could not create upload URL');
+    }
+    return { path, token: data.token };
+  }
+
+  async confirmAvatar(userId: string, path: string): Promise<UserRow> {
+    if (!path.startsWith(`${userId}/`)) {
+      throw new BadRequestException('Invalid avatar path');
+    }
+    const fileName = path.slice(userId.length + 1);
+    const { data: files, error: listError } = await this.supabase.storage
+      .from(AVATARS_BUCKET)
+      .list(userId, { search: fileName, limit: 10 });
+    if (listError) {
+      throw new InternalServerErrorException('Could not verify avatar file');
+    }
+    const file = (files ?? []).find((f) => f.name === fileName);
+    if (!file) throw new BadRequestException('Avatar file was not uploaded');
+    const size = Number(
+      (file.metadata as { size?: number } | null | undefined)?.size ?? 0,
+    );
+    if (size > AVATAR_MAX_BYTES) {
+      await this.supabase.storage.from(AVATARS_BUCKET).remove([path]);
+      throw new BadRequestException('Avatar file is too large');
+    }
+
+    const publicUrl = `${this.config.getOrThrow<string>('SUPABASE_URL')}/storage/v1/object/public/${AVATARS_BUCKET}/${path}`;
+    const { data, error } = await this.supabase
+      .from('users')
+      .update({ avatar_url: publicUrl })
+      .eq('id', userId)
+      .select('*')
+      .single<UserRow>();
+    if (error || !data) {
+      throw new InternalServerErrorException('Could not save avatar');
+    }
+    await purgeUserAvatars(this.supabase, userId, fileName);
+    return data;
+  }
+
+  async removeAvatar(userId: string): Promise<UserRow> {
+    const { data, error } = await this.supabase
+      .from('users')
+      .update({ avatar_url: null })
+      .eq('id', userId)
+      .select('*')
+      .single<UserRow>();
+    if (error || !data) {
+      throw new InternalServerErrorException('Could not remove avatar');
+    }
+    await purgeUserAvatars(this.supabase, userId);
+    return data;
+  }
+
   /** UC-15 */
   async updateProfile(userId: string, dto: UpdateProfileDto): Promise<UserRow> {
-    const patch: Record<string, string> = {};
+    const patch: Record<string, string | null> = {};
     if (dto.displayName !== undefined) patch.display_name = dto.displayName;
     if (dto.username !== undefined) patch.username = dto.username;
     if (dto.bio !== undefined) patch.bio = dto.bio;
-    if (dto.avatarUrl !== undefined) patch.avatar_url = dto.avatarUrl;
+    if (dto.avatarUrl !== undefined) patch.avatar_url = dto.avatarUrl ?? null;
 
     const { data, error } = await this.supabase
       .from('users')
@@ -67,7 +157,24 @@ export class UsersService {
       }
       throw new BadRequestException('Could not update profile');
     }
+    if (dto.avatarUrl !== undefined) {
+      await purgeUserAvatars(
+        this.supabase,
+        userId,
+        this.ownAvatarFileName(userId, data.avatar_url),
+      );
+    }
     return data;
+  }
+
+  private ownAvatarFileName(
+    userId: string,
+    avatarUrl: string | null,
+  ): string | undefined {
+    const prefix = `${this.config.getOrThrow<string>('SUPABASE_URL')}/storage/v1/object/public/${AVATARS_BUCKET}/${userId}/`;
+    return avatarUrl?.startsWith(prefix)
+      ? avatarUrl.slice(prefix.length)
+      : undefined;
   }
 
   /**

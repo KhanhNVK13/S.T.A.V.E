@@ -166,7 +166,7 @@ export class CommitsController {
    *
    * Body: RestoreCommitDto
    * - branch_id: UUID of target branch (mandatory)
-   * - message: optional, defaults to "Revert to commit <short_id>"
+   * - message: optional, defaults to a message naming the restored version
    *
    * Returns: CommitRow (the newly created restore commit)
    */

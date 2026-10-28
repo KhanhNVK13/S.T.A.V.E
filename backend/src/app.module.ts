@@ -14,6 +14,10 @@ import { CommitsModule } from './commits/commits.module';
 import { MergeModule } from './merge/merge.module';
 import { AudioSketchesModule } from './audio-sketches/audio-sketches.module';
 import { CustomSoundsModule } from './custom-sounds/custom-sounds.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ForksModule } from './forks/forks.module';
+import { ConnectedAccountsModule } from './connected-accounts/connected-accounts.module';
+import { PullRequestsModule } from './pull-requests/pull-requests.module';
 
 @Module({
   imports: [
@@ -32,6 +36,10 @@ import { CustomSoundsModule } from './custom-sounds/custom-sounds.module';
     MergeModule,
     AudioSketchesModule,
     CustomSoundsModule,
+    NotificationsModule,
+    ForksModule,
+    ConnectedAccountsModule,
+    PullRequestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

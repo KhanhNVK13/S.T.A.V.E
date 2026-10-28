@@ -1,4 +1,6 @@
+import { useId } from "react";
 import type { ReactNode } from "react";
+import { withErrorProps } from "./ui/form";
 import { Logo } from "./ui/logo";
 import { MiniRoll } from "./ui/mini-roll";
 
@@ -46,14 +48,22 @@ export function AuthCard({
 export function AuthField({
   label,
   children,
+  error,
 }: {
   label: string;
   children: ReactNode;
+  error?: string | null;
 }) {
+  const errorId = useId();
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-xs font-semibold">{label}</span>
-      {children}
+      {error ? withErrorProps(children, errorId) : children}
+      {error && (
+        <p id={errorId} role="alert" className="text-xs text-danger">
+          {error}
+        </p>
+      )}
     </label>
   );
 }

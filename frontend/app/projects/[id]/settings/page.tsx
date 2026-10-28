@@ -10,9 +10,11 @@ import {
   unarchiveProject,
   deleteProject,
   getProject,
+  getProjectDeletePreview,
   setProjectVisibility,
   updateProject,
   ProjectVisibility,
+  type ProjectDeletePreview,
 } from "../../../../lib/api-client";
 import { PageHeader } from "../../../../components/ui/page-header";
 import { Card } from "../../../../components/ui/card";
@@ -20,8 +22,13 @@ import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../../../components/ui/form";
 import { Dialog, DialogActions, DialogError } from "../../../../components/ui/dialog";
+import { ConfirmDialog } from "../../../../components/ui/confirm-dialog";
 import { apiErrorMessage } from "../../../../lib/error-message";
 import { APP_LOCALE } from "../../../../lib/format-date";
+import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../../lib/validation";
+
+const NAME_MAX = 100;
+const NAME_REQUIRED = "Vui lòng nhập tên dự án.";
 
 interface Project {
   id: string;
@@ -47,6 +54,7 @@ function ProjectInfoCard({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const isArchived = !!project.archived_at;
   const dirty =
     name.trim() !== project.name ||
@@ -55,7 +63,15 @@ function ProjectInfoCard({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isArchived || !name.trim()) return;
+    if (isArchived) return;
+    const form = e.currentTarget;
+    const invalid =
+      validateRequired(name, NAME_REQUIRED) ?? validateMaxLength(name, NAME_MAX, "Tên dự án");
+    setNameError(invalid);
+    if (invalid) {
+      focusFirstInvalid(form);
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     setSaved(false);
@@ -79,17 +95,16 @@ function ProjectInfoCard({
           Dự án đã lưu trữ nên chỉ xem được. Khôi phục dự án ở cuối trang để chỉnh sửa lại.
         </p>
       )}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Field label="Tên dự án *">
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <Field label="Tên dự án *" error={nameError}>
           <input
             name="name"
             autoComplete="off"
             type="text"
-            required
-            maxLength={120}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
+              setNameError(null);
               setSaved(false);
             }}
             disabled={isArchived}
@@ -148,8 +163,22 @@ function ProjectInfoCard({
         )}
         {!isArchived && (
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={saving || !dirty || !name.trim()}>
+            <Button type="submit" disabled={saving || !dirty}>
               {saving ? "Đang lưu…" : "Lưu thay đổi"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={saving || !dirty}
+              onClick={() => {
+                setName(project.name);
+                setDescription(project.description ?? "");
+                setGenre(project.genre ?? "");
+                setNameError(null);
+                setSaveError(null);
+              }}
+            >
+              Huỷ thay đổi
             </Button>
             {saved && (
               <span role="status" className="text-sm text-success-foreground">
@@ -181,6 +210,10 @@ export default function ProjectSettingsPage() {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [visibilitySuccess, setVisibilitySuccess] = useState<string | null>(null);
   const [settingVisibility, setSettingVisibility] = useState(false);
+  const [pendingVisibility, setPendingVisibility] = useState<ProjectVisibility | null>(null);
+  const [deletePreview, setDeletePreview] = useState<ProjectDeletePreview | "error" | null>(null);
+  const [archiveNotice, setArchiveNotice] = useState<"archived" | "restored" | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -201,9 +234,13 @@ export default function ProjectSettingsPage() {
     setArchiving(true);
     try {
       await archiveProject(projectId);
-      router.push("/projects");
+      setProject((await getProject(projectId)) as Project);
+      setShowArchiveConfirm(false);
+      setShowDeleteConfirm(false);
+      setArchiveNotice("archived");
     } catch (err) {
       setError(apiErrorMessage(err, "Không lưu trữ được dự án."));
+    } finally {
       setArchiving(false);
     }
   }
@@ -213,9 +250,12 @@ export default function ProjectSettingsPage() {
     setUnarchiving(true);
     try {
       await unarchiveProject(projectId);
-      router.push("/projects");
+      setProject((await getProject(projectId)) as Project);
+      setShowUnarchiveConfirm(false);
+      setArchiveNotice("restored");
     } catch (err) {
       setError(apiErrorMessage(err, "Không khôi phục được dự án."));
+    } finally {
       setUnarchiving(false);
     }
   }
@@ -229,6 +269,27 @@ export default function ProjectSettingsPage() {
     } catch (err) {
       setError(apiErrorMessage(err, "Không xoá được dự án."));
       setDeleting(false);
+    }
+  }
+
+  async function openDeleteDialog() {
+    setDeleteConfirmName("");
+    setDeletePreview(null);
+    setShowDeleteConfirm(true);
+    try {
+      setDeletePreview(await getProjectDeletePreview(projectId));
+    } catch {
+      setDeletePreview("error");
+    }
+  }
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/projects/${projectId}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      setError("Không sao chép được liên kết. Hãy chọn và sao chép thủ công.");
     }
   }
 
@@ -250,6 +311,7 @@ export default function ProjectSettingsPage() {
       setError(apiErrorMessage(err, "Không đổi được chế độ hiển thị."));
     } finally {
       setSettingVisibility(false);
+      setPendingVisibility(null);
     }
   }
 
@@ -288,6 +350,28 @@ export default function ProjectSettingsPage() {
           </div>
         )}
 
+        {archiveNotice && project && (
+          <div
+            role="status"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-success/20 bg-success-muted p-4 text-sm text-success-foreground"
+          >
+            <span>
+              {archiveNotice === "archived"
+                ? "Đã lưu trữ dự án. Bạn có thể khôi phục bất cứ lúc nào."
+                : "Đã khôi phục dự án."}
+            </span>
+            {archiveNotice === "archived" && (
+              <Button
+                variant="secondary"
+                onClick={() => void handleUnarchive()}
+                disabled={unarchiving}
+              >
+                {unarchiving ? "Đang hoàn tác…" : "Hoàn tác"}
+              </Button>
+            )}
+          </div>
+        )}
+
         {!loading && project && (
           <div className="flex flex-col gap-6">
             <ProjectInfoCard
@@ -312,7 +396,7 @@ export default function ProjectSettingsPage() {
                     name="visibility"
                     value="private"
                     checked={project.visibility === "private"}
-                    onChange={() => void handleSetVisibility("private")}
+                    onChange={() => setPendingVisibility("private")}
                     disabled={settingVisibility}
                     className="mt-1 accent-accent"
                   />
@@ -334,7 +418,7 @@ export default function ProjectSettingsPage() {
                     name="visibility"
                     value="public"
                     checked={project.visibility === "public"}
-                    onChange={() => void handleSetVisibility("public")}
+                    onChange={() => setPendingVisibility("public")}
                     disabled={settingVisibility}
                     className="mt-1 accent-accent"
                   />
@@ -353,6 +437,18 @@ export default function ProjectSettingsPage() {
               </div>
 
               {settingVisibility && <p className="mt-3 text-sm text-muted">Đang cập nhật…</p>}
+
+              {project.visibility === "public" && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface-subtle p-3">
+                  <span className="text-xs text-muted">Liên kết chia sẻ:</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+                    {typeof window !== "undefined" ? window.location.origin : ""}/projects/{project.id}
+                  </span>
+                  <Button variant="secondary" onClick={() => void copyShareLink()}>
+                    {linkCopied ? "Đã sao chép" : "Sao chép liên kết"}
+                  </Button>
+                </div>
+              )}
             </Card>
 
             <Card className="border-danger/20 p-6">
@@ -386,10 +482,7 @@ export default function ProjectSettingsPage() {
                 )}
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    setDeleteConfirmName("");
-                    setShowDeleteConfirm(true);
-                  }}
+                  onClick={() => void openDeleteDialog()}
                   className="gap-1.5 border-danger text-danger hover:bg-danger-muted"
                 >
                   <Trash2 className="h-4 w-4" /> Xóa dự án
@@ -443,7 +536,8 @@ export default function ProjectSettingsPage() {
       >
         <p className="mb-6 text-sm text-muted">
           Bạn có chắc chắn muốn lưu trữ dự án &quot;{project?.name}&quot;? Dự án sẽ được chuyển
-          sang phần dự án đã lưu trữ và không còn xuất hiện trong danh sách chính.
+          sang phần dự án đã lưu trữ và không còn xuất hiện trong danh sách chính. Bạn có thể khôi
+          phục dự án bất cứ lúc nào, và hoàn tác ngay sau khi lưu trữ.
         </p>
         <DialogError message={error} />
         <DialogActions>
@@ -475,10 +569,33 @@ export default function ProjectSettingsPage() {
         closeDisabled={deleting}
         role="alertdialog"
       >
-        <p className="mb-4 text-sm text-muted">
+        <p className="mb-3 text-sm text-muted">
           Hành động này không thể hoàn tác. Tất cả dữ liệu bao gồm lịch sử phiên bản, các bản
           nháp và thành viên của dự án &quot;{project?.name}&quot; sẽ bị xóa vĩnh viễn.
         </p>
+        <p className="mb-4 rounded-card border border-border bg-surface-subtle px-3 py-2 text-sm text-foreground">
+          {deletePreview === null
+            ? "Đang đếm commit và nhánh…"
+            : deletePreview === "error"
+              ? "Không đếm được số commit và nhánh sẽ mất."
+              : `Sẽ mất ${deletePreview.commitCount.toLocaleString(APP_LOCALE)} commit và ${deletePreview.branchCount.toLocaleString(APP_LOCALE)} nhánh.`}
+        </p>
+        {!project?.archived_at && (
+          <p className="mb-4 text-sm text-muted">
+            Chưa chắc chắn?{" "}
+            <button
+              type="button"
+              className="text-accent hover:underline"
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setShowArchiveConfirm(true);
+              }}
+            >
+              Lưu trữ dự án thay vì xoá
+            </button>{" "}
+            để giữ lại toàn bộ lịch sử và khôi phục sau.
+          </p>
+        )}
         <label className="mb-4 flex flex-col gap-2 text-sm">
           <span className="font-medium text-foreground">
             Để xác nhận, hãy nhập tên dự án:{" "}
@@ -513,6 +630,22 @@ export default function ProjectSettingsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingVisibility}
+        title={
+          pendingVisibility === "public" ? "Công khai dự án?" : "Chuyển dự án về riêng tư?"
+        }
+        message={
+          pendingVisibility === "public"
+            ? "Dự án sẽ xuất hiện trên trang Explore. Mọi người có thể xem, nghe thử và fork dự án này. Bạn có thể chuyển về riêng tư bất cứ lúc nào."
+            : "Dự án sẽ biến mất khỏi Explore. Chỉ bạn và cộng tác viên được mời xem được."
+        }
+        confirmLabel={pendingVisibility === "public" ? "Công khai" : "Chuyển về riêng tư"}
+        loading={settingVisibility}
+        onConfirm={() => pendingVisibility && void handleSetVisibility(pendingVisibility)}
+        onCancel={() => setPendingVisibility(null)}
+      />
     </RequireAuth>
   );
 }

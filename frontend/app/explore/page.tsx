@@ -28,7 +28,7 @@ const GENRE_FILTERS = [
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Mới nhất' },
-  { value: 'most_played', label: 'Nghe nhiều nhất' },
+  { value: 'most_played', label: 'Nổi bật' },
 ] as const;
 
 /** Tên | thể loại | lượt nghe | fork | cập nhật — dùng chung cho hàng tiêu đề và hàng dữ liệu. */
@@ -75,7 +75,7 @@ function ExploreContent() {
   );
 
   function updateParams(newParams: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search);
     for (const [key, value] of Object.entries(newParams)) {
       if (value === null || value === '') {
         params.delete(key);
@@ -170,7 +170,16 @@ function ExploreContent() {
       ) : items?.length === 0 ? (
         <EmptyState
           icon={SearchIcon}
-          title="Không tìm thấy dự án nào."
+          title={
+            search || genre || tag
+              ? "Không tìm thấy dự án nào."
+              : "Chưa có dự án nào được công khai."
+          }
+          description={
+            search || genre || tag
+              ? undefined
+              : "Hãy là người đầu tiên chia sẻ một bản nhạc với cộng đồng."
+          }
           action={
             search || genre || tag ? (
               <Button
@@ -182,7 +191,11 @@ function ExploreContent() {
               >
                 Xoá bộ lọc
               </Button>
-            ) : undefined
+            ) : (
+              <Link href="/projects/new">
+                <Button>Tạo dự án</Button>
+              </Link>
+            )
           }
         />
       ) : (

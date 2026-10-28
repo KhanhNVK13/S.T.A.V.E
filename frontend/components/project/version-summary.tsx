@@ -6,6 +6,7 @@ import { getBranchHistory, listProjectBranches } from "../../lib/api-client";
 import type { BranchHistoryCommit } from "../../lib/api-client";
 import { apiErrorMessage } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
+import { formatAuthorName } from "../../lib/format-name";
 
 interface Summary {
   defaultBranchName: string;
@@ -87,7 +88,7 @@ export function VersionSummary({
               <p className="truncate font-semibold">{summary.latest.message}</p>
               <p className="text-xs text-muted">
                 Mới nhất trên <span className="font-mono">{summary.defaultBranchName}</span> ·{" "}
-                {summary.latest.author.display_name ?? summary.latest.author.username ?? "Người dùng"} ·{" "}
+                {formatAuthorName(summary.latest.author)} ·{" "}
                 <span className="font-mono">{formatRelativeTime(summary.latest.created_at)}</span>
               </p>
             </div>

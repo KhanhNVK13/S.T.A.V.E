@@ -9,7 +9,9 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -85,6 +87,8 @@ export class DraftNoteDto implements DraftNote {
   trackId!: string;
 
   @IsInt()
+  @Min(0)
+  @Max(127)
   pitch!: number;
 
   @IsInt()

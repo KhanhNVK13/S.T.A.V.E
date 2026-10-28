@@ -27,7 +27,9 @@ export class DraftNoteDto {
   @IsString()
   trackId!: string;
 
-  @IsNumber()
+  @IsInt()
+  @Min(0)
+  @Max(127)
   pitch!: number;
 
   /**
@@ -37,15 +39,15 @@ export class DraftNoteDto {
    * match the actual snapshot shape used everywhere else (drafts DTO,
    * shared-types).
    */
-  @IsNumber()
+  @IsInt()
   @Min(0)
   start!: number;
 
-  @IsNumber()
+  @IsInt()
   @Min(1)
   duration!: number;
 
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @Max(127)
   velocity!: number;

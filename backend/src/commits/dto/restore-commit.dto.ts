@@ -5,7 +5,7 @@ import { IsUUID, IsString, IsOptional, MaxLength } from 'class-validator';
  *
  * Business Rules:
  * - BR-47: Restore never deletes history - creates a NEW commit
- * - Message is optional, defaults to "Revert to commit <short_id>"
+ * - Message is optional, defaults to a message naming the restored version
  */
 export class RestoreCommitDto {
   @IsUUID('4', { message: 'Branch ID must be a valid UUID' })

@@ -1,8 +1,10 @@
+import { AccountRemovalService } from '../account-removal/account-removal.service';
 import {
   BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -10,16 +12,17 @@ import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { maskEmail } from '../common/utils/mask-email.util';
 import type { UserRow } from '../users/user-row.type';
 import type { ListUsersQueryDto } from './dto/list-users-query.dto';
-import { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 
 const PERMANENT_BAN = '87600h'; // ~10 years — GoTrue has no infinite ban value.
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
-    private readonly customSounds: CustomSoundsService,
+    private readonly accountRemoval: AccountRemovalService,
   ) {}
 
   /** UC-96 */
@@ -49,6 +52,7 @@ export class AdminService {
     if (error) throw new BadRequestException('Could not list users');
 
     const users = (data ?? []) as UserRow[];
+    const { projectCounts, suspensions } = await this.loadUserExtras(users);
     return {
       total: count ?? users.length,
       page,
@@ -61,8 +65,60 @@ export class AdminService {
         status: user.status,
         role: user.role,
         createdAt: user.created_at,
+        projectCount: projectCounts.get(user.id) ?? 0,
+        suspension: suspensions.get(user.id) ?? null,
       })),
     };
+  }
+
+  private async loadUserExtras(users: UserRow[]): Promise<{
+    projectCounts: Map<string, number>;
+    suspensions: Map<string, { reason: string; suspendedAt: string }>;
+  }> {
+    const projectCounts = new Map<string, number>();
+    const suspensions = new Map<
+      string,
+      { reason: string; suspendedAt: string }
+    >();
+    if (users.length === 0) return { projectCounts, suspensions };
+
+    const { data: countRows, error: countError } = await this.supabase.rpc(
+      'admin_project_counts',
+      { p_owner_ids: users.map((u) => u.id) },
+    );
+    if (countError) throw new BadRequestException('Could not list users');
+    for (const row of (countRows ?? []) as {
+      owner_id: string;
+      project_count: number;
+    }[]) {
+      projectCounts.set(row.owner_id, row.project_count);
+    }
+
+    const suspendedIds = users
+      .filter((u) => u.status === 'suspended')
+      .map((u) => u.id);
+    if (suspendedIds.length > 0) {
+      const { data: logRows, error: logError } = await this.supabase
+        .from('admin_audit_log')
+        .select('target_id, reason, created_at')
+        .eq('action', 'suspend_user')
+        .in('target_id', suspendedIds)
+        .order('created_at', { ascending: false });
+      if (logError) throw new BadRequestException('Could not list users');
+      for (const row of (logRows ?? []) as {
+        target_id: string;
+        reason: string;
+        created_at: string;
+      }[]) {
+        if (!suspensions.has(row.target_id)) {
+          suspensions.set(row.target_id, {
+            reason: row.reason,
+            suspendedAt: row.created_at,
+          });
+        }
+      }
+    }
+    return { projectCounts, suspensions };
   }
 
   private async getTarget(targetId: string): Promise<UserRow> {
@@ -97,13 +153,18 @@ export class AdminService {
     targetId: string,
     reason: string,
   ): Promise<void> {
-    await this.supabase.from('admin_audit_log').insert({
+    const { error } = await this.supabase.from('admin_audit_log').insert({
       admin_id: adminId,
       action,
       target_type: 'user',
       target_id: targetId,
       reason,
     });
+    if (error) {
+      this.logger.error(
+        `Could not write audit entry ${action} for ${targetId}: ${error.message}`,
+      );
+    }
   }
 
   private async notify(
@@ -151,6 +212,7 @@ export class AdminService {
     reason: string,
   ): Promise<void> {
     const target = await this.getTarget(targetId);
+    this.assertNotSelfOrAdmin(adminId, target);
     if (target.status !== 'suspended') {
       throw new BadRequestException('Account is not suspended');
     }
@@ -181,11 +243,8 @@ export class AdminService {
       throw new BadRequestException('Username confirmation does not match');
     }
 
-    await this.writeAuditLog(adminId, 'remove_user', targetId, reason);
-    await this.revokeAllSessions(targetId);
-    await this.supabase.from('users').delete().eq('id', targetId);
-    await this.supabase.auth.admin.deleteUser(targetId);
-    await this.customSounds.removeAllFilesOf(targetId);
-    await this.customSounds.collectGarbage();
+    await this.accountRemoval.remove(targetId, 'Could not remove user', () =>
+      this.writeAuditLog(adminId, 'remove_user', targetId, reason),
+    );
   }
 }

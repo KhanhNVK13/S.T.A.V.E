@@ -11,6 +11,9 @@ import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 import type { BranchRow, ProjectRow } from './project-row.type';
 import { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
+import { ProjectAccessService } from '../project-access/project-access.service';
+import { ActiveBranchService } from '../active-branch/active-branch.service';
+import { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
 
 export const DEFAULT_BRANCH_NAME = 'main';
 
@@ -23,6 +26,9 @@ export class ProjectsService {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly customSounds: CustomSoundsService,
+    private readonly access: ProjectAccessService,
+    private readonly activeBranch: ActiveBranchService,
+    private readonly audioSketches: AudioSketchesService,
   ) {}
 
   /** UC-18 (core): tạo project + branch mặc định 'main' đi kèm. */
@@ -103,28 +109,35 @@ export class ProjectsService {
   }
 
   /**
-   * UC-48 — dùng bởi DraftsService: branch mà editor đang mở.
+   * UC-48 — dùng bởi DraftsService: branch mà editor đang mở của người dùng.
    *
    * Không phải lúc nào cũng là branch mặc định: sau `POST /branches/switch`,
-   * `projects.active_branch_id` trỏ sang branch người dùng vừa chuyển tới và
-   * `GET|PUT /projects/:id/draft` phải đọc/ghi đúng draft của branch đó —
-   * nếu vẫn bám branch mặc định thì nhánh vừa tạo không thể mở ra để sửa.
+   * branch đang mở của người dùng (chủ: `projects.active_branch_id`, cộng tác
+   * viên: `project_member_active_branches`) trỏ sang branch vừa chuyển tới và
+   * `GET|PUT /projects/:id/draft` phải đọc/ghi đúng draft của branch đó.
    *
-   * Rơi về branch mặc định trong 2 trường hợp: project chưa từng chuyển nhánh
-   * (cột NULL), hoặc cột trỏ tới branch không còn/không thuộc project này
-   * (dữ liệu hỏng — vẫn phải mở được editor thay vì ném lỗi).
+   * Rơi về branch mặc định khi cột NULL hoặc trỏ tới branch không còn/không
+   * thuộc project này (dữ liệu hỏng — vẫn phải mở được editor).
    */
-  async getActiveBranchForOwner(
+  async getActiveBranchForUser(
     projectId: string,
-    ownerId: string,
+    userId: string,
+    options: { accessChecked?: boolean } = {},
   ): Promise<BranchRow> {
-    const project = await this.getOwned(projectId, ownerId);
+    if (!options.accessChecked) {
+      await this.access.assertCanView(projectId, userId);
+    }
 
-    if (project.active_branch_id) {
+    const activeId = await this.activeBranch.getActiveBranchId(
+      projectId,
+      userId,
+    );
+
+    if (activeId) {
       const { data } = await this.supabase
         .from('branches')
         .select('*')
-        .eq('id', project.active_branch_id)
+        .eq('id', activeId)
         .eq('project_id', projectId)
         .maybeSingle<BranchRow>();
       if (data) return data;
@@ -153,7 +166,12 @@ export class ProjectsService {
     ownerId: string,
     dto: UpdateProjectDto,
   ): Promise<ProjectRow> {
-    await this.getOwned(projectId, ownerId);
+    const project = await this.getOwned(projectId, ownerId);
+    if (project.archived_at) {
+      throw new ConflictException(
+        'Archived projects are read-only. Restore the project first',
+      );
+    }
 
     const updates: Partial<{
       name: string;
@@ -219,6 +237,32 @@ export class ProjectsService {
   }
 
   /** UC-21: xóa project — chỉ owner. */
+  async getDeletePreview(
+    projectId: string,
+    ownerId: string,
+  ): Promise<{ branchCount: number; commitCount: number }> {
+    await this.getOwned(projectId, ownerId);
+
+    const { data: branches, error: branchError } = await this.supabase
+      .from('branches')
+      .select('id')
+      .eq('project_id', projectId);
+    if (branchError) {
+      throw new InternalServerErrorException('Could not load project summary');
+    }
+    const branchIds = ((branches ?? []) as { id: string }[]).map((b) => b.id);
+    if (branchIds.length === 0) return { branchCount: 0, commitCount: 0 };
+
+    const { count, error: commitError } = await this.supabase
+      .from('commits')
+      .select('id', { count: 'exact', head: true })
+      .in('branch_id', branchIds);
+    if (commitError) {
+      throw new InternalServerErrorException('Could not load project summary');
+    }
+    return { branchCount: branchIds.length, commitCount: count ?? 0 };
+  }
+
   async deleteOwned(projectId: string, ownerId: string): Promise<void> {
     await this.getOwned(projectId, ownerId);
 
@@ -232,6 +276,7 @@ export class ProjectsService {
       throw new InternalServerErrorException('Could not delete project');
     }
 
+    await this.audioSketches.purgeProjectFiles([projectId]);
     await this.customSounds.collectGarbage();
   }
 

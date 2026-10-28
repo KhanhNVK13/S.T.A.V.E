@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Mic, Music, Pause, Play, Save, Square, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, Loader2, Mic, Music, Pause, Play, Save, Square, Trash2, Upload, X } from "lucide-react";
 import {
   confirmCustomSoundUpload,
   createCustomSoundUploadUrl,
@@ -9,7 +9,7 @@ import {
   getCustomSoundUsage,
   listCustomSounds,
 } from "../../lib/api-client";
-import type { CustomSound, CustomSoundLibrary } from "../../lib/api-client";
+import type { CustomSound, CustomSoundLibrary, CustomSoundUsage } from "../../lib/api-client";
 import { supabase } from "../../lib/supabase-browser";
 import { apiErrorMessage } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
@@ -56,12 +56,12 @@ async function saveSound(
     throw new Error("Không đọc được file âm thanh. Hãy dùng file WAV hoặc MP3.");
   }
   if (buffer.duration > MAX_SOUND_DURATION_SEC) {
-    throw new Error(`Âm thanh dài ${Math.ceil(buffer.duration)} giây, vượt giới hạn ${MAX_SOUND_DURATION_SEC} giây. Hãy cắt ngắn rồi thử lại.`);
+    throw new Error(`Âm thanh dài ${Math.ceil(buffer.duration)} giây, vượt giới hạn ${MAX_SOUND_DURATION_SEC} giây. Mỗi âm thanh được phát như một nốt riêng lẻ nên cần ngắn gọn. Hãy cắt ngắn rồi thử lại.`);
   }
 
   const wav = encodeWav(await normalizeForStorage(buffer));
   if (wav.size > MAX_SIZE_BYTES) {
-    throw new Error("Âm thanh vượt giới hạn 10MB.");
+    throw new Error("Âm thanh vượt giới hạn 10 MB. Hãy cắt ngắn hoặc giảm chất lượng rồi thử lại.");
   }
 
   const { soundId, path, token } = await createCustomSoundUploadUrl({
@@ -195,13 +195,18 @@ function DeleteSoundDialog({
   onDeleted: () => void;
 }) {
   const [externalCount, setExternalCount] = useState<number | null>(null);
+  const [usage, setUsage] = useState<CustomSoundUsage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getCustomSoundUsage(sound.id)
-      .then((u) => !cancelled && setExternalCount(u.externalProjectCount))
+      .then((u) => {
+        if (cancelled) return;
+        setExternalCount(u.externalProjectCount);
+        setUsage(u);
+      })
       .catch((err) => !cancelled && setError(apiErrorMessage(err, "Không kiểm tra được âm thanh này đang được dùng ở đâu.")));
     return () => {
       cancelled = true;
@@ -227,13 +232,23 @@ function DeleteSoundDialog({
       <div className="mb-5 space-y-2 text-[13px] leading-relaxed text-muted">
         {externalCount === null && !error && <p>Đang kiểm tra âm thanh này đang được dùng ở đâu…</p>}
         {externalCount !== null && !shared && (
-          <p>Âm thanh sẽ bị xoá vĩnh viễn. Các nốt trong dự án của bạn đang dùng nó sẽ phát bằng nhạc cụ của track.</p>
+          <p>Không có dự án của người khác nào đang dùng âm thanh này, nên dù xoá theo cách nào file cũng bị xoá ngay và vĩnh viễn. Các nốt trong dự án của bạn đang dùng nó sẽ phát bằng nhạc cụ của track.</p>
         )}
         {shared && (
           <>
             <p>
               Âm thanh này đang được dùng trong <strong className="text-foreground">{externalCount} dự án của người khác</strong>.
             </p>
+            {usage && (usage.externalProjects.length > 0 || usage.privateProjectCount > 0) && (
+              <ul className="list-disc space-y-0.5 pl-5">
+                {usage.externalProjects.map((p) => (
+                  <li key={p.id} className="text-foreground">{p.name}</li>
+                ))}
+                {usage.privateProjectCount > 0 && (
+                  <li>{usage.privateProjectCount} dự án riêng tư (không hiện tên)</li>
+                )}
+              </ul>
+            )}
             <p><strong className="text-foreground">Xoá khỏi thư viện của tôi:</strong> bạn không thấy nó nữa, dự án của bạn phát bằng nhạc cụ của track, nhưng dự án của người khác vẫn nghe được. File tự dọn khi không còn ai dùng.</p>
             <p><strong className="text-foreground">Xoá hoàn toàn:</strong> xoá file ngay, mọi dự án (kể cả của người khác) đều mất âm thanh này. Không hoàn tác được.</p>
           </>
@@ -264,6 +279,7 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
   const [library, setLibrary] = useState<CustomSoundLibrary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -283,8 +299,9 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
       setLibrary(next);
       onLibraryChangeRef.current?.(next);
       setError(null);
+      setLoadError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được thư viện âm thanh."));
+      setLoadError(apiErrorMessage(err, "Không tải được thư viện âm thanh."));
     } finally {
       setLoading(false);
     }
@@ -306,6 +323,10 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
     if (!file) return;
     if (!/\.(wav|mp3)$/i.test(file.name)) {
       setError("Chỉ nhận file WAV hoặc MP3.");
+      return;
+    }
+    if (file.size > MAX_SIZE_BYTES) {
+      setError(`File lớn ${formatSize(file.size)}, vượt giới hạn 10 MB. Hãy chọn file nhỏ hơn.`);
       return;
     }
     setUploading(true);
@@ -387,7 +408,19 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
         </p>
       )}
 
-      {loading && !library ? (
+      {loadError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
+        >
+          <span>{loadError}</span>
+          <Button variant="secondary" onClick={() => void load()} disabled={loading}>
+            Thử lại
+          </Button>
+        </div>
+      )}
+
+      {loadError && !library ? null : loading && !library ? (
         <div className="flex justify-center py-8 text-muted">
           <Loader2 size={20} className="animate-spin" aria-label="Đang tải…" />
         </div>
@@ -412,6 +445,12 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
                   <span className="font-mono tabular-nums">{formatTime(sound.durationSec)}</span> · {formatSize(sound.sizeBytes)} ·{" "}
                   {sound.source === "recorded" ? "Ghi âm" : "Tải lên"}
                 </div>
+                {!sound.playbackUrl && (
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-warning-foreground">
+                    <AlertTriangle size={12} aria-hidden /> Không khả dụng: không tìm thấy file âm thanh trên máy chủ.
+                    Hãy xoá rồi tải lại.
+                  </div>
+                )}
               </div>
               {renderRowAction?.(sound)}
               <button
