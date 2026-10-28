@@ -788,10 +788,15 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
 // ============================================================================
 // SHEET: BE-EXP-06 (ExploreService.getFeatured)
 //
+// Trending now comes from the ranking view: project_engagement ids, then the
+// projects rows for those ids.
 // Mock order per call:
-//   Promise.all #1: projects [featured, trending, totalProjects, totalForks]
-//                   + users [totalUsers]
-//   Promise.all #2: (per non-empty list) project_tags + projects fork query
+//   project_engagement: [trending ids]
+//   projects:           [featured, totalProjects, totalForks, trending cards]
+//                       then, per non-empty list, one fork-count query
+//                       (featured first, trending second)
+//   users:              [totalUsers]
+//   project_tags:       one query per non-empty list (featured, trending)
 // Per-table queues keep the order deterministic.
 // ============================================================================
 describe('BE-EXP-06 ExploreService.getFeatured()', () => {
@@ -826,39 +831,44 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
     ownerId = 'usr_active',
   ): QueryResult => ({ data: rows(idList, ownerId) });
 
-  const makeService = (
-    projects: QueryResult[],
-    users: QueryResult[],
-    tags: QueryResult[],
-    fork?: QueryResult[],
-  ) => {
-    const projectsQueue = [
-      ...projects,
-      ...(fork && fork.length > 0 ? fork : []),
-    ];
-    const tables: Record<string, QueryResult[]> = {
-      projects: projectsQueue,
-      users,
-      project_tags: tags,
-    };
-    const mock = createSupabaseMock([], { tables });
+  const engagementResult = (ids: string[]): QueryResult => ({
+    data: ids.map((project_id) => ({ project_id })),
+    count: ids.length,
+  });
+
+  const makeService = (opts: {
+    engagement: QueryResult[];
+    projects: QueryResult[];
+    users: QueryResult[];
+    tags: QueryResult[];
+  }) => {
+    const mock = createSupabaseMock([], {
+      tables: {
+        project_engagement: opts.engagement,
+        projects: opts.projects,
+        users: opts.users,
+        project_tags: opts.tags,
+      },
+    });
     return { service: new ExploreService(mock.client), mock };
   };
 
   it('UTCID01 returns the hero, 6 featured, 6 trending and the platform stats', async () => {
     const newest6 = ['p6', 'p5', 'p4', 'p3', 'p2', 'p1'];
     const played6 = ['p3', 'p1', 'p5', 'p2', 'p4', 'p6'];
-    const { service } = makeService(
-      [
+    const { service } = makeService({
+      engagement: [engagementResult(played6)],
+      projects: [
         listResult(newest6),
-        listResult(played6),
         { data: null, count: 8 },
         { data: null, count: 4 },
+        listResult(newest6),
+        { data: [] },
+        { data: [] },
       ],
-      [{ data: null, count: 20 }],
-      [{ data: [] }, { data: [] }],
-      [{ data: [] }, { data: [] }],
-    );
+      users: [{ data: null, count: 20 }],
+      tags: [{ data: [] }, { data: [] }],
+    });
 
     const result = await service.getFeatured();
 
@@ -873,17 +883,19 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
   });
 
   it('UTCID02 returns 3 featured and 3 trending items when only 3 projects are public', async () => {
-    const { service } = makeService(
-      [
+    const { service } = makeService({
+      engagement: [engagementResult(['p2', 'p1', 'p3'])],
+      projects: [
         listResult(['p1', 'p2', 'p3']),
-        listResult(['p2', 'p1', 'p3']),
         { data: null, count: 3 },
         { data: null, count: 0 },
+        listResult(['p1', 'p2', 'p3']),
+        { data: [] },
+        { data: [] },
       ],
-      [{ data: null, count: 5 }],
-      [{ data: [] }, { data: [] }],
-      [{ data: [] }, { data: [] }],
-    );
+      users: [{ data: null, count: 5 }],
+      tags: [{ data: [] }, { data: [] }],
+    });
 
     const result = await service.getFeatured();
 
@@ -901,16 +913,16 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
   });
 
   it('UTCID03 returns the hero, empty lists and zero stats when nothing is public', async () => {
-    const { service } = makeService(
-      [
-        { data: [] },
+    const { service } = makeService({
+      engagement: [engagementResult([])],
+      projects: [
         { data: [] },
         { data: null, count: 0 },
         { data: null, count: 0 },
       ],
-      [{ data: null, count: 0 }],
-      [],
-    );
+      users: [{ data: null, count: 0 }],
+      tags: [],
+    });
 
     const result = await service.getFeatured();
 
@@ -924,22 +936,24 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
     });
   });
 
-  it('UTCID04 keeps the stats when the project list queries error', async () => {
-    const { service } = makeService(
-      [
-        { data: null, error: { message: 'db error' } },
+  it('UTCID04 keeps the stats and trending list when the featured query errors', async () => {
+    const { service } = makeService({
+      engagement: [engagementResult(['p1', 'p2'])],
+      projects: [
         { data: null, error: { message: 'db error' } },
         { data: null, count: 6 },
         { data: null, count: 2 },
+        listResult(['p1', 'p2']),
+        { data: [] },
       ],
-      [{ data: null, count: 4 }],
-      [],
-    );
+      users: [{ data: null, count: 4 }],
+      tags: [{ data: [] }],
+    });
 
     const result = await service.getFeatured();
 
     expect(result.featured_projects).toEqual([]);
-    expect(result.trending_projects).toEqual([]);
+    expect(result.trending_projects.map((c) => c.id)).toEqual(['p1', 'p2']);
     expect(result.stats).toEqual({
       total_projects: 6,
       total_users: 4,
@@ -947,26 +961,26 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
     });
   });
 
-  it('UTCID05 falls back to empty lists and zero stats when every query errors', async () => {
-    const { service } = makeService(
-      [
-        { data: null, error: { message: 'db error' } },
-        { data: null, error: { message: 'db error' } },
-        { data: null, error: { message: 'db error' }, count: null },
-        { data: null, error: { message: 'db error' }, count: null },
+  it('UTCID05 keeps featured and stats with an empty trending list when the ranking view query errors', async () => {
+    const { service } = makeService({
+      engagement: [{ data: null, error: { message: 'db error' } }],
+      projects: [
+        listResult(['p1', 'p2']),
+        { data: null, count: 2 },
+        { data: null, count: 0 },
+        { data: [] },
       ],
-      [{ data: null, error: { message: 'db error' }, count: null }],
-      [],
-    );
+      users: [{ data: null, count: 3 }],
+      tags: [{ data: [] }],
+    });
 
     const result = await service.getFeatured();
 
-    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
-    expect(result.featured_projects).toEqual([]);
+    expect(result.featured_projects.map((c) => c.id)).toEqual(['p1', 'p2']);
     expect(result.trending_projects).toEqual([]);
     expect(result.stats).toEqual({
-      total_projects: 0,
-      total_users: 0,
+      total_projects: 2,
+      total_users: 3,
       total_forks: 0,
     });
   });
