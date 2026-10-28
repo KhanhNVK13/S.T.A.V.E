@@ -6,6 +6,7 @@ import type { DraftTrack } from "@stave/shared-types";
 import type { CustomSound, ResolvedCustomSound } from "../../lib/api-client";
 import { pitchName } from "../../lib/midi-note-name";
 import { Button } from "../ui/button";
+import { ConfirmDialog } from "../ui/confirm-dialog";
 import { INPUT_CLASS } from "../ui/form";
 import { SoundLibraryPanel } from "./sound-library-panel";
 
@@ -15,6 +16,7 @@ interface CustomSoundsPanelProps {
   track: DraftTrack | null;
   defaultPitch: number;
   customSounds: Map<string, ResolvedCustomSound>;
+  mappedIds?: Set<string>;
   onSetSoundMapping: (trackId: string, pitch: number, soundId: string | null) => void;
   onLibraryChange: () => void;
 }
@@ -63,11 +65,17 @@ export function CustomSoundsPanel({
   track,
   defaultPitch,
   customSounds,
+  mappedIds,
   onSetSoundMapping,
   onLibraryChange,
 }: CustomSoundsPanelProps) {
   const [pitch, setPitch] = useState(defaultPitch);
   const [libraryNames, setLibraryNames] = useState<Map<string, string>>(new Map());
+  const [pendingReplace, setPendingReplace] = useState<{
+    soundId: string;
+    soundName: string;
+    oldName: string;
+  } | null>(null);
 
   const mappings = Object.entries(track?.soundMap ?? {})
     .map(([key, soundId]) => ({ pitch: Number(key), soundId }))
@@ -122,6 +130,7 @@ export function CustomSoundsPanel({
       <section aria-labelledby="sound-library-heading" className="flex flex-col gap-3">
         <h3 id="sound-library-heading" className="text-[13px] font-semibold">Thư viện của bạn</h3>
         <SoundLibraryPanel
+          mappedIds={mappedIds}
           onLibraryChange={(library) => {
             setLibraryNames(new Map(library.items.map((s) => [s.id, s.name])));
             onLibraryChange();
@@ -134,7 +143,21 @@ export function CustomSoundsPanel({
                     <Button
                       variant="secondary"
                       disabled={current}
-                      onClick={() => onSetSoundMapping(track.id, pitch, sound.id)}
+                      onClick={() => {
+                        const existingId = track.soundMap?.[String(pitch)];
+                        if (existingId && existingId !== sound.id) {
+                          setPendingReplace({
+                            soundId: sound.id,
+                            soundName: sound.name,
+                            oldName:
+                              customSounds.get(existingId)?.name ??
+                              libraryNames.get(existingId) ??
+                              "âm thanh hiện tại",
+                          });
+                          return;
+                        }
+                        onSetSoundMapping(track.id, pitch, sound.id);
+                      }}
                     >
                       {current ? `Đang gán ${pitchName(pitch)}` : `Gán vào ${pitchName(pitch)}`}
                     </Button>
@@ -144,6 +167,23 @@ export function CustomSoundsPanel({
           }
         />
       </section>
+
+      <ConfirmDialog
+        open={!!pendingReplace && !!track}
+        title={`Thay âm thanh của nốt ${pitchName(pitch)}?`}
+        message={
+          <>
+            Nốt {pitchName(pitch)} đang gán <strong className="text-foreground">{pendingReplace?.oldName}</strong>.
+            Thay bằng <strong className="text-foreground">{pendingReplace?.soundName}</strong>?
+          </>
+        }
+        confirmLabel="Thay âm thanh"
+        onConfirm={() => {
+          if (pendingReplace && track) onSetSoundMapping(track.id, pitch, pendingReplace.soundId);
+          setPendingReplace(null);
+        }}
+        onCancel={() => setPendingReplace(null)}
+      />
     </div>
   );
 }

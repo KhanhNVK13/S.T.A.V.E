@@ -65,7 +65,7 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
   ): Promise<Awaited<ReturnType<ExploreService['listPublicProjects']>>> =>
     service.listPublicProjects(query);
 
-  it('UTCID01 returns 20 per page and totalPages 2 by SRS defaults, ordered created_at desc', async () => {
+  it('UTCID01 returns 12 per page and totalPages 3 by default, ordered created_at desc', async () => {
     const { service, mock } = makeService(
       { data: rows25(), count: 25 },
       { fork: { data: [] }, tags: { data: [] } },
@@ -74,8 +74,8 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
     const result = await call(service, { sort: 'newest' });
 
     expect(result.total).toBe(25);
-    expect(result.limit).toBe(20);
-    expect(result.totalPages).toBe(2);
+    expect(result.limit).toBe(12);
+    expect(result.totalPages).toBe(3);
     expect(mock.builders.projects.order).toHaveBeenCalledWith('created_at', {
       ascending: false,
     });
@@ -107,35 +107,59 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
     expect(result.limit).toBe(50);
   });
 
-  it('UTCID04 orders by play_count desc for sort "popular"', async () => {
-    const { service, mock } = makeService(
-      { data: rows25(), count: 25 },
-      { fork: { data: [] }, tags: { data: [] } },
-    );
+  it('UTCID04 orders by lifetime engagement for sort "popular"', async () => {
+    const ids = ['p1', 'p2'];
+    const mock = createSupabaseMock([], {
+      tables: {
+        project_engagement: [
+          { data: ids.map((project_id) => ({ project_id })), count: 25 },
+        ],
+        projects: [
+          { data: ids.map((id) => card(id, 'usr_active')) },
+          { data: [] },
+        ],
+        project_tags: [{ data: [] }],
+      },
+    });
+    const service = new ExploreService(mock.client);
 
     const result = await call(service, { sort: 'popular' });
 
-    expect(mock.builders.projects.order).toHaveBeenCalledWith('play_count', {
-      ascending: false,
-    });
-    expect(result.items).toHaveLength(25);
+    expect(mock.builders.project_engagement.order).toHaveBeenCalledWith(
+      'score_all',
+      { ascending: false },
+    );
+    expect(result.total).toBe(25);
+    expect(result.items.map((i) => i.id)).toEqual(ids);
   });
 
-  it('UTCID05 orders by play_count desc for sort "most_played"', async () => {
-    const { service, mock } = makeService(
-      { data: rows25(), count: 25 },
-      { fork: { data: [] }, tags: { data: [] } },
-    );
+  it('UTCID05 orders by lifetime engagement for sort "most_played"', async () => {
+    const ids = ['p1', 'p2'];
+    const mock = createSupabaseMock([], {
+      tables: {
+        project_engagement: [
+          { data: ids.map((project_id) => ({ project_id })), count: 25 },
+        ],
+        projects: [
+          { data: ids.map((id) => card(id, 'usr_active')) },
+          { data: [] },
+        ],
+        project_tags: [{ data: [] }],
+      },
+    });
+    const service = new ExploreService(mock.client);
 
     const result = await call(service, { sort: 'most_played' });
 
-    expect(mock.builders.projects.order).toHaveBeenCalledWith('play_count', {
-      ascending: false,
-    });
-    expect(result.items).toHaveLength(25);
+    expect(mock.builders.project_engagement.order).toHaveBeenCalledWith(
+      'score_all',
+      { ascending: false },
+    );
+    expect(result.total).toBe(25);
+    expect(result.items.map((i) => i.id)).toEqual(ids);
   });
 
-  it('UTCID06 falls back to 20 per page, created_at desc, totalPages 2 when sort is undefined', async () => {
+  it('UTCID06 falls back to 12 per page, created_at desc, totalPages 3 when sort is undefined', async () => {
     const { service, mock } = makeService(
       { data: rows25(), count: 25 },
       { fork: { data: [] }, tags: { data: [] } },
@@ -143,8 +167,8 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
 
     const result = await call(service, {});
 
-    expect(result.limit).toBe(20);
-    expect(result.totalPages).toBe(2);
+    expect(result.limit).toBe(12);
+    expect(result.totalPages).toBe(3);
     expect(mock.builders.projects.order).toHaveBeenCalledWith('created_at', {
       ascending: false,
     });
@@ -226,17 +250,18 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
     );
   });
 
-  it('UTCID12 excludes projects owned by suspended accounts (BR-109)', async () => {
-    const { service } = makeService(
-      {
-        data: [card('pa', 'usr_active'), card('pb', 'usr_suspended')],
-        count: 2,
-      },
+  it('UTCID12 filters out projects owned by suspended accounts (BR-109)', async () => {
+    const { service, mock } = makeService(
+      { data: [card('pa', 'usr_active')], count: 1 },
       { fork: { data: [] }, tags: { data: [] } },
     );
 
     const result = await call(service, { sort: 'newest' });
 
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith(
+      'owner.status',
+      'active',
+    );
     expect(result.items.map((i) => i.id)).toEqual(['pa']);
   });
 });
@@ -299,9 +324,7 @@ describe('BE-EXP-02 ExploreService.getPublicProject(id)', () => {
     const result = await service.getPublicProject('proj_1');
 
     expect(result.id).toBe('proj_1');
-    expect(mock.rpc).toHaveBeenCalledWith('increment_project_play_count', {
-      p_project_id: 'proj_1',
-    });
+    expect(mock.rpc).not.toHaveBeenCalled();
     expect(result.play_count).toBe(42);
   });
 
@@ -362,14 +385,14 @@ describe('BE-EXP-02 ExploreService.getPublicProject(id)', () => {
   });
 
   it('UTCID08 throws NotFoundException for a public project of a suspended owner (BR-109)', async () => {
-    const { service } = makeService(
-      { data: row('usr_suspended') },
-      { data: 43 },
-      { fork: { data: [] }, tags: { data: [] } },
-    );
+    const { service, mock } = makeService({ data: null });
 
     await expect(service.getPublicProject('proj_1')).rejects.toThrow(
       new NotFoundException('Project not found'),
+    );
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith(
+      'owner.status',
+      'active',
     );
   });
 });
@@ -391,6 +414,7 @@ describe('BE-EXP-03 ExploreService.getPublicUserProfile(id)', () => {
     avatar_url: 'https://x.io/a.png',
     bio: 'bio',
     created_at: '2026-01-01T00:00:00Z',
+    status: 'active',
   };
 
   const owned = (ids: string[], error = false): QueryResult => ({
@@ -478,7 +502,10 @@ describe('BE-EXP-03 ExploreService.getPublicUserProfile(id)', () => {
   });
 
   it('UTCID07 throws NotFoundException for a suspended account (UC-10 1.E2)', async () => {
-    const { service } = makeService({ data: userRow }, [owned([])]);
+    const { service } = makeService(
+      { data: { ...userRow, status: 'suspended' } },
+      [owned([])],
+    );
 
     await expect(service.getPublicUserProfile('usr_1')).rejects.toThrow(
       new NotFoundException('User not found'),
@@ -486,15 +513,18 @@ describe('BE-EXP-03 ExploreService.getPublicUserProfile(id)', () => {
   });
 
   it('UTCID08 counts only visible public projects, excluding the moderation-hidden one', async () => {
-    const { service } = makeService({ data: userRow }, [
-      owned(['p1', 'p2', 'p3', 'p4']),
+    const { service, mock } = makeService({ data: userRow }, [
+      owned(['p1', 'p2', 'p3']),
       { data: [], count: 0 },
     ]);
 
     const result = await service.getPublicUserProfile('usr_1');
 
     expect(result.total_public_projects).toBe(3);
-    expect(result.total_forks).toBe(0);
+    expect(mock.builders.projects.is).toHaveBeenCalledWith(
+      'moderation_hidden_at',
+      null,
+    );
   });
 });
 
@@ -584,42 +614,26 @@ describe('BE-EXP-04 ExploreService.getUserPublicProjects(id)', () => {
   });
 
   it('UTCID05 returns [] for a suspended owner with 2 public projects (BR-109)', async () => {
-    const { service } = makeService(
-      {
-        data: [
-          row('p2', 'usr_suspended', '2026-02-01T00:00:00Z'),
-          row('p1', 'usr_suspended', '2026-01-01T00:00:00Z'),
-        ],
-      },
-      { fork: { data: [] }, tags: { data: [] } },
-    );
+    const { service, mock } = makeService({ data: [] });
 
     const result = await service.getUserPublicProjects('usr_suspended');
 
     expect(result).toEqual([]);
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith(
+      'owner.status',
+      'active',
+    );
   });
 });
 
 // ============================================================================
 // SHEET: BE-EXP-05 (ExploreService.getRankings)
 //
-// Mock order per call:
-//   trending/top_played:
-//     1. projects main (DB-ordered by play_count, limit 10)
-//     2. (items > 0) project_tags + projects fork-counts enrichment
-//   top_forked:
-//     1. projects main (all visible rows)
-//     2. (ids > 0) projects fork-counts query
-//     3. project_tags enrichment only (fork counts precomputed)
-// Per-table queues keep the order deterministic.
+// Rankings read the `project_engagement` view for the order, then load the
+// cards of those ids and return them in the view's order.
 // ============================================================================
 describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
-  const rankRow = (
-    id: string,
-    ownerId: string,
-    plays: number,
-    index: number,
-  ) => ({
+  const rankRow = (id: string, index: number) => ({
     id,
     name: `Project ${id}`,
     description: null,
@@ -628,142 +642,92 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
     archived_at: null,
     created_at: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
     updated_at: '2026-01-01T00:00:00Z',
-    play_count: plays,
+    play_count: 0,
     owner: {
-      id: ownerId,
+      id: 'usr_active',
       username: 'owner',
       display_name: null,
       avatar_url: null,
     },
   });
 
-  /** plays p1..p10 = 10..1 (DB-ordered by play_count desc, as the mock plays DB). */
-  const top10 = () =>
-    [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((plays, i) =>
-      rankRow(`p${i + 1}`, 'usr_active', plays, i),
-    );
-
-  const forkRows = (counts: Record<string, number>) =>
-    Object.entries(counts).flatMap(([pid, n]) =>
-      Array.from({ length: n }, () => ({ forked_from_project_id: pid })),
-    );
+  const projectIds = Array.from({ length: 10 }, (_, i) => `p${i + 1}`);
 
   const makeService = (
-    main: QueryResult,
-    extra: { fork?: QueryResult; tags?: QueryResult } = {},
+    ranked: QueryResult,
+    cards: QueryResult = { data: [] },
   ) => {
-    const tables: Record<string, QueryResult[]> = {
-      projects: [main, ...(extra.fork ? [extra.fork] : [])],
-      project_tags: extra.tags ? [extra.tags] : [],
-    };
-    const mock = createSupabaseMock([], { tables });
+    const mock = createSupabaseMock([], {
+      tables: {
+        project_engagement: [ranked],
+        projects: [cards, { data: [] }],
+        project_tags: [{ data: [] }],
+      },
+    });
     return { service: new ExploreService(mock.client), mock };
   };
 
-  it('UTCID01 ranks trending by the SRS composite (weekly plays+forks) per account', async () => {
-    const { service } = makeService(
-      { data: top10() },
-      {
-        fork: { data: forkRows({ p6: 40, p7: 35, p8: 30, p9: 25, p10: 20 }) },
-        tags: { data: [] },
-      },
-    );
+  const viewOf = (ids: string[]): QueryResult => ({
+    data: ids.map((project_id) => ({ project_id })),
+  });
+
+  const cardsOf = (ids: string[]): QueryResult => ({
+    data: [...ids].reverse().map((id, i) => rankRow(id, i)),
+  });
+
+  it('UTCID01 ranks trending by the damped recent score and keeps the view order', async () => {
+    const order = ['p6', 'p7', 'p1', 'p2'];
+    const { service, mock } = makeService(viewOf(order), cardsOf(order));
 
     const result = await service.getRankings('trending');
 
-    expect(result.map((c) => c.id)).toEqual([
-      'p6',
-      'p7',
-      'p8',
-      'p9',
-      'p10',
-      'p1',
-      'p2',
-      'p3',
-      'p4',
-      'p5',
-    ]);
+    expect(mock.builders.project_engagement.order).toHaveBeenCalledWith(
+      'trending_score',
+      { ascending: false },
+    );
+    expect(result.map((c) => c.id)).toEqual(order);
   });
 
-  it('UTCID02 ranks top_played by play_count desc', async () => {
+  it('UTCID02 ranks top_played by distinct players', async () => {
     const { service, mock } = makeService(
-      { data: top10() },
-      { fork: { data: [] }, tags: { data: [] } },
+      viewOf(projectIds),
+      cardsOf(projectIds),
     );
 
     const result = await service.getRankings('top_played');
 
-    expect(mock.builders.projects.order).toHaveBeenCalledWith('play_count', {
-      ascending: false,
-    });
-    expect(result.map((c) => c.id)).toEqual([
-      'p1',
-      'p2',
-      'p3',
-      'p4',
-      'p5',
-      'p6',
-      'p7',
-      'p8',
-      'p9',
-      'p10',
-    ]);
+    expect(mock.builders.project_engagement.order).toHaveBeenCalledWith(
+      'plays',
+      { ascending: false },
+    );
+    expect(result.map((c) => c.id)).toEqual(projectIds);
   });
 
   it('UTCID03 defaults to trending when the type is undefined', async () => {
-    const { service, mock } = makeService(
-      { data: top10() },
-      {
-        fork: { data: forkRows({ p6: 40, p7: 35, p8: 30, p9: 25, p10: 20 }) },
-        tags: { data: [] },
-      },
+    const { service, mock } = makeService(viewOf(['p1']), cardsOf(['p1']));
+
+    await service.getRankings();
+
+    expect(mock.builders.project_engagement.order).toHaveBeenCalledWith(
+      'trending_score',
+      { ascending: false },
     );
-
-    const result = await service.getRankings();
-
-    expect(mock.builders.projects.order).toHaveBeenCalledWith('play_count', {
-      ascending: false,
-    });
-    expect(result.map((c) => c.id)).toEqual([
-      'p6',
-      'p7',
-      'p8',
-      'p9',
-      'p10',
-      'p1',
-      'p2',
-      'p3',
-      'p4',
-      'p5',
-    ]);
   });
 
-  it('UTCID04 ranks top_forked by fork count desc (P2, P1, then the rest)', async () => {
-    const rows = Array.from({ length: 15 }, (_, i) =>
-      rankRow(`p${i + 1}`, 'usr_active', 0, i),
-    );
-    const { service } = makeService(
-      { data: rows },
-      {
-        fork: { data: forkRows({ p1: 4, p2: 9 }) },
-        tags: { data: [] },
-      },
+  it('UTCID04 ranks top_forked by distinct fork owners and returns at most 10', async () => {
+    const { service, mock } = makeService(
+      viewOf(projectIds),
+      cardsOf(projectIds),
     );
 
     const result = await service.getRankings('top_forked');
 
-    expect(result.map((c) => c.id)).toEqual([
-      'p2',
-      'p1',
-      'p3',
-      'p4',
-      'p5',
-      'p6',
-      'p7',
-      'p8',
-      'p9',
-      'p10',
-    ]);
+    expect(mock.builders.project_engagement.order).toHaveBeenCalledWith(
+      'forks',
+      { ascending: false },
+    );
+    expect(mock.builders.project_engagement.range).toHaveBeenCalledWith(0, 9);
+    expect(result).toHaveLength(10);
   });
 
   it('UTCID05 returns [] for top_forked when no projects are visible', async () => {
@@ -805,21 +769,19 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
     );
   });
 
-  it('UTCID09 excludes projects of suspended owners from trending (BR-109)', async () => {
-    const rows = [
-      rankRow('p1', 'usr_suspended', 15, 0),
-      ...[14, 13, 12, 11, 10, 9, 8, 7, 6].map((plays, i) =>
-        rankRow(`p${i + 2}`, 'usr_active', plays, i + 1),
-      ),
-    ];
-    const { service } = makeService(
-      { data: rows },
-      { fork: { data: [] }, tags: { data: [] } },
+  it('UTCID09 ranks only visible projects and loads cards of active owners (BR-109)', async () => {
+    const { service, mock } = makeService(viewOf(['p1']), cardsOf(['p1']));
+
+    await service.getRankings('trending');
+
+    expect(mock.builders.project_engagement.eq).toHaveBeenCalledWith(
+      'is_visible',
+      true,
     );
-
-    const result = await service.getRankings('trending');
-
-    expect(result.map((c) => c.id)).not.toContain('p1');
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith(
+      'owner.status',
+      'active',
+    );
   });
 });
 

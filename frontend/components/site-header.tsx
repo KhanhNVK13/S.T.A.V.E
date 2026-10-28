@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "./ui/confirm-dialog";
+import { hasUnsavedWork } from "../lib/unsaved-guard";
 import { ChevronDown, Shield, UserRound, LogOut, Plus, Menu, X } from "lucide-react";
 import { useAuth } from "../context/auth-context";
 import { Logo } from "./ui/logo";
 import { Avatar } from "./ui/avatar";
+import { NotificationBell } from "./notification-bell";
 
 interface NavLink {
   href: string;
@@ -27,6 +31,8 @@ const NAV_LINKS: NavLink[] = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const { user, profile, loading, signOut } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -42,9 +48,19 @@ export function SiteHeader() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  async function handleSignOut() {
-    setDropdownOpen(false);
+  async function performSignOut() {
+    setConfirmSignOut(false);
+    router.replace("/");
     await signOut();
+  }
+
+  function handleSignOut() {
+    setDropdownOpen(false);
+    if (hasUnsavedWork()) {
+      setConfirmSignOut(true);
+      return;
+    }
+    void performSignOut();
   }
 
   const isEditor = /^\/projects\/[^/]+\/edit$/.test(pathname);
@@ -60,6 +76,7 @@ export function SiteHeader() {
   }
 
   return (
+    <>
     <header className="sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur">
       <div className={`mx-auto flex ${isEditor ? "h-11" : "h-14"} max-w-page items-center gap-5 px-5`}>
         <Logo />
@@ -77,6 +94,7 @@ export function SiteHeader() {
             <div className="h-8 w-24 animate-pulse rounded-md bg-surface-subtle" />
           ) : user ? (
             <>
+              <NotificationBell />
               <Link
                 href="/projects/new"
                 className="hidden h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent-hover sm:flex"
@@ -115,7 +133,7 @@ export function SiteHeader() {
                       <UserRound className="h-4 w-4 text-muted" /> Hồ sơ cá nhân
                     </Link>
                     <button
-                      onClick={() => void handleSignOut()}
+                      onClick={handleSignOut}
                       className="flex w-full items-center gap-2 px-4 py-2 text-[13px] text-danger hover:bg-surface-subtle"
                     >
                       <LogOut className="h-4 w-4" /> Đăng xuất
@@ -166,5 +184,16 @@ export function SiteHeader() {
         </nav>
       )}
     </header>
+    <ConfirmDialog
+      open={confirmSignOut}
+      title="Đăng xuất khi bản nháp chưa lưu được?"
+      message="Bản nháp hiện tại chưa được lưu lên máy chủ. Đăng xuất lúc này có thể làm mất các thay đổi chưa lưu. Bạn vẫn muốn đăng xuất?"
+      confirmLabel="Vẫn đăng xuất"
+      cancelLabel="Ở lại"
+      danger
+      onConfirm={() => void performSignOut()}
+      onCancel={() => setConfirmSignOut(false)}
+    />
+    </>
   );
 }

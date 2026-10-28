@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
@@ -15,6 +16,8 @@ jest.mock('uuid', () => ({
 }));
 
 import { createSupabaseMock } from '../test-utils/supabase-mock';
+import { ProjectAccessService } from '../project-access/project-access.service';
+import { ActiveBranchService } from '../active-branch/active-branch.service';
 import { BranchesService } from './branches.service';
 
 const branchId = '11111111-1111-4111-8111-111111111111';
@@ -38,9 +41,61 @@ function makeBranch(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeService(tables: SupabaseMockOptions['tables']) {
-  const mock = createSupabaseMock([], { tables });
-  const service = new BranchesService(mock.client);
+function node(
+  id: string,
+  parent: string | null,
+  mergedFrom: string | null = null,
+  createdAt = '2026-10-21T00:00:00.000Z',
+) {
+  return {
+    id,
+    parent_commit_id: parent,
+    merged_from_commit_id: mergedFrom,
+    created_at: createdAt,
+  };
+}
+
+function isAncestryRows(entry: { data?: unknown }): boolean {
+  return (
+    Array.isArray(entry.data) &&
+    entry.data.length > 0 &&
+    entry.data.every(
+      (row) =>
+        typeof row === 'object' &&
+        row !== null &&
+        'merged_from_commit_id' in row,
+    )
+  );
+}
+
+function makeService(
+  tables: SupabaseMockOptions['tables'],
+  rpc: SupabaseMockOptions['rpc'] = undefined,
+) {
+  const commitEntries = tables?.commits ?? [];
+  const ancestryRows = commitEntries
+    .filter(isAncestryRows)
+    .flatMap((entry) => entry.data as unknown[]);
+  const rpcOptions =
+    rpc ??
+    (ancestryRows.length > 0
+      ? { commit_ancestry: { data: ancestryRows } }
+      : undefined);
+  const splitTables = tables
+    ? { ...tables, commits: commitEntries.filter((e) => !isAncestryRows(e)) }
+    : tables;
+  const mock = createSupabaseMock([], {
+    tables: {
+      project_collaborators: Array.from({ length: 12 }, () => ({ data: null })),
+      ...splitTables,
+    },
+    rpc: rpcOptions,
+  });
+  const service = new BranchesService(
+    mock.client,
+    new ProjectAccessService(mock.client),
+    new ActiveBranchService(mock.client),
+  );
   return { service, ...mock };
 }
 
@@ -55,7 +110,11 @@ function baseTables(
 ) {
   return {
     branches: [{ data: branch }, { data: otherBranches }, deleteResult],
-    projects: [{ data: project }, { data: { active_branch_id: null } }],
+    projects: [
+      { data: project },
+      { data: { owner_id: userId, active_branch_id: null } },
+    ],
+    project_member_active_branches: [{ data: [] }],
   };
 }
 
@@ -79,7 +138,8 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
         otherBranches,
       ),
       commits: [
-        { data: { id: commitId, branch_id: branchId } },
+        { data: [{ id: commitId }] },
+        { data: [node(commitId, null)] },
         { data: null, error: null },
       ],
     });
@@ -91,6 +151,7 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     expect(builders.commits.update).toHaveBeenCalledWith({
       branch_id: otherBranchId,
     });
+    expect(builders.commits.in).toHaveBeenCalledWith('id', [commitId]);
     expect(builders.branches.delete).toHaveBeenCalled();
   });
 
@@ -116,8 +177,9 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
       ],
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: null } },
+        { data: { owner_id: userId, active_branch_id: null } },
       ],
+      project_member_active_branches: [{ data: [] }],
     });
 
     await expect(
@@ -136,14 +198,15 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
         otherBranches,
       ),
       commits: [
-        { data: { id: commitId, branch_id: branchId } },
+        { data: [{ id: commitId }] },
+        { data: [node(commitId, null)] },
         { data: null, error: { message: 'fk' } },
       ],
     });
 
     await expect(service.deleteBranch(branchId, userId)).rejects.toThrow(
       new InternalServerErrorException(
-        'Failed to re-home shared commit before deleting branch: fk',
+        'Failed to re-home shared commits before deleting branch: fk',
       ),
     );
 
@@ -178,7 +241,7 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
       ...baseTables(),
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: branchId } },
+        { data: { owner_id: userId, active_branch_id: branchId } },
       ],
     });
 
@@ -219,11 +282,14 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     );
   });
 
-  it('UTCID12 ignores a shared branch commit that is not its head commit', async () => {
+  it('UTCID12 leaves commits alone when nothing of this branch is reachable elsewhere', async () => {
     const otherBranches = [{ id: otherBranchId, head_commit_id: commitId }];
     const { service, builders } = makeService({
       ...baseTables(makeBranch(), { owner_id: userId }, otherBranches),
-      commits: [{ data: { id: commitId, branch_id: otherBranchId } }],
+      commits: [
+        { data: [{ id: 'own-only' }] },
+        { data: [node(commitId, null)] },
+      ],
     });
 
     await expect(
@@ -243,6 +309,106 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     await expect(service.deleteBranch(branchId, userId)).rejects.toThrow(
       new ForbiddenException('You do not have edit permission on this project'),
     );
+  });
+
+  it('UTCID15 re-homes older commits that another branch reaches through its history', async () => {
+    const older = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const head = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const otherBranches = [{ id: otherBranchId, head_commit_id: head }];
+    const { service, builders } = makeService({
+      ...baseTables(makeBranch(), { owner_id: userId }, otherBranches),
+      commits: [
+        { data: [{ id: older }, { id: 'only-here' }] },
+        { data: [node(head, older), node(older, null)] },
+        { data: null, error: null },
+      ],
+    });
+
+    await service.deleteBranch(branchId, userId);
+
+    expect(builders.commits.in).toHaveBeenCalledWith('id', [older]);
+    expect(builders.commits.update).toHaveBeenCalledWith({
+      branch_id: otherBranchId,
+    });
+  });
+
+  it('UTCID16 refuses to delete a branch a collaborator has open', async () => {
+    const { service, builders } = makeService({
+      ...baseTables(),
+      project_member_active_branches: [{ data: [{ user_id: otherUserId }] }],
+    });
+
+    await expect(service.deleteBranch(branchId, userId)).rejects.toThrow(
+      new ConflictException('Branch is the working branch of a collaborator'),
+    );
+    expect(builders.branches.delete).not.toHaveBeenCalled();
+  });
+
+  it('UTCID17 reports a failed collaborator lookup', async () => {
+    const { service } = makeService({
+      ...baseTables(),
+      project_member_active_branches: [
+        { data: null, error: { message: 'down' } },
+      ],
+    });
+
+    await expect(service.deleteBranch(branchId, userId)).rejects.toThrow(
+      new InternalServerErrorException(
+        'Failed to check who has the branch open: down',
+      ),
+    );
+  });
+
+  it('UTCID19 reads the history of every other branch with one query', async () => {
+    const heads = ['h1', 'h2', 'h3', 'h4', 'h5'];
+    const otherBranches = heads.map((head, i) => ({
+      id: `branch-${i}`,
+      head_commit_id: head,
+    }));
+    const { service, rpc } = makeService({
+      ...baseTables(makeBranch(), { owner_id: userId }, otherBranches),
+      commits: [
+        { data: [{ id: 'own-1' }] },
+        { data: null, error: null },
+        ...heads.map((head) => ({ data: [node(head, null)] })),
+      ],
+    });
+
+    await service.deleteBranch(branchId, userId);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('commit_ancestry', {
+      p_heads: heads,
+      p_limit: 20001,
+    });
+  });
+
+  it('UTCID18 re-homes shared commits in chunks of 100 ids', async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `commit-${i}`);
+    const head = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const otherBranches = [{ id: otherBranchId, head_commit_id: head }];
+    const chain = [
+      node(head, ids[0]),
+      ...ids.map((id, i) => node(id, i + 1 < ids.length ? ids[i + 1] : null)),
+    ];
+    const { service, builders } = makeService({
+      ...baseTables(makeBranch(), { owner_id: userId }, otherBranches),
+      commits: [
+        { data: ids.map((id) => ({ id })) },
+        { data: chain },
+        { data: null, error: null },
+        { data: null, error: null },
+        { data: null, error: null },
+      ],
+    });
+
+    await service.deleteBranch(branchId, userId);
+
+    const chunkSizes = builders.commits.in.mock.calls
+      .filter((call) => Array.isArray(call[1]) && call[1].length > 0)
+      .map((call) => (call[1] as string[]).length);
+    expect(chunkSizes.filter((n) => n === 100)).toHaveLength(2);
+    expect(chunkSizes).toContain(50);
   });
 });
 
@@ -566,11 +732,24 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
 
   function switchTables(overrides: SupabaseMockOptions['tables'] = {}) {
     return {
-      branches: [{ count: 3, data: null }, { data: targetBranch }],
-      projects: [{ data: { owner_id: userId } }, { data: null, error: null }],
-      drafts: [
+      branches: [
+        { count: 3, data: null },
+        { data: targetBranch },
+        { data: makeBranch() },
+      ],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId } },
         { data: null, error: null },
-        { data: { snapshot: targetSnapshot } },
+      ],
+      drafts: [
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        {
+          data: {
+            snapshot: targetSnapshot,
+            updated_at: '2026-10-28T01:00:00Z',
+          },
+        },
       ],
       users: [{ data: { id: userId, username: 'owner' } }],
       ...overrides,
@@ -600,6 +779,7 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
     const { service } = makeService({
       ...switchTables(),
       projects: [
+        { data: { owner_id: userId } },
         { data: { owner_id: userId } },
         { count: 2, data: null },
         { data: null, error: null },
@@ -709,6 +889,54 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
     },
   );
 
+  it('UTCID12 saves the outgoing draft only at the expected version and returns the target draft version', async () => {
+    const { service, builders } = makeService(switchTables());
+    const result = await service.switchBranch(
+      projectId,
+      {
+        currentBranchId: branchId,
+        targetBranchId: otherBranchId,
+        currentDraft,
+        expectedDraftVersion: '2026-10-27T23:00:00Z',
+      },
+      userId,
+    );
+
+    expect(builders.drafts.update).toHaveBeenCalled();
+    expect(builders.drafts.eq).toHaveBeenCalledWith(
+      'updated_at',
+      '2026-10-27T23:00:00Z',
+    );
+    expect(builders.drafts.upsert).not.toHaveBeenCalled();
+    expect(result.activeDraftVersion).toBe('2026-10-28T01:00:00Z');
+  });
+
+  it('UTCID13 refuses to switch when another tab changed the outgoing draft', async () => {
+    const { service, builders } = makeService(
+      switchTables({
+        drafts: [{ data: null, error: null }],
+      }),
+    );
+    const error = await service
+      .switchBranch(
+        projectId,
+        {
+          currentBranchId: branchId,
+          targetBranchId: otherBranchId,
+          currentDraft,
+          expectedDraftVersion: '2026-10-27T23:00:00Z',
+        },
+        userId,
+      )
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      code: 'DRAFT_STALE',
+    });
+    expect(builders.projects.update).not.toHaveBeenCalled();
+  });
+
   it('UTCID09 reports a draft save error', async () => {
     const { service } = makeService(
       switchTables({
@@ -736,8 +964,13 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
   it('UTCID10 reports an active-branch update error', async () => {
     const { service } = makeService({
       ...switchTables(),
-      branches: [{ count: 3, data: null }, { data: targetBranch }],
+      branches: [
+        { count: 3, data: null },
+        { data: targetBranch },
+        { data: makeBranch() },
+      ],
       projects: [
+        { data: { owner_id: userId } },
         { data: { owner_id: userId } },
         { data: null, error: { message: 'rls' } },
       ],
@@ -756,6 +989,34 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
     ).rejects.toThrow(
       new InternalServerErrorException('Failed to record active branch: rls'),
     );
+  });
+
+  it('UTCID11 rejects a current branch that belongs to another project', async () => {
+    const { service, builders } = makeService({
+      ...switchTables(),
+      branches: [
+        { count: 3, data: null },
+        { data: targetBranch },
+        {
+          data: makeBranch({
+            project_id: '99999999-9999-4999-8999-999999999999',
+          }),
+        },
+      ],
+    });
+
+    await expect(
+      service.switchBranch(
+        projectId,
+        {
+          currentBranchId: branchId,
+          targetBranchId: otherBranchId,
+          currentDraft,
+        },
+        userId,
+      ),
+    ).rejects.toThrow(new NotFoundException('Branch not found'));
+    expect(builders.drafts.upsert).not.toHaveBeenCalled();
   });
 });
 
@@ -846,6 +1107,25 @@ describe('BE-BRN-04 BranchesService.getBranchHistory', () => {
     );
   });
 
+  it('UTCID04 marks all commits unique when the default branch has no head', async () => {
+    const { service } = makeService({
+      branches: [
+        { data: branch },
+        { data: { ...defaultBranch, head_commit_id: null } },
+        { data: [{ id: branchId }, { id: defaultId }] },
+      ],
+      projects: [{ data: { owner_id: userId } }],
+      commits: [{ data: [{ ...rows[1], parent_commit_id: null }] }],
+      users: [{ data: [{ id: userId }] }],
+      commit_tags: [{ data: [] }],
+    });
+    const result = await service.getBranchHistory(branchId, userId);
+    expect(result.commits).toHaveLength(1);
+    expect(result.commits.every((commit) => commit.isUniqueToBranch)).toBe(
+      true,
+    );
+  });
+
   it('UTCID05 returns an empty history for a null head', async () => {
     const { service } = makeService({
       branches: [
@@ -912,7 +1192,7 @@ describe('BE-BRN-04 BranchesService.getBranchHistory', () => {
       projects: [{ data: { owner_id: otherUserId } }],
     });
     await expect(service.getBranchHistory(branchId, userId)).rejects.toThrow(
-      new ForbiddenException('You do not have edit permission on this project'),
+      new ForbiddenException('You do not have access to this project'),
     );
   });
 
@@ -942,9 +1222,9 @@ describe('BE-BRN-04 BranchesService.getBranchHistory', () => {
 describe('BE-BRN-05 BranchesService.getDeletePreview', () => {
   const branch = makeBranch();
 
-  it('UTCID01 returns commit ids on a non-default branch', async () => {
+  it('UTCID01 returns commit ids that only exist on this branch', async () => {
     const { service } = makeService({
-      branches: [{ data: branch }],
+      branches: [{ data: branch }, { data: [] }],
       projects: [{ data: { owner_id: userId } }],
       commits: [
         { data: [{ id: 'commit-a' }, { id: 'commit-b' }, { id: 'commit-c' }] },
@@ -964,7 +1244,7 @@ describe('BE-BRN-05 BranchesService.getDeletePreview', () => {
     ['UTCID03', null],
   ])('%s returns an empty preview', async (_id, data) => {
     const { service } = makeService({
-      branches: [{ data: branch }],
+      branches: [{ data: branch }, { data: [] }],
       projects: [{ data: { owner_id: userId } }],
       commits: [{ data }],
     });
@@ -978,7 +1258,7 @@ describe('BE-BRN-05 BranchesService.getDeletePreview', () => {
 
   it('UTCID04 identifies a default branch', async () => {
     const { service } = makeService({
-      branches: [{ data: { ...branch, is_default: true } }],
+      branches: [{ data: { ...branch, is_default: true } }, { data: [] }],
       projects: [{ data: { owner_id: userId } }],
       commits: [{ data: [{ id: 'commit-a' }] }],
     });
@@ -989,7 +1269,7 @@ describe('BE-BRN-05 BranchesService.getDeletePreview', () => {
 
   it('UTCID05 reports a query error', async () => {
     const { service } = makeService({
-      branches: [{ data: branch }],
+      branches: [{ data: branch }, { data: [] }],
       projects: [{ data: { owner_id: userId } }],
       commits: [{ data: null, error: { message: 'timeout' } }],
     });
@@ -1027,16 +1307,21 @@ describe('BE-BRN-05 BranchesService.getDeletePreview', () => {
     );
   });
 
-  it('UTCID09 returns the branch rows without filtering merged commits', async () => {
+  it('UTCID09 leaves out commits another branch still reaches', async () => {
     const { service } = makeService({
-      branches: [{ data: branch }],
+      branches: [
+        { data: branch },
+        { data: [{ id: otherBranchId, head_commit_id: 'merged' }] },
+      ],
       projects: [{ data: { owner_id: userId } }],
       commits: [
         { data: [{ id: 'merged' }, { id: 'unmerged' }, { id: 'other' }] },
+        { data: [node('merged', null)] },
       ],
     });
     const result = await service.getDeletePreview(branchId, userId);
-    expect(result.unmergedCommitIds).toHaveLength(3);
+    expect(result.unmergedCommitIds).toEqual(['unmerged', 'other']);
+    expect(result.unmergedCommitsCount).toBe(2);
   });
 
   it('UTCID11 forbids a view-only collaborator', async () => {
@@ -1065,9 +1350,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
       branches: [{ data: branch }, { data: defaultBranch }],
       projects: [{ data: { owner_id: userId } }],
       commits: [
-        { data: { parent_commit_id: baseCommitId } },
-        { data: null },
-        { data: { parent_commit_id: baseCommitId } },
+        { data: [node(commitId, baseCommitId), node(baseCommitId, null)] },
       ],
       users: [{ data: { id: userId, username: 'owner' } }],
     });
@@ -1087,7 +1370,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
     expect(result.isMerged).toBe(true);
   });
 
-  it('UTCID03 returns divergence for a branch behind default', async () => {
+  it('UTCID03 returns divergence for a branch whose commits are all on default', async () => {
     const d3 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const d2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const d1 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -1098,18 +1381,39 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
       ],
       projects: [{ data: { owner_id: userId } }],
       commits: [
-        { data: null },
-        { data: { parent_commit_id: d2 } },
-        { data: { parent_commit_id: d1 } },
-        { data: { parent_commit_id: baseCommitId } },
-        { data: { parent_commit_id: d2 } },
-        { data: { parent_commit_id: d1 } },
-        { data: { parent_commit_id: baseCommitId } },
+        { data: [node(baseCommitId, null), node(d3, d2)] },
+        { data: [node(d2, d1)] },
+        { data: [node(d1, baseCommitId)] },
+        { count: 2 },
       ],
       users: [{ data: { id: userId } }],
     });
     const result = await service.getBranchDetails(branchId, userId);
     expect(result.divergence).toEqual({ ahead: 0, behind: 3 });
+    expect(result.isMerged).toBe(true);
+  });
+
+  it('UTCID11 does not report a branch without commits of its own as merged', async () => {
+    const d1 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const { service } = makeService({
+      branches: [
+        {
+          data: makeBranch({
+            head_commit_id: baseCommitId,
+            base_commit_id: baseCommitId,
+          }),
+        },
+        { data: { ...defaultBranch, head_commit_id: d1 } },
+      ],
+      projects: [{ data: { owner_id: userId } }],
+      commits: [
+        { data: [node(baseCommitId, null), node(d1, baseCommitId)] },
+        { count: 0 },
+      ],
+      users: [{ data: { id: userId } }],
+    });
+    const result = await service.getBranchDetails(branchId, userId);
+    expect(result.divergence).toEqual({ ahead: 0, behind: 1 });
     expect(result.isMerged).toBe(false);
   });
 
@@ -1136,7 +1440,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
       projects: [{ data: { owner_id: otherUserId } }],
     });
     await expect(service.getBranchDetails(branchId, userId)).rejects.toThrow(
-      new ForbiddenException('You do not have edit permission on this project'),
+      new ForbiddenException('You do not have access to this project'),
     );
   });
 
@@ -1155,9 +1459,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
       branches: [{ data: branch }, { data: defaultBranch }],
       projects: [{ data: { owner_id: userId } }],
       commits: [
-        { data: { parent_commit_id: baseCommitId } },
-        { data: null },
-        { data: { parent_commit_id: baseCommitId } },
+        { data: [node(commitId, baseCommitId), node(baseCommitId, null)] },
       ],
       users: [{ data: null }],
     });
@@ -1176,7 +1478,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
       projects: [{ data: { owner_id: otherUserId } }],
     });
     await expect(service.getBranchDetails(branchId, userId)).rejects.toThrow(
-      new ForbiddenException('You do not have edit permission on this project'),
+      new ForbiddenException('You do not have access to this project'),
     );
   });
 });
@@ -1190,7 +1492,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
     const { service } = makeService({
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: activeId } },
+        { data: { owner_id: userId, active_branch_id: activeId } },
       ],
       branches: [{ data: [defaultBranch, activeBranch] }],
       users: [
@@ -1211,7 +1513,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
     const { service } = makeService({
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: null } },
+        { data: { owner_id: userId, active_branch_id: null } },
       ],
       branches: [{ data: [defaultBranch, activeBranch] }],
       users: [{ data: [{ id: userId }, { id: otherUserId }] }],
@@ -1224,7 +1526,12 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
     const { service } = makeService({
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } },
+        {
+          data: {
+            owner_id: userId,
+            active_branch_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          },
+        },
       ],
       branches: [{ data: [defaultBranch, activeBranch] }],
       users: [{ data: [{ id: userId }, { id: otherUserId }] }],
@@ -1237,7 +1544,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
     const { service } = makeService({
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: null } },
+        { data: { owner_id: userId, active_branch_id: null } },
       ],
       branches: [{ data: null }],
     });
@@ -1268,7 +1575,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
       projects: [{ data: { owner_id: otherUserId } }],
     });
     await expect(service.getProjectBranches(projectId, userId)).rejects.toThrow(
-      new ForbiddenException('You do not have edit permission on this project'),
+      new ForbiddenException('You do not have access to this project'),
     );
   });
 
@@ -1276,7 +1583,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
     const { service } = makeService({
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: activeId } },
+        { data: { owner_id: userId, active_branch_id: activeId } },
       ],
       branches: [{ data: [defaultBranch, activeBranch] }],
       users: [{ data: [{ id: userId, username: 'owner' }] }],
@@ -1295,7 +1602,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
       projects: [{ data: { owner_id: otherUserId } }],
     });
     await expect(service.getProjectBranches(projectId, userId)).rejects.toThrow(
-      new ForbiddenException('You do not have edit permission on this project'),
+      new ForbiddenException('You do not have access to this project'),
     );
   });
 });
@@ -1305,7 +1612,7 @@ describe('BE-BRN-08 BranchesService.verifyUserEditPermission', () => {
     const { service } = makeService({
       projects: [
         { data: { owner_id: userId } },
-        { data: { active_branch_id: null } },
+        { data: { owner_id: userId, active_branch_id: null } },
       ],
       branches: [{ data: [] }],
       users: [{ data: [] }],
@@ -1319,6 +1626,18 @@ describe('BE-BRN-08 BranchesService.verifyUserEditPermission', () => {
     const { service } = makeService({ projects: [{ data: null }] });
     await expect(service.getProjectBranches(projectId, userId)).rejects.toThrow(
       new NotFoundException('Project not found'),
+    );
+  });
+
+  it.each([
+    ['UTCID05', userId],
+    ['UTCID06', ''],
+  ])('%s forbids a user who is not the owner', async (_id, caller) => {
+    const { service } = makeService({
+      projects: [{ data: { owner_id: otherBranchId } }],
+    });
+    await expect(service.getProjectBranches(projectId, caller)).rejects.toThrow(
+      new ForbiddenException('You do not have access to this project'),
     );
   });
 });
@@ -1530,6 +1849,24 @@ describe('BE-BRN-09 BranchesService.determineStartCommit', () => {
     ).resolves.toEqual(expect.objectContaining({ head_commit_id: commitId }));
   });
 
+  it('UTCID10 uses the head of the branch returned by the default lookup even when it is not flagged default', async () => {
+    const { service } = makeService({
+      branches: [
+        { data: [{ id: sourceId }] },
+        { data: null },
+        { data: { ...startBranch, is_default: false } },
+        { data: makeBranch({ head_commit_id: commitId }) },
+      ],
+      commits: [{ data: [{ id: commitId }] }, { data: { snapshot: {} } }],
+      projects: [{ data: { owner_id: userId } }],
+      drafts: [{ data: null, error: null }],
+      users: [{ data: { id: userId } }],
+    });
+    await expect(
+      service.createBranch(projectId, { name: 'feature-start' }, userId),
+    ).resolves.toEqual(expect.objectContaining({ head_commit_id: commitId }));
+  });
+
   it('UTCID11 returns null when the default branch has no head', async () => {
     const { service } = makeService({
       branches: [
@@ -1571,12 +1908,20 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
   it('UTCID01 returns an existing branch draft snapshot', async () => {
     const snapshot = { schemaVersion: 3, meta: {}, tracks: [], notes: [] };
     const { service } = makeService({
-      projects: [{ data: { owner_id: userId } }, { data: null, error: null }],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId } },
+        { data: null, error: null },
+      ],
       branches: [
         { count: 2, data: null },
         { data: makeBranch({ id: otherBranchId }) },
+        { data: makeBranch() },
       ],
-      drafts: [{ data: null, error: null }, { data: { snapshot } }],
+      drafts: [
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        { data: { snapshot } },
+      ],
       users: [{ data: { id: userId } }],
     });
     const result = await service.switchBranch(
@@ -1594,13 +1939,21 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
   it('UTCID02 loads the head commit snapshot when no draft exists', async () => {
     const snapshot = { schemaVersion: 3, meta: {}, tracks: [], notes: [] };
     const { service } = makeService({
-      projects: [{ data: { owner_id: userId } }, { data: null, error: null }],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId } },
+        { data: null, error: null },
+      ],
       branches: [
         { count: 2, data: null },
         { data: makeBranch({ id: otherBranchId, head_commit_id: commitId }) },
+        { data: makeBranch() },
         { data: { head_commit_id: commitId } },
       ],
-      drafts: [{ data: null, error: null }, { data: null }],
+      drafts: [
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        { data: null },
+      ],
       commits: [{ data: { snapshot } }],
       users: [{ data: { id: userId } }],
     });
@@ -1616,23 +1969,36 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
     expect(result.activeSnapshot).toEqual(snapshot);
   });
 
-  it.each(['UTCID03', 'UTCID05'])(
+  it.each(['UTCID03', 'UTCID04', 'UTCID05'])(
     '%s uses the empty snapshot when no snapshot is available',
     async (_id) => {
+      const targetRow = {
+        UTCID03: { data: { head_commit_id: null } },
+        UTCID04: { data: null },
+        UTCID05: { data: { head_commit_id: commitId } },
+      }[_id as 'UTCID03' | 'UTCID04' | 'UTCID05'];
       const { service } = makeService({
-        projects: [{ data: { owner_id: userId } }, { data: null, error: null }],
+        projects: [
+          { data: { owner_id: userId } },
+          { data: { owner_id: userId } },
+          { data: null, error: null },
+        ],
         branches: [
           { count: 2, data: null },
           {
             data: makeBranch({
               id: otherBranchId,
-              head_commit_id: _id === 'UTCID03' ? null : commitId,
+              head_commit_id: _id === 'UTCID05' ? commitId : null,
             }),
           },
-          { data: _id === 'UTCID03' ? null : { head_commit_id: commitId } },
+          { data: makeBranch() },
+          targetRow,
         ],
-        drafts: [{ data: null, error: null }, { data: null }],
-        commits: _id === 'UTCID03' ? [] : [{ data: null }],
+        drafts: [
+          { data: { updated_at: '2026-10-28T00:00:00Z' } },
+          { data: null },
+        ],
+        commits: _id === 'UTCID05' ? [{ data: null }] : [],
         users: [{ data: { id: userId } }],
       });
       const result = await service.switchBranch(
@@ -1657,9 +2023,9 @@ describe('BE-BRN-11 BranchesService.getAncestorIds', () => {
   it('UTCID01 walks a commit chain head first', async () => {
     const { service } = makeService({
       commits: [
-        { data: { parent_commit_id: 'c2' } },
-        { data: { parent_commit_id: 'c1' } },
-        { data: { parent_commit_id: null } },
+        { data: [node('c3', 'c2')] },
+        { data: [node('c2', 'c1')] },
+        { data: [node('c1', null)] },
       ],
     });
     await expect(service.getAncestorIds('c3')).resolves.toEqual([
@@ -1671,7 +2037,7 @@ describe('BE-BRN-11 BranchesService.getAncestorIds', () => {
 
   it('UTCID02 returns the root commit for a one-commit chain', async () => {
     const { service } = makeService({
-      commits: [{ data: { parent_commit_id: null } }],
+      commits: [{ data: [node('c1', null)] }],
     });
     await expect(service.getAncestorIds('c1')).resolves.toEqual(['c1']);
   });
@@ -1685,20 +2051,65 @@ describe('BE-BRN-11 BranchesService.getAncestorIds', () => {
   });
 
   it('UTCID05 includes an id whose database row is missing', async () => {
-    const { service } = makeService({ commits: [{ data: null }] });
+    const { service } = makeService({}, { commit_ancestry: { data: [] } });
     await expect(service.getAncestorIds('unknown')).resolves.toEqual([
       'unknown',
     ]);
   });
 
-  it('UTCID06 stops after MAX_CHAIN_HOPS', async () => {
-    const { service } = makeService({
-      commits: Array.from({ length: 2000 }, () => ({
-        data: { parent_commit_id: 'next' },
-      })),
+  it('UTCID06 refuses to analyse a history above the node limit', async () => {
+    const chain = Array.from({ length: 20001 }, (_, i) =>
+      node(i === 0 ? 'head' : `n${i}`, `n${i + 1}`),
+    );
+    const { service } = makeService({}, { commit_ancestry: { data: chain } });
+    await expect(service.getAncestorIds('head')).rejects.toThrow(
+      new InternalServerErrorException(
+        'Commit history is too large to analyse',
+      ),
+    );
+  });
+
+  it('UTCID08 reads a long chain with a single database round trip', async () => {
+    const chain = Array.from({ length: 500 }, (_, i) =>
+      node(`c${i}`, i + 1 < 500 ? `c${i + 1}` : null),
+    );
+    const { service, rpc } = makeService(
+      {},
+      { commit_ancestry: { data: chain } },
+    );
+    const result = await service.getAncestorIds('c0');
+    expect(result).toHaveLength(500);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('commit_ancestry', {
+      p_heads: ['c0'],
+      p_limit: 20001,
     });
-    const result = await service.getAncestorIds('head');
-    expect(result).toHaveLength(2000);
+  });
+
+  it('UTCID07 follows the merged-from parent of a merge commit', async () => {
+    const { service } = makeService({
+      commits: [
+        { data: [node('m', 't1', 'f1')] },
+        { data: [node('t1', null), node('f1', null)] },
+      ],
+    });
+    await expect(service.getAncestorIds('m')).resolves.toEqual([
+      'm',
+      't1',
+      'f1',
+    ]);
+  });
+});
+
+describe('BranchesService commit graph errors', () => {
+  it('fails instead of guessing when the commit lookup errors', async () => {
+    const { service } = makeService(
+      {},
+      { commit_ancestry: { data: null, error: { message: 'timeout' } } },
+    );
+    await expect(service.findMergeBase('a', 'b')).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
   });
 });
 
@@ -1706,11 +2117,9 @@ describe('BE-BRN-12 BranchesService.findMergeBase', () => {
   it('UTCID01 returns the nearest common ancestor', async () => {
     const { service } = makeService({
       commits: [
-        { data: { parent_commit_id: 'a1' } },
-        { data: { parent_commit_id: 'm' } },
-        { data: { parent_commit_id: 'root' } },
-        { data: null },
-        { data: { parent_commit_id: 'm' } },
+        { data: [node('a2', 'a1'), node('b1', 'm')] },
+        { data: [node('a1', 'm'), node('m', 'root')] },
+        { data: [node('root', null)] },
       ],
     });
     await expect(service.findMergeBase('a2', 'b1')).resolves.toBe('m');
@@ -1731,7 +2140,7 @@ describe('BE-BRN-12 BranchesService.findMergeBase', () => {
 
   it('UTCID05 returns null for unrelated histories', async () => {
     const { service } = makeService({
-      commits: [{ data: null }, { data: null }],
+      commits: [{ data: [node('a', null), node('z', null)] }],
     });
     await expect(service.findMergeBase('a', 'z')).resolves.toBeNull();
   });
@@ -1739,12 +2148,37 @@ describe('BE-BRN-12 BranchesService.findMergeBase', () => {
   it('UTCID06 returns an ancestor in the other chain', async () => {
     const { service } = makeService({
       commits: [
-        { data: { parent_commit_id: 'a1' } },
-        { data: null },
-        { data: { parent_commit_id: 'root' } },
+        { data: [node('a2', 'a1'), node('a1', 'root')] },
+        { data: [node('root', null)] },
       ],
     });
     await expect(service.findMergeBase('a2', 'a1')).resolves.toBe('a1');
+  });
+
+  it('UTCID07 uses the merged-from parent so an earlier merge is the base', async () => {
+    const { service } = makeService({
+      commits: [
+        { data: [node('M', 'm1', 'f1'), node('f2', 'f1')] },
+        { data: [node('m1', 'root'), node('f1', 'root')] },
+        { data: [node('root', null)] },
+      ],
+    });
+    await expect(service.findMergeBase('M', 'f2')).resolves.toBe('f1');
+  });
+
+  it('UTCID08 prefers the newest of two best common ancestors', async () => {
+    const { service } = makeService({
+      commits: [
+        { data: [node('x', 'c1', 'c2'), node('y', 'c1', 'c2')] },
+        {
+          data: [
+            node('c1', null, null, '2026-10-20T00:00:00.000Z'),
+            node('c2', null, null, '2026-10-22T00:00:00.000Z'),
+          ],
+        },
+      ],
+    });
+    await expect(service.findMergeBase('x', 'y')).resolves.toBe('c2');
   });
 });
 
@@ -1783,15 +2217,9 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
       ],
       projects: [{ data: { owner_id: userId } }],
       commits: [
-        { data: { parent_commit_id: a1 } },
-        { data: { parent_commit_id: baseId } },
-        { data: null },
-        { data: { parent_commit_id: d2 } },
-        { data: { parent_commit_id: baseId } },
-        { data: { parent_commit_id: a1 } },
-        { data: { parent_commit_id: baseId } },
-        { data: { parent_commit_id: d2 } },
-        { data: { parent_commit_id: baseId } },
+        { data: [node(a2, a1), node(d3, d2)] },
+        { data: [node(a1, baseId), node(d2, baseId)] },
+        { data: [node(baseId, null)] },
       ],
       users: [{ data: { id: userId } }],
     });
@@ -1810,11 +2238,8 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
       ],
       projects: [{ data: { owner_id: userId } }],
       commits: [
-        { data: { parent_commit_id: a1 } },
-        { data: { parent_commit_id: baseId } },
-        { data: null },
-        { data: { parent_commit_id: a1 } },
-        { data: { parent_commit_id: baseId } },
+        { data: [node(a2, a1), node(baseId, null)] },
+        { data: [node(a1, baseId)] },
       ],
       users: [{ data: { id: userId } }],
     });
@@ -1833,11 +2258,9 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
       ],
       projects: [{ data: { owner_id: userId } }],
       commits: [
-        { data: null },
-        { data: { parent_commit_id: d1 } },
-        { data: { parent_commit_id: baseId } },
-        { data: { parent_commit_id: d1 } },
-        { data: { parent_commit_id: baseId } },
+        { data: [node(baseId, null), node(d2, d1)] },
+        { data: [node(d1, baseId)] },
+        { count: 0 },
       ],
       users: [{ data: { id: userId } }],
     });
@@ -1846,20 +2269,20 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
     );
   });
 
-  it('UTCID05 returns zero when both heads equal the base', async () => {
+  it('UTCID05 returns zero when both heads equal the base and the branch has no commits of its own', async () => {
     const { service } = makeService({
       branches: [
         { data: makeBranch({ head_commit_id: baseId }) },
         { data: defaultBranch },
       ],
       projects: [{ data: { owner_id: userId } }],
-      commits: [{ data: { parent_commit_id: null } }],
+      commits: [{ data: [node(baseId, null)] }, { count: 0 }],
       users: [{ data: { id: userId } }],
     });
     await expect(service.getBranchDetails(branchId, userId)).resolves.toEqual(
       expect.objectContaining({
         divergence: { ahead: 0, behind: 0 },
-        isMerged: true,
+        isMerged: false,
       }),
     );
   });
@@ -1873,12 +2296,7 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
         { data: { ...defaultBranch, head_commit_id: d } },
       ],
       projects: [{ data: { owner_id: userId } }],
-      commits: [
-        { data: { parent_commit_id: null } },
-        { data: { parent_commit_id: null } },
-        { data: { parent_commit_id: null } },
-        { data: { parent_commit_id: null } },
-      ],
+      commits: [{ data: [node(a, null), node(d, null)] }],
       users: [{ data: { id: userId } }],
     });
     await expect(service.getBranchDetails(branchId, userId)).resolves.toEqual(
@@ -1887,26 +2305,50 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
   });
 
   it('UTCID07 returns zero ahead for a null branch head', async () => {
+    const d = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const e = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const f = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
     const { service } = makeService({
       branches: [
         { data: makeBranch({ head_commit_id: null }) },
-        {
-          data: {
-            ...defaultBranch,
-            head_commit_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-          },
-        },
+        { data: { ...defaultBranch, head_commit_id: d } },
       ],
       projects: [{ data: { owner_id: userId } }],
       commits: [
-        { data: { parent_commit_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' } },
-        { data: { parent_commit_id: 'ffffffff-ffff-4fff-8fff-ffffffffffff' } },
-        { data: { parent_commit_id: null } },
+        { data: [node(d, e)] },
+        { data: [node(e, f)] },
+        { data: [node(f, null)] },
+        { count: 0 },
       ],
       users: [{ data: { id: userId } }],
     });
     await expect(service.getBranchDetails(branchId, userId)).resolves.toEqual(
       expect.objectContaining({ divergence: { ahead: 0, behind: 3 } }),
+    );
+  });
+
+  it('UTCID08 reports a branch as merged once a merge commit on default points at its head', async () => {
+    const f1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const mergeCommit = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const m1 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const { service } = makeService({
+      branches: [
+        { data: makeBranch({ head_commit_id: f1 }) },
+        { data: { ...defaultBranch, head_commit_id: mergeCommit } },
+      ],
+      projects: [{ data: { owner_id: userId } }],
+      commits: [
+        { data: [node(f1, baseId), node(mergeCommit, m1, f1)] },
+        { data: [node(baseId, null), node(m1, baseId)] },
+        { count: 1 },
+      ],
+      users: [{ data: { id: userId } }],
+    });
+    await expect(service.getBranchDetails(branchId, userId)).resolves.toEqual(
+      expect.objectContaining({
+        divergence: { ahead: 0, behind: 2 },
+        isMerged: true,
+      }),
     );
   });
 });
@@ -1916,9 +2358,20 @@ describe('BE-BRN-14 BranchesService.normalizeSnapshot', () => {
 
   async function switchWithDraft(currentDraft: Record<string, unknown>) {
     const { service } = makeService({
-      projects: [{ data: { owner_id: userId } }, { data: null, error: null }],
-      branches: [{ count: 2, data: null }, { data: target }],
-      drafts: [{ data: null, error: null }, { data: { snapshot: {} } }],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId } },
+        { data: null, error: null },
+      ],
+      branches: [
+        { count: 2, data: null },
+        { data: target },
+        { data: makeBranch() },
+      ],
+      drafts: [
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        { data: { snapshot: {} } },
+      ],
       users: [{ data: { id: userId } }],
     });
     return service.switchBranch(

@@ -15,6 +15,7 @@ jest.mock('uuid', () => ({
 }));
 
 import { BranchesService } from '../branches/branches.service';
+import { ProjectAccessService } from '../project-access/project-access.service';
 import { MergeService } from './merge.service';
 import { ConflictChoice } from './dto/resolve-conflict.dto';
 import type {
@@ -70,12 +71,22 @@ function makeService(
   rpc: SupabaseMockOptions['rpc'] = {},
   mergeBase: string | null = baseId,
 ) {
-  const mock = createSupabaseMock([], { tables, rpc });
+  const mock = createSupabaseMock([], {
+    tables: {
+      project_collaborators: Array.from({ length: 12 }, () => ({ data: null })),
+      ...tables,
+    },
+    rpc,
+  });
   const findMergeBase = jest.fn().mockResolvedValue(mergeBase);
   const branchesService = {
     findMergeBase,
   } as unknown as BranchesService;
-  const service = new MergeService(mock.client, branchesService);
+  const service = new MergeService(
+    mock.client,
+    branchesService,
+    new ProjectAccessService(mock.client),
+  );
   return { service, branchesService, findMergeBase, ...mock };
 }
 
@@ -136,7 +147,7 @@ describe('BE-MRG-03 MergeService.mergeBranch', () => {
           { data: { snapshot: emptySnapshot } },
         ],
       }),
-      { create_commit_atomic: { data: resultCommit, error: null } },
+      { create_merge_commit_atomic: { data: resultCommit, error: null } },
     );
     const result = await service.mergeBranch(userId, {
       sourceBranchId: sourceId,
@@ -151,12 +162,13 @@ describe('BE-MRG-03 MergeService.mergeBranch', () => {
       targetHeadId,
     ]);
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({
         p_branch_id: targetId,
         p_author_id: userId,
         p_parent_commit_id: targetHeadId,
         p_merged_from_branch_id: sourceId,
+        p_merged_from_commit_id: sourceHeadId,
       }),
     );
   });
@@ -193,8 +205,12 @@ describe('BE-MRG-03 MergeService.mergeBranch', () => {
       head_commit_id: sourceHeadId,
     });
     expect(builders.drafts.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ branch_id: targetId, snapshot: emptySnapshot }),
-      { onConflict: 'branch_id' },
+      expect.objectContaining({
+        branch_id: targetId,
+        user_id: userId,
+        snapshot: emptySnapshot,
+      }),
+      { onConflict: 'branch_id,user_id' },
     );
   });
 
@@ -561,7 +577,9 @@ describe('BE-MRG-06 MergeService.perform3WayMerge', () => {
   const conflictBase = snapshot([note('n1')]);
   const sourceChanged = snapshot([note('n1', { pitch: 61 })]);
   const targetChanged = snapshot([note('n1', { pitch: 62 })]);
-  const rpcSuccess = { create_commit_atomic: { data: commitRow('merged') } };
+  const rpcSuccess = {
+    create_merge_commit_atomic: { data: commitRow('merged') },
+  };
 
   function fullMerge(
     base: DraftSnapshot | null,
@@ -605,7 +623,7 @@ describe('BE-MRG-06 MergeService.perform3WayMerge', () => {
     });
     expect(result).toMatchObject({ hasConflicts: false });
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({
         p_snapshot: expect.objectContaining({
           meta: srcMeta,
@@ -648,7 +666,7 @@ describe('BE-MRG-06 MergeService.perform3WayMerge', () => {
       }),
     ).resolves.toMatchObject({ hasConflicts: false });
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({
         p_snapshot: expect.objectContaining({
           meta: emptySnapshot.meta,
@@ -679,7 +697,7 @@ describe('BE-MRG-06 MergeService.perform3WayMerge', () => {
       targetBranchId: targetId,
     });
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({
         p_snapshot: expect.objectContaining({ meta: targetMeta }),
       }),
@@ -693,7 +711,7 @@ describe('BE-MRG-06 MergeService.perform3WayMerge', () => {
       targetBranchId: targetId,
     });
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({
         p_snapshot: expect.objectContaining({ meta: emptySnapshot.meta }),
       }),
@@ -702,7 +720,10 @@ describe('BE-MRG-06 MergeService.perform3WayMerge', () => {
 
   it('UTCID07 propagates an atomic commit RPC error', async () => {
     const { service } = fullMerge(snapshot(), snapshot(), snapshot(), {
-      create_commit_atomic: { data: null, error: { message: 'rpc error' } },
+      create_merge_commit_atomic: {
+        data: null,
+        error: { message: 'rpc error' },
+      },
     });
     await expect(
       service.mergeBranch(userId, {
@@ -906,7 +927,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
     const row = commitRow('merge-1');
     const { service, rpc } = makeService(
       {},
-      { create_commit_atomic: { data: row } },
+      { create_merge_commit_atomic: { data: row } },
     );
     const target = branch(targetId) as never;
     const result = await (
@@ -915,11 +936,19 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
           u: string,
           t: never,
           s: string,
+          h: string | null,
           snap: DraftSnapshot,
           m: string,
         ) => Promise<unknown>;
       }
-    ).createMergeCommit(userId, target, sourceId, emptySnapshot, 'merged');
+    ).createMergeCommit(
+      userId,
+      target,
+      sourceId,
+      sourceHeadId,
+      emptySnapshot,
+      'merged',
+    );
     expect(result).toEqual({
       id: row.id,
       branch_id: row.branch_id,
@@ -928,13 +957,14 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
       created_by: userId,
       created_at: row.created_at,
     });
-    expect(rpc).toHaveBeenCalledWith('create_commit_atomic', {
+    expect(rpc).toHaveBeenCalledWith('create_merge_commit_atomic', {
       p_branch_id: targetId,
       p_author_id: userId,
       p_message: 'merged',
       p_snapshot: emptySnapshot,
       p_parent_commit_id: targetHeadId,
       p_merged_from_branch_id: sourceId,
+      p_merged_from_commit_id: sourceHeadId,
     });
   });
 
@@ -942,7 +972,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
     const { service, rpc } = makeService(
       {},
       {
-        create_commit_atomic: {
+        create_merge_commit_atomic: {
           data: commitRow('merge-2', { branch_id: targetId }),
         },
       },
@@ -954,13 +984,21 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
           u: string,
           t: never,
           s: string,
+          h: string | null,
           snap: DraftSnapshot,
           m: string,
         ) => Promise<unknown>;
       }
-    ).createMergeCommit(userId, target, sourceId, emptySnapshot, 'message');
+    ).createMergeCommit(
+      userId,
+      target,
+      sourceId,
+      sourceHeadId,
+      emptySnapshot,
+      'message',
+    );
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({ p_parent_commit_id: null }),
     );
   });
@@ -969,7 +1007,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
     const { service } = makeService(
       {},
       {
-        create_commit_atomic: {
+        create_merge_commit_atomic: {
           data: null,
           error: { message: 'permission denied' },
         },
@@ -982,6 +1020,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
             u: string,
             t: never,
             s: string,
+            h: string | null,
             snap: DraftSnapshot,
             m: string,
           ) => Promise<unknown>;
@@ -990,6 +1029,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
         userId,
         branch(targetId) as never,
         sourceId,
+        sourceHeadId,
         emptySnapshot,
         'message',
       ),
@@ -1004,7 +1044,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
     const { service } = makeService(
       {},
       {
-        create_commit_atomic: {
+        create_merge_commit_atomic: {
           data: null,
           error: { message: 'permission denied' },
         },
@@ -1017,6 +1057,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
             u: string,
             t: never,
             s: string,
+            h: string | null,
             snap: DraftSnapshot,
             m: string,
           ) => Promise<unknown>;
@@ -1025,6 +1066,7 @@ describe('BE-MRG-11 MergeService.createMergeCommit', () => {
         userId,
         branch(targetId, { head_commit_id: null }) as never,
         sourceId,
+        sourceHeadId,
         emptySnapshot,
         'message',
       ),
@@ -1040,7 +1082,9 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
   const conflictBase = snapshot([note('n1')]);
   const sourceChanged = snapshot([note('n1', { pitch: 61 })]);
   const targetChanged = snapshot([note('n1', { pitch: 62 })]);
-  const rpcSuccess = { create_commit_atomic: { data: commitRow('resolved') } };
+  const rpcSuccess = {
+    create_merge_commit_atomic: { data: commitRow('resolved') },
+  };
   const pickSource = [{ noteId: 'n1', choice: ConflictChoice.PICK_SOURCE }];
 
   function resolveSetup(
@@ -1080,11 +1124,12 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
       commit: expect.objectContaining({ id: 'resolved' }),
     });
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({
         p_message: 'Resolve merge',
         p_branch_id: targetId,
         p_merged_from_branch_id: sourceId,
+        p_merged_from_commit_id: sourceHeadId,
         p_snapshot: expect.objectContaining({
           notes: [note('n1', { pitch: 61 })],
         }),
@@ -1099,7 +1144,7 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
       resolutions: pickSource,
     });
     expect(rpc).toHaveBeenCalledWith(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       expect.objectContaining({ p_message: "Merge branch 'feat' into main" }),
     );
   });
@@ -1238,7 +1283,10 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
   it('UTCID12 propagates a commit RPC failure', async () => {
     const { service } = resolveSetup({
       rpc: {
-        create_commit_atomic: { data: null, error: { message: 'rpc error' } },
+        create_merge_commit_atomic: {
+          data: null,
+          error: { message: 'rpc error' },
+        },
       },
     });
     await expect(
@@ -1488,5 +1536,50 @@ describe('BE-MRG-09 MergeService.applyResolutionsWithMergedNotes', () => {
       target: snapshot([], [], targetMeta),
     });
     expect(result.meta).toEqual(targetMeta);
+  });
+});
+
+describe('MergeService.previewMerge', () => {
+  const snapshotOf = (notes: DraftNote[]): DraftSnapshot => ({
+    ...emptySnapshot,
+    notes,
+  });
+  const base = note('n1');
+
+  it('reports no conflicts when only one side changed a note', () => {
+    const { service } = makeService();
+    const result = service.previewMerge(
+      snapshotOf([base]),
+      snapshotOf([note('n1', { pitch: 61 })]),
+      snapshotOf([base]),
+    );
+    expect(result).toEqual({ conflictsCount: 0, conflictsByBar: {} });
+  });
+
+  it('counts a note modified differently on both sides and groups it by bar', () => {
+    const { service } = makeService();
+    const result = service.previewMerge(
+      snapshotOf([base]),
+      snapshotOf([note('n1', { pitch: 61 })]),
+      snapshotOf([note('n1', { pitch: 62 })]),
+    );
+    expect(result.conflictsCount).toBe(1);
+    expect(Object.keys(result.conflictsByBar)).toEqual(['1']);
+    expect(result.conflictsByBar[1][0].noteId).toBe('n1');
+  });
+
+  it('treats a missing snapshot as an empty one', () => {
+    const { service } = makeService();
+    expect(service.previewMerge(null, null, null)).toEqual({
+      conflictsCount: 0,
+      conflictsByBar: {},
+    });
+  });
+
+  it('does not write anything', () => {
+    const { service, builder } = makeService();
+    service.previewMerge(snapshotOf([base]), snapshotOf([base]), null);
+    expect(builder.upsert).not.toHaveBeenCalled();
+    expect(builder.insert).not.toHaveBeenCalled();
   });
 });

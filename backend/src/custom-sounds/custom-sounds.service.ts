@@ -330,10 +330,38 @@ export class CustomSoundsService {
     };
   }
 
+  async rename(
+    ownerId: string,
+    soundId: string,
+    rawName: string,
+  ): Promise<CustomSoundResponse> {
+    const name = cleanName(rawName);
+    if (!name) {
+      throw new BadRequestException('Tên âm thanh không được để trống');
+    }
+    const { data, error } = await this.supabase
+      .from('custom_sounds')
+      .update({ name })
+      .eq('id', soundId)
+      .eq('owner_id', ownerId)
+      .is('deleted_at', null)
+      .select('*')
+      .maybeSingle<CustomSoundRow>();
+    if (error) {
+      throw new InternalServerErrorException('Could not rename custom sound');
+    }
+    if (!data) throw new NotFoundException('Custom sound not found');
+    return this.toResponse(data, await this.signPlayback(data.file_url));
+  }
+
   async getUsage(
     ownerId: string,
     soundId: string,
-  ): Promise<{ externalProjectCount: number }> {
+  ): Promise<{
+    externalProjectCount: number;
+    externalProjects: { id: string; name: string }[];
+    privateProjectCount: number;
+  }> {
     const { data: sound } = await this.supabase
       .from('custom_sounds')
       .select('id')
@@ -352,7 +380,56 @@ export class CustomSoundsService {
         'Could not read custom sound usage',
       );
     }
-    return { externalProjectCount: Number(data ?? 0) };
+    const projectIdSet = new Set<string>();
+    const PAGE = 1000;
+    for (let offset = 0; offset < 50 * PAGE; offset += PAGE) {
+      const { data: mappingRows, error: mappingError } = await this.supabase
+        .from('sound_mappings')
+        .select('project_id')
+        .eq('custom_sound_id', soundId)
+        .order('project_id')
+        .range(offset, offset + PAGE - 1);
+      if (mappingError) {
+        throw new InternalServerErrorException(
+          'Could not read custom sound usage',
+        );
+      }
+      const rows = (mappingRows ?? []) as { project_id: string }[];
+      rows.forEach((row) => projectIdSet.add(row.project_id));
+      if (rows.length < PAGE) break;
+    }
+    const projectIds = [...projectIdSet];
+    let externalProjects: { id: string; name: string }[] = [];
+    let privateProjectCount = 0;
+    if (projectIds.length > 0) {
+      const { data: projects, error: projectError } = await this.supabase
+        .from('projects')
+        .select('id, name, visibility')
+        .in('id', projectIds)
+        .neq('owner_id', ownerId);
+      if (projectError) {
+        throw new InternalServerErrorException(
+          'Could not read custom sound usage',
+        );
+      }
+      const rows = (projects ?? []) as {
+        id: string;
+        name: string;
+        visibility: string;
+      }[];
+      externalProjects = rows
+        .filter((p) => p.visibility === 'public')
+        .slice(0, 10)
+        .map((p) => ({ id: p.id, name: p.name }));
+      privateProjectCount = rows.filter(
+        (p) => p.visibility !== 'public',
+      ).length;
+    }
+    return {
+      externalProjectCount: Number(data ?? 0),
+      externalProjects,
+      privateProjectCount,
+    };
   }
 
   async delete(

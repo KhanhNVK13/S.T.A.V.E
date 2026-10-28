@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase-browser";
 import { authErrorMessage } from "../../lib/error-message";
+import { takeAuthNotice } from "../../lib/auth-notice";
+import { safeRedirectPath } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AuthDivider, GoogleButton, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { Button } from "../../components/ui/button";
+import {validateEmail, REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,11 +18,28 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
+
+  useEffect(() => {
+    const notice = takeAuthNotice();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage chỉ đọc được ở client
+    if (notice) setError(notice);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const form = e.currentTarget;
     setError(null);
+    const nextErrors: { email?: string; password?: string } = {};
+    const emailInvalid = validateEmail(email);
+    if (emailInvalid) nextErrors.email = emailInvalid;
+    if (!password) nextErrors.password = REQUIRED_MESSAGE;
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      focusFirstInvalid(form);
+      return;
+    }
     setUnconfirmed(false);
     setResendState("idle");
     setSubmitting(true);
@@ -33,7 +53,7 @@ export default function LoginPage() {
       setUnconfirmed(signInError.code === "email_not_confirmed");
       return;
     }
-    router.push("/");
+    router.push(safeRedirectPath(new URLSearchParams(window.location.search).get("redirect")));
   }
 
   async function handleResend() {
@@ -64,26 +84,24 @@ export default function LoginPage() {
       title="Đăng nhập vào STAVE"
       description="Tiếp tục từ nơi bản nhạc của bạn đang dang dở."
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-        <AuthField label="Email">
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3.5">
+        <AuthField label="Email" error={fieldErrors.email}>
           <input
             name="email"
             autoComplete="email"
             spellCheck={false}
             type="email"
-            required
             placeholder="ban@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        <AuthField label="Mật khẩu">
+        <AuthField label="Mật khẩu" error={fieldErrors.password}>
           <input
             name="password"
             autoComplete="current-password"
             type="password"
-            required
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

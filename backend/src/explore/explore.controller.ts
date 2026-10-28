@@ -1,7 +1,19 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ExploreService } from './explore.service';
 import { PublicProjectsQueryDto } from '../projects/dto/public-projects-query.dto';
 import { RankingsQueryDto } from '../projects/dto/rankings-query.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { SessionAuthGuard } from '../common/guards/session-auth.guard';
+import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 
 @Controller('explore')
 export class ExploreController {
@@ -17,6 +29,15 @@ export class ExploreController {
   @Get('projects/:id')
   getPublicProject(@Param('id') id: string) {
     return this.exploreService.getPublicProject(id);
+  }
+
+  @Post('projects/:id/play')
+  @UseGuards(JwtAuthGuard, SessionAuthGuard)
+  recordPlay(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.exploreService.recordPlay(id, req.user.id);
   }
 
   /** UC-10: View public user profile. */

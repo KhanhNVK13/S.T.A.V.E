@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
-import { ArrowLeftRight, GitCompareArrows, Loader2, X } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ArrowLeftRight, GitCompareArrows, Loader2, Play, Square, X } from "lucide-react";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import { compareCommits, getCommit } from "../../lib/api-client";
 import type { SnapshotDiff, SnapshotMetaChange } from "../../lib/api-client";
@@ -12,6 +12,8 @@ import { INPUT_CLASS } from "../ui/form";
 import { useDialog } from "../../lib/use-dialog";
 import { apiErrorMessage } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
+import { resolveAndLoadCustomSounds } from "../../lib/custom-sound-buffers";
+import { SnapshotPlayer } from "../../lib/snapshot-player";
 
 /** Thông tin tối thiểu để hiện tiêu đề 1 phiên bản trong màn so sánh. */
 export interface CompareSide {
@@ -113,14 +115,14 @@ function describeNote(n: DraftNote) {
  * yêu cầu phân biệt added/removed/changed/unchanged) — không tự tính diff lần
  * hai ở client.
  *
- * Chưa làm: bước 6 (nghe thử từng phiên bản ngay trong màn so sánh) — engine
- * phát nhạc hiện chỉ sống trong MIDI Editor. Xem PROJECT_STATE §37.
  */
 export function CommitCompare({
+  projectId,
   base: initialBase,
   target: initialTarget,
   onClose,
 }: {
+  projectId: string;
   base: CompareSide;
   target: CompareSide;
   onClose: () => void;
@@ -134,6 +136,57 @@ export function CommitCompare({
   const [loading, setLoading] = useState(true);
   const [trackFilter, setTrackFilter] = useState<string>("all");
   const [reloadKey, setReloadKey] = useState(0);
+  const playerRef = useRef<SnapshotPlayer | null>(null);
+  const [playing, setPlaying] = useState<"base" | "target" | null>(null);
+  const [playBusy, setPlayBusy] = useState(false);
+  const [playError, setPlayError] = useState<string | null>(null);
+
+  const stopPlayback = useCallback(() => {
+    playerRef.current?.stop();
+    setPlaying(null);
+    setPlayBusy(false);
+  }, []);
+
+  useEffect(() => {
+    const player = new SnapshotPlayer();
+    playerRef.current = player;
+    return () => {
+      player.stop();
+      playerRef.current = null;
+    };
+  }, []);
+
+  async function togglePlay(side: "base" | "target") {
+    if (playing === side) {
+      stopPlayback();
+      return;
+    }
+    const snap = side === "base" ? baseSnap : targetSnap;
+    const player = playerRef.current;
+    if (!snap || !player) return;
+    stopPlayback();
+    setPlayError(null);
+    setPlayBusy(true);
+    try {
+      const customBuffers = await resolveAndLoadCustomSounds(projectId, snap).catch(
+        () => new Map<string, AudioBuffer>(),
+      );
+      const started = await player.play(snap, customBuffers, () => {
+        setPlaying(null);
+        setPlayBusy(false);
+      });
+      if (!started) {
+        setPlayError("Phiên bản này chưa có nốt nào để nghe.");
+        setPlayBusy(false);
+        return;
+      }
+      setPlaying(side);
+    } catch (err) {
+      setPlayError(apiErrorMessage(err, "Không phát được phiên bản này."));
+    } finally {
+      setPlayBusy(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +233,7 @@ export function CommitCompare({
 
   /** 5.1: đảo chiều — cái từng là "thêm" giờ thành "xoá". */
   function swap() {
+    stopPlayback();
     setBase(target);
     setTarget(base);
   }
@@ -274,6 +328,28 @@ export function CommitCompare({
               </Button>
               <VersionChip label="Đem so" side={target} />
             </div>
+            {baseSnap && targetSnap && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {(["base", "target"] as const).map((side) => (
+                  <Button
+                    key={side}
+                    variant="secondary"
+                    disabled={playBusy && playing !== side}
+                    onClick={() => void togglePlay(side)}
+                    aria-pressed={playing === side}
+                  >
+                    {playing === side ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                    {playing === side ? "Dừng" : side === "base" ? "Nghe bản gốc" : "Nghe bản đem so"}
+                  </Button>
+                ))}
+                {playBusy && <span className="text-xs text-muted">Đang chuẩn bị âm thanh…</span>}
+                {playError && (
+                  <span role="alert" className="text-xs text-danger">
+                    {playError}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <Button variant="ghost" onClick={onClose} aria-label="Đóng">
             <X className="h-4 w-4" />

@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Play, GitFork, GitBranch, ScrollText, Music2, Eye, Plus, CircleUserRound } from 'lucide-react';
 import { useAuth } from '../context/auth-context';
 import { getFeaturedContent, FeaturedContent } from '../lib/api-client';
@@ -15,14 +17,21 @@ import { RowList, RowHeader, RowItem, RowTitle, RowStat, RowTime } from '../comp
 const COLS = 'md:grid-cols-[34px_minmax(0,1fr)_112px_84px_84px_96px]';
 
 export default function HomePage() {
+  const router = useRouter();
   const { user } = useAuth();
   // Lỗi tải được bỏ qua có chủ đích — phần đầu trang đã có sẵn nội dung mặc định
   // cho trường hợp `data === null`, không có gì thêm để hiển thị khi hỏng.
   const { data, loading } = useApiResource<FeaturedContent>(() => getFeaturedContent(), []);
 
+  useEffect(() => {
+    if (user) router.replace('/projects');
+  }, [user, router]);
+
   const featured = data?.featured_projects[0] ?? null;
   const featuredOwner =
     featured?.owner.display_name ?? featured?.owner.username ?? 'Người dùng';
+
+  if (user) return null;
 
   return (
     <div className="mx-auto min-h-full max-w-page px-5 py-8">
@@ -42,10 +51,10 @@ export default function HomePage() {
                 'Theo dõi ý tưởng khi chúng phân nhánh, thay đổi và trở thành bản nhạc hoàn chỉnh.')}
           </p>
         </div>
-        <Link href={user ? '/projects/new' : '/register'} className="shrink-0">
+        <Link href="/register" className="shrink-0">
           <Button>
             <Plus className="h-3.5 w-3.5" />
-            {user ? 'Bắt đầu dự án' : 'Đăng ký miễn phí'}
+            Đăng ký miễn phí
           </Button>
         </Link>
       </div>
@@ -195,47 +204,44 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Giới thiệu — chỉ hiện với khách chưa đăng nhập; người đã đăng nhập không cần đọc lại */}
-      {!user && (
-        <section className="mt-9 border-t border-border pt-8">
-          <h2 className="mb-5 text-[17px] font-semibold">Vì sao dùng STAVE?</h2>
-          <div className="grid gap-6 md:grid-cols-3">
-            <div>
-              <GitBranch className="mb-2.5 h-5 w-5 text-accent" />
-              <h3 className="mb-1 text-[13px] font-semibold">Phân nhánh &amp; hợp nhất</h3>
-              <p className="text-xs leading-relaxed text-muted">
-                Thử nhiều hướng phối khác nhau mà không sợ mất bản gốc, hợp nhất khi đã hài lòng.
-              </p>
-            </div>
-            <div>
-              <ScrollText className="mb-2.5 h-5 w-5 text-accent" />
-              <h3 className="mb-1 text-[13px] font-semibold">So sánh phiên bản</h3>
-              <p className="text-xs leading-relaxed text-muted">
-                Xem chính xác nốt nào được thêm, sửa hay xoá giữa hai phiên bản.
-              </p>
-            </div>
-            <div>
-              <Music2 className="mb-2.5 h-5 w-5 text-accent" />
-              <h3 className="mb-1 text-[13px] font-semibold">Trình soạn nhạc MIDI</h3>
-              <p className="text-xs leading-relaxed text-muted">
-                Chỉnh sửa MIDI ngay trên trình duyệt, không cần cài đặt phần mềm.
-              </p>
-            </div>
+      <section className="mt-9 border-t border-border pt-8">
+        <h2 className="mb-5 text-[17px] font-semibold">Vì sao dùng STAVE?</h2>
+        <div className="grid gap-6 md:grid-cols-3">
+          <div>
+            <GitBranch className="mb-2.5 h-5 w-5 text-accent" />
+            <h3 className="mb-1 text-[13px] font-semibold">Phân nhánh &amp; hợp nhất</h3>
+            <p className="text-xs leading-relaxed text-muted">
+              Thử nhiều hướng phối khác nhau mà không sợ mất bản gốc, hợp nhất khi đã hài lòng.
+            </p>
           </div>
+          <div>
+            <ScrollText className="mb-2.5 h-5 w-5 text-accent" />
+            <h3 className="mb-1 text-[13px] font-semibold">So sánh phiên bản</h3>
+            <p className="text-xs leading-relaxed text-muted">
+              Xem chính xác nốt nào được thêm, sửa hay xoá giữa hai phiên bản.
+            </p>
+          </div>
+          <div>
+            <Music2 className="mb-2.5 h-5 w-5 text-accent" />
+            <h3 className="mb-1 text-[13px] font-semibold">Trình soạn nhạc MIDI</h3>
+            <p className="text-xs leading-relaxed text-muted">
+              Chỉnh sửa MIDI ngay trên trình duyệt, không cần cài đặt phần mềm.
+            </p>
+          </div>
+        </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface p-5">
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold">Sẵn sàng bắt đầu?</p>
-              <p className="mt-0.5 text-xs text-muted">
-                Tham gia cùng cộng đồng sáng tác trên STAVE ngay hôm nay.
-              </p>
-            </div>
-            <Link href="/register">
-              <Button>Đăng ký miễn phí</Button>
-            </Link>
+        <div className="mt-8 flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface p-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold">Sẵn sàng bắt đầu?</p>
+            <p className="mt-0.5 text-xs text-muted">
+              Tham gia cùng cộng đồng sáng tác trên STAVE ngay hôm nay.
+            </p>
           </div>
-        </section>
-      )}
+          <Link href="/register">
+            <Button>Đăng ký miễn phí</Button>
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

@@ -7,19 +7,28 @@ import { supabase } from "../../lib/supabase-browser";
 import { authErrorMessage } from "../../lib/error-message";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { Button } from "../../components/ui/button";
+import {validateEmail, focusFirstInvalid } from "../../lib/validation";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const form = e.currentTarget;
     setError(null);
+    const invalid = validateEmail(email);
+    setEmailError(invalid);
+    if (invalid) {
+      focusFirstInvalid(form);
+      return;
+    }
     setSubmitting(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email,
+      email.trim(),
       { redirectTo: `${window.location.origin}/reset-password` },
     );
     setSubmitting(false);
@@ -40,7 +49,7 @@ export default function ForgotPasswordPage() {
           <h2 className="mb-2 text-lg font-semibold text-foreground">Kiểm tra email</h2>
           <p className="text-sm text-muted">
             Nếu <span className="font-mono text-foreground">{email}</span> đã đăng ký, mình
-            đã gửi link đặt lại mật khẩu (hiệu lực 1 giờ, dùng được 1 lần).
+            đã gửi link đặt lại mật khẩu (hiệu lực 24 giờ, dùng được 1 lần).
           </p>
           <Link href="/login" className="mt-5 text-sm text-accent hover:underline">
             Quay lại đăng nhập
@@ -59,14 +68,13 @@ export default function ForgotPasswordPage() {
       <p className="mb-4 -mt-2 text-sm text-muted">
         Nhập email, mình sẽ gửi link để đặt lại mật khẩu.
       </p>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <AuthField label="Email">
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <AuthField label="Email" error={emailError}>
           <input
             name="email"
             autoComplete="email"
             spellCheck={false}
             type="email"
-            required
             placeholder="ban@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
+import type { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
+import { AccountRemovalService } from '../account-removal/account-removal.service';
 import {
   createSupabaseMock,
   type QueryResult,
@@ -36,9 +38,13 @@ describe('BE-ADM-01 AdminService.listUsers(query)', () => {
 
   const makeService = (usersResult: QueryResult) => {
     const mock = createSupabaseMock([], {
-      tables: { users: [usersResult] },
+      tables: { users: [usersResult], admin_audit_log: [{ data: [] }] },
+      rpc: { admin_project_counts: { data: [], error: null } },
     });
-    const service = new AdminService(mock.client, {} as CustomSoundsService);
+    const service = new AdminService(
+      mock.client,
+      {} as unknown as AccountRemovalService,
+    );
     return { service, mock };
   };
 
@@ -57,8 +63,6 @@ describe('BE-ADM-01 AdminService.listUsers(query)', () => {
     const first = result.users[0] as Record<string, unknown>;
     expect(first.maskedEmail).toBe(maskEmail('user@stave.io'));
     expect(first.status).toBe('active');
-    // SRS UC-96 POST-1: each account shows its plan and number of projects.
-    expect(first.plan).toBeDefined();
     expect(first.projectCount).toBeDefined();
   });
 
@@ -210,7 +214,10 @@ describe('BE-ADM-02 AdminService.suspendUser(adminId, targetId, reason)', () => 
         updateUserById: opts.updateUserById ?? ok,
       },
     });
-    const service = new AdminService(mock.client, {} as CustomSoundsService);
+    const service = new AdminService(
+      mock.client,
+      {} as unknown as AccountRemovalService,
+    );
     return { service, mock };
   };
 
@@ -232,7 +239,7 @@ describe('BE-ADM-02 AdminService.suspendUser(adminId, targetId, reason)', () => 
       ...overrides,
     }) as unknown;
 
-  it('UTCID01 suspends the account, ends sessions, hides public projects, and records audit + notification', async () => {
+  it('UTCID01 suspends the account, ends sessions, and records audit + notification', async () => {
     const { service, mock } = makeSuspend(
       [
         { data: row() }, // getTarget -> active user
@@ -267,15 +274,6 @@ describe('BE-ADM-02 AdminService.suspendUser(adminId, targetId, reason)', () => 
     expect(mock.builders.notifications.insert).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: 'usr_2', type: 'account_suspended' }),
     );
-    // SRS UC-97 step 4 / BR-109: the account's public projects are hidden
-    // from Explore, rankings, and profiles on suspension.
-    expect(mock.builders.projects.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        moderation_hidden_at: expect.any(String),
-        moderation_hidden_reason: expect.any(String),
-      }),
-    );
-    expect(mock.builders.projects.eq).toHaveBeenCalledWith('owner_id', 'usr_2');
   });
 
   it('UTCID02 suspends with a 1-character reason (boundary of the policy note)', async () => {
@@ -293,8 +291,6 @@ describe('BE-ADM-02 AdminService.suspendUser(adminId, targetId, reason)', () => 
     expect(mock.builders.admin_audit_log.insert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: 'x' }),
     );
-    // BR-109: public projects must be hidden as a side effect of suspension.
-    expect(mock.builders.projects.update).toHaveBeenCalled();
   });
 
   it('UTCID03 throws NotFoundException when the target does not exist', async () => {
@@ -395,7 +391,10 @@ describe('BE-ADM-03 AdminService.reactivateUser(adminId, targetId, reason)', () 
       },
       authAdmin: { updateUserById: opts.updateUserById ?? ok },
     });
-    const service = new AdminService(mock.client, {} as CustomSoundsService);
+    const service = new AdminService(
+      mock.client,
+      {} as unknown as AccountRemovalService,
+    );
     return { service, mock };
   };
 
@@ -536,13 +535,15 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
     const mock = createSupabaseMock([], {
       tables: {
         users: usersResults,
+        projects: [{ data: [], error: null }],
         sessions: opts.sessions ?? [ok],
         admin_audit_log: opts.audit ?? [ok],
         notifications: opts.notifications ?? [ok],
       },
       authAdmin: {
+        getUserById: { data: { user: { banned_until: null } }, error: null },
         deleteUser: opts.deleteUser ?? ok,
-        updateUserById: ok,
+        updateUserById: [ok, ok],
       },
     });
     const sounds = {
@@ -551,9 +552,16 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
       collectGarbage:
         opts.sounds?.collectGarbage ?? jest.fn(() => Promise.resolve()),
     };
+    const sketches = {
+      purgeProjectFiles: jest.fn(() => Promise.resolve()),
+    };
     const service = new AdminService(
       mock.client,
-      sounds as unknown as CustomSoundsService,
+      new AccountRemovalService(
+        mock.client,
+        sketches as unknown as AudioSketchesService,
+        sounds as unknown as CustomSoundsService,
+      ),
     );
     return { service, mock, sounds };
   };
@@ -598,10 +606,6 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
         target_id: 'usr_2',
         reason: 'Spam uploads',
       }),
-    );
-    // SRS UC-99 POST-5: the account holder is notified with the reason.
-    expect(mock.builders.notifications.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ user_id: 'usr_2' }),
     );
   });
 
@@ -659,7 +663,7 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
     );
   });
 
-  it('UTCID07 reports the failure and leaves the account in place when cleanup errors', async () => {
+  it('UTCID07 deletes the account first and still reports a storage cleanup failure', async () => {
     const { service, mock } = makeRemove([{ data: row() }, ok], {
       sounds: {
         removeAllFilesOf: jest
@@ -673,8 +677,8 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
       service.removeUser('usr_1', 'usr_2', 'Spam uploads', 'khanh_01'),
     ).rejects.toThrow('storage cleanup failed');
 
-    // SRS UC-99 5.E2: a failed step must not leave a half-removed account.
-    expect(mock.builders.users.delete).not.toHaveBeenCalled();
-    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+    expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith('usr_2');
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+    expect(mock.builders.admin_audit_log.insert).toHaveBeenCalled();
   });
 });

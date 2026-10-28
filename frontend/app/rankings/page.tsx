@@ -56,7 +56,13 @@ export default function RankingsPage() {
       <PageHeader
         breadcrumbs={[{ label: 'Cộng đồng' }]}
         title="Bảng xếp hạng"
-        description="Những dự án được nghe và fork nhiều nhất trên STAVE."
+        description={
+          type === 'trending'
+            ? 'Dự án có nhiều tương tác nhất trong 7 ngày gần nhất (lượt nghe, fork, bình luận từ các tài khoản khác nhau), ưu tiên dự án đang lên.'
+            : type === 'top_forked'
+              ? 'Dự án được nhiều chủ dự án khác nhau fork nhất.'
+              : 'Dự án được nhiều tài khoản khác nhau nghe nhất.'
+        }
       />
 
       <div className="mb-6">

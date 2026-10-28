@@ -12,7 +12,7 @@ import {
   listProjects,
   type ProjectVisibility,
 } from '../../lib/api-client';
-import { formatRelativeTime } from '../../lib/format-date';
+import { formatDateTime, formatRelativeTime } from '../../lib/format-date';
 import { PageHeader } from '../../components/ui/page-header';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -69,10 +69,12 @@ function StatusBadge({ archivedAt }: { archivedAt: string | null }) {
 
 function ProjectRow({
   project,
+  sharesName,
   onArchive,
   onUnarchive,
 }: {
   project: Project;
+  sharesName: boolean;
   onArchive: (id: string) => Promise<void>;
   onUnarchive: (id: string) => Promise<void>;
 }) {
@@ -113,7 +115,11 @@ function ProjectRow({
         <RowTitle
           href={`/projects/${project.id}`}
           name={project.name}
-          meta={project.description ?? undefined}
+          meta={
+            sharesName
+              ? [`Tạo ${formatDateTime(project.created_at)}`, project.description].filter(Boolean).join(' · ')
+              : (project.description ?? undefined)
+          }
           leading={<Music2 className="h-4 w-4 shrink-0 text-muted" />}
         />
 
@@ -290,6 +296,17 @@ function ProjectsContent() {
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
+  const duplicateNames = useMemo(() => {
+    const seen = new Set<string>();
+    const dups = new Set<string>();
+    for (const p of projects) {
+      const key = p.name.trim().toLowerCase();
+      if (seen.has(key)) dups.add(key);
+      seen.add(key);
+    }
+    return dups;
+  }, [projects]);
+
   const paginatedProjects = filteredProjects.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
@@ -483,6 +500,7 @@ function ProjectsContent() {
               <ProjectRow
                 key={project.id}
                 project={project}
+                sharesName={duplicateNames.has(project.name.trim().toLowerCase())}
                 onArchive={handleArchive}
                 onUnarchive={handleUnarchive}
               />

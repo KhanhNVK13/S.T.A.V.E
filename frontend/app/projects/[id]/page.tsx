@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useEffect, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -11,8 +11,9 @@ import {
   Piano,
   CircleUserRound,
   Settings as SettingsIcon,
+  FileUp,
 } from "lucide-react";
-import { getPublicProject, getProject, ApiError } from "../../../lib/api-client";
+import { getPublicProject, getProject, forkProject, ApiError } from "../../../lib/api-client";
 import { apiErrorMessage } from "../../../lib/error-message";
 import type { PublicProject } from "../../../lib/api-client";
 import { useAuth } from "../../../context/auth-context";
@@ -24,6 +25,8 @@ import { Toast } from "../../../components/ui/toast";
 import { CommitHistory } from "../../../components/project/commit-history";
 import { BranchList } from "../../../components/project/branch-list";
 import { VersionSummary } from "../../../components/project/version-summary";
+import { ImportMidiDialog } from "../../../components/project/import-midi-dialog";
+import { ProjectPullRequests } from "../../../components/pull-request/project-pull-requests";
 import { formatRelativeTime, APP_LOCALE } from "../../../lib/format-date";
 
 interface Props {
@@ -60,6 +63,9 @@ interface OverviewData {
   isOwner: boolean;
 }
 
+const PENDING_FORK_KEY = "stave_pending_fork";
+const PENDING_FORK_TTL_MS = 15 * 60 * 1000;
+
 type TabId = "overview" | "commits" | "branches" | "pulls";
 
 function ProjectOverview({ id }: { id: string }) {
@@ -71,7 +77,11 @@ function ProjectOverview({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importedMessage, setImportedMessage] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const dismissToast = useCallback(() => setToastMessage(null), []);
 
   const tab = (searchParams.get("tab") ?? "overview") as TabId;
 
@@ -164,18 +174,44 @@ function ProjectOverview({ id }: { id: string }) {
     router.push(`/projects/${id}${qs ? `?${qs}` : ""}`);
   }
 
+  async function performFork() {
+    setForking(true);
+    try {
+      const created = await forkProject(id);
+      router.push(`/projects/${created.id}/edit`);
+    } catch (err) {
+      setToastMessage(apiErrorMessage(err, "Không fork được dự án."));
+      setForking(false);
+    }
+  }
+
   function handleFork() {
     if (!user) {
+      try {
+        window.sessionStorage.setItem(PENDING_FORK_KEY, JSON.stringify({ id, at: Date.now() }));
+      } catch {}
       router.push(`/login?redirect=${encodeURIComponent(`/projects/${id}`)}`);
       return;
     }
-    // TODO: nối vào module Fork khi có (UC-69).
-    setForking(true);
-    setTimeout(() => {
-      setForking(false);
-      setToastMessage("PLACEHOLDER — tính năng fork chưa được xây dựng.");
-    }, 800);
+    void performFork();
   }
+
+  useEffect(() => {
+    if (authLoading || !user || !data || data.isOwner) return;
+    let pendingId: string | null = null;
+    try {
+      const raw = window.sessionStorage.getItem(PENDING_FORK_KEY);
+      if (raw) {
+        window.sessionStorage.removeItem(PENDING_FORK_KEY);
+        const parsed = JSON.parse(raw) as { id?: string; at?: number };
+        if (typeof parsed.at === "number" && Date.now() - parsed.at < PENDING_FORK_TTL_MS) {
+          pendingId = parsed.id ?? null;
+        }
+      }
+    } catch {}
+    if (pendingId === id) void Promise.resolve().then(performFork);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user, data]);
 
   if (loading || authLoading) {
     return (
@@ -222,14 +258,28 @@ function ProjectOverview({ id }: { id: string }) {
     { id: "overview", label: "Tổng quan", visible: true, ready: true },
     { id: "commits", label: "Commit", visible: data.isOwner, ready: true },
     { id: "branches", label: "Nhánh", visible: data.isOwner, ready: true },
-    { id: "pulls", label: "Pull request", visible: data.isOwner, ready: false },
+    { id: "pulls", label: "Pull request", visible: !!user && (data.isOwner || data.visibility === "public"), ready: true },
   ];
 
   const activeTab = tabs.find((t) => t.id === tab && t.visible && t.ready) ? tab : "overview";
 
   return (
     <>
-      {toastMessage && <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />}
+      {toastMessage && <Toast message={toastMessage} variant="danger" onDismiss={dismissToast} />}
+      {importedMessage && (
+        <Toast message={importedMessage} variant="success" onDismiss={() => setImportedMessage(null)} />
+      )}
+      {importOpen && data.isOwner && (
+        <ImportMidiDialog
+          projectId={data.id}
+          onClose={() => setImportOpen(false)}
+          onImported={(message) => {
+            setImportOpen(false);
+            setImportedMessage(message);
+            setRefreshKey((n) => n + 1);
+          }}
+        />
+      )}
 
       <div className="mx-auto max-w-page px-5 py-8">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -255,7 +305,7 @@ function ProjectOverview({ id }: { id: string }) {
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
-            {data.visibility === "public" && (
+            {data.visibility === "public" && !data.isOwner && (
               <Button variant="secondary" onClick={handleFork} disabled={forking}>
                 {forking ? (
                   <>
@@ -263,7 +313,7 @@ function ProjectOverview({ id }: { id: string }) {
                   </>
                 ) : (
                   <>
-                    <GitFork className="h-3.5 w-3.5" /> Fork (PLACEHOLDER)
+                    <GitFork className="h-3.5 w-3.5" /> Fork
                     {data.forkCount !== null && (
                       <span className="font-mono">
                         {data.forkCount.toLocaleString(APP_LOCALE)}
@@ -284,6 +334,11 @@ function ProjectOverview({ id }: { id: string }) {
 
             {data.isOwner && (
               <>
+                {!data.archivedAt && (
+                  <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                    <FileUp className="h-3.5 w-3.5" /> Nhập MIDI
+                  </Button>
+                )}
                 <Link href={`/projects/${data.id}/settings`}>
                   <Button variant="secondary">
                     <SettingsIcon className="h-3.5 w-3.5" /> Cài đặt
@@ -319,7 +374,7 @@ function ProjectOverview({ id }: { id: string }) {
                 <span
                   key={t.id}
                   title="PLACEHOLDER — chưa xây dựng"
-                  className="-mb-px cursor-not-allowed whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-xs text-muted opacity-60"
+                  className="-mb-px cursor-not-allowed whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-xs text-muted"
                 >
                   {t.label} (PLACEHOLDER)
                 </span>
@@ -331,12 +386,14 @@ function ProjectOverview({ id }: { id: string }) {
           <CommitHistory
             // `key` theo nhánh: bấm "Lịch sử" ở nhánh khác phải nạp lại từ đầu,
             // không giữ lựa chọn/trang của nhánh trước.
-            key={searchParams.get("branch") ?? "default"}
+            key={`${searchParams.get("branch") ?? "default"}-${refreshKey}`}
             projectId={data.id}
             initialBranchId={searchParams.get("branch")}
           />
         ) : activeTab === "branches" ? (
-          <BranchList projectId={data.id} />
+          <BranchList key={refreshKey} projectId={data.id} />
+        ) : activeTab === "pulls" ? (
+          <ProjectPullRequests projectId={data.id} canCreate={data.isOwner} />
         ) : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
@@ -368,7 +425,7 @@ function ProjectOverview({ id }: { id: string }) {
                 />
               </section>
 
-              {data.isOwner && <VersionSummary projectId={data.id} onOpenTab={switchTab} />}
+              {data.isOwner && <VersionSummary key={refreshKey} projectId={data.id} onOpenTab={switchTab} />}
 
               <section className="mt-5 border-t border-border pt-4">
                 <h2 className="mb-2 text-[13px] font-semibold">Về dự án này</h2>

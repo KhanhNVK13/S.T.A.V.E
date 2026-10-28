@@ -22,12 +22,37 @@ const API_MESSAGES: Record<string, string> = {
   "You do not have access to this branch": "Bạn không có quyền truy cập nhánh này.",
   "Admin privileges required": "Chỉ quản trị viên mới làm được thao tác này.",
   "Account is not active": "Tài khoản không ở trạng thái hoạt động.",
+  "This notification cannot be turned off": "Loại thông báo này luôn được gửi nên không thể tắt.",
+  "Project is no longer available": "Dự án này không còn công khai nên không thể fork.",
+  "You cannot fork your own project": "Bạn không thể fork dự án của chính mình.",
+  "Title is required": "Hãy nhập tiêu đề cho pull request.",
+  "Title must not exceed 150 characters": "Tiêu đề tối đa 150 ký tự.",
+  "Description must not exceed 2000 characters": "Mô tả tối đa 2000 ký tự.",
+  "Comment is required": "Hãy nhập nội dung bình luận.",
+  "Comment must not exceed 2000 characters": "Bình luận tối đa 2000 ký tự.",
+  "There is nothing to propose": "Không có gì để đề xuất: bản fork chưa có thay đổi mới so với dự án gốc.",
+  "There is nothing to merge": "Không còn gì để hợp nhất: các thay đổi này đã có trong dự án đích.",
+  "This project is not a fork": "Chỉ dự án được fork mới tạo được pull request.",
+  "The original project is no longer available": "Không gửi được đề xuất vì dự án gốc không còn công khai. Bản fork vẫn là của bạn.",
+  "Too many requests, please try again later": "Bạn thao tác quá nhanh. Hãy đợi vài phút rồi thử lại.",
+  "Draft was changed elsewhere": "Bản nháp vừa được cập nhật ở tab khác. Hãy xử lý xung đột nháp trong trình soạn nhạc rồi thử lại.",
+  "An open pull request already exists": "Đã có một pull request đang mở cho cặp nhánh này.",
+  "Pull request is no longer open": "Pull request này đã được xử lý bởi người khác. Hãy tải lại trang.",
+  "Pull request not found": "Không tìm thấy pull request này.",
+  "This pull request can no longer be merged": "Pull request này không còn hợp nhất được vì dự án hoặc nhánh nguồn không còn tồn tại.",
+  "This pull request can no longer be commented on": "Bạn không còn quyền bình luận trong pull request này.",
+  "You cannot merge this pull request": "Bạn không có quyền hợp nhất pull request này.",
+  "You cannot close this pull request": "Bạn không có quyền đóng pull request này.",
+  "The branches are not related": "Hai nhánh này không có lịch sử chung nên không so sánh được.",
+  "Start the merge before resolving conflicts": "Hãy bấm hợp nhất trước để hệ thống kiểm tra xung đột.",
+  "Notification not found": "Không tìm thấy thông báo này. Hãy tải lại danh sách.",
+  "Archived projects are read-only. Restore the project first":
+    "Dự án đã lưu trữ chỉ để xem. Hãy khôi phục dự án trước khi chỉnh sửa.",
   "Account is not suspended": "Tài khoản này không bị đình chỉ.",
   "Cannot act on an administrator account or your own account":
     "Không thể thao tác trên tài khoản quản trị viên hoặc tài khoản của chính bạn.",
   "Username confirmation does not match": "Username xác nhận không khớp.",
   "Username already taken": "Username này đã có người dùng. Hãy chọn tên khác.",
-  "A project with this name already exists": "Bạn đã có một dự án trùng tên. Hãy đặt tên khác.",
   "A branch with this name already exists in the project": "Dự án đã có nhánh trùng tên. Hãy đặt tên khác.",
   "Tag name already exists in this project": "Tên tag này đã được dùng trong dự án. Hãy chọn tên khác.",
   "Working draft is identical to the most recent commit":
@@ -51,6 +76,16 @@ const API_MESSAGES: Record<string, string> = {
   "Cannot compare commits from different projects": "Không thể so sánh phiên bản của hai dự án khác nhau.",
   "Cannot restore a commit from a different project": "Không thể khôi phục phiên bản của dự án khác.",
   "Current password is incorrect": "Mật khẩu hiện tại không đúng.",
+  "Branch is the working branch of a collaborator": "Có cộng tác viên đang chọn nhánh này làm nhánh làm việc nên chưa xoá được. Hãy nhờ họ chuyển sang nhánh khác trước.",
+  "Commit history is too large to analyse": "Lịch sử commit của dự án quá lớn để phân tích lúc này. Hãy liên hệ người quản trị.",
+  "Failed to fetch commit tags": "Chưa tải được tag của các commit. Hãy thử lại.",
+  "Avatar file was not uploaded": "Ảnh chưa được tải lên đầy đủ. Hãy thử lại.",
+  "Avatar file is too large": "Ảnh lớn hơn 2 MB nên không dùng được. Hãy chọn ảnh nhỏ hơn.",
+  "Invalid avatar path": "Ảnh đại diện không hợp lệ. Hãy thử tải lại.",
+  "Could not verify avatar file": "Chưa kiểm tra được ảnh vừa tải lên. Hãy thử lại.",
+  "Could not save avatar": "Chưa lưu được ảnh đại diện. Hãy thử lại.",
+  "Could not remove avatar": "Chưa xoá được ảnh đại diện. Hãy thử lại.",
+  "New password must be different from the current password": "Mật khẩu mới phải khác mật khẩu hiện tại.",
   "Password is incorrect": "Mật khẩu không đúng.",
   "Could not update password": "Không đổi được mật khẩu. Hãy thử lại.",
   "Session revoked or not found": "Phiên đăng nhập đã bị thu hồi. Hãy đăng nhập lại.",
@@ -66,6 +101,28 @@ const API_MESSAGES: Record<string, string> = {
   "Branch name must not exceed 50 characters": "Tên nhánh tối đa 50 ký tự.",
   "username must be 3-20 chars: lowercase letters, digits, _":
     "Username dài 3–20 ký tự, chỉ gồm chữ thường, chữ số và dấu gạch dưới.",
+  // Collaboration (UC-60/61/62) — thêm cuối bảng, không sửa dòng cũ.
+  "No account matches the provided identifier":
+    "Không tìm thấy tài khoản ứng với thông tin này.",
+  "An invitation is already pending for this person":
+    "Lời mời cho người này đang chờ — không cần mời lại.",
+  "This person is already a collaborator": "Người này đã là cộng tác viên của dự án.",
+  "You are the project owner and already have full access":
+    "Bạn là chủ dự án, không cần mời chính mình.",
+  "The project already has 10 collaborators (including pending invitations)":
+    "Dự án đã đủ 10 cộng tác viên (kể cả lời mời đang chờ).",
+  "Collaborator not found": "Không tìm thấy cộng tác viên này — có thể vừa được gỡ. Hãy tải lại.",
+  "Invitation not found": "Lời mời này không còn tồn tại — có thể đã được xử lý. Hãy tải lại.",
+  "The project owner cannot be removed": "Không thể gỡ chủ dự án khỏi danh sách cộng tác viên.",
+  // UC-63 (bình luận ghim) — thêm cuối bảng, không sửa dòng cũ.
+  "Comment not found": "Bình luận này không còn tồn tại. Hãy tải lại trang.",
+  "Comment body must not be empty": "Nội dung bình luận không được để trống.",
+  "Comment body must not exceed 1000 characters":
+    "Bình luận tối đa 1000 ký tự.",
+  "Only one level of replies is allowed":
+    "Chỉ được trả lời 1 cấp — không thể trả lời bình luận đã là trả lời.",
+  "You are not allowed to delete this comment":
+    "Bạn không thể xoá bình luận của người khác.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
@@ -95,6 +152,11 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
 
 const AUTH_MESSAGES: Record<string, string> = {
   invalid_credentials: "Email hoặc mật khẩu không đúng.",
+  identity_already_exists: "Tài khoản Google này đã thuộc một tài khoản STAVE khác. Mỗi tài khoản Google chỉ liên kết với một tài khoản STAVE.",
+  manual_linking_disabled: "Chưa thể liên kết tài khoản Google lúc này. Hãy thử lại sau hoặc liên hệ hỗ trợ.",
+  single_identity_not_deletable: "Không ngắt kết nối được vì đây là cách đăng nhập duy nhất của tài khoản. Hãy đặt mật khẩu trước.",
+  identity_not_found: "Không tìm thấy tài khoản Google đã liên kết. Hãy tải lại trang.",
+  access_denied: "Bạn đã huỷ liên kết với Google. Chưa có gì thay đổi.",
   email_not_confirmed: "Email này chưa được xác nhận. Hãy mở thư xác nhận trong hộp thư, hoặc gửi lại thư bên dưới.",
   user_already_exists: "Email này đã được đăng ký. Hãy đăng nhập hoặc dùng \"Quên mật khẩu\".",
   email_exists: "Email này đã được đăng ký. Hãy đăng nhập hoặc dùng \"Quên mật khẩu\".",
@@ -103,7 +165,7 @@ const AUTH_MESSAGES: Record<string, string> = {
   email_address_invalid: "Địa chỉ email không hợp lệ.",
   over_email_send_rate_limit: "Hệ thống vừa gửi thư cho email này. Hãy đợi khoảng 1 phút rồi thử lại.",
   over_request_rate_limit: "Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.",
-  otp_expired: "Liên kết đã hết hạn hoặc đã được dùng. Hãy yêu cầu gửi liên kết mới.",
+  otp_expired: "Liên kết này đã hết hạn hoặc đã được dùng rồi. Nếu bạn đã xác nhận email, hãy đăng nhập bình thường. Nếu chưa, hãy gửi lại email xác nhận bên dưới.",
   user_banned: "Tài khoản này đang bị đình chỉ.",
   session_not_found: "Phiên đặt lại mật khẩu không còn hiệu lực. Hãy yêu cầu gửi liên kết mới.",
   session_expired: "Phiên đã hết hạn. Hãy yêu cầu gửi liên kết mới.",

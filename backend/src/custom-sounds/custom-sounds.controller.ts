@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -16,6 +17,7 @@ import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { CreateCustomSoundUploadUrlDto } from './dto/create-upload-url.dto';
 import { ConfirmCustomSoundDto } from './dto/confirm-custom-sound.dto';
+import { RenameCustomSoundDto } from './dto/rename-custom-sound.dto';
 import { DeleteCustomSoundQueryDto } from './dto/delete-custom-sound.dto';
 
 /**
@@ -54,6 +56,15 @@ export class CustomSoundsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.customSoundsService.getUsage(req.user.id, id);
+  }
+
+  @Patch(':id')
+  rename(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RenameCustomSoundDto,
+  ) {
+    return this.customSoundsService.rename(req.user.id, id, dto.name);
   }
 
   @Delete(':id')

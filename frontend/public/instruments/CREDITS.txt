@@ -91,3 +91,6 @@ The playback code for these kits (frontend/lib/soundfont-kit.ts) follows the
 behaviour of spessasynth_core (https://github.com/spessasus/spessasynth_core,
 Apache-2.0) for volume units, envelopes, the default velocity curve and exclusive
 classes; no SpessaSynth code is included.
+
+MP3 export
+- MP3 encoding uses @breezystack/lamejs (a fork of lamejs, which wraps LAME), licensed under LGPL-3.0. Source: https://github.com/shijinyu/lamejs . The library is loaded as a separate script chunk only when a user exports MP3, and is unmodified.

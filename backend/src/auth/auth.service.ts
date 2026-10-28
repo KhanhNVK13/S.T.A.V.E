@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +15,7 @@ import {
   usernameSeedFromEmail,
 } from '../common/utils/username.util';
 import type { UserRow } from '../users/user-row.type';
+import { AccountRemovalService } from '../account-removal/account-removal.service';
 
 export interface SessionRow {
   id: string;
@@ -30,6 +33,7 @@ export class AuthService {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly config: ConfigService,
+    private readonly accountRemoval: AccountRemovalService,
   ) {}
 
   /**
@@ -178,6 +182,30 @@ export class AuthService {
     return { sessionId: session.id };
   }
 
+  async resetSessionsAfterRecovery(
+    userId: string,
+    accessToken: string,
+    req: Request,
+    deviceLabel?: string,
+  ): Promise<{ sessionId: string }> {
+    const { error } = await this.supabase
+      .from('sessions')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .is('revoked_at', null);
+    if (error) {
+      throw new InternalServerErrorException('Could not reset sessions');
+    }
+    const { error: signOutError } = await this.supabase.auth.admin.signOut(
+      accessToken,
+      'others',
+    );
+    if (signOutError) {
+      throw new InternalServerErrorException('Could not reset sessions');
+    }
+    return this.registerSession(userId, accessToken, req, deviceLabel);
+  }
+
   private parseUserAgent(req: Request): string {
     const ua = req.headers['user-agent'];
     return typeof ua === 'string' ? ua.slice(0, 200) : 'Unknown device';
@@ -195,8 +223,12 @@ export class AuthService {
       .is('revoked_at', null)
       .order('last_active_at', { ascending: false });
 
-    if (error || !data) return [];
-    return (data as SessionRow[]).map((session) => ({
+    if (error) {
+      throw new InternalServerErrorException(
+        'Session list cannot be retrieved',
+      );
+    }
+    return ((data ?? []) as SessionRow[]).map((session) => ({
       ...session,
       isCurrent: session.id === currentSessionId,
     }));
@@ -209,11 +241,12 @@ export class AuthService {
       .update({ revoked_at: new Date().toISOString() })
       .eq('id', sessionId)
       .eq('user_id', userId)
+      .is('revoked_at', null)
       .select('id')
       .maybeSingle();
 
     if (error || !data) {
-      throw new UnauthorizedException('Session not found');
+      throw new UnauthorizedException('Session not found or no longer active');
     }
   }
 
@@ -246,6 +279,11 @@ export class AuthService {
     if (!verified) {
       throw new UnauthorizedException('Current password is incorrect');
     }
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
+    }
 
     await this.selfUpdatePassword(accessToken, newPassword);
 
@@ -263,13 +301,6 @@ export class AuthService {
       throw new UnauthorizedException('Password is incorrect');
     }
 
-    await this.supabase
-      .from('sessions')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .is('revoked_at', null);
-
-    await this.supabase.from('users').delete().eq('id', userId);
-    await this.supabase.auth.admin.deleteUser(userId);
+    await this.accountRemoval.remove(userId, 'Could not delete account');
   }
 }

@@ -114,6 +114,15 @@ export async function unarchiveProject(id: string): Promise<void> {
   });
 }
 
+export interface ProjectDeletePreview {
+  branchCount: number;
+  commitCount: number;
+}
+
+export async function getProjectDeletePreview(id: string): Promise<ProjectDeletePreview> {
+  return apiFetch<ProjectDeletePreview>(`/projects/${id}/delete-preview`);
+}
+
 export async function deleteProject(id: string): Promise<void> {
   await apiFetch<void>(`/projects/${id}`, {
     method: "DELETE",
@@ -226,12 +235,41 @@ export async function getDraft(projectId: string): Promise<DraftSnapshot> {
   return apiFetch<DraftSnapshot>(`/projects/${projectId}/draft`);
 }
 
-/** PUT /projects/:id/draft — save draft snapshot (auto-save) */
-export async function putDraft(projectId: string, snapshot: DraftSnapshot): Promise<void> {
-  await apiFetch<void>(`/projects/${projectId}/draft`, {
+/** GET /projects/:id/draft/recovery — nháp có phải thay đổi chưa commit được khôi phục không. */
+export async function getDraftRecovery(
+  projectId: string,
+): Promise<{ recovered: boolean; savedAt: string | null; version: string | null }> {
+  return apiFetch<{ recovered: boolean; savedAt: string | null; version: string | null }>(
+    `/projects/${projectId}/draft/recovery`,
+  );
+}
+
+/**
+ * PUT /projects/:id/draft — lưu nháp (autosave).
+ * `expectedVersion`: phiên bản nháp tab này đã biết (`null` = lúc đọc chưa có
+ * nháp); lệch thì backend trả 409 `DRAFT_STALE`. Bỏ trống = ghi đè không kiểm tra.
+ */
+export async function putDraft(
+  projectId: string,
+  snapshot: DraftSnapshot,
+  expectedVersion?: string | null,
+): Promise<{ version: string | undefined }> {
+  const headers: Record<string, string> = {};
+  if (expectedVersion !== undefined) headers["X-Draft-Version"] = expectedVersion ?? "none";
+  const result = await apiFetch<{ version?: string } | undefined>(`/projects/${projectId}/draft`, {
     method: "PUT",
+    headers,
     body: JSON.stringify(snapshot),
   });
+  return { version: result?.version };
+}
+
+export function isDraftStaleError(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    err.status === 409 &&
+    (err.body as { code?: string } | undefined)?.code === "DRAFT_STALE"
+  );
 }
 
 // ============================================
@@ -351,6 +389,7 @@ export interface SwitchBranchResult {
    * dựng từ snapshot của head commit, không phải trả về rỗng.
    */
   activeSnapshot: DraftSnapshot;
+  activeDraftVersion?: string | null;
 }
 
 /**
@@ -365,10 +404,16 @@ export async function switchBranch(payload: {
   currentBranchId: string;
   targetBranchId: string;
   currentDraft: DraftSnapshot;
+  expectedDraftVersion?: string | null;
 }): Promise<SwitchBranchResult> {
+  const { expectedDraftVersion, ...rest } = payload;
   return apiFetch<SwitchBranchResult>("/branches/switch", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(
+      expectedDraftVersion === undefined
+        ? rest
+        : { ...rest, expectedDraftVersion: expectedDraftVersion ?? "none" },
+    ),
   });
 }
 
@@ -418,10 +463,14 @@ export async function mergeBranches(payload: {
     });
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
-      const body = err.body as { hasConflicts?: boolean } | undefined;
+      const body = err.body as
+        | { hasConflicts?: boolean; conflicts?: MergeConflictResult }
+        | undefined;
       // 409 cũng được dùng cho "head đã đổi" (optimistic lock) — chỉ bóc body
-      // khi đúng là kết quả xung đột note-level.
-      if (body?.hasConflicts) return body as MergeConflictResult;
+      // khi đúng là kết quả xung đột note-level. Backend đặt kết quả trong
+      // khoá `conflicts`; vẫn nhận body phẳng để không phụ thuộc hình dạng cũ.
+      if (body?.conflicts?.hasConflicts) return body.conflicts;
+      if (body?.hasConflicts) return body as unknown as MergeConflictResult;
     }
     throw err;
   }
@@ -544,6 +593,8 @@ export interface BranchHistoryCommit {
   isUniqueToBranch: boolean;
   /** Commit kế thừa từ trước điểm rẽ nhánh. Với nhánh mặc định luôn là `true`. */
   isInherited: boolean;
+  parent_commit_id: string | null;
+  merged_from_commit_id?: string | null;
   author: {
     id: string;
     username: string | null;
@@ -591,6 +642,35 @@ export async function tagCommit(commitId: string, tag: string): Promise<TagRow> 
   return apiFetch<TagRow>(`/commits/${commitId}/tag`, {
     method: "POST",
     body: JSON.stringify({ tag }),
+  });
+}
+
+export type AvatarContentType = "image/jpeg" | "image/png" | "image/webp";
+
+export async function createAvatarUploadUrl(
+  contentType: AvatarContentType,
+): Promise<{ path: string; token: string }> {
+  return apiFetch("/users/me/avatar/upload-url", {
+    method: "POST",
+    body: JSON.stringify({ contentType }),
+  });
+}
+
+export async function confirmAvatar(path: string): Promise<{ avatar_url: string | null }> {
+  return apiFetch("/users/me/avatar/confirm", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+}
+
+export async function removeAvatar(): Promise<void> {
+  await apiFetch("/users/me/avatar", { method: "DELETE" });
+}
+
+/** DELETE /commits/:id/tags/:tagName — UC-44. */
+export async function deleteCommitTag(commitId: string, tagName: string): Promise<void> {
+  await apiFetch<void>(`/commits/${commitId}/tags/${encodeURIComponent(tagName)}`, {
+    method: "DELETE",
   });
 }
 
@@ -677,6 +757,13 @@ export async function attachAudioSketch(
   });
 }
 
+/** UC-117 — xoá vĩnh viễn một sketch cùng file ghi âm. */
+export async function deleteAudioSketch(projectId: string, sketchId: string): Promise<void> {
+  await apiFetch<void>(`/projects/${projectId}/audio-sketches/${sketchId}`, {
+    method: "DELETE",
+  });
+}
+
 /** Danh sách sketch của project (kèm link nghe có thời hạn). */
 export async function listAudioSketches(projectId: string): Promise<AudioSketch[]> {
   return apiFetch(`/projects/${projectId}/audio-sketches`);
@@ -727,10 +814,23 @@ export async function listCustomSounds(): Promise<CustomSoundLibrary> {
   return apiFetch("/users/me/custom-sounds");
 }
 
+export interface CustomSoundUsage {
+  externalProjectCount: number;
+  externalProjects: { id: string; name: string }[];
+  privateProjectCount: number;
+}
+
 export async function getCustomSoundUsage(
   soundId: string,
-): Promise<{ externalProjectCount: number }> {
+): Promise<CustomSoundUsage> {
   return apiFetch(`/users/me/custom-sounds/${soundId}/usage`);
+}
+
+export async function renameCustomSound(soundId: string, name: string): Promise<CustomSound> {
+  return apiFetch<CustomSound>(`/users/me/custom-sounds/${soundId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
 }
 
 export async function deleteCustomSound(
@@ -756,4 +856,243 @@ export async function resolveProjectCustomSounds(
 ): Promise<ResolvedCustomSound[]> {
   if (ids.length === 0) return [];
   return apiFetch(`/projects/${projectId}/custom-sounds?ids=${ids.map(encodeURIComponent).join(",")}`);
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  payload: { title?: string; body?: string } & Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+}
+
+export type NotificationFilter = "all" | "unread" | "mentions";
+
+export async function listNotifications(params: {
+  filter: NotificationFilter;
+  cursor?: string | null;
+}): Promise<{ items: NotificationItem[]; nextCursor: string | null }> {
+  const query = new URLSearchParams({ filter: params.filter });
+  if (params.cursor) query.set("cursor", params.cursor);
+  return apiFetch(`/notifications?${query.toString()}`);
+}
+
+export async function getUnreadNotificationCount(): Promise<number> {
+  const result = await apiFetch<{ count: number }>("/notifications/unread-count");
+  return result.count;
+}
+
+export async function openNotification(
+  id: string,
+): Promise<{ ok: true; href: string | null } | { ok: false }> {
+  return apiFetch(`/notifications/${id}/open`, { method: "POST" });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await apiFetch("/notifications/read-all", { method: "POST" });
+}
+
+export type NotificationChannel = "in_app" | "email";
+
+export interface NotificationPreference {
+  type: string;
+  label: string;
+  category: string;
+  mandatory: boolean;
+  channels: Record<NotificationChannel, boolean>;
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreference[]> {
+  return apiFetch("/notifications/preferences");
+}
+
+export async function setNotificationPreference(payload: {
+  type: string;
+  channel: NotificationChannel;
+  enabled: boolean;
+}): Promise<void> {
+  await apiFetch("/notifications/preferences", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function forkProject(projectId: string): Promise<{ id: string }> {
+  return apiFetch(`/projects/${projectId}/fork`, { method: "POST" });
+}
+
+// ---------------------------------------------------------------------------
+// Pull request
+// ---------------------------------------------------------------------------
+
+export type PullRequestStatus = "open" | "merged" | "closed";
+
+export interface PullRequestUser {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+export interface PullRequestListItem {
+  id: string;
+  number: number;
+  title: string;
+  status: PullRequestStatus;
+  author: PullRequestUser | null;
+  sourceProjectName: string | null;
+  targetProjectName: string | null;
+  sourceBranchName: string | null;
+  targetBranchName: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  newCommitCount: number;
+  hasConflicts: boolean;
+  applicable: boolean;
+}
+
+export interface PullRequestPreview {
+  targetProjectName: string;
+  newCommitCount: number;
+  notes: { added: number; removed: number; modified: number; totalChanges: number };
+  tracks: { added: number; removed: number; modified: number };
+  conflictsCount: number;
+  hasConflicts: boolean;
+}
+
+export interface PullRequestComment {
+  id: string;
+  pull_request_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  author: PullRequestUser | null;
+}
+
+export interface PullRequestDetail {
+  pullRequest: {
+    id: string;
+    number: number;
+    title: string;
+    description: string;
+    status: PullRequestStatus;
+    created_at: string;
+    closed_at: string | null;
+    merge_branch_id: string | null;
+    source_project_id: string | null;
+    target_project_id: string | null;
+    source_project_name: string | null;
+    target_project_name: string | null;
+    source_branch_name: string | null;
+    target_branch_name: string | null;
+    author: PullRequestUser | null;
+    applicable: boolean;
+    targetOwnerId: string | null;
+  };
+  analysis: {
+    baseCommitId: string;
+    newCommits: {
+      id: string;
+      message: string;
+      createdAt: string;
+      author: PullRequestUser | null;
+    }[];
+    summary: SnapshotDiff;
+    targetChanges: SnapshotDiff;
+    conflictsCount: number;
+    conflictsByBar: Record<string, MergeNoteConflict[]>;
+  } | null;
+  analysisError: string | null;
+  comments: PullRequestComment[];
+  permissions: { canMerge: boolean; canClose: boolean; canComment: boolean };
+}
+
+export async function previewPullRequest(
+  projectId: string,
+  sourceBranchId: string,
+  targetBranchId: string,
+): Promise<PullRequestPreview> {
+  const query = new URLSearchParams({ sourceBranchId, targetBranchId });
+  return apiFetch(`/projects/${projectId}/pull-requests/preview?${query.toString()}`);
+}
+
+export async function createPullRequest(
+  projectId: string,
+  payload: { sourceBranchId: string; targetBranchId: string; title: string; description: string },
+): Promise<{ id: string; number: number }> {
+  return apiFetch(`/projects/${projectId}/pull-requests`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listProjectPullRequests(
+  projectId: string,
+  status?: PullRequestStatus,
+): Promise<PullRequestListItem[]> {
+  const query = status ? `?status=${status}` : "";
+  return apiFetch(`/projects/${projectId}/pull-requests${query}`);
+}
+
+export async function listPullRequests(params: {
+  view: "incoming" | "created";
+  status?: PullRequestStatus;
+}): Promise<PullRequestListItem[]> {
+  const query = new URLSearchParams({ view: params.view });
+  if (params.status) query.set("status", params.status);
+  return apiFetch(`/pull-requests?${query.toString()}`);
+}
+
+export async function getPullRequest(id: string): Promise<PullRequestDetail> {
+  return apiFetch(`/pull-requests/${id}`);
+}
+
+export async function commentPullRequest(id: string, body: string): Promise<PullRequestComment> {
+  return apiFetch(`/pull-requests/${id}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export async function deletePullRequestComment(id: string, commentId: string): Promise<void> {
+  await apiFetch(`/pull-requests/${id}/comments/${commentId}`, { method: "DELETE" });
+}
+
+export async function closePullRequest(id: string, comment?: string): Promise<void> {
+  await apiFetch(`/pull-requests/${id}/close`, {
+    method: "POST",
+    body: JSON.stringify({ comment }),
+  });
+}
+
+export async function mergePullRequest(
+  id: string,
+): Promise<{ ok: true; mergeCommitId: string } | MergeConflictResult> {
+  try {
+    return await apiFetch(`/pull-requests/${id}/merge`, { method: "POST", body: JSON.stringify({}) });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      const body = err.body as { conflicts?: MergeConflictResult } | undefined;
+      if (body?.conflicts?.hasConflicts) return body.conflicts;
+    }
+    throw err;
+  }
+}
+
+export async function resolvePullRequestConflicts(
+  id: string,
+  resolutions: { noteId: string; choice: ConflictChoice }[],
+): Promise<void> {
+  await apiFetch(`/pull-requests/${id}/merge/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ resolutions }),
+  });
+}
+
+export async function getPullRequestTargetBranches(projectId: string): Promise<{
+  targetProjectId: string;
+  targetProjectName: string;
+  branches: { id: string; name: string; is_default: boolean }[];
+}> {
+  return apiFetch(`/projects/${projectId}/pull-requests/target-branches`);
 }

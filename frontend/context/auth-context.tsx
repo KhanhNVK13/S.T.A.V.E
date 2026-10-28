@@ -10,11 +10,13 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase-browser";
 import {
+  ApiError,
   apiFetch,
   clearStoredSessionId,
   getStoredSessionId,
   setStoredSessionId,
 } from "../lib/api-client";
+import { ACCOUNT_INACTIVE_NOTICE, setAuthNotice } from "../lib/auth-notice";
 import type { Profile } from "../lib/types";
 
 interface AuthContextValue {
@@ -93,6 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
               await ensureBusinessSession();
               await refreshProfile();
+            } catch (err) {
+              if (err instanceof ApiError && err.status === 403) {
+                setAuthNotice(ACCOUNT_INACTIVE_NOTICE);
+                clearStoredSessionId();
+                await supabase.auth.signOut({ scope: "local" });
+              } else {
+                console.error(err);
+              }
             } finally {
               if (active) setLoading(false);
             }
@@ -117,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }).catch(() => undefined);
     }
     clearStoredSessionId();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     setProfile(null);
   }, []);
 

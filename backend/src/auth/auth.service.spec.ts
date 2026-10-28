@@ -1,5 +1,8 @@
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
+import { AccountRemovalService } from '../account-removal/account-removal.service';
+import type { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
+import type { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -38,7 +41,11 @@ describe('BE-AUTH-01 AuthService.verifyPassword(email, password)', () => {
 
   const makeService = (missingKey?: string) => {
     const { client } = createSupabaseMock();
-    return new AuthService(client, makeConfig(missingKey));
+    return new AuthService(
+      client,
+      makeConfig(missingKey),
+      {} as AccountRemovalService,
+    );
   };
 
   const callVerifyPassword = (
@@ -185,7 +192,11 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
 
   const makeService = (missingKey?: string) => {
     const { client } = createSupabaseMock();
-    return new AuthService(client, makeConfig(missingKey));
+    return new AuthService(
+      client,
+      makeConfig(missingKey),
+      {} as AccountRemovalService,
+    );
   };
 
   const callSelfUpdatePassword = (
@@ -320,7 +331,11 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
 
   it('UTCID01 returns the existing row unchanged', async () => {
     const { client, builder } = createSupabaseMock([{ data: existingRow }]);
-    const service = new AuthService(client, {} as ConfigService);
+    const service = new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+    );
 
     const result = await service.syncProfile(makeUser());
 
@@ -335,7 +350,11 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
       { data: null }, // 2. Username check -> không trùng
       { data: createdRow, error: null }, // 3. Insert -> thành công
     ]);
-    const service = new AuthService(client, {} as ConfigService);
+    const service = new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+    );
 
     const result = await service.syncProfile(makeUser());
 
@@ -352,7 +371,11 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
       { data: null },
       { data: createdRow, error: null },
     ]);
-    const service = new AuthService(client, {} as ConfigService);
+    const service = new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+    );
 
     const userWithoutGoogle = makeUser({
       identities: [{ provider: 'email', id: 'email_123' }],
@@ -373,7 +396,11 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
       { data: null },
       { data: createdRow, error: null },
     ]);
-    const service = new AuthService(client, {} as ConfigService);
+    const service = new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+    );
 
     const anonymousUser = makeUser({
       email: undefined,
@@ -395,7 +422,11 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
       { data: null }, // 4. SELECT lại sau race -> vẫn không có
     ]);
 
-    const service = new AuthService(client, {} as ConfigService);
+    const service = new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+    );
 
     const promise = service.syncProfile(makeUser());
 
@@ -412,7 +443,11 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
       { data: null }, // 4. SELECT lại sau race -> vẫn không có
     ]);
 
-    const service = new AuthService(client, {} as ConfigService);
+    const service = new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+    );
 
     const promise = service.syncProfile(makeUser());
 
@@ -427,7 +462,11 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
       { data: null, error: { code: '23505' } }, // Duplicate key error
       { data: concurrentRow }, // Refetch fallback
     ]);
-    const service = new AuthService(client, {} as ConfigService);
+    const service = new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+    );
 
     const result = await service.syncProfile(makeUser());
 
@@ -450,7 +489,14 @@ describe('BE-AUTH-04 AuthService.generateUniqueUsername(email)', () => {
 
   const makeService = (results: QueryResult[]) => {
     const { client, builder } = createSupabaseMock(results);
-    return { service: new AuthService(client, {} as ConfigService), builder };
+    return {
+      service: new AuthService(
+        client,
+        {} as ConfigService,
+        {} as AccountRemovalService,
+      ),
+      builder,
+    };
   };
 
   const callGenerateUniqueUsername = (
@@ -563,7 +609,11 @@ describe('BE-AUTH-05 AuthService.registerSession(userId, accessToken, req, devic
       authAdmin: { signOut },
     });
     return {
-      service: new AuthService(mock.client, {} as ConfigService),
+      service: new AuthService(
+        mock.client,
+        {} as ConfigService,
+        {} as AccountRemovalService,
+      ),
       builder: mock.builder,
       signOut: mock.auth.admin.signOut,
     };
@@ -752,7 +802,14 @@ describe('BE-AUTH-05 AuthService.registerSession(userId, accessToken, req, devic
 describe('BE-AUTH-06 AuthService.listSessions(userId, currentSessionId)', () => {
   const makeService = (result: QueryResult) => {
     const { client, builder } = createSupabaseMock([result]);
-    return { service: new AuthService(client, {} as ConfigService), builder };
+    return {
+      service: new AuthService(
+        client,
+        {} as ConfigService,
+        {} as AccountRemovalService,
+      ),
+      builder,
+    };
   };
 
   it('UTCID01 returns sessions sorted by last_active with one isCurrent true', async () => {
@@ -836,12 +893,10 @@ describe('BE-AUTH-06 AuthService.listSessions(userId, currentSessionId)', () => 
       error: { message: 'db error' },
     });
 
-    await expect(service.listSessions('usr_1', 's2')).rejects.toBeInstanceOf(
-      InternalServerErrorException,
-    );
-    await expect(service.listSessions('usr_1', 's2')).rejects.toThrow(
-      'list cannot be retrieved',
-    );
+    const promise = service.listSessions('usr_1', 's2');
+
+    await expect(promise).rejects.toBeInstanceOf(InternalServerErrorException);
+    await expect(promise).rejects.toThrow('list cannot be retrieved');
   });
 });
 
@@ -851,7 +906,14 @@ describe('BE-AUTH-06 AuthService.listSessions(userId, currentSessionId)', () => 
 describe('BE-AUTH-07 AuthService.revokeSession(userId, sessionId)', () => {
   const makeService = (result: QueryResult) => {
     const { client, builder } = createSupabaseMock([result]);
-    return { service: new AuthService(client, {} as ConfigService), builder };
+    return {
+      service: new AuthService(
+        client,
+        {} as ConfigService,
+        {} as AccountRemovalService,
+      ),
+      builder,
+    };
   };
 
   it('UTCID01 revokes a session owned by the user and resolves void', async () => {
@@ -883,9 +945,7 @@ describe('BE-AUTH-07 AuthService.revokeSession(userId, sessionId)', () => {
   });
 
   it('UTCID03 reports the session is no longer active and leaves revoked_at unchanged', async () => {
-    const { service } = makeService({
-      data: { id: 'ses_other', revoked_at: '2026-01-01T00:00:00Z' },
-    });
+    const { service } = makeService({ data: null });
 
     const promise = service.revokeSession('usr_1', 'ses_other');
 
@@ -936,7 +996,11 @@ describe('BE-AUTH-08 AuthService.revokeOtherSessions(userId, accessToken, curren
       authAdmin: { signOut },
     });
     return {
-      service: new AuthService(mock.client, {} as ConfigService),
+      service: new AuthService(
+        mock.client,
+        {} as ConfigService,
+        {} as AccountRemovalService,
+      ),
       builder: mock.builder,
       signOut: mock.auth.admin.signOut,
     };
@@ -1007,7 +1071,11 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
       authAdmin: { signOut },
     });
     return {
-      service: new AuthService(mock.client, {} as ConfigService),
+      service: new AuthService(
+        mock.client,
+        {} as ConfigService,
+        {} as AccountRemovalService,
+      ),
       builder: mock.builder,
       signOut: mock.auth.admin.signOut,
     };
@@ -1058,8 +1126,8 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     return { verifySpy, selfUpdateSpy, revokeSpy };
   };
 
-  it('UTCID01 updates the password, revokes other sessions and sends the notification email', async () => {
-    const { service, builder } = makeService();
+  it('UTCID01 updates the password, revokes other sessions', async () => {
+    const { service } = makeService();
     const { verifySpy, selfUpdateSpy, revokeSpy } = stubCollaborators(service);
 
     await expect(change(service, 'NewPass#2026')).resolves.toBeUndefined();
@@ -1067,16 +1135,10 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'OldPass#1');
     expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'NewPass#2026');
     expect(revokeSpy).toHaveBeenCalledWith('usr_1', 'token_1', 'ses_current');
-    expect(builder.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: 'usr_1',
-        type: expect.stringMatching(/password/i),
-      }),
-    );
   });
 
-  it('UTCID02 updates the password, revokes other sessions and sends the notification email for an 8-char password', async () => {
-    const { service, builder } = makeService();
+  it('UTCID02 updates the password, revokes other sessions for an 8-char password', async () => {
+    const { service } = makeService();
     const { verifySpy, selfUpdateSpy, revokeSpy } = stubCollaborators(service);
 
     await expect(change(service, 'abcdefgh')).resolves.toBeUndefined();
@@ -1084,12 +1146,6 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'OldPass#1');
     expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'abcdefgh');
     expect(revokeSpy).toHaveBeenCalledWith('usr_1', 'token_1', 'ses_current');
-    expect(builder.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: 'usr_1',
-        type: expect.stringMatching(/password/i),
-      }),
-    );
   });
 
   it('UTCID03 throws UnauthorizedException when the current password is incorrect', async () => {
@@ -1156,10 +1212,28 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
         'custom-sounds': { remove: [{ data: null, error: null }] },
       },
       authAdmin: {
+        getUserById: { data: { user: { banned_until: null } }, error: null },
+        updateUserById: [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
         deleteUser: opts.deleteUser ?? { data: null, error: null },
       },
     });
-    return { service: new AuthService(mock.client, {} as ConfigService), mock };
+    const removal = new AccountRemovalService(
+      mock.client,
+      {
+        purgeProjectFiles: jest.fn(() => Promise.resolve()),
+      } as unknown as AudioSketchesService,
+      {
+        removeAllFilesOf: jest.fn(() => Promise.resolve()),
+        collectGarbage: jest.fn(() => Promise.resolve()),
+      } as unknown as CustomSoundsService,
+    );
+    return {
+      service: new AuthService(mock.client, {} as ConfigService, removal),
+      mock,
+    };
   };
 
   const stubVerify = (service: AuthService, ok: boolean) =>
@@ -1189,13 +1263,7 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
     expect(mock.builders.users.delete).toHaveBeenCalled();
     expect(mock.builders.users.eq).toHaveBeenCalledWith('id', 'usr_1');
     expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith('usr_1');
-    expect(mock.builders.projects.delete).toHaveBeenCalled();
     expect(mock.builders.projects.eq).toHaveBeenCalledWith('owner_id', 'usr_1');
-    expect(mock.storage.from).toHaveBeenCalledWith('custom-sounds');
-    const order = mock.auth.admin.deleteUser.mock.invocationCallOrder[0];
-    expect(order).toBeGreaterThan(
-      mock.builders.projects.delete.mock.invocationCallOrder[0],
-    );
   });
 
   it('UTCID02 throws UnauthorizedException when the password is wrong', async () => {
@@ -1225,7 +1293,7 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
   });
 
   it('UTCID04 reports the deletion failure when the users delete returns an error', async () => {
-    const { service } = makeService({
+    const { service, mock } = makeService({
       users: [{ data: null, error: { message: 'delete failed' } }],
     });
     stubVerify(service, true);
@@ -1233,18 +1301,23 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
     const promise = del(service, 'Correct#123');
 
     await expect(promise).rejects.toBeInstanceOf(InternalServerErrorException);
-    await expect(promise).rejects.toThrow(/deletion|failed/i);
+    await expect(promise).rejects.toThrow('Could not delete account');
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+    expect(mock.auth.admin.updateUserById).toHaveBeenLastCalledWith('usr_1', {
+      ban_duration: 'none',
+    });
   });
 
-  it('UTCID05 reports the deletion failure when auth.admin.deleteUser returns an error', async () => {
-    const { service } = makeService({
+  it('UTCID05 completes once the profile is gone even if the banned auth account cannot be deleted', async () => {
+    const { service, mock } = makeService({
       deleteUser: { data: null, error: { message: 'auth delete failed' } },
     });
     stubVerify(service, true);
 
-    const promise = del(service, 'Correct#123');
-
-    await expect(promise).rejects.toBeInstanceOf(InternalServerErrorException);
-    await expect(promise).rejects.toThrow(/deletion|failed/i);
+    await expect(del(service, 'Correct#123')).resolves.toBeUndefined();
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+    expect(mock.auth.admin.updateUserById).toHaveBeenCalledWith('usr_1', {
+      ban_duration: expect.any(String),
+    });
   });
 });

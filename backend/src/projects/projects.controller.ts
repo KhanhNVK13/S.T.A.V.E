@@ -61,6 +61,12 @@ export class ProjectsController {
     return this.projectsService.unarchiveOwned(id, req.user.id);
   }
 
+  /** UC-21: số commit và nhánh sẽ mất khi xoá project. */
+  @Get(':id/delete-preview')
+  deletePreview(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.projectsService.getDeletePreview(id, req.user.id);
+  }
+
   /** UC-21: xóa project. Chỉ owner mới được xóa. */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)

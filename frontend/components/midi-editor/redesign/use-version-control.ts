@@ -23,6 +23,7 @@ import {
   restoreCommit,
   switchBranch,
   tagCommit,
+  isDraftStaleError,
 } from "../../../lib/api-client";
 import type { Branch, CommitWithAuthor } from "../../../lib/api-client";
 import { apiErrorMessage } from "../../../lib/error-message";
@@ -52,7 +53,10 @@ export interface UseVersionControlOptions {
    * Đồng bộ editor về snapshot backend vừa trả — dùng cho cả UC-46 POST-4
    * (khôi phục) lẫn UC-48 (nạp draft của branch vừa chuyển tới).
    */
-  onSnapshotRestored: (snapshot: DraftSnapshot) => void;
+  onSnapshotRestored: (snapshot: DraftSnapshot, draftVersion?: string | null) => void;
+  readDraftVersion: () => string | null | undefined;
+  onDraftStale: () => void;
+  resyncDraftVersion: () => void;
 }
 
 export interface VersionControl {
@@ -73,6 +77,7 @@ export interface VersionControl {
   historyLoading: boolean;
   historyError: string | null;
   reloadHistory: () => void;
+  refreshHead: () => Promise<void>;
 
   /** Commit đang là head của branch — mốc so sánh thay đổi trong dialog Commit. */
   headCommit: CommitWithAuthor | null;
@@ -102,6 +107,9 @@ export function useVersionControl({
   flushDraft,
   readSnapshot,
   onSnapshotRestored,
+  readDraftVersion,
+  onDraftStale,
+  resyncDraftVersion,
 }: UseVersionControlOptions): VersionControl {
   const [branch, setBranch] = useState<Branch | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -367,6 +375,7 @@ export function useVersionControl({
           currentBranchId: branch.id,
           targetBranchId,
           currentDraft: readSnapshot(),
+          expectedDraftVersion: readDraftVersion(),
         });
 
         headCommitIdRef.current = result.branch.head_commit_id;
@@ -374,7 +383,7 @@ export function useVersionControl({
         // KHÔNG được autosave lại — `onSnapshotRestored` đã huỷ debounce đang
         // chờ (bản nháp cũ), nếu không nó sẽ ghi đè draft branch mới bằng nội
         // dung của branch vừa rời đi.
-        onSnapshotRestored(result.activeSnapshot);
+        onSnapshotRestored(result.activeSnapshot, result.activeDraftVersion);
         if (mountedRef.current) {
           setBranch(result.branch);
           // `result.branch` không kèm `is_active` (chỉ endpoint danh sách có)
@@ -391,6 +400,8 @@ export function useVersionControl({
         showNotice(`Đã chuyển sang nhánh ${result.branch.name}`);
         return true;
       } catch (err) {
+        if (isDraftStaleError(err)) onDraftStale();
+        else resyncDraftVersion();
         if (mountedRef.current) {
           setSwitchError(apiErrorMessage(err, "Không chuyển được nhánh"));
         }
@@ -403,6 +414,9 @@ export function useVersionControl({
       branch,
       flushDraft,
       readSnapshot,
+      readDraftVersion,
+      onDraftStale,
+      resyncDraftVersion,
       onSnapshotRestored,
       loadHistory,
       showNotice,
@@ -431,6 +445,7 @@ export function useVersionControl({
     historyLoading,
     historyError,
     reloadHistory,
+    refreshHead: refreshHeadFromServer,
     headCommit,
     committing,
     commitError,

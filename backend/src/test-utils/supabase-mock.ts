@@ -48,6 +48,7 @@ const AUTH_ADMIN_METHODS = [
   'signOut',
   'listUsers',
   'createUser',
+  'getUserById',
 ] as const;
 
 export interface SupabaseMockOptions {

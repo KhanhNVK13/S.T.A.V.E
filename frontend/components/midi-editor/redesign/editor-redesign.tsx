@@ -22,6 +22,7 @@ import {
   ClipboardPaste,
   Copy,
   Download,
+  Scissors,
   Eraser,
   FileDown,
   FileMusic,
@@ -32,6 +33,7 @@ import {
   Mic,
   MousePointer2,
   Music,
+  MessageSquare,
   Pause,
   Pencil,
   MonitorSmartphone,
@@ -52,6 +54,7 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
@@ -62,6 +65,10 @@ import type { PianoRollHandle } from "../piano-roll";
 import { VelocityLane } from "../velocity-lane";
 import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
+import { CollaboratorsDialog } from "../../collaboration/collaborators-dialog";
+import { CommentsPanel } from "../../collaboration/comments-panel";
+import { PresenceAvatars } from "../../collaboration/presence-avatars";
+import { useAuth } from "../../../context/auth-context";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import type { AudioSketchState } from "../../audio-sketch/audio-sketch-panel";
 import { ConfirmDialog } from "../../ui/confirm-dialog";
@@ -76,6 +83,7 @@ import { useVersionControl } from "./use-version-control";
 import { summarizeChanges } from "./change-summary";
 import type { SaveStatus } from "../midi-editor";
 import { DC, DC_SIZE } from "./tokens";
+import { APP_LOCALE } from "../../../lib/format-date";
 
 const NARROW_QUERY = "(max-width: 767px)";
 const TIP_KEY = "stave-editor-help-tip-dismissed";
@@ -137,6 +145,10 @@ interface EditorRedesignProps {
   onQuantize: () => void;
   onImportMidi: () => void;
   onCopy: () => void;
+  onCut: () => void;
+  snapEnabled: boolean;
+  onSnapToggle: () => void;
+  onExportMidiSelection: () => void;
   onPaste: () => void;
   onSelectAll: () => void;
   onUndo: () => void;
@@ -156,14 +168,20 @@ interface EditorRedesignProps {
   onSeek: (tick: number) => void;
   // Lưu
   saveStatus: SaveStatus;
+  draftConflict: boolean;
   saveRetryInSec: number | null;
+  lastSavedAt: Date | null;
   onRetrySave: () => void;
   /** Ghi ngay bản nháp xuống server (huỷ debounce) — chạy trước mỗi lần commit. */
   onFlushDraft: () => Promise<void>;
   /** UC-48: đọc bản nháp đang mở để gửi kèm khi chuyển nhánh. */
   onReadSnapshot: () => DraftSnapshot;
   /** Nạp lại editor theo snapshot backend trả về sau khi khôi phục (UC-46). */
-  onSnapshotRestored: (snapshot: DraftSnapshot) => void;
+  onSnapshotRestored: (snapshot: DraftSnapshot, draftVersion?: string | null) => void;
+  onReadDraftVersion: () => string | null | undefined;
+  onDraftStale: () => void;
+  onResyncDraftVersion: () => void;
+  draftReloadNonce: number;
   /** 0..1 — âm lượng chung cho TẤT CẢ track (chỉ ảnh hưởng lúc phát, không ghi vào snapshot). */
   masterVolume: number;
   onMasterVolumeChange: (v: number) => void;
@@ -180,6 +198,7 @@ interface EditorRedesignProps {
   onPlaybackRateChange: (rate: number) => void;
   /** UC-39: Xuất project ra file .mid */
   onExportMidi: () => void;
+  onNotify?: (message: string, variant: "success" | "warning" | "info") => void;
 }
 
 export function EditorRedesign(props: EditorRedesignProps) {
@@ -191,14 +210,14 @@ export function EditorRedesign(props: EditorRedesignProps) {
     onAddTrack, onToggleMute, onToggleSolo, onDeleteTrack, onAssignInstrument,
     onSetTrackColor, onSetTrackLabel, onSetTrackVolume, onSetTrackPan, canAddTrack, maxTracks,
     trackLimitWarning,
-    onQuantize, onImportMidi, onCopy, onPaste, onSelectAll, hasSelection, hasClipboard,
+    onQuantize, onImportMidi, onCopy, onCut, snapEnabled, onSnapToggle, onExportMidiSelection, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
     isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
-    saveStatus, saveRetryInSec, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored,
+    saveStatus, draftConflict, saveRetryInSec, lastSavedAt, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored, onReadDraftVersion, onDraftStale, onResyncDraftVersion, draftReloadNonce,
     masterVolume, onMasterVolumeChange,
     customSounds, onSetSoundMapping, onCustomSoundsChanged,
     onTempoChange, metronomeOn, onMetronomeToggle,
-    playbackRate, onPlaybackRateChange, onExportMidi,
+    playbackRate, onPlaybackRateChange, onExportMidi, onNotify,
   } = props;
 
   const canStop = isPlaying || isPaused;
@@ -213,7 +232,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
     flushDraft: onFlushDraft,
     readSnapshot: onReadSnapshot,
     onSnapshotRestored,
+    readDraftVersion: onReadDraftVersion,
+    onDraftStale,
+    resyncDraftVersion: onResyncDraftVersion,
   });
+  const { refreshHead, reloadHistory } = vc;
+  useEffect(() => {
+    if (draftReloadNonce === 0) return;
+    void refreshHead();
+    reloadHistory();
+  }, [draftReloadNonce, refreshHead, reloadHistory]);
   const [commitOpen, setCommitOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [sketchState, setSketchState] = useState<AudioSketchState>("idle");
@@ -234,12 +262,23 @@ export function EditorRedesign(props: EditorRedesignProps) {
     () => typeof window === "undefined" || window.innerWidth >= 1280,
   );
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [bpmDraft, setBpmDraft] = useState<string | null>(null);
   const [isNarrow, setIsNarrow] = useState(
     () => typeof window !== "undefined" && window.matchMedia(NARROW_QUERY).matches,
   );
   const [narrowDismissed, setNarrowDismissed] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [noChangeHint, setNoChangeHint] = useState(false);
+  const [switchWarnTarget, setSwitchWarnTarget] = useState<string | null>(null);
+  // UC-60: hộp "Cộng tác viên" (mời / đổi quyền / gỡ). Trang edit này chỉ
+  // owner vào được (backend getOwned) nên hiển thị đầy đủ quyền chủ dự án.
+  const [collaboratorsOpen, setCollaboratorsOpen] = useState(false);
+  // UC-63: panel "Bình luận ghim" mép phải — chỉ gắn 1 nút toggle, không
+  // đụng logic soạn nhạc hiện có.
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  // UC-64: stack avatar người đang cùng mở project (chỉ thêm 1 component).
+  const { user: currentUser } = useAuth();
   const [tipVisible, setTipVisible] = useState(() => {
     try {
       return typeof window !== "undefined" && window.localStorage.getItem(TIP_KEY) !== "1";
@@ -285,13 +324,26 @@ export function EditorRedesign(props: EditorRedesignProps) {
     setFileMenuOpen(false);
     action();
   }
+  function runEditAction(action: () => void) {
+    setEditMenuOpen(false);
+    action();
+  }
   const branchLabel = vc.branch?.name ?? "main";
   const uncommittedCount = restoreTarget
     ? vc.headCommit
       ? summarizeChanges(vc.headCommit.snapshot, snapshot).total
       : snapshot.tracks.length + snapshot.notes.length
     : 0;
+  const hasNoChanges = vc.headCommit
+    ? summarizeChanges(vc.headCommit.snapshot, snapshot).total === 0
+    : false;
   const canCommit = vc.branch !== null && !vc.branchLoading;
+
+  useEffect(() => {
+    if (!noChangeHint) return;
+    const timer = setTimeout(() => setNoChangeHint(false), 5000);
+    return () => clearTimeout(timer);
+  }, [noChangeHint]);
 
   const { clearCommitError, clearRestoreError, clearSwitchError } = vc;
 
@@ -306,10 +358,18 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
   async function chooseBranch(branchId: string) {
     setBranchMenuOpen(false);
+    if (saveStatus === "error" && branchId !== vc.branch?.id) {
+      setSwitchWarnTarget(branchId);
+      return;
+    }
     await vc.switchTo(branchId);
   }
 
   function openCommitDialog() {
+    if (hasNoChanges) {
+      setNoChangeHint(true);
+      return;
+    }
     clearCommitError();
     setCommitOpen(true);
   }
@@ -486,7 +546,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <span style={styles.transportDivider} />
           <button
             onClick={onToggleLoop}
-            title={loopOn ? "Loop: ĐANG BẬT" : "Loop: đang tắt"}
+            title={loopOn ? "Loop: ĐANG BẬT. Đang chọn nốt thì Play lặp đúng vùng của các nốt đó" : "Loop: đang tắt"}
             style={{
               ...styles.transportBtn,
               background: loopOn ? DC.accent : "transparent",
@@ -517,6 +577,40 @@ export function EditorRedesign(props: EditorRedesignProps) {
             style={styles.iconBtn}
           >
             <CircleHelp size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollaboratorsOpen(true)}
+            title="Cộng tác viên: mời, đổi quyền, gỡ"
+            aria-label="Cộng tác viên"
+            style={styles.iconBtn}
+          >
+            <Users size={14} />
+          </button>
+          {/* UC-64: người đang xem cùng project — ẩn khi không có ai khác. */}
+          <PresenceAvatars
+            projectId={projectId}
+            myId={currentUser?.id ?? null}
+            onBranchMoved={() => vc.reloadHistory()}
+          />
+          {/* UC-63: bật/tắt panel bình luận ghim — chỉ thêm, không đổi logic. */}
+          <button
+            type="button"
+            onClick={() => setCommentsOpen((open) => !open)}
+            title={
+              commentsOpen
+                ? "Ẩn bình luận"
+                : "Hiện bình luận ghim (gắn vào ô nhịp / nốt)"
+            }
+            aria-label="Bình luận"
+            aria-pressed={commentsOpen}
+            style={{
+              ...styles.iconBtn,
+              background: commentsOpen ? DC.accentSoft : "transparent",
+              color: commentsOpen ? DC.accent : DC.text,
+            }}
+          >
+            <MessageSquare size={14} />
           </button>
           <button
             onClick={() => setTrackPanelOpen((open) => !open)}
@@ -561,17 +655,20 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             onClick={openCommitDialog}
             disabled={!canCommit}
+            aria-disabled={hasNoChanges || undefined}
             title={
               vc.branchError
                 ? `Không tải được branch: ${vc.branchError}`
                 : vc.branchLoading
                   ? "Đang tải thông tin branch…"
-                  : "Ghi lại phiên bản hiện tại"
+                  : hasNoChanges
+                    ? "Chưa có thay đổi nào so với commit gần nhất"
+                    : "Ghi lại phiên bản hiện tại"
             }
             style={{
               ...styles.commitBtn,
-              opacity: canCommit ? 1 : 0.45,
-              cursor: canCommit ? "pointer" : "not-allowed",
+              opacity: canCommit && !hasNoChanges ? 1 : 0.45,
+              cursor: canCommit ? (hasNoChanges ? "help" : "pointer") : "not-allowed",
             }}
           >
             <GitCommitHorizontal size={16} />
@@ -580,17 +677,36 @@ export function EditorRedesign(props: EditorRedesignProps) {
         </div>
       </header>
 
+      {noChangeHint && (
+        <div role="status" style={styles.narrowNotice}>
+          <span>
+            Chưa có gì để ghi lại: bản nháp giống hệt commit gần nhất. Hãy sửa bản nhạc rồi
+            commit.
+          </span>
+          <button type="button" onClick={() => setNoChangeHint(false)} style={styles.saveErrorBtn}>
+            Đã hiểu
+          </button>
+        </div>
+      )}
+
       {saveStatus === "error" && (
         <div role="alert" style={styles.saveErrorBar}>
-          <span>
-            <strong>Không lưu được bản nháp.</strong>{" "}
-            {saveRetryInSec !== null
-              ? `Sẽ tự thử lại sau ${saveRetryInSec} giây.`
-              : "Đang thử lại…"}{" "}
-            Đừng đóng trang cho tới khi thấy &quot;Đã lưu nháp&quot;.
-          </span>
+          {draftConflict ? (
+            <span>
+              <strong>Bản nháp đã thay đổi ở tab khác.</strong> Tự lưu đang tạm dừng cho tới khi
+              bạn chọn nạp lại bản mới hoặc ghi đè.
+            </span>
+          ) : (
+            <span>
+              <strong>Không lưu được bản nháp.</strong>{" "}
+              {saveRetryInSec !== null
+                ? `Sẽ tự thử lại sau ${saveRetryInSec} giây.`
+                : "Đang thử lại…"}{" "}
+              Đừng đóng trang cho tới khi thấy &quot;Đã lưu nháp&quot;.
+            </span>
+          )}
           <button type="button" onClick={onRetrySave} style={styles.saveErrorBtn}>
-            Thử lại ngay
+            {draftConflict ? "Xử lý xung đột" : "Thử lại ngay"}
           </button>
         </div>
       )}
@@ -653,9 +769,17 @@ export function EditorRedesign(props: EditorRedesignProps) {
             </button>
           ))}
         </div>
-        <button onClick={onQuantize} title="Quantize toàn bộ note về lưới" style={styles.ghostBtn}>
-          <Magnet size={14} />
-          Quantize
+        <button
+          onClick={onSnapToggle}
+          aria-pressed={snapEnabled}
+          title={snapEnabled ? "Đang bám lưới. Bấm để tắt: nốt đặt tự do, không bám lưới" : "Đang tắt bám lưới. Bấm để bật lại"}
+          style={{
+            ...styles.ghostBtn,
+            background: snapEnabled ? DC.accentSoft : "transparent",
+            color: snapEnabled ? DC.accent : DC.text,
+          }}
+        >
+          Snap {snapEnabled ? "bật" : "tắt"}
         </button>
 
         <span style={styles.stripDivider} />
@@ -733,27 +857,77 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
         <span style={styles.stripDivider} />
 
-        <button onClick={onSelectAll} title="Chọn tất cả note (Ctrl+A)" aria-label="Select all" style={styles.iconBtn}>
-          <SquareCheck size={14} />
-        </button>
-        <button
-          onClick={onCopy}
-          disabled={!hasSelection}
-          title={hasSelection ? "Copy note đã chọn (Ctrl+C)" : "Chọn note trước đã"}
-          aria-label="Copy"
-          style={{ ...styles.iconBtn, opacity: hasSelection ? 1 : 0.4, cursor: hasSelection ? "pointer" : "not-allowed" }}
-        >
-          <Copy size={14} />
-        </button>
-        <button
-          onClick={onPaste}
-          disabled={!hasClipboard}
-          title={hasClipboard ? "Dán note (Ctrl+V)" : "Chưa có gì để dán"}
-          aria-label="Paste"
-          style={{ ...styles.iconBtn, opacity: hasClipboard ? 1 : 0.4, cursor: hasClipboard ? "pointer" : "not-allowed" }}
-        >
-          <ClipboardPaste size={14} />
-        </button>
+        <div style={styles.fileMenuWrap}>
+          <button
+            type="button"
+            onClick={() => setEditMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={editMenuOpen}
+            title="Chọn tất cả, copy, cắt, dán, quantize"
+            style={styles.ghostBtn}
+          >
+            Edit
+            <ChevronDown size={13} />
+          </button>
+          {editMenuOpen && (
+            <>
+              <div style={styles.branchBackdrop} onClick={() => setEditMenuOpen(false)} />
+              <div
+                role="menu"
+                style={{ ...styles.fileMenu, left: 0, right: "auto" }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setEditMenuOpen(false);
+                  }
+                }}
+              >
+                <button role="menuitem" autoFocus onClick={() => runEditAction(onSelectAll)} title="Chọn tất cả note" style={styles.fileMenuItem}>
+                  <SquareCheck size={14} /> Select all
+                  <span style={styles.menuShortcut}>Ctrl+A</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!hasSelection}
+                  onClick={() => runEditAction(onCopy)}
+                  title={hasSelection ? "Copy note đã chọn" : "Chọn note trước đã"}
+                  style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
+                >
+                  <Copy size={14} /> Copy
+                  <span style={styles.menuShortcut}>Ctrl+C</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!hasSelection}
+                  onClick={() => runEditAction(onCut)}
+                  title={hasSelection ? "Cắt note đã chọn" : "Chọn note trước đã"}
+                  style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
+                >
+                  <Scissors size={14} /> Cut
+                  <span style={styles.menuShortcut}>Ctrl+X</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!hasClipboard}
+                  onClick={() => runEditAction(onPaste)}
+                  title={hasClipboard ? "Dán note" : "Chưa có gì để dán"}
+                  style={{ ...styles.fileMenuItem, opacity: hasClipboard ? 1 : 0.45 }}
+                >
+                  <ClipboardPaste size={14} /> Paste
+                  <span style={styles.menuShortcut}>Ctrl+V</span>
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => runEditAction(onQuantize)}
+                  title="Căn các nốt đang chọn (hoặc track đang chọn) vào lưới"
+                  style={styles.fileMenuItem}
+                >
+                  <Magnet size={14} /> Quantize
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={onUndo}
           disabled={!canUndo}
@@ -776,7 +950,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <span style={{ flex: 1 }} />
 
         {trackLimitWarning && (
-          <span style={styles.warning}>Tối đa {maxTracks} track</span>
+          <span role="alert" style={styles.warning}>
+            Tối đa {maxTracks} track
+          </span>
         )}
 
         <div style={styles.fileMenuWrap}>
@@ -798,7 +974,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 role="menu"
                 style={styles.fileMenu}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") setFileMenuOpen(false);
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setFileMenuOpen(false);
+                  }
                 }}
               >
                 <button role="menuitem" autoFocus onClick={() => runFileAction(onImportMidi)} title="Nhập file MIDI" style={styles.fileMenuItem}>
@@ -806,6 +985,15 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 </button>
                 <button role="menuitem" onClick={() => runFileAction(onExportMidi)} title="Xuất project ra file .mid" style={styles.fileMenuItem}>
                   <FileDown size={14} /> Export MIDI
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!hasSelection}
+                  onClick={() => runFileAction(onExportMidiSelection)}
+                  title={hasSelection ? "Chỉ xuất các nốt đang chọn ra file .mid" : "Chọn note trước để xuất vùng chọn"}
+                  style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
+                >
+                  <FileDown size={14} /> Export selection (MIDI)
                 </button>
                 <button role="menuitem" onClick={() => runFileAction(() => setShowExportAudio(true))} title="Xuất âm thanh WAV" style={styles.fileMenuItem}>
                   <Download size={14} /> Export Audio
@@ -854,12 +1042,14 @@ export function EditorRedesign(props: EditorRedesignProps) {
             zoom={zoom}
             ppq={ppq}
             gridDivision={gridDivision}
+            snapEnabled={snapEnabled}
             playheadTick={playheadTick}
             onNotesChange={onNotesChange}
             selectedNoteIds={selectedNoteIds}
             onSelectedNotesChange={onSelectedNotesChange}
             isPlaying={isPlaying}
             onSeek={onSeek}
+            onNotify={onNotify}
             onScrollXChange={setRollScrollX}
           />
           {velocityLaneOpen && (
@@ -897,7 +1087,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
             }}
           />
           {saveStatus === "saved"
-            ? "Đã lưu nháp"
+            ? lastSavedAt
+              ? `Đã lưu nháp lúc ${lastSavedAt.toLocaleTimeString(APP_LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+              : "Đã lưu nháp"
             : saveStatus === "saving"
               ? "Đang lưu…"
               : saveStatus === "error"
@@ -964,6 +1156,44 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
 
+      {/* UC-63: panel bình luận ghim — neo absolute vào mép phải editor. */}
+      {commentsOpen && (
+        <CommentsPanel
+          projectId={projectId}
+          ppq={ppq}
+          timeSignature={timeSignature}
+          tracks={tracks}
+          notes={notes}
+          selectedNoteIds={selectedNoteIds}
+          onSeek={onSeek}
+          onClose={() => setCommentsOpen(false)}
+        />
+      )}
+
+      <CollaboratorsDialog
+        open={collaboratorsOpen}
+        onClose={() => setCollaboratorsOpen(false)}
+        projectId={projectId}
+        projectName={projectName}
+        isOwner
+      />
+
+      <ConfirmDialog
+        open={!!switchWarnTarget}
+        title="Chuyển nhánh khi bản nháp chưa lưu được?"
+        message="Bản nháp hiện tại chưa được lưu lên máy chủ. Chuyển nhánh lúc này có thể làm mất các thay đổi chưa lưu. Bạn vẫn muốn chuyển?"
+        confirmLabel="Vẫn chuyển nhánh"
+        cancelLabel="Ở lại nhánh này"
+        danger
+        loading={vc.switching}
+        onConfirm={() => {
+          const target = switchWarnTarget;
+          setSwitchWarnTarget(null);
+          if (target) void vc.switchTo(target);
+        }}
+        onCancel={() => setSwitchWarnTarget(null)}
+      />
+
       <ConfirmDialog
         open={confirmCloseSketch}
         title="Bỏ bản ghi chưa đính kèm?"
@@ -988,6 +1218,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
               notes.find((n) => selectedNoteIds.has(n.id) && n.trackId === selectedTrackId)?.pitch ?? 60
             }
             customSounds={customSounds}
+            mappedIds={new Set(tracks.flatMap((t) => Object.values(t.soundMap ?? {})))}
             onSetSoundMapping={onSetSoundMapping}
             onLibraryChange={onCustomSoundsChanged}
           />
@@ -1005,6 +1236,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: DC.pageBg,
     color: DC.text,
     overflow: "hidden",
+    // UC-63: điểm neo cho CommentsPanel (absolute, mép phải) — không đổi layout.
+    position: "relative",
   },
   header: {
     height: DC_SIZE.headerH,
@@ -1178,6 +1411,13 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${DC.border}`,
     borderRadius: 10,
     boxShadow: "0 12px 28px rgba(15, 42, 92, .14)",
+  },
+  menuShortcut: {
+    marginLeft: "auto",
+    paddingLeft: 16,
+    color: DC.textMuted,
+    fontSize: 12,
+    fontFamily: DC.mono,
   },
   fileMenuItem: {
     display: "flex",
