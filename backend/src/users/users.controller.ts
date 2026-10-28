@@ -9,9 +9,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
+import { UserThrottlerGuard } from '../common/guards/user-throttler.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SetThemeDto } from './dto/set-theme.dto';
@@ -32,6 +34,8 @@ export class UsersController {
     return this.usersService.updateProfile(req.user.id, dto);
   }
 
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 10 * 60_000 } })
   @Post('me/avatar/upload-url')
   createAvatarUploadUrl(
     @Req() req: AuthenticatedRequest,

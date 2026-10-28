@@ -34,6 +34,7 @@ const API_MESSAGES: Record<string, string> = {
   "There is nothing to merge": "Không còn gì để hợp nhất: các thay đổi này đã có trong dự án đích.",
   "This project is not a fork": "Chỉ dự án được fork mới tạo được pull request.",
   "The original project is no longer available": "Không gửi được đề xuất vì dự án gốc không còn công khai. Bản fork vẫn là của bạn.",
+  "Too many requests, please try again later": "Bạn thao tác quá nhanh. Hãy đợi vài phút rồi thử lại.",
   "Draft was changed elsewhere": "Bản nháp vừa được cập nhật ở tab khác. Hãy xử lý xung đột nháp trong trình soạn nhạc rồi thử lại.",
   "An open pull request already exists": "Đã có một pull request đang mở cho cặp nhánh này.",
   "Pull request is no longer open": "Pull request này đã được xử lý bởi người khác. Hãy tải lại trang.",
