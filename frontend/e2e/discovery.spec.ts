@@ -74,10 +74,6 @@ test.describe("Community and discovery", () => {
   test("DISC-001 lists public projects newest first, filters them and leaves the statistics unchanged", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID061: opening the detail page of a public project adds a play every time, for anyone including the owner, so browsing changes the statistics",
-    );
     const { api } = await owner();
     await publish(api, "Other Rock", "Rock");
     await publish(api, "Other Pop", "Pop");
@@ -513,10 +509,6 @@ test.describe("Community and discovery", () => {
   test("DISC-026 sends a logged-in user from the root address to the project dashboard", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID064: a logged-in user opening the root address sees the public home page; there is no redirect to the project dashboard",
-    );
     const { user } = await owner("User A");
     await loginThroughUi(page, user);
     await page.goto("/");

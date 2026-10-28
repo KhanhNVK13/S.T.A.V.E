@@ -44,10 +44,6 @@ test.describe("Project management", () => {
     test("PRJ-001 creates an empty private project and opens it in the editor", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID017: after creating a project the app returns to the project list instead of opening the MIDI Editor",
-      );
       const user = await signedIn(page);
       await createViaForm(page, "New Demo");
       await expect(page).toHaveURL(/\/projects\/[^/]+\/edit$/);
@@ -75,10 +71,6 @@ test.describe("Project management", () => {
     test("PRJ-004 rejects a project name of 101 characters", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID019: names up to 120 characters are accepted, so a 101-character name is created",
-      );
       const user = await signedIn(page);
       await createViaForm(page, "a".repeat(101));
       await expect(page.getByText(/tối đa 100|too long/i)).toBeVisible();
@@ -101,11 +93,12 @@ test.describe("Project management", () => {
       const user = await signedIn(page);
       const long = "b".repeat(100);
       await createViaForm(page, "A");
-      await page.waitForURL(/\/projects$/);
+      await page.waitForURL(/\/projects\/[^/]+\/edit$/);
       await createViaForm(page, long);
-      await page.waitForURL(/\/projects$/);
+      await page.waitForURL(/\/projects\/[^/]+\/edit$/);
       const names = (await listProjectsOf(user.id)).map((p) => p.name);
       expect(names.sort()).toEqual(["A", long].sort());
+      await page.goto("/projects");
       await expect(page.getByText(long)).toBeVisible();
     });
 
@@ -115,8 +108,10 @@ test.describe("Project management", () => {
       const user = await signedIn(page);
       await createE2eProject(user.id, "Test Song");
       await createViaForm(page, "Test Song");
-      await page.waitForURL(/\/projects$/, { timeout: 8000 });
+      await page.waitForURL(/\/projects\/[^/]+\/edit$/);
       expect(await listProjectsOf(user.id)).toHaveLength(2);
+      await page.goto("/projects");
+      await expect(page.getByText(/^Tạo /)).toHaveCount(2);
     });
   });
 
@@ -159,10 +154,6 @@ test.describe("Project management", () => {
     });
 
     test("PRJ-012 rejects a new name of 101 characters", async ({ page }) => {
-      test.fail(
-        true,
-        "DFID019: names up to 120 characters are saved, so a 101-character name is accepted",
-      );
       const user = await signedIn(page);
       const id = await createE2eProject(user.id, "Test Song");
       await page.goto(`/projects/${id}/settings`);
@@ -232,10 +223,6 @@ test.describe("Project management", () => {
     test("PRJ-023 deletes a project after typing its name and states what is lost", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID021: the delete dialog does not state the number of commits and branches that will be lost",
-      );
       const { user } = await openDelete(page);
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText(/\d+\s*(commit|phiên bản)/i);
@@ -352,10 +339,6 @@ test.describe("Project management", () => {
     test("PRJ-036 asks for confirmation and offers a shareable link when making a project public", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID022: visibility changes immediately on selecting the option, with no confirmation and no shareable link",
-      );
       const user = await signedIn(page);
       const id = await createE2eProject(user.id, "Test Song");
       await page.goto(`/projects/${id}/settings`);
@@ -385,6 +368,7 @@ test.describe("Project management", () => {
       await failApi(page, "PATCH", /\/visibility$/);
       await page.goto(`/projects/${id}/settings`);
       await page.getByRole("radio", { name: /công khai/i }).click();
+      await page.getByRole("button", { name: /^công khai$/i }).click();
       await expect(
         page.getByText(/không đổi được chế độ hiển thị/i),
       ).toBeVisible();
@@ -405,6 +389,7 @@ test.describe("Project management", () => {
       ).toBeVisible();
       await page.goto(`/projects/${id}/settings`);
       await page.getByRole("radio", { name: /riêng tư/i }).click();
+      await page.getByRole("button", { name: /^chuyển về riêng tư$/i }).click();
       await expect(page.getByText(/đã được đặt thành riêng tư/i)).toBeVisible();
       await guestPage.goto(`/projects/${id}`);
       await guestPage.waitForLoadState("networkidle");

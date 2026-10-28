@@ -186,10 +186,6 @@ test.describe("Track editing", () => {
     test("EDT-031 when every palette colour is used the new track restarts from the first colour", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID094: the new track colour is picked by track index from an 8-colour list, not as the next unused colour of the 12-colour palette, so with all 12 colours used it gets the fifth colour",
-      );
       const { api, id } = await seed(page, tracksOf(12, PALETTE), []);
       await openEditor(page, id);
       await addTrackButton(page).click();
@@ -203,10 +199,6 @@ test.describe("Track editing", () => {
     test("EDT-032 a track cannot be added when the project already has 32 tracks", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID095: at 32 tracks the add button is only disabled; the limit is explained only in a hover tooltip and the in-editor limit message can never appear",
-      );
       const { api, id } = await seed(page, tracksOf(32), []);
       await openEditor(page, id);
       await addTrackButton(page).click({ force: true });
@@ -228,10 +220,6 @@ test.describe("Track editing", () => {
     test("EDT-035 the 32nd track can be added to a project with 31 tracks", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID095: after the 32nd track the add button is only disabled; the limit is explained only in a hover tooltip",
-      );
       const { api, id } = await seed(page, tracksOf(31), []);
       await openEditor(page, id);
       await addTrackButton(page).click();
@@ -258,10 +246,6 @@ test.describe("Track editing", () => {
     test("EDT-036 removes a track with notes after confirmation and earlier commits keep it", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID096: the confirmation does not state how many notes will be removed and says the removal cannot be undone although Undo restores it",
-      );
       const { api, id, branchId } = await seed(page, twoTracks(), notes(), {
         commit: true,
       });
@@ -350,10 +334,6 @@ test.describe("Track editing", () => {
     test("EDT-040 an empty track is removed at once without confirmation", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID098: removing a track without notes still opens the same confirmation as a track with notes",
-      );
       const { api, id } = await seed(page, tracksOf(3), [
         ...notesOn("track-1", 2),
         ...notesOn("track-2", 2, 64),

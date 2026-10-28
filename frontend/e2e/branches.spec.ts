@@ -84,7 +84,13 @@ test.describe("Branch management", () => {
     }) => {
       const { api, id } = await setup(page);
       await openBranches(page, id);
-      await createViaForm(page, "later-idea");
+      await page.getByRole("button", { name: /^tạo nhánh$/i }).click();
+      await page.getByLabel("Chuyển sang nhánh mới sau khi tạo").uncheck();
+      await page.locator('input[name="branchName"]').fill("later-idea");
+      await page
+        .locator("form")
+        .getByRole("button", { name: /^tạo nhánh$/i })
+        .click();
       await expect(page.getByText("later-idea").first()).toBeVisible();
       const branches = await api.branches(id);
       expect(branches.map((b) => b.name)).toContain("later-idea");
@@ -110,10 +116,6 @@ test.describe("Branch management", () => {
     });
 
     test("BRN-005 rejects a branch name of 51 characters", async ({ page }) => {
-      test.fail(
-        true,
-        "DFID029: the field cuts the text to 50 characters without a message, so a 50-character branch is created from the 51-character entry",
-      );
       const { api, id } = await setup(page);
       await openBranches(page, id);
       await createViaForm(page, "x".repeat(51));
@@ -164,7 +166,7 @@ test.describe("Branch management", () => {
       const long = "l".repeat(50);
       await openBranches(page, id);
       await createViaForm(page, "b");
-      await expect(page.getByText("b", { exact: true })).toBeVisible();
+      await expect(page.getByText("b", { exact: true }).last()).toBeVisible();
       await createViaForm(page, long);
       await expect(page.getByText(long)).toBeVisible();
       expect(await api.branchNames(id)).toEqual(
@@ -204,10 +206,6 @@ test.describe("Branch management", () => {
     test("BRN-019 shows a retry message in place of the branch list when it cannot be loaded", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID030: when the branch list cannot be loaded a message is shown but there is no retry action",
-      );
       const { id } = await setup(page);
       await failApi(page, "GET", /\/branches$/);
       await page.goto(`/projects/${id}?tab=branches`);
@@ -226,7 +224,7 @@ test.describe("Branch management", () => {
       await ctx.api.createBranch(ctx.id, "feature-intro");
       await openBranches(page, ctx.id);
       await page
-        .getByRole("button", { name: "Xoá nhánh", exact: true })
+        .getByRole("button", { name: /^xoá nhánh (?!mặc định)/i })
         .click();
       return ctx;
     }
@@ -265,7 +263,7 @@ test.describe("Branch management", () => {
       await openBranches(page, id);
       await failApi(page, "DELETE", /^\/branches\/[^/]+$/);
       await page
-        .getByRole("button", { name: "Xoá nhánh", exact: true })
+        .getByRole("button", { name: /^xoá nhánh (?!mặc định)/i })
         .click();
       await page
         .getByRole("alertdialog")

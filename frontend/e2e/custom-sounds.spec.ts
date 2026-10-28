@@ -130,6 +130,17 @@ async function openLibrary(page: Page, projectId: string): Promise<Locator> {
   return dialog;
 }
 
+async function chooseSoundAction(
+  dialog: Locator,
+  name: string,
+  action: RegExp,
+): Promise<void> {
+  await soundRow(dialog, name)
+    .getByRole("button", { name: /tuỳ chọn cho/i })
+    .click();
+  await dialog.page().getByRole("menuitem", { name: action }).click();
+}
+
 function soundRow(dialog: Locator, name: string): Locator {
   return dialog
     .locator("li")
@@ -219,10 +230,6 @@ test.describe("Custom sound library", () => {
   });
 
   test("AUD-026 rejects a file larger than 10 MB", async ({ page }) => {
-    test.fail(
-      true,
-      "DFID082: the size limit is applied after the file is converted to mono 44.1 kHz, so an 11.5 MB high resolution WAV of 20 seconds is accepted instead of rejected",
-    );
     const a = await makeActor();
     const project = await seedProject(a, "Test Song");
     await loginThroughUi(page, a.user);
@@ -294,10 +301,6 @@ test.describe("Custom sound library", () => {
   test("AUD-031 asks for confirmation before replacing a sound already mapped to a pitch", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID083: mapping a second sound to a pitch that already has one replaces it at once without asking",
-    );
     const a = await makeActor();
     const kick = await seedSound(a, "kick_1s");
     await seedSound(a, "snare_2s", 2);
@@ -320,10 +323,6 @@ test.describe("Custom sound library", () => {
   test("AUD-037 shows each sound in the library with waveform, details, mapping status and a menu", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID080: the library shows no waveform preview, no mapping status and no rename action for a sound",
-    );
     const a = await makeActor();
     const kick = await seedSound(a, "kick_1s");
     await seedSound(a, "snare_2s", 2);
@@ -335,22 +334,22 @@ test.describe("Custom sound library", () => {
     await expect(kickRow).toContainText(/0?0:01/);
     await expect(snareRow).toContainText(/0?0:02/);
     await expect(kickRow.getByRole("button", { name: /nghe thử/i })).toBeEnabled();
-    await expect.soft(kickRow.locator("canvas, img")).not.toHaveCount(0, quick);
-    await expect.soft(kickRow).toContainText(/đã gán|mapped/i, quick);
-    await expect.soft(snareRow).toContainText(/chưa gán|not mapped/i, quick);
-    await expect
-      .soft(snareRow.getByRole("button", { name: /đổi tên|rename|menu|thêm/i }))
-      .toBeVisible(quick);
-    expect(await listSounds(a.api)).toHaveLength(2);
+    await expect(kickRow.locator("svg:has(rect)")).not.toHaveCount(0);
+    await expect(kickRow).toContainText(/đã gán/i);
+    await expect(snareRow).toContainText(/chưa gán/i);
+    await snareRow.getByRole("button", { name: /tuỳ chọn cho snare_2s/i }).click();
+    await page.getByRole("menuitem", { name: /đổi tên/i }).click();
+    const renameInput = dialog.locator('input[name="sound-rename"]');
+    await renameInput.fill("snare_bright");
+    await renameInput.press("Enter");
+    await expect(soundRow(dialog, "snare_bright")).toBeVisible();
+    const names = (await listSounds(a.api)).map((s) => s.name);
+    expect(names.sort()).toEqual(["kick_1s", "snare_bright"]);
   });
 
   test("AUD-041 marks a sound whose stored file is missing as unavailable", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID087: a sound whose file is gone from storage is not marked unavailable; its Play button is just disabled with no visible reason",
-    );
     const a = await makeActor();
     await seedSound(a, "kick_1s");
     const snare = await seedSound(a, "snare_2s", 2);
@@ -421,10 +420,6 @@ test.describe("Custom sound library", () => {
   test("AUD-040 shows a retry message instead of an empty list when the library cannot be retrieved", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID084: when the library request fails the error is shown together with the empty library state and there is no retry action",
-    );
     const a = await makeActor();
     await seedSound(a, "kick_1s");
     const project = await seedProject(a, "Test Song");
@@ -477,9 +472,7 @@ test.describe("Custom sound library", () => {
     const project = await seedProject(a, "Test Song", { [C2]: snare });
     await loginThroughUi(page, a.user);
     const dialog = await openLibrary(page, project.id);
-    await soundRow(dialog, "snare_2s")
-      .getByRole("button", { name: /xoá/i })
-      .click();
+    await chooseSoundAction(dialog, "snare_2s", /^xoá$/i);
     const confirm = page.getByRole("alertdialog");
     await expect(confirm).toBeVisible();
     await expect(confirm.getByText(/xoá vĩnh viễn/i)).toBeVisible();
@@ -502,9 +495,7 @@ test.describe("Custom sound library", () => {
     const project = await seedProject(a, "Test Song");
     await loginThroughUi(page, a.user);
     const dialog = await openLibrary(page, project.id);
-    await soundRow(dialog, "kick_1s")
-      .getByRole("button", { name: /xoá/i })
-      .click();
+    await chooseSoundAction(dialog, "kick_1s", /^xoá$/i);
     await page
       .getByRole("alertdialog")
       .getByRole("button", { name: /huỷ/i })
@@ -536,9 +527,7 @@ test.describe("Custom sound library", () => {
             })
           : route.continue(),
     );
-    await soundRow(dialog, "kick_1s")
-      .getByRole("button", { name: /xoá/i })
-      .click();
+    await chooseSoundAction(dialog, "kick_1s", /^xoá$/i);
     const confirm = page.getByRole("alertdialog");
     await confirm.getByRole("button", { name: /xoá hoàn toàn/i }).click();
     await expect(confirm.getByRole("alert")).toBeVisible();
@@ -571,9 +560,7 @@ test.describe("Custom sound library", () => {
     await seedProject(b, "Shared Beat", { [C2]: kick });
     await loginThroughUi(page, a.user);
     const dialog = await openLibrary(page, own.id);
-    await soundRow(dialog, "kick_1s")
-      .getByRole("button", { name: /xoá/i })
-      .click();
+    await chooseSoundAction(dialog, "kick_1s", /^xoá$/i);
     const confirm = page.getByRole("alertdialog");
     await expect(confirm.getByText(/1 dự án của người khác/)).toBeVisible();
     await expect(confirm.getByText("Shared Beat")).toBeVisible(quick);

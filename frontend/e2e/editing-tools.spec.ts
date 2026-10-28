@@ -98,6 +98,19 @@ function toolbarButton(page: Page, name: string) {
   return page.getByRole("button", { name, exact: true });
 }
 
+async function editItem(page: Page, name: string) {
+  const item = page.getByRole("menuitem", { name: new RegExp(`^${name}`) });
+  if (!(await item.isVisible())) {
+    await page.getByRole("button", { name: /^Edit/ }).click();
+  }
+  return item;
+}
+
+async function closeEditMenu(page: Page) {
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+}
+
 function starts(notes: FullNote[]) {
   return Object.fromEntries(notes.map((n) => [n.id, n.start]));
 }
@@ -140,7 +153,8 @@ const BAR2_PATTERN: NoteSeed[] = [
 async function selectBar2Pattern(page: Page) {
   await pickTool(page, "Select");
   await boxSelect(page, { tick: BAR - 60, pitch: 69 }, { tick: 2 * BAR - 60, pitch: 58 });
-  await expect(toolbarButton(page, "Copy")).toBeEnabled();
+  await expect(await editItem(page, "Copy")).toBeEnabled();
+      await closeEditMenu(page);
 }
 
 test.describe("Editing tools", () => {
@@ -188,7 +202,7 @@ test.describe("Editing tools", () => {
       const before = (await readDraft(api, id)).notes;
       await openEditor(page, id);
       await toolbarButton(page, "1/16").click();
-      await toolbarButton(page, "Quantize").click();
+      await (await editItem(page, "Quantize")).click();
 
       await expect
         .poll(async () => starts((await readDraft(api, id)).notes), saved)
@@ -211,7 +225,7 @@ test.describe("Editing tools", () => {
       const before = starts((await readDraft(api, id)).notes);
       await openEditor(page, id);
       await toolbarButton(page, "1/16").click();
-      await toolbarButton(page, "Quantize").click();
+      await (await editItem(page, "Quantize")).click();
       await expect
         .poll(async () => starts((await readDraft(api, id)).notes), saved)
         .toEqual(ON_GRID_STARTS);
@@ -238,7 +252,7 @@ test.describe("Editing tools", () => {
       await openEditor(page, id);
       await selectTrack(page, "Bass");
       await toolbarButton(page, "1/16").click();
-      await toolbarButton(page, "Quantize").click();
+      await (await editItem(page, "Quantize")).click();
       await page.waitForTimeout(3_500);
 
       expect(await readDraft(api, id)).toEqual(before);
@@ -250,10 +264,6 @@ test.describe("Editing tools", () => {
     test("EDT-049 a quantize collision keeps the earlier note and is reported", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID101: when two notes of the same pitch quantize to the same position both are kept stacked on top of each other and nothing is reported",
-      );
       const tracks = [...TWO_TRACKS, { id: "track-3", name: "Keys" }];
       const { api, id } = await seed(
         page,
@@ -266,7 +276,7 @@ test.describe("Editing tools", () => {
       await openEditor(page, id);
       await selectTrack(page, "Keys");
       await toolbarButton(page, "1/4").click();
-      await toolbarButton(page, "Quantize").click();
+      await (await editItem(page, "Quantize")).click();
       await expect
         .poll(async () => (await readDraft(api, id)).notes.find((n) => n.id === "early")?.start, saved)
         .toBe(PPQ);
@@ -279,17 +289,13 @@ test.describe("Editing tools", () => {
     });
 
     test("EDT-051 quantize applies only to the selected notes", async ({ page }) => {
-      test.fail(
-        true,
-        "DFID102: quantize always moves every note of the project; the note selection and the selected track are ignored",
-      );
       const { api, id } = await seed(page, OFF_GRID);
       await openEditor(page, id);
       await toolbarButton(page, "1/16").click();
       await pickTool(page, "Select");
       await clickNote(page, { start: BAR + 10, pitch: 60 });
       await clickNote(page, { start: BAR + PPQ - 10, pitch: 62 }, true);
-      await toolbarButton(page, "Quantize").click();
+      await (await editItem(page, "Quantize")).click();
 
       await expect
         .poll(async () => starts((await readDraft(api, id)).notes).q1, saved)
@@ -314,11 +320,13 @@ test.describe("Editing tools", () => {
       const { api, id, branchId } = await seed(page, BAR2_PATTERN);
       const before = await readDraft(api, id);
       await openEditor(page, id);
-      await expect(toolbarButton(page, "Paste")).toBeDisabled();
+      await expect(await editItem(page, "Paste")).toBeDisabled();
+      await closeEditMenu(page);
       await selectBar2Pattern(page);
       await page.keyboard.press("Control+C");
 
-      await expect(toolbarButton(page, "Paste")).toBeEnabled();
+      await expect(await editItem(page, "Paste")).toBeEnabled();
+      await closeEditMenu(page);
       await page.waitForTimeout(3_000);
       expect(await readDraft(api, id)).toEqual(before);
       expect(await api.history(branchId)).toHaveLength(0);
@@ -338,7 +346,8 @@ test.describe("Editing tools", () => {
       const g = await scrollGrid(page, { pitch: 64 });
       const empty = point(g, 3 * BAR, 70);
       await page.mouse.click(empty.x, empty.y);
-      await expect(toolbarButton(page, "Copy")).toBeDisabled();
+      await expect(await editItem(page, "Copy")).toBeDisabled();
+      await closeEditMenu(page);
       await page.keyboard.press("Control+C");
       await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(0);
 
@@ -355,10 +364,6 @@ test.describe("Editing tools", () => {
     test("EDT-055 a selection across tracks is pasted back with its track grouping", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID104: a pattern copied from several tracks is pasted entirely onto the selected track; the track grouping is lost and no copy confirmation is shown",
-      );
       const { api, id } = await seed(page, [
         { id: "l1", pitch: 72, start: BAR, duration: 240, trackId: "track-1" },
         { id: "b1", pitch: 48, start: BAR + PPQ, duration: 240, trackId: "track-2" },
@@ -423,17 +428,14 @@ test.describe("Editing tools", () => {
       );
       for (const n of pasted) expect(["p1", "p2", "p3"]).not.toContain(n.id);
       expect(new Set(notes.map((n) => n.id)).size).toBe(6);
-      await expect(toolbarButton(page, "Copy")).toBeEnabled();
+      await expect(await editItem(page, "Copy")).toBeEnabled();
+      await closeEditMenu(page);
       expect(await api.history(branchId)).toHaveLength(0);
     });
 
     test("EDT-057 pasting into another project keeps bar positions under the destination tempo", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID105: the copied pattern lives only in the editor of the project it came from; after opening another project Paste stays disabled and nothing is pasted",
-      );
       const { api, id } = await seed(page, BAR2_PATTERN);
       const second = await createProject(api, "Second Song", [], [{ id: "track-1", name: "Track 1" }], 90);
       const sourceBefore = await readDraft(api, id);
@@ -461,10 +463,6 @@ test.describe("Editing tools", () => {
     test("EDT-058 a multi-track pattern is pasted onto the selected track and the next one, creating it", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID104: a multi-track pattern is pasted entirely onto the selected track and no track is created",
-      );
       const { api, id } = await seed(page, [
         { id: "l1", pitch: 72, start: BAR, duration: 240, trackId: "track-1" },
         { id: "b1", pitch: 48, start: BAR + PPQ, duration: 240, trackId: "track-2" },
@@ -491,7 +489,8 @@ test.describe("Editing tools", () => {
       const { api, id } = await seed(page, BAR2_PATTERN);
       const before = await readDraft(api, id);
       await openEditor(page, id);
-      await expect(toolbarButton(page, "Paste")).toBeDisabled();
+      await expect(await editItem(page, "Paste")).toBeDisabled();
+      await closeEditMenu(page);
       await selectTrack(page, "Lead");
       await page.keyboard.press("Control+V");
       await page.waitForTimeout(3_500);
@@ -529,10 +528,6 @@ test.describe("Editing tools", () => {
     test("EDT-061 pasting over a note of the same pitch trims it and reports the change", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID106: a pasted note that lands on a note of the same pitch leaves both overlapping; nothing is trimmed and nothing is reported",
-      );
       const { api, id } = await seed(page, [
         { id: "src", pitch: 60, start: BAR, duration: PPQ, trackId: "track-1" },
         { id: "long", pitch: 60, start: 3 * BAR, duration: 2 * PPQ, trackId: "track-2" },
@@ -713,10 +708,6 @@ test.describe("Editing tools", () => {
     test("EDT-088 exporting a project with no audible content warns before rendering", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID107: with every track muted the export dialog gives no warning and renders and downloads a silent WAV file",
-      );
       const { id } = await seed(page, [
         { id: "l1", pitch: 72, start: 0, trackId: "track-1" },
         { id: "b1", pitch: 48, start: PPQ, trackId: "track-2" },
@@ -725,13 +716,10 @@ test.describe("Editing tools", () => {
       await trackCard(page, "Lead").getByTitle("Tắt tiếng track").click();
       await trackCard(page, "Bass").getByTitle("Tắt tiếng track").click();
       const dialog = await openExport(page);
-      const download = page.waitForEvent("download", { timeout: 15_000 }).catch(() => null);
-      await dialog.getByRole("button", { name: /Xuất WAV/ }).click();
-
-      await expect
-        .soft(dialog.getByText(/không có âm thanh|im lặng|tắt tiếng/i).first())
-        .toBeVisible(quick);
-      expect(await download).toBeNull();
+      await expect(
+        dialog.getByText(/không có nội dung nghe được|tắt tiếng/i).first(),
+      ).toBeVisible(quick);
+      await expect(dialog.getByRole("button", { name: /Xuất WAV/ })).toBeDisabled();
     });
 
     test("EDT-089 a rendering failure is reported with a suggestion to export a shorter range", async ({

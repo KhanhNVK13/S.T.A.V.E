@@ -107,10 +107,6 @@ test.describe("Note editing in the piano roll", () => {
   });
 
   test("EDT-012 a note outside pitch 0 to 127 is not created", async ({ page }) => {
-    test.fail(
-      true,
-      "DFID088: the draft API accepts notes with pitch 128 and -1; the pitch field is only checked to be an integer",
-    );
     const { api, id } = await seed(page, [{ id: "n1", pitch: 60, start: 0 }]);
     await openEditor(page, id);
     await pickTool(page, "Draw");
@@ -134,10 +130,6 @@ test.describe("Note editing in the piano roll", () => {
   test("EDT-013 clicking an existing note with the draw tool selects it instead of stacking a duplicate", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID089: the draw tool never checks for an existing note; clicking on a note stacks a second note of the same pitch on top of it and nothing is selected",
-    );
     const { api, id } = await seed(page, [
       { id: "n1", pitch: 60, start: 0, duration: PPQ },
     ]);
@@ -193,10 +185,6 @@ test.describe("Note editing in the piano roll", () => {
   test("EDT-018 moving several selected notes applies one movement and rejects a gesture that would leave the range", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID090: a group move that would push one note past 127 is not rejected; the whole group is shifted by the largest step that still fits",
-    );
     const { api, id } = await seed(page, [
       { id: "a", pitch: 60, start: BAR, duration: 240 },
       { id: "b", pitch: 64, start: BAR + PPQ, duration: 240 },
@@ -239,10 +227,6 @@ test.describe("Note editing in the piano roll", () => {
   test("EDT-019 dragging a note onto another note of the same pitch trims the overlap", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID091: moving a note onto another note of the same pitch leaves both notes overlapping; nothing is trimmed and no message is shown",
-    );
     const { api, id } = await seed(page, [
       { id: "n1", pitch: 60, start: 0, duration: PPQ },
       { id: "n2", pitch: 60, start: PPQ, duration: PPQ },

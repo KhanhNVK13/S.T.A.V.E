@@ -134,10 +134,6 @@ test.describe("Account settings", () => {
       page,
       browser,
     }) => {
-      test.fail(
-        true,
-        "DFID014: a new password equal to the current one gets only a generic failure message, not a request for a different password",
-      );
       const user = await userWithProfile();
       const second = await browser.newContext();
       const otherPage = await second.newPage();
