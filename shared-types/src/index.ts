@@ -57,7 +57,9 @@ export function isValidSoundMap(value: unknown): boolean {
   if (typeof value !== "object" || Array.isArray(value)) return false;
   const size = Object.keys(value).length;
   if (size > MAX_SOUND_MAP_ENTRIES) return false;
-  return Object.keys(sanitizeSoundMap(value) ?? {}).length === size;
+  const sanitized = sanitizeSoundMap(value) ?? {};
+  if (Object.keys(sanitized).length !== size) return false;
+  return new Set(Object.values(sanitized)).size === size;
 }
 
 export interface DraftNote {

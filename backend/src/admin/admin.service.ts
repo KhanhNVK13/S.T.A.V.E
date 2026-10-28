@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -191,10 +192,13 @@ export class AdminService {
       throw new BadRequestException('Account is not active');
     }
 
-    await this.supabase
+    const { error: statusError } = await this.supabase
       .from('users')
       .update({ status: 'suspended' })
       .eq('id', targetId);
+    if (statusError) {
+      throw new InternalServerErrorException('Could not suspend user');
+    }
 
     await this.revokeAllSessions(targetId);
     await this.supabase.auth.admin.updateUserById(targetId, {
@@ -217,10 +221,13 @@ export class AdminService {
       throw new BadRequestException('Account is not suspended');
     }
 
-    await this.supabase
+    const { error: statusError } = await this.supabase
       .from('users')
       .update({ status: 'active' })
       .eq('id', targetId);
+    if (statusError) {
+      throw new InternalServerErrorException('Could not reactivate user');
+    }
 
     await this.supabase.auth.admin.updateUserById(targetId, {
       ban_duration: 'none',

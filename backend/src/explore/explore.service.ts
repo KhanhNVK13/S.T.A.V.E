@@ -198,7 +198,8 @@ export class ExploreService {
       .select('id', { count: 'exact' })
       .eq('owner_id', id)
       .eq('visibility', 'public')
-      .is('archived_at', null);
+      .is('archived_at', null)
+      .is('moderation_hidden_at', null);
 
     const ownedProjectIds = (ownedProjects ?? []).map(
       (p: { id: string }) => p.id,
