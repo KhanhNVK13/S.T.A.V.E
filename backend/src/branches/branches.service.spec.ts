@@ -84,7 +84,13 @@ function makeService(
   const splitTables = tables
     ? { ...tables, commits: commitEntries.filter((e) => !isAncestryRows(e)) }
     : tables;
-  const mock = createSupabaseMock([], { tables: splitTables, rpc: rpcOptions });
+  const mock = createSupabaseMock([], {
+    tables: {
+      project_collaborators: Array.from({ length: 12 }, () => ({ data: null })),
+      ...splitTables,
+    },
+    rpc: rpcOptions,
+  });
   const service = new BranchesService(
     mock.client,
     new ProjectAccessService(mock.client),

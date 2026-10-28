@@ -33,6 +33,7 @@ import {
   Mic,
   MousePointer2,
   Music,
+  MessageSquare,
   Pause,
   Pencil,
   MonitorSmartphone,
@@ -53,6 +54,7 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
@@ -63,6 +65,10 @@ import type { PianoRollHandle } from "../piano-roll";
 import { VelocityLane } from "../velocity-lane";
 import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
+import { CollaboratorsDialog } from "../../collaboration/collaborators-dialog";
+import { CommentsPanel } from "../../collaboration/comments-panel";
+import { PresenceAvatars } from "../../collaboration/presence-avatars";
+import { useAuth } from "../../../context/auth-context";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import type { AudioSketchState } from "../../audio-sketch/audio-sketch-panel";
 import { ConfirmDialog } from "../../ui/confirm-dialog";
@@ -250,6 +256,14 @@ export function EditorRedesign(props: EditorRedesignProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [noChangeHint, setNoChangeHint] = useState(false);
   const [switchWarnTarget, setSwitchWarnTarget] = useState<string | null>(null);
+  // UC-60: hộp "Cộng tác viên" (mời / đổi quyền / gỡ). Trang edit này chỉ
+  // owner vào được (backend getOwned) nên hiển thị đầy đủ quyền chủ dự án.
+  const [collaboratorsOpen, setCollaboratorsOpen] = useState(false);
+  // UC-63: panel "Bình luận ghim" mép phải — chỉ gắn 1 nút toggle, không
+  // đụng logic soạn nhạc hiện có.
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  // UC-64: stack avatar người đang cùng mở project (chỉ thêm 1 component).
+  const { user: currentUser } = useAuth();
   const [tipVisible, setTipVisible] = useState(() => {
     try {
       return typeof window !== "undefined" && window.localStorage.getItem(TIP_KEY) !== "1";
@@ -544,6 +558,40 @@ export function EditorRedesign(props: EditorRedesignProps) {
             style={styles.iconBtn}
           >
             <CircleHelp size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollaboratorsOpen(true)}
+            title="Cộng tác viên: mời, đổi quyền, gỡ"
+            aria-label="Cộng tác viên"
+            style={styles.iconBtn}
+          >
+            <Users size={14} />
+          </button>
+          {/* UC-64: người đang xem cùng project — ẩn khi không có ai khác. */}
+          <PresenceAvatars
+            projectId={projectId}
+            myId={currentUser?.id ?? null}
+            onBranchMoved={() => vc.reloadHistory()}
+          />
+          {/* UC-63: bật/tắt panel bình luận ghim — chỉ thêm, không đổi logic. */}
+          <button
+            type="button"
+            onClick={() => setCommentsOpen((open) => !open)}
+            title={
+              commentsOpen
+                ? "Ẩn bình luận"
+                : "Hiện bình luận ghim (gắn vào ô nhịp / nốt)"
+            }
+            aria-label="Bình luận"
+            aria-pressed={commentsOpen}
+            style={{
+              ...styles.iconBtn,
+              background: commentsOpen ? DC.accentSoft : "transparent",
+              color: commentsOpen ? DC.accent : DC.text,
+            }}
+          >
+            <MessageSquare size={14} />
           </button>
           <button
             onClick={() => setTrackPanelOpen((open) => !open)}
@@ -1042,6 +1090,28 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
 
+      {/* UC-63: panel bình luận ghim — neo absolute vào mép phải editor. */}
+      {commentsOpen && (
+        <CommentsPanel
+          projectId={projectId}
+          ppq={ppq}
+          timeSignature={timeSignature}
+          tracks={tracks}
+          notes={notes}
+          selectedNoteIds={selectedNoteIds}
+          onSeek={onSeek}
+          onClose={() => setCommentsOpen(false)}
+        />
+      )}
+
+      <CollaboratorsDialog
+        open={collaboratorsOpen}
+        onClose={() => setCollaboratorsOpen(false)}
+        projectId={projectId}
+        projectName={projectName}
+        isOwner
+      />
+
       <ConfirmDialog
         open={!!switchWarnTarget}
         title="Chuyển nhánh khi bản nháp chưa lưu được?"
@@ -1099,6 +1169,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: DC.pageBg,
     color: DC.text,
     overflow: "hidden",
+    // UC-63: điểm neo cho CommentsPanel (absolute, mép phải) — không đổi layout.
+    position: "relative",
   },
   header: {
     height: DC_SIZE.headerH,

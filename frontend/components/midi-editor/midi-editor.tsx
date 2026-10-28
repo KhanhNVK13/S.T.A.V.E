@@ -703,8 +703,12 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       tracks: snapshot.tracks.map((t) => {
         if (t.id !== trackId) return t;
         const next = { ...(t.soundMap ?? {}) };
-        if (soundId) next[key] = soundId;
-        else delete next[key];
+        if (soundId) {
+          for (const [otherKey, otherId] of Object.entries(next)) {
+            if (otherId === soundId) delete next[otherKey];
+          }
+          next[key] = soundId;
+        } else delete next[key];
         return { ...t, soundMap: Object.keys(next).length > 0 ? next : undefined };
       }),
     });
