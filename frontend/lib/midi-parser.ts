@@ -7,17 +7,8 @@ import { Midi } from "@tonejs/midi";
 import { DRAFT_SCHEMA_VERSION, DRUM_KIT_ID_OFFSET, DRUM_KIT_INSTRUMENT_NAME } from "@stave/shared-types";
 import type { DraftSnapshot, DraftTrack, DraftNote } from "@stave/shared-types";
 import { getInstrumentById } from "./instruments";
+import { nextTrackColor } from "./track-colors";
 
-const TRACK_COLORS = [
-  "#6366f1",
-  "#ec4899",
-  "#f59e0b",
-  "#10b981",
-  "#3b82f6",
-  "#ef4444",
-  "#8b5cf6",
-  "#14b8a6",
-];
 
 /**
  * Convert a MIDI ArrayBuffer to a DraftSnapshot.
@@ -30,6 +21,7 @@ export function parseMidiBuffer(
   const midi = new Midi(buffer);
 
   const ppq = midi.header.ppq ?? 480;
+  const targetPpq = existing?.meta.ppq ?? ppq;
   const tempoChanges = midi.header.tempos;
   const tempo =
     tempoChanges.length > 0 ? Math.round(tempoChanges[0].bpm) : 120;
@@ -50,7 +42,10 @@ export function parseMidiBuffer(
     if (midiTrack.notes.length === 0) return;
 
     const trackId = crypto.randomUUID();
-    const colorIdx = (existingTrackCount + newTracks.length) % TRACK_COLORS.length;
+    const trackColor = nextTrackColor([
+      ...(existing?.tracks ?? []).map((t) => t.color),
+      ...newTracks.map((t) => t.color),
+    ]);
 
     // Some MIDI files pad the track name meta event with NUL bytes (or other
     // control chars) to a fixed length. Postgres rejects \u0000 in text/jsonb
@@ -77,7 +72,7 @@ export function parseMidiBuffer(
       id: trackId,
       name: cleanName || `Track ${existingTrackCount + newTracks.length + 1}`,
       order: existingTrackCount + newTracks.length,
-      color: TRACK_COLORS[colorIdx],
+      color: trackColor,
       muted: false,
       solo: false,
       volume: 1,
@@ -90,9 +85,9 @@ export function parseMidiBuffer(
         id: crypto.randomUUID(),
         trackId,
         pitch: n.midi,
-        // Convert seconds → ticks using ppq + tempo
-        start: Math.round((n.time * tempo * ppq) / 60),
-        duration: Math.max(1, Math.round((n.duration * tempo * ppq) / 60)),
+        // Ticks của file quy đổi sang ppq của dự án
+        start: Math.round((n.ticks * targetPpq) / ppq),
+        duration: Math.max(1, Math.round((n.durationTicks * targetPpq) / ppq)),
         velocity: Math.round(n.velocity * 127),
       });
     });

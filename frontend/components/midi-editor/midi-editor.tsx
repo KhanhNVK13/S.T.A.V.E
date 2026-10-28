@@ -27,13 +27,17 @@ import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { GridDivision, PianoRollHandle, ToolMode } from "./piano-roll";
 import { EditorRedesign } from "./redesign/editor-redesign";
-import { getDraft, putDraft, resolveProjectCustomSounds } from "../../lib/api-client";
+import { getDraft, getDraftRecovery, putDraft, resolveProjectCustomSounds } from "../../lib/api-client";
 import type { ResolvedCustomSound } from "../../lib/api-client";
 import { collectSoundIds, loadCustomSoundBuffers } from "../../lib/custom-sound-buffers";
 import { isDialogOpen } from "../../lib/use-dialog";
+import { APP_LOCALE } from "../../lib/format-date";
 import { parseMidiBuffer } from "../../lib/midi-parser";
 import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
+import { Toast, type ToastVariant } from "../ui/toast";
+import { buildClipboard, describePaste, pastePattern, type PatternClipboard } from "../../lib/paste-pattern";
+import { getPatternClipboard, setPatternClipboard } from "../../lib/pattern-clipboard";
 import * as Tone from "tone";
 import {
   prepareVoices,
@@ -44,22 +48,20 @@ import {
   type VoiceCache,
   type TrackVoice,
 } from "../../lib/tone-synth-engine";
+import { setUnsavedWork } from "../../lib/unsaved-guard";
+import { TRACK_COLOR_PALETTE, nextTrackColor } from "../../lib/track-colors";
+import { quantizeNotes, describeQuantize } from "../../lib/quantize-notes";
+import { probeInstrumentSamples } from "../../lib/instrument-samples";
 
 // Maximum tracks allowed per project (BR-29)
 const MAX_TRACKS = 32;
+const MAX_MIDI_IMPORT_BYTES = 5 * 1024 * 1024;
 
 const SAVE_RETRY_DELAYS_MS = [2000, 5000, 15000, 30000];
 
 export type SaveStatus = "saved" | "saving" | "unsaved" | "error";
 
 
-// UC-34 — màu phân biệt track: đây là DỮ LIỆU nghiệp vụ (lưu vào snapshot,
-// người dùng chọn được), không phải màu giao diện, nên CỐ Ý không đưa vào hệ
-// token theme — đổi theme không được làm đổi màu track người dùng đã chọn.
-const TRACK_COLORS = [
-  "#6366f1","#ec4899","#f59e0b","#10b981",
-  "#3b82f6","#ef4444","#8b5cf6","#14b8a6",
-];
 
 interface MidiEditorProps {
   projectId: string;
@@ -79,8 +81,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [saveRetryInSec, setSaveRetryInSec] = useState<number | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [tool, setTool] = useState<ToolMode>("pencil");
   const [gridDivision, setGridDivision] = useState<GridDivision>(16);
+  const [snapEnabled, setSnapEnabled] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [playheadTick, setPlayheadTick] = useState(0);
@@ -90,7 +94,12 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // UC-32: Selected note IDs for copy
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
   // UC-33: Clipboard for paste
-  const [clipboard, setClipboard] = useState<DraftNote[] | null>(null);
+  const [clipboard, setClipboard] = useState<PatternClipboard | null>(null);
+  const [editorToast, setEditorToast] = useState<{ message: string; variant: ToastVariant } | null>(null);
+  const dismissEditorToast = useCallback(() => setEditorToast(null), []);
+  useEffect(() => {
+    setClipboard(getPatternClipboard());
+  }, []);
   // UC-37: Playback state
   const [loopOn, setLoopOn] = useState(false);
   // UC-36: Metronome — click track played alongside notes during playback.
@@ -113,7 +122,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [pendingDeleteTrack, setPendingDeleteTrack] = useState<{
     id: string;
     name: string;
+    noteCount: number;
   } | null>(null);
+  const [confirmEmptyExport, setConfirmEmptyExport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,6 +200,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // whenever the user presses Play or seeks, not on the internal
   // loop-restart call in startPlayback.
   const loopAnchorRef = useRef(0);
+  const loopRegionRef = useRef<{ start: number; end: number } | null>(null);
   useEffect(() => {
     loopOnRef.current = loopOn;
   }, [loopOn]);
@@ -264,6 +276,16 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         if (snap.tracks.length > 0) {
           setSelectedTrackId(snap.tracks[0].id);
         }
+        getDraftRecovery(projectId)
+          .then((recovery) => {
+            if (cancelled || !recovery.recovered || !recovery.savedAt) return;
+            const savedAt = new Date(recovery.savedAt).toLocaleString(APP_LOCALE);
+            setEditorToast({
+              message: `Đã khôi phục các thay đổi chưa commit, lưu lúc ${savedAt}.`,
+              variant: "info",
+            });
+          })
+          .catch(() => {});
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -330,6 +352,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       if (e.key === "c" || e.key === "C") {
         e.preventDefault();
         handleCopy();
+      } else if (e.key === "x" || e.key === "X") {
+        e.preventDefault();
+        if (selectedNoteIds.size > 0) handleCut();
       } else if (e.key === "v" || e.key === "V") {
         e.preventDefault();
         handlePaste();
@@ -349,7 +374,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleCopy, handlePaste, handleSelectAll, handleUndo, handleRedo, handlePlay, handlePause, updateSnapshot, isPlaying, selectedNoteIds, selectedTrackId, snapshot]);
+  }, [handleCopy, handleCut, handlePaste, handleSelectAll, handleUndo, handleRedo, handlePlay, handlePause, updateSnapshot, isPlaying, selectedNoteIds, selectedTrackId, snapshot]);
 
   // ── Flush pending autosave on unmount — a debounced save left running after
   // navigating away can setState on an unmounted component; just clearing the
@@ -365,6 +390,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       }
     };
   }, [projectId]);
+
+  useEffect(() => {
+    setUnsavedWork(saveStatus === "error");
+    return () => setUnsavedWork(false);
+  }, [saveStatus]);
 
   useEffect(() => {
     if (saveStatus === "saved") return;
@@ -420,6 +450,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     try {
       await putDraft(projectId, snapshotRef.current);
       if (!mountedRef.current) return;
+      setLastSavedAt(new Date());
       if (editVersionRef.current !== version) return;
       saveAttemptRef.current = 0;
       setSaveRetryInSec(null);
@@ -525,6 +556,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     setSaveStatus("saving");
     try {
       await putDraft(projectId, snapshotRef.current);
+      setLastSavedAt(new Date());
       if (editVersionRef.current === version) {
         saveAttemptRef.current = 0;
         setSaveRetryInSec(null);
@@ -599,7 +631,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       id: crypto.randomUUID(),
       name: `Track ${idx + 1}`,
       order: idx,
-      color: TRACK_COLORS[idx % TRACK_COLORS.length],
+      color: nextTrackColor(snapshot.tracks.map((t) => t.color)),
       muted: false,
       solo: false,
       volume: 1,
@@ -633,10 +665,18 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   }
 
   // ── UC-30: Assign instrument ─────────────────────────────────
-  function handleAssignInstrument(id: string, instrument: string | null) {
+  async function handleAssignInstrument(id: string, instrument: string | null) {
+    if (instrument && !(await probeInstrumentSamples(instrument))) {
+      setEditorToast({
+        message: `Không tải được âm thanh của nhạc cụ "${instrument}". Track giữ nguyên nhạc cụ hiện tại.`,
+        variant: "danger",
+      });
+      return;
+    }
+    const latest = snapshotRef.current;
     updateSnapshot({
-      ...snapshot,
-      tracks: snapshot.tracks.map((t) =>
+      ...latest,
+      tracks: latest.tracks.map((t) =>
         t.id === id ? { ...t, instrument } : t,
       ),
     });
@@ -706,33 +746,53 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   // ── UC-32: Copy selected notes ───────────────────────────────
   function handleCopy() {
-    if (selectedNoteIds.size === 0) return;
-    const selectedNotes = snapshot.notes.filter((n) => selectedNoteIds.has(n.id));
-    if (selectedNotes.length === 0) return;
-    setClipboard(selectedNotes);
-    // Also copy to system clipboard as JSON
-    void navigator.clipboard.writeText(JSON.stringify(selectedNotes)).catch(() => {});
+    const copied = buildClipboard(snapshot, selectedNoteIds);
+    if (!copied) return;
+    setClipboard(copied);
+    setPatternClipboard(copied);
+    void navigator.clipboard.writeText(JSON.stringify(copied.notes)).catch(() => {});
+    setEditorToast({
+      message: `Đã sao chép ${copied.notes.length} nốt${copied.tracks.length > 1 ? ` từ ${copied.tracks.length} track` : ""}.`,
+      variant: "success",
+    });
+  }
+
+  function handleCut() {
+    const copied = buildClipboard(snapshot, selectedNoteIds);
+    if (!copied) return;
+    setClipboard(copied);
+    setPatternClipboard(copied);
+    void navigator.clipboard.writeText(JSON.stringify(copied.notes)).catch(() => {});
+    updateSnapshot({
+      ...snapshot,
+      notes: snapshot.notes.filter((n) => !selectedNoteIds.has(n.id)),
+    });
+    setSelectedNoteIds(new Set());
+    setEditorToast({
+      message: `Đã cắt ${copied.notes.length} nốt. Dán lại bằng Ctrl+V hoặc hoàn tác bằng Ctrl+Z.`,
+      variant: "success",
+    });
   }
 
   // ── UC-33: Paste notes ──────────────────────────────────────
   function handlePaste() {
-    if (!clipboard || clipboard.length === 0) return;
+    if (!clipboard || clipboard.notes.length === 0) return;
     const targetTrackId = selectedTrackId ?? snapshot.tracks[0]?.id;
     if (!targetTrackId) return;
 
-    // Calculate offset: paste at playhead position
-    const minStart = Math.min(...clipboard.map((n) => n.start));
-    const offset = playheadTick - minStart;
-
-    const pastedNotes = clipboard.map((n) => ({
-      ...n,
-      id: crypto.randomUUID(),
-      trackId: targetTrackId,
-      start: n.start + offset,
-    }));
-
-    updateSnapshot({ ...snapshot, notes: [...snapshot.notes, ...pastedNotes] });
-    setSelectedNoteIds(new Set(pastedNotes.map((n) => n.id)));
+    const result = pastePattern({
+      snapshot,
+      clipboard,
+      targetTrackId,
+      playheadTick,
+      maxTracks: MAX_TRACKS,
+      trackColors: TRACK_COLOR_PALETTE,
+    });
+    if (result.pastedIds.length > 0) {
+      updateSnapshot(result.snapshot);
+      setSelectedNoteIds(new Set(result.pastedIds));
+    }
+    setEditorToast(describePaste(result.report));
   }
 
   // Handle Ctrl+A: select every note shown on the piano roll. The piano roll
@@ -750,14 +810,21 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // xử lý đúng trường hợp 0 track.
   function handleDeleteTrack(id: string) {
     const trackName = snapshot.tracks.find((t) => t.id === id)?.name ?? "track này";
-    // Mở dialog xác nhận trong app thay vì `window.confirm()` — xoá thật xảy
-    // ra ở confirmDeleteTrack() khi người dùng bấm nút xác nhận.
-    setPendingDeleteTrack({ id, name: trackName });
+    const noteCount = snapshot.notes.filter((n) => n.trackId === id).length;
+    if (noteCount === 0) {
+      removeTrack(id);
+      return;
+    }
+    setPendingDeleteTrack({ id, name: trackName, noteCount });
   }
 
   function confirmDeleteTrack() {
     if (!pendingDeleteTrack) return;
-    const { id } = pendingDeleteTrack;
+    removeTrack(pendingDeleteTrack.id);
+    setPendingDeleteTrack(null);
+  }
+
+  function removeTrack(id: string) {
 
     // The deleted track's cached voice (if any) would otherwise sit in
     // voiceCacheRef forever — nothing else ever removes an entry keyed by a
@@ -774,7 +841,6 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       const remaining = snapshot.tracks.filter((t) => t.id !== id);
       setSelectedTrackId(remaining[0]?.id ?? null);
     }
-    setPendingDeleteTrack(null);
   }
 
   function cancelDeleteTrack() {
@@ -790,12 +856,20 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // ── UC-31: Quantize ─────────────────────────────────────────
   function handleQuantize() {
     const step = snapshot.meta.ppq / (gridDivision / 4);
-    const quantized = snapshot.notes.map((n) => ({
-      ...n,
-      start: Math.round(n.start / step) * step,
-      duration: Math.max(step, Math.round(n.duration / step) * step),
-    }));
-    updateSnapshot({ ...snapshot, notes: quantized });
+    let targetIds: Set<string> | null = null;
+    let scopeLabel = "toàn bộ dự án";
+    if (selectedNoteIds.size > 0) {
+      targetIds = selectedNoteIds;
+      scopeLabel = "các nốt đang chọn";
+    } else if (selectedTrackId) {
+      targetIds = new Set(
+        snapshot.notes.filter((n) => n.trackId === selectedTrackId).map((n) => n.id),
+      );
+      scopeLabel = "track đang chọn";
+    }
+    const result = quantizeNotes(snapshot.notes, step, targetIds);
+    if (result.moved > 0) updateSnapshot({ ...snapshot, notes: result.notes });
+    setEditorToast(describeQuantize(result, scopeLabel));
   }
 
   // ── UC-24: Import MIDI ──────────────────────────────────────
@@ -804,32 +878,95 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
-    const buf = await file.arrayBuffer();
-    const merged = parseMidiBuffer(buf, snapshot);
-    updateSnapshot(merged);
-    if (merged.tracks.length > 0 && !selectedTrackId) {
-      setSelectedTrackId(merged.tracks[0].id);
+    try {
+      if (!/\.(mid|midi)$/i.test(file.name)) {
+        setEditorToast({ message: "Chỉ nhận file .mid hoặc .midi.", variant: "danger" });
+        return;
+      }
+      if (file.size > MAX_MIDI_IMPORT_BYTES) {
+        setEditorToast({
+          message: "File MIDI lớn hơn 5 MB nên không nhập được. Hãy chọn file nhỏ hơn.",
+          variant: "danger",
+        });
+        return;
+      }
+      let merged: DraftSnapshot;
+      try {
+        merged = parseMidiBuffer(await file.arrayBuffer(), snapshot);
+      } catch {
+        setEditorToast({
+          message: "Không đọc được file MIDI này. File có thể bị hỏng hoặc không đúng định dạng.",
+          variant: "danger",
+        });
+        return;
+      }
+      const addedTracks = merged.tracks.length - snapshot.tracks.length;
+      if (addedTracks === 0) {
+        setEditorToast({ message: "File MIDI này không có nốt nào để nhập.", variant: "warning" });
+        return;
+      }
+      updateSnapshot(merged);
+      if (merged.tracks.length > 0 && !selectedTrackId) {
+        setSelectedTrackId(merged.tracks[0].id);
+      }
+      setEditorToast({
+        message: `Đã nhập ${addedTracks} track, ${merged.notes.length - snapshot.notes.length} nốt từ "${file.name}".`,
+        variant: "success",
+      });
+    } finally {
+      // Reset input so same file can be re-imported
+      input.value = "";
     }
-    // Reset input so same file can be re-imported
-    e.target.value = "";
   }
 
   // ── UC-39: Export MIDI file ─────────────────────────────────
   function handleExportMidi() {
-    const bytes = exportMidiFile(snapshot);
-    // Uint8Array isn't a valid BlobPart type on its own in the current DOM
-    // lib types — wrap the backing ArrayBuffer instead.
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "audio/midi" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${projectName.replace(/[^a-z0-9_\-. ]/gi, "_")}.mid`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    if (snapshot.notes.length === 0) {
+      setConfirmEmptyExport(true);
+      return;
+    }
+    runExportMidi();
+  }
+
+  function handleExportMidiSelection() {
+    const picked = snapshot.notes.filter((n) => selectedNoteIds.has(n.id));
+    if (picked.length === 0) return;
+    const origin = Math.min(...picked.map((n) => n.start));
+    const usedTrackIds = new Set(picked.map((n) => n.trackId));
+    runExportMidi(
+      {
+        ...snapshot,
+        tracks: snapshot.tracks.filter((t) => usedTrackIds.has(t.id)),
+        notes: picked.map((n) => ({ ...n, start: n.start - origin })),
+      },
+      " (vùng chọn)",
+    );
+  }
+
+  function runExportMidi(source: DraftSnapshot = snapshot, nameSuffix = "") {
+    setConfirmEmptyExport(false);
+    try {
+      const bytes = exportMidiFile(source);
+      // Uint8Array isn't a valid BlobPart type on its own in the current DOM
+      // lib types — wrap the backing ArrayBuffer instead.
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "audio/midi" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${projectName.replace(/[^a-z0-9_\-. ]/gi, "_")}${nameSuffix.replace(/[^a-z0-9_\-. ]/gi, "_")}.mid`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      setEditorToast({
+        message: "Xuất file MIDI không thành công, chưa có file nào được tải xuống. Hãy thử lại.",
+        variant: "danger",
+      });
+    }
   }
 
   // ── Playback (UC-37: instrument, solo, volume, pan, loop, seek) ──────────
@@ -1036,9 +1173,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     const allNotes = snapshot.notes;
     // UC-37: End tick for auto-stop/loop — end of the last note, or the
     // start position itself when there's nothing to play.
-    const endTick = allNotes.length > 0
-      ? Math.max(...allNotes.map((n) => n.start + n.duration))
-      : fromTick;
+    const endTick = loopRegionRef.current
+      ? loopRegionRef.current.end
+      : allNotes.length > 0
+        ? Math.max(...allNotes.map((n) => n.start + n.duration))
+        : fromTick;
 
     // Create (or reuse from voiceCacheRef) every needed track's voice —
     // instrument/oscillator, mute/solo, volume, pan all handled by the
@@ -1082,7 +1221,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         if (loopOnRef.current) {
           // Loop back to wherever this playback session was started from
           // (the tick Play or Seek was last invoked with).
-          void startPlayback(loopAnchorRef.current);
+          void startPlayback(loopRegionRef.current?.start ?? loopAnchorRef.current);
         } else {
           handleStop();
         }
@@ -1095,6 +1234,19 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   function handlePlay() {
     if (isPlaying) return;
+    const picked = loopOn
+      ? snapshot.notes.filter((n) => selectedNoteIds.has(n.id))
+      : [];
+    if (picked.length > 0) {
+      const start = Math.min(...picked.map((n) => n.start));
+      const end = Math.max(...picked.map((n) => n.start + n.duration));
+      loopRegionRef.current = { start, end };
+      loopAnchorRef.current = start;
+      setPlayheadTick(start);
+      void startPlayback(start);
+      return;
+    }
+    loopRegionRef.current = null;
     loopAnchorRef.current = playheadTick;
     void startPlayback(playheadTick);
   }
@@ -1232,6 +1384,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onQuantize={handleQuantize}
         onImportMidi={handleImportMidi}
         onCopy={handleCopy}
+        onCut={handleCut}
+        snapEnabled={snapEnabled}
+        onSnapToggle={() => setSnapEnabled((v) => !v)}
+        onExportMidiSelection={handleExportMidiSelection}
         onPaste={handlePaste}
         onSelectAll={handleSelectAll}
         onUndo={handleUndo}
@@ -1250,6 +1406,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onSeek={handleSeek}
         saveStatus={saveStatus}
         saveRetryInSec={saveRetryInSec}
+        lastSavedAt={lastSavedAt}
         onRetrySave={retrySaveNow}
         onFlushDraft={flushDraft}
         onReadSnapshot={readSnapshot}
@@ -1265,6 +1422,23 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         playbackRate={playbackRate}
         onPlaybackRateChange={handlePlaybackRateChange}
         onExportMidi={handleExportMidi}
+        onNotify={(message, variant) => setEditorToast({ message, variant })}
+      />
+      {editorToast && (
+        <Toast
+          message={editorToast.message}
+          variant={editorToast.variant}
+          duration={editorToast.variant === "warning" ? 7000 : 3000}
+          onDismiss={dismissEditorToast}
+        />
+      )}
+      <ConfirmDialog
+        open={confirmEmptyExport}
+        title="Xuất file MIDI trống?"
+        message="Dự án chưa có nốt nào nên file .mid xuất ra sẽ trống. Bạn vẫn muốn tải xuống?"
+        confirmLabel="Vẫn xuất file"
+        onConfirm={() => runExportMidi()}
+        onCancel={() => setConfirmEmptyExport(false)}
       />
       <ConfirmDialog
         open={pendingDeleteTrack !== null}
@@ -1273,7 +1447,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           <>
             Xoá track <strong>&quot;{pendingDeleteTrack?.name}&quot;</strong>?
             <br />
-            Toàn bộ note trong track này cũng sẽ bị xoá. Không thể hoàn tác.
+            {pendingDeleteTrack?.noteCount.toLocaleString(APP_LOCALE)} note trong track này cũng sẽ bị
+            xoá. Bạn có thể hoàn tác bằng Ctrl+Z.
           </>
         }
         confirmLabel="Xoá track"

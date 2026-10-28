@@ -16,6 +16,7 @@ import React, { useState, useCallback } from "react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { exportAudio, exportAudioPerTrack } from "../../lib/audio-exporter";
 import { resolveAndLoadCustomSounds } from "../../lib/custom-sound-buffers";
+import { buildProjectBundle } from "../../lib/project-bundle";
 import { useDialog } from "../../lib/use-dialog";
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -36,6 +37,8 @@ interface ExportDialogProps {
   onClose: () => void;
 }
 
+type ExportFormat = "wav" | "bundle";
+
 type Phase = "idle" | "rendering" | "done" | "error";
 
 const SAMPLE_RATE_OPTIONS = [
@@ -49,6 +52,8 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
   // Xuất riêng mỗi track thành 1 file WAV thay vì trộn chung — cùng engine,
   // chỉ khác chỗ mỗi lượt render chỉ "solo" đúng 1 track (xem exportAudioPerTrack).
   const [perTrack, setPerTrack] = useState(false);
+  const [format, setFormat] = useState<ExportFormat>("wav");
+  const [skippedNote, setSkippedNote] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
@@ -60,8 +65,23 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
     setPhase("rendering");
     setProgress(0);
     setErrorMsg("");
+    setSkippedNote("");
 
     try {
+      if (format === "bundle") {
+        const bundle = await buildProjectBundle(projectId, projectName, snapshot, {
+          sampleRate,
+          onProgress: (p) => setProgress(Math.round(p * 100)),
+        });
+        triggerDownload(bundle.blob, `${safeProjectName}.zip`);
+        if (bundle.skippedSounds.length > 0) {
+          setSkippedNote(
+            `Không đưa được vào gói: ${bundle.skippedSounds.join(", ")} (âm thanh không còn khả dụng).`,
+          );
+        }
+        setPhase("done");
+        return;
+      }
       const customBuffers = await resolveAndLoadCustomSounds(projectId, snapshot).catch(
         () => new Map<string, AudioBuffer>(),
       );
@@ -91,13 +111,23 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
       setPhase("done");
     } catch (err) {
       console.error("Export failed:", err);
-      setErrorMsg(err instanceof Error ? err.message : "Có lỗi khi xuất file.");
+      setErrorMsg(
+        format === "bundle"
+          ? "Không tạo được gói .zip, chưa có file nào được tải xuống. Hãy thử lại, hoặc xuất riêng từng loại file."
+          : "Không xuất được file âm thanh, chưa có file nào được tải xuống. Dự án có thể quá dài hoặc quá nặng cho trình duyệt: hãy thử sample rate thấp hơn (22.05 kHz) hoặc xuất riêng từng track.",
+      );
       setPhase("error");
     }
-  }, [projectId, snapshot, sampleRate, perTrack, safeProjectName]);
+  }, [projectId, projectName, snapshot, sampleRate, perTrack, format, safeProjectName]);
 
   const noteCount = snapshot.notes.length;
   const trackCount = snapshot.tracks.filter((t) => !t.muted).length;
+  const anySolo = snapshot.tracks.some((t) => t.solo);
+  const audibleTrackIds = new Set(
+    snapshot.tracks.filter((t) => (anySolo ? t.solo : !t.muted)).map((t) => t.id),
+  );
+  const hasAudibleContent = snapshot.notes.some((n) => audibleTrackIds.has(n.trackId));
+  const blockedByNoAudio = format === "wav" && !hasAudibleContent;
   const rendering = phase === "rendering";
   const dialogRef = useDialog<HTMLDivElement>({ onClose, closeDisabled: rendering });
 
@@ -123,7 +153,9 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               <h2 id="export-title" style={styles.title}>
                 Xuất file âm thanh
               </h2>
-              <p style={styles.subtitle}>Định dạng WAV, không nén</p>
+              <p style={styles.subtitle}>
+                {format === "bundle" ? "Gói .zip: MIDI, WAV và âm thanh riêng" : "Định dạng WAV, không nén"}
+              </p>
             </div>
           </div>
           <button style={styles.closeBtn} onClick={onClose} title="Đóng" aria-label="Đóng" disabled={rendering}>
@@ -158,6 +190,11 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               ⚠️ Dự án chưa có note nào — file xuất ra sẽ là im lặng.
             </div>
           )}
+          {hasNotes && !hasAudibleContent && format === "wav" && (
+            <div role="alert" style={styles.warning}>
+              ⚠️ Không có nội dung nghe được: mọi track có nốt đều đang tắt tiếng. Hãy bật tiếng ít nhất một track rồi xuất lại.
+            </div>
+          )}
           {!perTrack && snapshot.tracks.some((t) => t.solo) && (
             <div style={styles.warning}>
               ⚠️ Đang có track được Solo — file xuất ra chỉ gồm (các) track đó, giống như bạn đang nghe.
@@ -186,7 +223,31 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
             </div>
           </div>
 
+          <div style={styles.section}>
+            <span id="export-format" style={styles.sectionLabel}>Định dạng</span>
+            <div style={styles.srRow} role="group" aria-labelledby="export-format">
+              {([
+                { value: "wav", label: "WAV (âm thanh)" },
+                { value: "bundle", label: "Gói .zip (MIDI + WAV + âm thanh riêng)" },
+              ] as const).map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setFormat(f.value)}
+                  disabled={phase === "rendering"}
+                  aria-pressed={format === f.value}
+                  style={{
+                    ...styles.srBtn,
+                    ...(format === f.value ? styles.srBtnActive : {}),
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Per-track export */}
+          {format === "wav" && (
           <label style={styles.checkboxRow}>
             <input
               type="checkbox"
@@ -198,6 +259,7 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               Xuất riêng từng track ({trackCount} file WAV thay vì 1 file trộn chung)
             </span>
           </label>
+          )}
 
           {/* Progress / Status */}
           {phase === "rendering" && (
@@ -224,7 +286,14 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
 
           {phase === "done" && (
             <div style={styles.successBox}>
-              ✅ Xuất thành công! {perTrack ? `${trackCount} file WAV đã` : "File WAV đã"} được tải về máy bạn.
+              ✅ Xuất thành công!{" "}
+              {format === "bundle"
+                ? "Gói .zip đã"
+                : perTrack
+                  ? `${trackCount} file WAV đã`
+                  : "File WAV đã"}{" "}
+              được tải về máy bạn.
+              {skippedNote && <div>{skippedNote}</div>}
             </div>
           )}
 
@@ -248,11 +317,17 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
           <button
             style={{
               ...styles.exportBtn,
-              ...(phase === "rendering" ? styles.exportBtnDisabled : {}),
+              ...(phase === "rendering" || blockedByNoAudio ? styles.exportBtnDisabled : {}),
             }}
             onClick={() => void handleExport()}
-            disabled={phase === "rendering"}
-            title={perTrack ? `Xuất ${trackCount} file WAV riêng biệt` : "Xuất 1 file WAV trộn chung tất cả track"}
+            disabled={phase === "rendering" || blockedByNoAudio}
+            title={
+              format === "bundle"
+                ? "Xuất một gói .zip gồm MIDI, WAV và các âm thanh riêng"
+                : perTrack
+                  ? `Xuất ${trackCount} file WAV riêng biệt`
+                  : "Xuất 1 file WAV trộn chung tất cả track"
+            }
           >
             {phase === "rendering" ? (
               <>
@@ -261,6 +336,8 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               </>
             ) : phase === "done" ? (
               "↓ Xuất lại"
+            ) : format === "bundle" ? (
+              "↓ Xuất gói .zip"
             ) : perTrack ? (
               `↓ Xuất ${trackCount} track`
             ) : (

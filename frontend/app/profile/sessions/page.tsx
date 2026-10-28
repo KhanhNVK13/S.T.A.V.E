@@ -73,6 +73,11 @@ function SessionsList() {
           {actionError}
         </p>
       )}
+      {sessions.length === 1 && (
+        <p className="mb-3 text-sm text-muted">
+          Đây là phiên đăng nhập duy nhất đang hoạt động của tài khoản.
+        </p>
+      )}
       <Card className="divide-y divide-border">
         {sessions.map((session) => (
           <div key={session.id} className="flex min-h-[68px] flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -91,7 +96,11 @@ function SessionsList() {
                 </p>
               </div>
             </div>
-            {!session.isCurrent && (
+            {session.isCurrent ? (
+              <p className="max-w-[220px] text-xs text-muted">
+                Để đăng xuất thiết bị này, hãy dùng nút Đăng xuất ở menu tài khoản.
+              </p>
+            ) : (
               <Button
                 variant="secondary"
                 onClick={() => void handleRevoke(session.id)}

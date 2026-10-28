@@ -77,3 +77,16 @@ export function getInstrumentSamplerOptions(instrument: string | null): Instrume
   for (const note of SAMPLE_NOTES) urls[note] = `${note}.mp3`;
   return { urls, baseUrl: `/instruments/${slug}/` };
 }
+
+export async function probeInstrumentSamples(instrument: string): Promise<boolean> {
+  const options = getInstrumentSamplerOptions(instrument);
+  if (!options) return true;
+  const firstFile = Object.values(options.urls)[0];
+  if (!firstFile) return true;
+  try {
+    const res = await fetch(`${options.baseUrl}${firstFile}`, { method: "HEAD" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

@@ -23,6 +23,7 @@ import type { CommitWithAuthor } from "../../../lib/api-client";
 import { formatRelativeTime } from "../../../lib/format-date";
 import { DC, DC_SIZE } from "./tokens";
 import type { VersionControl } from "./use-version-control";
+import { formatAuthorName } from "../../../lib/format-name";
 
 interface HistoryPanelProps {
   /** Tên branch đang thao tác — lấy từ branch mặc định thật của project. */
@@ -50,9 +51,7 @@ const SAVE_COLOR: Record<HistoryPanelProps["saveStatus"], string> = {
 };
 
 function authorLabel(commit: CommitWithAuthor): string {
-  return (
-    commit.author.display_name ?? commit.author.username ?? "Không rõ tác giả"
-  );
+  return formatAuthorName(commit.author);
 }
 
 export function HistoryPanel({

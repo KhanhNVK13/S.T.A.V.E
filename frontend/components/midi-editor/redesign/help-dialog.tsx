@@ -40,7 +40,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
     { keys: [[mod, "Z"]], action: "Hoàn tác" },
     { keys: [[mod, "Shift", "Z"], [mod, "Y"]], action: "Làm lại" },
     { keys: [[mod, "A"]], action: "Chọn tất cả nốt" },
-    { keys: [[mod, "C"], [mod, "V"]], action: "Sao chép / dán nốt" },
+    { keys: [[mod, "C"], [mod, "X"], [mod, "V"]], action: "Sao chép / cắt / dán nốt" },
     { keys: [["Shift", "bấm"]], action: "Thêm hoặc bớt một nốt khỏi vùng chọn" },
     { keys: [["Chuột phải"]], action: "Xoá nốt dưới con trỏ" },
     { keys: [["↑"], ["↓"]], action: "Tăng / giảm BPM khi đang ở ô BPM" },

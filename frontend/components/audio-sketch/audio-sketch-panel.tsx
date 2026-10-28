@@ -5,6 +5,7 @@ import { Mic, Square, Play, Pause, Trash2, Loader2, AudioWaveform } from "lucide
 import {
   attachAudioSketch,
   createSketchUploadUrl,
+  deleteAudioSketch,
   listAudioSketches,
 } from "../../lib/api-client";
 import type { AudioSketch } from "../../lib/api-client";
@@ -18,6 +19,8 @@ import {
 import { MAX_RECORDING_SEC, useAudioRecorder } from "../../lib/use-audio-recorder";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { ConfirmDialog } from "../ui/confirm-dialog";
+import { Toast } from "../ui/toast";
 import { EmptyState } from "../ui/empty-state";
 import { INPUT_CLASS } from "../ui/form";
 import { apiErrorMessage } from "../../lib/error-message";
@@ -166,6 +169,11 @@ export function AudioSketchPanel({
   const [attaching, setAttaching] = useState(false);
 
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AudioSketch | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const load = useCallback(async () => {
@@ -179,6 +187,26 @@ export function AudioSketchPanel({
       setLoading(false);
     }
   }, [projectId]);
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAudioSketch(projectId, pendingDelete.id);
+      if (playingId === pendingDelete.id) {
+        audioRef.current?.pause();
+        setPlayingId(null);
+      }
+      setSketches((current) => current.filter((s) => s.id !== pendingDelete.id));
+      setPendingDelete(null);
+      setNotice("Đã xoá audio sketch.");
+    } catch (err) {
+      setDeleteError(apiErrorMessage(err, "Không xoá được audio sketch. Bản ghi vẫn còn nguyên."));
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- nạp danh sách lần đầu
@@ -512,11 +540,40 @@ export function AudioSketchPanel({
                 {sketch.trim_start_sec > 0 || sketch.trim_end_sec != null ? (
                   <Badge variant="neutral">Đã cắt</Badge>
                 ) : null}
+
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setPendingDelete(sketch);
+                  }}
+                  aria-label={`Xoá audio sketch ${sketch.name}`}
+                  title="Xoá"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
             );
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Xoá audio sketch?"
+        message={
+          <>
+            Xoá <strong>&quot;{pendingDelete?.name}&quot;</strong>? Bản ghi sẽ bị xoá vĩnh
+            viễn và không thể khôi phục. Các phiên bản (commit) của dự án không bị ảnh hưởng.
+          </>
+        }
+        confirmLabel="Xoá vĩnh viễn"
+        danger
+        loading={deleting}
+        error={deleteError}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
+      {notice && <Toast message={notice} variant="success" onDismiss={dismissNotice} />}
     </div>
   );
 }

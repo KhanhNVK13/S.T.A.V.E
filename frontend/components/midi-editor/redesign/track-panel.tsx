@@ -12,16 +12,11 @@ import React, { useEffect, useRef, useState } from "react";
 import type { DraftTrack } from "@stave/shared-types";
 import { GM_INSTRUMENTS } from "../../../lib/instruments";
 import { DC, DC_SIZE } from "./tokens";
+import { TRACK_COLOR_PALETTE } from "../../../lib/track-colors";
 
 // UC-35 exception 4.E2 — giữ đúng giới hạn của UI gốc.
 const MAX_LABEL_LENGTH = 50;
 
-// UC-34 — cùng bảng màu với UI gốc (đây là dữ liệu nghiệp vụ, không phải style).
-const TRACK_COLOR_PALETTE = [
-  "#6366f1", "#ec4899", "#f59e0b", "#10b981",
-  "#3b82f6", "#ef4444", "#8b5cf6", "#14b8a6",
-  "#f97316", "#84cc16", "#06b6d4", "#a855f7",
-];
 
 interface TrackPanelProps {
   tracks: DraftTrack[];
@@ -396,7 +391,7 @@ export function TrackPanel({
 
       <button
         onClick={onAddTrack}
-        disabled={!canAddTrack}
+        aria-disabled={!canAddTrack || undefined}
         title={canAddTrack ? "Thêm track mới" : `Đã đạt tối đa ${maxTracks} track`}
         style={{
           ...styles.addBtn,

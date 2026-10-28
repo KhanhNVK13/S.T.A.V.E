@@ -11,6 +11,11 @@ import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../../components/ui/form";
 import { apiErrorMessage } from "../../../lib/error-message";
+import { setFlashToast } from "../../../lib/flash-toast";
+import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../lib/validation";
+
+const NAME_MAX = 100;
+const NAME_REQUIRED = "Vui lòng nhập tên dự án.";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -19,21 +24,31 @@ export default function NewProjectPage() {
   const [genre, setGenre] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || submitting) return;
+    if (submitting) return;
+    const form = e.currentTarget;
+    const invalid =
+      validateRequired(name, NAME_REQUIRED) ?? validateMaxLength(name, NAME_MAX, "Tên dự án");
+    setNameError(invalid);
+    if (invalid) {
+      focusFirstInvalid(form);
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
 
     try {
-      await createProject({
+      const created = (await createProject({
         name: name.trim(),
         description: description.trim() || null,
         genre: genre.trim() || null,
-      });
-      router.push("/projects");
+      })) as { id?: string } | null;
+      setFlashToast("Đã tạo dự án.");
+      router.push(created?.id ? `/projects/${created.id}/edit` : "/projects");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError("Một dự án với tên này đã tồn tại trong tài khoản của bạn.");
@@ -64,16 +79,17 @@ export default function NewProjectPage() {
         )}
 
         <Card className="p-6">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            <Field label="Tên dự án *">
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
+            <Field label="Tên dự án *" error={nameError}>
               <input
                 name="name"
                 autoComplete="off"
                 type="text"
-                required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={120}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setNameError(null);
+                }}
                 className={`${INPUT_CLASS} h-[37px]`}
                 placeholder="Nhập tên dự án"
               />
@@ -105,7 +121,7 @@ export default function NewProjectPage() {
             </Field>
 
             <div className="flex gap-3">
-              <Button type="submit" disabled={submitting || !name.trim()}>
+              <Button type="submit" disabled={submitting}>
                 {submitting ? "Đang tạo…" : "Tạo dự án"}
               </Button>
               <Link href="/projects">

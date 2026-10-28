@@ -5,10 +5,14 @@ import {
   GitBranch,
   GitCommitVertical,
   GitCompareArrows,
+  GitBranchPlus,
   RotateCcw,
   Tag as TagIcon,
+  X,
 } from "lucide-react";
 import {
+  compareCommits,
+  deleteCommitTag,
   getBranchHistory,
   listProjectBranches,
   restoreCommit,
@@ -19,18 +23,24 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { EmptyState } from "../ui/empty-state";
 import { ConfirmDialog } from "../ui/confirm-dialog";
-import { INPUT_CLASS } from "../ui/form";
+import { Dialog, DialogActions } from "../ui/dialog";
+import { FieldError, INPUT_CLASS } from "../ui/form";
+import { validateMaxLength, validateRequired } from "../../lib/validation";
+import { createAndActivateBranch } from "../../lib/create-and-activate-branch";
 import { RowList, RowHeader, RowItem, RowTime } from "../ui/row-list";
 import { Toast } from "../ui/toast";
 import { CommitCompare } from "./commit-compare";
 import type { CompareSide } from "./commit-compare";
 import { apiErrorMessage } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
+import { formatAuthorName } from "../../lib/format-name";
 
 /** Chọn | commit | tác giả | mã | thời điểm | thao tác. */
 const COLS = "md:grid-cols-[20px_minmax(0,1fr)_150px_88px_96px_auto]";
 
 const PAGE_SIZE = 20;
+
+const TAG_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
 
 /**
  * UC-43 (xem lịch sử commit) + UC-44 (gắn tag) + UC-45 (so sánh) + UC-46
@@ -65,6 +75,18 @@ export function CommitHistory({
   const [taggingId, setTaggingId] = useState<string | null>(null);
   const [tagName, setTagName] = useState("");
   const [tagBusy, setTagBusy] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [removeTag, setRemoveTag] = useState<{ commitId: string; name: string } | null>(null);
+  const [removeTagBusy, setRemoveTagBusy] = useState(false);
+  const [removeTagError, setRemoveTagError] = useState<string | null>(null);
+  const [changeCounts, setChangeCounts] = useState<
+    Record<string, "loading" | "error" | "first" | { added: number; removed: number; modified: number }>
+  >({});
+  const [branchFrom, setBranchFrom] = useState<BranchHistoryCommit | null>(null);
+  const [branchFromName, setBranchFromName] = useState("");
+  const [branchFromError, setBranchFromError] = useState<string | null>(null);
+  const [branchFromBusy, setBranchFromBusy] = useState(false);
+  const [replaceTag, setReplaceTag] = useState<{ commitId: string; oldName: string; newName: string } | null>(null);
 
   const [restoreTarget, setRestoreTarget] = useState<BranchHistoryCommit | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
@@ -133,9 +155,21 @@ export function CommitHistory({
     if (next) void loadHistory(next.id);
   }
 
-  async function handleTag(commitId: string) {
+  async function handleTag(commitId: string, replaceConfirmed = false) {
     const name = tagName.trim();
-    if (!name) return;
+    const invalid =
+      validateRequired(name, "Vui lòng nhập tên tag.") ??
+      validateMaxLength(name, 30, "Tên tag") ??
+      (TAG_PATTERN.test(name)
+        ? null
+        : "Tên tag chỉ gồm chữ, số và dấu gạch ngang, không bắt đầu hoặc kết thúc bằng dấu gạch ngang.");
+    setTagError(invalid);
+    if (invalid) return;
+    const existing = commits.find((c) => c.id === commitId)?.tags[0];
+    if (existing && !replaceConfirmed) {
+      setReplaceTag({ commitId, oldName: existing.name, newName: name });
+      return;
+    }
     setTagBusy(true);
     try {
       await tagCommit(commitId, name);
@@ -147,6 +181,67 @@ export function CommitHistory({
       setError(apiErrorMessage(err, "Không gắn được tag."));
     } finally {
       setTagBusy(false);
+      setReplaceTag(null);
+    }
+  }
+
+  async function handleRemoveTag() {
+    if (!removeTag) return;
+    setRemoveTagBusy(true);
+    setRemoveTagError(null);
+    try {
+      await deleteCommitTag(removeTag.commitId, removeTag.name);
+      setNotice(`Đã bỏ tag "${removeTag.name}". Commit vẫn được giữ nguyên.`);
+      setRemoveTag(null);
+      if (branch) await loadHistory(branch.id);
+    } catch (err) {
+      setRemoveTagError(apiErrorMessage(err, "Không bỏ được tag."));
+    } finally {
+      setRemoveTagBusy(false);
+    }
+  }
+
+  async function showChangeCount(commit: BranchHistoryCommit) {
+    if (!commit.parent_commit_id) {
+      setChangeCounts((prev) => ({ ...prev, [commit.id]: "first" }));
+      return;
+    }
+    setChangeCounts((prev) => ({ ...prev, [commit.id]: "loading" }));
+    try {
+      const diff = await compareCommits(commit.parent_commit_id, commit.id);
+      setChangeCounts((prev) => ({ ...prev, [commit.id]: diff.summary.notes }));
+    } catch {
+      setChangeCounts((prev) => ({ ...prev, [commit.id]: "error" }));
+    }
+  }
+
+  async function handleBranchFrom() {
+    if (!branchFrom) return;
+    const name = branchFromName.trim();
+    const invalid =
+      validateRequired(name, "Vui lòng nhập tên nhánh.") ?? validateMaxLength(name, 50, "Tên nhánh");
+    if (invalid) {
+      setBranchFromError(invalid);
+      return;
+    }
+    setBranchFromBusy(true);
+    setBranchFromError(null);
+    try {
+      const outcome = await createAndActivateBranch(projectId, {
+        name,
+        startCommitId: branchFrom.id,
+      });
+      setNotice(
+        outcome.switched
+          ? `Đã tạo nhánh "${name}" từ commit ${branchFrom.id.slice(0, 7)} và chuyển sang nhánh này.`
+          : `Đã tạo nhánh "${name}" từ commit ${branchFrom.id.slice(0, 7)} nhưng chưa chuyển sang được: ${apiErrorMessage(outcome.switchError, "không rõ nguyên nhân")} Bạn có thể chuyển nhánh trong editor.`,
+      );
+      setBranchFrom(null);
+      setBranchFromName("");
+    } catch (err) {
+      setBranchFromError(apiErrorMessage(err, "Không tạo được nhánh."));
+    } finally {
+      setBranchFromBusy(false);
     }
   }
 
@@ -287,6 +382,13 @@ export function CommitHistory({
         </p>
       )}
 
+      {commits.length === 1 && !error && (
+        <p className="mb-3 rounded-card border border-border bg-surface-subtle px-4 py-2.5 text-xs text-muted">
+          Mới có một commit nên chưa so sánh được. Hãy commit thêm một phiên bản nữa, khi đó mỗi
+          commit sẽ có lựa chọn so sánh.
+        </p>
+      )}
+
       {commits.length === 0 && !error ? (
         <EmptyState
           icon={GitCommitVertical}
@@ -307,8 +409,7 @@ export function CommitHistory({
           {pageItems.map((commit) => {
             const isHead = commit.id === head?.id;
             const isSelected = selected.includes(commit.id);
-            const authorName =
-              commit.author.display_name ?? commit.author.username ?? "Người dùng";
+            const authorName = formatAuthorName(commit.author);
             return (
               <RowItem
                 key={commit.id}
@@ -347,8 +448,36 @@ export function CommitHistory({
                       {commit.tags.map((tag) => (
                         <Badge key={tag.id} variant="metal">
                           <TagIcon className="h-3 w-3" /> {tag.name}
+                          <button
+                            type="button"
+                            aria-label={`Bỏ tag ${tag.name}`}
+                            title="Bỏ tag"
+                            onClick={() => {
+                              setRemoveTagError(null);
+                              setRemoveTag({ commitId: commit.id, name: tag.name });
+                            }}
+                            className="ml-0.5 rounded hover:bg-surface-muted"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </Badge>
                       ))}
+                      {changeCounts[commit.id] === "loading" && (
+                        <span className="text-xs text-muted">Đang tính thay đổi…</span>
+                      )}
+                      {changeCounts[commit.id] === "error" && (
+                        <span className="text-xs text-danger">Không tính được thay đổi</span>
+                      )}
+                      {changeCounts[commit.id] === "first" && (
+                        <span className="text-xs text-muted">Bản ghi đầu tiên của dự án</span>
+                      )}
+                      {typeof changeCounts[commit.id] === "object" && (
+                        <span className="font-mono text-xs text-muted">
+                          +{(changeCounts[commit.id] as { added: number }).added} thêm ·{" "}
+                          −{(changeCounts[commit.id] as { removed: number }).removed} xoá ·{" "}
+                          {(changeCounts[commit.id] as { modified: number }).modified} sửa
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -373,7 +502,8 @@ export function CommitHistory({
                         e.preventDefault();
                         void handleTag(commit.id);
                       }}
-                      className="flex items-center gap-1.5"
+                      noValidate
+                      className="flex flex-wrap items-center gap-1.5"
                     >
                       <input
                         name="tagName"
@@ -381,11 +511,14 @@ export function CommitHistory({
                         spellCheck={false}
                         autoFocus
                         value={tagName}
-                        onChange={(e) => setTagName(e.target.value)}
+                        onChange={(e) => {
+                          setTagName(e.target.value);
+                          setTagError(null);
+                        }}
                         placeholder="Tên tag"
                         className={`${INPUT_CLASS} h-8 w-28 font-mono`}
                       />
-                      <Button type="submit" disabled={tagBusy || !tagName.trim()}>
+                      <Button type="submit" disabled={tagBusy}>
                         {tagBusy ? "Đang lưu…" : "Lưu"}
                       </Button>
                       <Button
@@ -394,10 +527,16 @@ export function CommitHistory({
                         onClick={() => {
                           setTaggingId(null);
                           setTagName("");
+                          setTagError(null);
                         }}
                       >
                         Huỷ
                       </Button>
+                      {tagError && (
+                        <div className="basis-full">
+                          <FieldError>{tagError}</FieldError>
+                        </div>
+                      )}
                     </form>
                   ) : (
                     <>
@@ -416,9 +555,25 @@ export function CommitHistory({
                         onClick={() => {
                           setTaggingId(commit.id);
                           setTagName("");
+                          setTagError(null);
                         }}
                       >
                         <TagIcon className="h-3.5 w-3.5" /> Gắn tag
+                      </Button>
+                      {changeCounts[commit.id] === undefined && (
+                        <Button variant="ghost" onClick={() => void showChangeCount(commit)}>
+                          Thay đổi
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setBranchFromError(null);
+                          setBranchFromName("");
+                          setBranchFrom(commit);
+                        }}
+                      >
+                        <GitBranchPlus className="h-3.5 w-3.5" /> Nhánh từ đây
                       </Button>
                       <Button variant="secondary" onClick={() => setRestoreTarget(commit)}>
                         <RotateCcw className="h-3.5 w-3.5" /> Khôi phục
@@ -457,6 +612,80 @@ export function CommitHistory({
           onClose={() => setComparing(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!removeTag}
+        title="Bỏ tag của commit này?"
+        message={
+          <>
+            Tag <strong className="font-mono text-foreground">{removeTag?.name}</strong> sẽ được gỡ
+            khỏi commit. Commit và nội dung của nó không bị ảnh hưởng.
+          </>
+        }
+        confirmLabel="Bỏ tag"
+        danger
+        loading={removeTagBusy}
+        error={removeTagError}
+        onConfirm={() => void handleRemoveTag()}
+        onCancel={() => setRemoveTag(null)}
+      />
+
+      <Dialog
+        open={!!branchFrom}
+        title="Tạo nhánh từ commit này"
+        onClose={() => setBranchFrom(null)}
+        closeDisabled={branchFromBusy}
+        className="max-w-sm p-6"
+      >
+        <p className="mb-3 text-[13px] text-muted">
+          Nhánh mới bắt đầu từ commit{" "}
+          <span className="font-mono text-foreground">{branchFrom?.id.slice(0, 7)}</span>
+          {branchFrom ? ` ("${branchFrom.message}")` : ""}.
+        </p>
+        <label className="mb-3 flex flex-col gap-1.5 text-[13px]">
+          <span className="font-medium">Tên nhánh mới</span>
+          <input
+            name="branchFromName"
+            autoComplete="off"
+            spellCheck={false}
+            data-autofocus
+            value={branchFromName}
+            onChange={(e) => {
+              setBranchFromName(e.target.value);
+              setBranchFromError(null);
+            }}
+            placeholder="vd: thu-phoi-bass"
+            className={`${INPUT_CLASS} w-full font-mono`}
+          />
+          {branchFromError && <FieldError>{branchFromError}</FieldError>}
+        </label>
+        <DialogActions>
+          <Button variant="secondary" onClick={() => setBranchFrom(null)} disabled={branchFromBusy}>
+            Huỷ
+          </Button>
+          <Button onClick={() => void handleBranchFrom()} disabled={branchFromBusy}>
+            {branchFromBusy ? "Đang tạo…" : "Tạo nhánh"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!replaceTag}
+        title="Thay tag của commit này?"
+        message={
+          <>
+            Commit này đã có tag{" "}
+            <strong className="font-mono text-foreground">{replaceTag?.oldName}</strong>. Mỗi
+            commit chỉ mang một tag, nên tag mới{" "}
+            <strong className="font-mono text-foreground">{replaceTag?.newName}</strong> sẽ thay
+            tag cũ.
+          </>
+        }
+        confirmLabel="Thay tag"
+        loading={tagBusy}
+        onConfirm={() => replaceTag && void handleTag(replaceTag.commitId, true)}
+        onCancel={() => setReplaceTag(null)}
+      />
 
       <ConfirmDialog
         open={!!restoreTarget}

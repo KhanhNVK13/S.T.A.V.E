@@ -10,10 +10,12 @@ import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
-import { INPUT_CLASS } from "../../../components/ui/form";
+import { FieldError, INPUT_CLASS } from "../../../components/ui/form";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { Dialog, DialogActions, DialogError } from "../../../components/ui/dialog";
 import { apiErrorMessage } from "../../../lib/error-message";
+import { Toast } from "../../../components/ui/toast";
+import { APP_LOCALE } from "../../../lib/format-date";
 
 interface AdminUserRow {
   id: string;
@@ -23,6 +25,8 @@ interface AdminUserRow {
   status: "active" | "suspended" | "removed";
   role: "user" | "admin";
   createdAt: string;
+  projectCount: number;
+  suspension: { reason: string; suspendedAt: string } | null;
 }
 
 interface ListUsersResponse {
@@ -35,7 +39,17 @@ interface ListUsersResponse {
 type ActionType = "suspend" | "reactivate" | "remove";
 
 /** Người dùng | email | trạng thái | vai trò | thao tác. */
-const COLS = "md:grid-cols-[minmax(0,1fr)_200px_112px_92px_auto]";
+const COLS = "md:grid-cols-[minmax(0,1fr)_200px_80px_112px_92px_auto]";
+
+const PAGE_LIMIT = 20;
+
+const SUSPEND_CATEGORIES = [
+  "Vi phạm nội dung",
+  "Spam hoặc quảng cáo",
+  "Lạm dụng nền tảng",
+  "Gian lận thanh toán",
+  "Khác",
+] as const;
 
 function StatusBadge({ status }: { status: AdminUserRow["status"] }) {
   if (status === "active") return <Badge variant="success">Active</Badge>;
@@ -51,35 +65,55 @@ function ActionPanel({
 }: {
   user: AdminUserRow;
   action: ActionType;
-  onDone: () => void;
+  onDone: (message: string) => void;
   onCancel: () => void;
 }) {
+  const [category, setCategory] = useState<string>("");
   const [reason, setReason] = useState("");
   const [confirmUsername, setConfirmUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reasonError, setReasonError] = useState<string | null>(null);
 
   async function handleConfirm() {
     setError(null);
+    const detail = reason.trim();
+    if (action === "suspend" && !category) {
+      setReasonError("Vui lòng chọn một danh mục vi phạm.");
+      return;
+    }
+    if ((action !== "suspend" || category === "Khác") && !detail) {
+      setReasonError("Vui lòng nhập lý do.");
+      return;
+    }
+    const finalReason =
+      action === "suspend" ? (detail ? `${category}: ${detail}` : category) : detail;
+    setReasonError(null);
     setSubmitting(true);
     try {
       if (action === "suspend") {
         await apiFetch(`/admin/users/${user.id}/suspend`, {
           method: "POST",
-          body: JSON.stringify({ reason }),
+          body: JSON.stringify({ reason: finalReason }),
         });
       } else if (action === "reactivate") {
         await apiFetch(`/admin/users/${user.id}/reactivate`, {
           method: "POST",
-          body: JSON.stringify({ reason }),
+          body: JSON.stringify({ reason: finalReason }),
         });
       } else {
         await apiFetch(`/admin/users/${user.id}`, {
           method: "DELETE",
-          body: JSON.stringify({ reason, confirmUsername }),
+          body: JSON.stringify({ reason: finalReason, confirmUsername }),
         });
       }
-      onDone();
+      onDone(
+        action === "suspend"
+          ? `Đã tạm khoá @${user.username}. Hành động đã được ghi vào nhật ký quản trị.`
+          : action === "reactivate"
+            ? `Đã mở khoá @${user.username}. Hành động đã được ghi vào nhật ký quản trị.`
+            : `Đã xoá @${user.username}. Hành động đã được ghi vào nhật ký quản trị.`,
+      );
     } catch (err) {
       setError(apiErrorMessage(err, "Không thực hiện được thao tác."));
     } finally {
@@ -104,20 +138,71 @@ function ActionPanel({
       className="max-w-sm p-6"
     >
       {action === "remove" && (
-        <p className="-mt-2 mb-3 text-xs text-danger">
-          Không thể hoàn tác. Gõ lại username <strong>{user.username}</strong> để xác nhận.
-        </p>
+        <div className="-mt-2 mb-3 space-y-2 text-xs text-muted">
+          <p className="text-danger">
+            Không thể hoàn tác. Gõ lại username <strong>{user.username}</strong> để xác nhận.
+          </p>
+          <p>
+            <strong className="text-foreground">Sẽ bị xoá:</strong> thông tin đăng nhập, hồ sơ,
+            mọi dự án của người này (kèm commit, nhánh, bản nháp), âm thanh riêng, bản ghi
+            nhanh và bình luận.
+          </p>
+          <p>
+            <strong className="text-foreground">Sẽ còn lại:</strong> các commit người này từng
+            gửi vào dự án của người khác (tác giả hiện là &quot;Tài khoản đã xoá&quot;) và nhật
+            ký quản trị.
+          </p>
+        </div>
+      )}
+      {action === "reactivate" && user.suspension && (
+        <div className="-mt-2 mb-3 rounded-card border border-border bg-surface-subtle p-3 text-xs text-muted">
+          <p>
+            Bị tạm khoá lúc{" "}
+            <span className="font-mono text-foreground">
+              {new Date(user.suspension.suspendedAt).toLocaleString(APP_LOCALE)}
+            </span>
+          </p>
+          <p className="mt-1">
+            Lý do: <span className="text-foreground">{user.suspension.reason}</span>
+          </p>
+        </div>
+      )}
+      {action === "suspend" && (
+        <label className="mb-3 flex flex-col gap-1.5 text-[13px]">
+          <span className="font-medium">Danh mục vi phạm</span>
+          <select
+            name="category"
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setReasonError(null);
+            }}
+            data-autofocus
+            className={`${INPUT_CLASS} w-full`}
+          >
+            <option value="">Chọn danh mục…</option>
+            {SUSPEND_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       <label className="mb-3 flex flex-col gap-1.5 text-[13px]">
-        <span className="font-medium">Lý do</span>
+        <span className="font-medium">{action === "suspend" ? "Chi tiết (tuỳ chọn)" : "Lý do"}</span>
         <textarea
           name="reason"
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => {
+            setReason(e.target.value);
+            setReasonError(null);
+          }}
           rows={2}
-          data-autofocus
+          data-autofocus={action !== "suspend" ? true : undefined}
           className={`${INPUT_CLASS} w-full`}
         />
+        {reasonError && <FieldError>{reasonError}</FieldError>}
       </label>
       {action === "remove" && (
         <label className="mb-3 flex flex-col gap-1.5 text-[13px]">
@@ -141,7 +226,6 @@ function ActionPanel({
           onClick={() => void handleConfirm()}
           disabled={
             submitting ||
-            !reason ||
             (action === "remove" && confirmUsername !== user.username)
           }
         >
@@ -157,20 +241,26 @@ function AdminUsersTable() {
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<ListUsersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<{
     user: AdminUserRow;
     action: ActionType;
   } | null>(null);
 
-  async function load() {
+  async function load(targetPage = pageNumber) {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (status) params.set("status", status);
+    params.set("page", String(targetPage));
+    params.set("limit", String(PAGE_LIMIT));
     try {
       const data = await apiFetch<ListUsersResponse>(
         `/admin/users?${params.toString()}`,
       );
       setResult(data);
+      setPageNumber(targetPage);
+      setError(null);
     } catch (err) {
       setError(apiErrorMessage(err, "Không tải được danh sách người dùng."));
     }
@@ -178,7 +268,7 @@ function AdminUsersTable() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- refetch when status filter changes
-    void load();
+    void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
@@ -187,7 +277,7 @@ function AdminUsersTable() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          void load();
+          void load(1);
         }}
         className="flex flex-wrap gap-2"
       >
@@ -219,13 +309,27 @@ function AdminUsersTable() {
         </Button>
       </form>
 
-      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+      {doneMessage && (
+        <Toast message={doneMessage} variant="success" onDismiss={() => setDoneMessage(null)} />
+      )}
+      {error && (
+        <div
+          role="alert"
+          className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
+        >
+          <span>{error}</span>
+          <Button variant="secondary" onClick={() => void load(pageNumber)}>
+            Thử lại
+          </Button>
+        </div>
+      )}
 
       <div className="mt-3">
         <RowList cols={COLS}>
           <RowHeader>
             <span>Người dùng</span>
             <span>Email</span>
+            <span>Dự án</span>
             <span>Trạng thái</span>
             <span>Vai trò</span>
             <span />
@@ -241,6 +345,7 @@ function AdminUsersTable() {
                 </div>
               </div>
               <span className="truncate font-mono text-xs text-muted">{user.maskedEmail}</span>
+              <span className="font-mono text-xs tabular-nums text-muted">{user.projectCount}</span>
               <span>
                 <StatusBadge status={user.status} />
               </span>
@@ -287,11 +392,38 @@ function AdminUsersTable() {
           user={selected.user}
           action={selected.action}
           onCancel={() => setSelected(null)}
-          onDone={() => {
+          onDone={(message) => {
             setSelected(null);
+            setDoneMessage(message);
             void load();
           }}
         />
+      )}
+
+      {result && result.total > PAGE_LIMIT && (
+        <div className="mt-3 flex items-center justify-between text-xs text-muted">
+          <span>
+            Trang <span className="font-mono text-foreground">{pageNumber}</span> /{" "}
+            <span className="font-mono">{Math.ceil(result.total / PAGE_LIMIT)}</span> ·{" "}
+            <span className="font-mono">{result.total.toLocaleString(APP_LOCALE)}</span> tài khoản
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              disabled={pageNumber <= 1}
+              onClick={() => void load(pageNumber - 1)}
+            >
+              Trang trước
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={pageNumber >= Math.ceil(result.total / PAGE_LIMIT)}
+              onClick={() => void load(pageNumber + 1)}
+            >
+              Trang sau
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
