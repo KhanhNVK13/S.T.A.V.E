@@ -4,7 +4,6 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException as HttpConflictException,
-  ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -17,6 +16,7 @@ import type {
 import { DRAFT_SCHEMA_VERSION } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { BranchesService } from '../branches/branches.service';
+import { ProjectAccessService } from '../project-access/project-access.service';
 import { MergeBranchDto } from './dto/merge-branch.dto';
 import { ResolveConflictDto, ConflictChoice } from './dto/resolve-conflict.dto';
 
@@ -82,6 +82,7 @@ export class MergeService {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient<any, 'public', any>,
     private readonly branchesService: BranchesService,
+    private readonly access: ProjectAccessService,
   ) {}
 
   // ==========================================================================
@@ -149,7 +150,7 @@ export class MergeService {
 
     // 7.1: target hasn't moved since divergence — fast-forward, no merge commit
     if (mergeBase === targetBranch.head_commit_id) {
-      return this.fastForward(sourceBranch, targetBranch);
+      return this.fastForward(userId, sourceBranch, targetBranch);
     }
 
     // Full 3-way merge
@@ -175,6 +176,7 @@ export class MergeService {
    * no separate merge commit (SRS UC-51 alt-flow 7.1).
    */
   private async fastForward(
+    userId: string,
     sourceBranch: BranchDbRow,
     targetBranch: BranchDbRow,
   ): Promise<MergeSuccessResult> {
@@ -205,10 +207,11 @@ export class MergeService {
     const { error: draftError } = await this.supabase.from('drafts').upsert(
       {
         branch_id: targetBranch.id,
+        user_id: userId,
         snapshot,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'branch_id' },
+      { onConflict: 'branch_id,user_id' },
     );
     if (draftError) {
       throw new InternalServerErrorException(
@@ -306,6 +309,7 @@ export class MergeService {
       userId,
       targetBranch,
       sourceBranch.id,
+      sourceBranch.head_commit_id,
       finalMergedSnapshot,
       commitMessage,
     );
@@ -316,6 +320,30 @@ export class MergeService {
   // ==========================================================================
   // 3-Way Merge Algorithm
   // ==========================================================================
+
+  previewMerge(
+    baseSnapshot: DraftSnapshot | null,
+    sourceSnapshot: DraftSnapshot | null,
+    targetSnapshot: DraftSnapshot | null,
+  ): Pick<MergeConflictResult, 'conflictsCount' | 'conflictsByBar'> {
+    const base = baseSnapshot ?? this.createEmptySnapshot();
+    const source = sourceSnapshot ?? this.createEmptySnapshot();
+    const target = targetSnapshot ?? this.createEmptySnapshot();
+
+    const { conflicts } = this.mergeNotes(
+      base.notes,
+      source.notes,
+      target.notes,
+    );
+
+    return {
+      conflictsCount: conflicts.length,
+      conflictsByBar: this.groupConflictsByBar(
+        conflicts,
+        source.meta ?? target.meta,
+      ),
+    };
+  }
 
   private async perform3WayMerge(
     userId: string,
@@ -361,6 +389,7 @@ export class MergeService {
       userId,
       targetBranch,
       sourceBranch.id,
+      sourceBranch.head_commit_id,
       mergedSnapshot,
       message,
     );
@@ -643,11 +672,12 @@ export class MergeService {
     userId: string,
     targetBranch: BranchDbRow,
     sourceBranchId: string,
+    sourceHeadCommitId: string | null,
     snapshot: DraftSnapshot,
     message: string,
   ): Promise<CommitRow> {
     const { data: commit, error } = await this.supabase.rpc(
-      'create_commit_atomic',
+      'create_merge_commit_atomic',
       {
         p_branch_id: targetBranch.id,
         p_author_id: userId,
@@ -655,6 +685,7 @@ export class MergeService {
         p_snapshot: snapshot,
         p_parent_commit_id: targetBranch.head_commit_id,
         p_merged_from_branch_id: sourceBranchId,
+        p_merged_from_commit_id: sourceHeadCommitId,
       },
     );
 
@@ -688,25 +719,11 @@ export class MergeService {
     return data as BranchDbRow | null;
   }
 
-  private async verifyUserEditPermission(
+  private verifyUserEditPermission(
     projectId: string,
     userId: string,
   ): Promise<void> {
-    const { data: project } = await this.supabase
-      .from('projects')
-      .select('owner_id')
-      .eq('id', projectId)
-      .single();
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.owner_id !== userId) {
-      throw new ForbiddenException(
-        'You do not have edit permission on this project',
-      );
-    }
+    return this.access.assertCanEdit(projectId, userId);
   }
 
   private createEmptySnapshot(): DraftSnapshot {

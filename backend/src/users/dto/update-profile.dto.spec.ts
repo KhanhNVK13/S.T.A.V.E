@@ -108,19 +108,16 @@ describe('BE-USR-06 UpdateProfileDto.validate(dto)', () => {
     ]);
   });
 
-  it.failing(
-    'UTCID11 rejects an empty display name (SRS UC-15 3.E1)',
-    async () => {
-      await expect(constraintsOf({ displayName: '' })).resolves.toEqual([
-        {
-          property: 'displayName',
-          constraints: expect.objectContaining({
-            isNotEmpty: 'displayName should not be empty',
-          }),
-        },
-      ]);
-    },
-  );
+  it('UTCID11 rejects an empty display name (SRS UC-15 3.E1)', async () => {
+    await expect(constraintsOf({ displayName: '' })).resolves.toEqual([
+      {
+        property: 'displayName',
+        constraints: expect.objectContaining({
+          isNotEmpty: 'displayName should not be empty',
+        }),
+      },
+    ]);
+  });
 
   it('UTCID12 rejects an empty username', async () => {
     await expect(constraintsOf({ username: '' })).resolves.toEqual([

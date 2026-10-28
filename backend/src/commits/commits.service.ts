@@ -19,6 +19,7 @@ import type {
 import { DRAFT_SCHEMA_VERSION, sanitizeSoundMap } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectsService } from '../projects/projects.service';
+import { ProjectAccessService } from '../project-access/project-access.service';
 import { DiffService } from './diff.service';
 import {
   CreateCommitDto,
@@ -69,6 +70,7 @@ export class CommitsService {
     private readonly supabase: SupabaseClient<any, 'public', any>,
     private readonly projectsService: ProjectsService,
     private readonly diffService: DiffService,
+    private readonly access: ProjectAccessService,
   ) {}
 
   // ==========================================================================
@@ -95,7 +97,7 @@ export class CommitsService {
     } = dto;
 
     // Step 1: Verify branch exists and user owns the project
-    const branch = await this.verifyBranchAccess(branch_id, userId);
+    const branch = await this.verifyBranchAccess(branch_id, userId, 'edit');
 
     // Step 2: UC-42 Exception 6.E1 - Concurrency Protection
     if (
@@ -112,7 +114,11 @@ export class CommitsService {
     if (providedSnapshot) {
       snapshot = this.normalizeSnapshot(providedSnapshot);
     } else {
-      snapshot = await this.getSnapshotFromDraft(branch.id);
+      snapshot = await this.getSnapshotFromDraft(
+        branch.id,
+        userId,
+        branch.head_commit_id,
+      );
     }
 
     // Compare with head commit if exists
@@ -188,7 +194,7 @@ export class CommitsService {
 
     if (dto.branch_id) {
       // If filtering by branch, verify user has access
-      await this.verifyBranchAccess(dto.branch_id, userId);
+      await this.verifyBranchAccess(dto.branch_id, userId, 'view');
       query = query.eq('branch_id', dto.branch_id);
     } else {
       // No branch filter — restrict to branches on projects the caller owns,
@@ -272,7 +278,7 @@ export class CommitsService {
     const projectId = (commitData as { branch?: { project_id: string } }).branch
       ?.project_id;
     if (projectId) {
-      await this.verifyProjectOwnership(projectId, userId);
+      await this.verifyProjectAccess(projectId, userId, 'view');
     }
 
     const commit = commitData as unknown as CommitDbRow;
@@ -324,8 +330,8 @@ export class CommitsService {
     userId: string,
     dto: TagCommitDto,
   ): Promise<TagRow> {
-    // Verify commit exists and caller owns the project (also 404s on bad id)
-    await this.verifyCommitOwnership(commitId, userId);
+    // Verify commit exists and caller can edit the project (also 404s on bad id)
+    await this.verifyCommitAccess(commitId, userId, 'edit');
 
     const tagId = uuidv4();
 
@@ -376,7 +382,7 @@ export class CommitsService {
    * Get all tags for a specific commit
    */
   async getTagsForCommit(commitId: string, userId: string): Promise<TagRow[]> {
-    await this.verifyCommitOwnership(commitId, userId);
+    await this.verifyCommitAccess(commitId, userId, 'view');
 
     const { data, error } = await this.supabase
       .from('commit_tags')
@@ -401,7 +407,7 @@ export class CommitsService {
     tagName: string,
     userId: string,
   ): Promise<void> {
-    await this.verifyCommitOwnership(commitId, userId);
+    await this.verifyCommitAccess(commitId, userId, 'edit');
 
     const { error } = await this.supabase
       .from('commit_tags')
@@ -466,7 +472,7 @@ export class CommitsService {
 
     // Verify caller owns the project both commits belong to
     if (baseProjectId) {
-      await this.verifyProjectOwnership(baseProjectId, userId);
+      await this.verifyProjectAccess(baseProjectId, userId, 'view');
     }
 
     // Use DiffService to compare snapshots
@@ -501,7 +507,7 @@ export class CommitsService {
     const { branch_id, message: customMessage } = dto;
 
     // Step 1: Verify user has access to the target branch (also verifies ownership)
-    const branch = await this.verifyBranchAccess(branch_id, userId);
+    const branch = await this.verifyBranchAccess(branch_id, userId, 'edit');
 
     // Step 2: Get the commit to restore and verify it belongs to the same project
     const { data: commitToRestore, error: commitError } = await this.supabase
@@ -534,7 +540,8 @@ export class CommitsService {
 
     // Step 4: Generate message - use custom or default
     const restoreMessage =
-      customMessage ?? `Revert to commit ${commitId.substring(0, 8)}`;
+      customMessage ??
+      `Khôi phục phiên bản "${(commit.message ?? '').slice(0, 140)}" (${commitId.substring(0, 8)})`;
 
     // Step 5: atomically create the restore commit, move head, reset draft
     const { data: newCommit, error } = await this.supabase.rpc(
@@ -608,9 +615,10 @@ export class CommitsService {
    * Verify a commit exists and the caller owns the project it belongs to.
    * Returns the commit's project id.
    */
-  private async verifyCommitOwnership(
+  private async verifyCommitAccess(
     commitId: string,
     userId: string,
+    level: 'view' | 'edit',
   ): Promise<string> {
     const { data, error } = await this.supabase
       .from('commits')
@@ -628,7 +636,7 @@ export class CommitsService {
       throw new NotFoundException('Commit not found');
     }
 
-    await this.verifyProjectOwnership(projectId, userId);
+    await this.verifyProjectAccess(projectId, userId, level);
     return projectId;
   }
 
@@ -638,6 +646,7 @@ export class CommitsService {
   private async verifyBranchAccess(
     branchId: string,
     userId: string,
+    level: 'view' | 'edit',
   ): Promise<BranchDbRow> {
     // Get branch with project info
     const result = await this.supabase
@@ -645,7 +654,7 @@ export class CommitsService {
       .select(
         `
         *,
-        project:projects!branches_project_id_fkey(id, owner_id)
+        project:projects!branches_project_id_fkey(id)
       `,
       )
       .eq('id', branchId)
@@ -662,7 +671,6 @@ export class CommitsService {
       head_commit_id: string | null;
       project: {
         id: string;
-        owner_id: string;
       } | null;
     } | null;
     const error = result.error;
@@ -671,10 +679,7 @@ export class CommitsService {
       throw new NotFoundException('Branch not found');
     }
 
-    // Verify user owns the project
-    if (branch.project?.owner_id !== userId) {
-      throw new BadRequestException('You do not have access to this branch');
-    }
+    await this.verifyProjectAccess(branch.project_id, userId, level);
 
     return branch;
   }
@@ -710,7 +715,11 @@ export class CommitsService {
   /**
    * Get snapshot from current draft of branch
    */
-  private async getSnapshotFromDraft(branchId: string): Promise<DraftSnapshot> {
+  private async getSnapshotFromDraft(
+    branchId: string,
+    userId: string,
+    headCommitId: string | null,
+  ): Promise<DraftSnapshot> {
     interface DraftRow {
       id: string;
       branch_id: string;
@@ -722,10 +731,22 @@ export class CommitsService {
       .from('drafts')
       .select('snapshot')
       .eq('branch_id', branchId)
-      .single();
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    if (error || !draft) {
-      // Return empty snapshot if no draft exists
+    if (error) {
+      throw new InternalServerErrorException('Could not read draft');
+    }
+
+    if (!draft) {
+      if (headCommitId) {
+        const { data: head } = await this.supabase
+          .from('commits')
+          .select('snapshot')
+          .eq('id', headCommitId)
+          .maybeSingle();
+        if (head?.snapshot) return head.snapshot as DraftSnapshot;
+      }
       return {
         schemaVersion: DRAFT_SCHEMA_VERSION,
         meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
@@ -836,6 +857,7 @@ export class CommitsService {
       }
     >
   > {
+    userIds = userIds.filter((id) => !!id);
     if (userIds.length === 0) {
       return new Map();
     }
@@ -878,25 +900,13 @@ export class CommitsService {
     return authorsMap;
   }
 
-  /**
-   * Verify user owns the project (ownership check for security)
-   */
-  private async verifyProjectOwnership(
+  private verifyProjectAccess(
     projectId: string,
     userId: string,
+    level: 'view' | 'edit',
   ): Promise<void> {
-    const { data: project } = await this.supabase
-      .from('projects')
-      .select('owner_id')
-      .eq('id', projectId)
-      .single();
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.owner_id !== userId) {
-      throw new ForbiddenException('You do not have access to this project');
-    }
+    return level === 'edit'
+      ? this.access.assertCanEdit(projectId, userId)
+      : this.access.assertCanView(projectId, userId);
   }
 }

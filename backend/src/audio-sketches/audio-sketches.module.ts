@@ -5,5 +5,6 @@ import { AudioSketchesService } from './audio-sketches.service';
 @Module({
   controllers: [AudioSketchesController],
   providers: [AudioSketchesService],
+  exports: [AudioSketchesService],
 })
 export class AudioSketchesModule {}

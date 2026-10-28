@@ -17,6 +17,7 @@ const CHAIN_METHODS = [
   'is',
   'in',
   'not',
+  'or',
   'ilike',
   'like',
   'gt',
@@ -47,6 +48,7 @@ const AUTH_ADMIN_METHODS = [
   'signOut',
   'listUsers',
   'createUser',
+  'getUserById',
 ] as const;
 
 export interface SupabaseMockOptions {

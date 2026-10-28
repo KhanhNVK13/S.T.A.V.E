@@ -1,4 +1,5 @@
 import {
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUrl,
@@ -9,6 +10,7 @@ import {
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(80)
   displayName?: string;
 

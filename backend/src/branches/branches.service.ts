@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
+  ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,6 +14,8 @@ import {
   type DraftSnapshot,
 } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { ProjectAccessService } from '../project-access/project-access.service';
+import { ActiveBranchService } from '../active-branch/active-branch.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { SwitchBranchDto, DraftSnapshotDto } from './dto/switch-branch.dto';
 
@@ -33,6 +35,7 @@ interface BranchDbRow {
 interface DraftDbRow {
   id: string;
   branch_id: string;
+  user_id: string;
   snapshot: DraftSnapshot;
   updated_at: string;
 }
@@ -82,6 +85,7 @@ export interface CommitInHistory {
   created_at: string;
   isUniqueToBranch: boolean;
   isInherited: boolean;
+  parent_commit_id: string | null;
   /** UC-50 bước 4: hiện tác giả như màn lịch sử chính (UC-43). */
   author: {
     id: string;
@@ -106,14 +110,25 @@ export interface SwitchBranchResponse {
   activeSnapshot: DraftSnapshot;
 }
 
-/** Safety cap on parent_commit_id chain walks — see getAncestorIds/findMergeBase. */
-const MAX_CHAIN_HOPS = 2000;
+const ID_FILTER_CHUNK = 100;
+const HISTORY_PAGE = 1000;
+
+/** Safety cap on commit-graph walks — see loadAncestry/findMergeBase. */
+const MAX_CHAIN_HOPS = 20000;
+
+interface CommitGraphNode {
+  id: string;
+  parents: string[];
+  createdAt: string;
+}
 
 @Injectable()
 export class BranchesService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient<any, 'public', any>,
+    private readonly access: ProjectAccessService,
+    private readonly activeBranch: ActiveBranchService,
   ) {}
 
   // ==========================================================================
@@ -185,7 +200,7 @@ export class BranchesService {
       throw new InternalServerErrorException('Branch was not created');
     }
 
-    await this.initializeDraftForBranch(branchId, startCommitId);
+    await this.initializeDraftForBranch(branchId, startCommitId, userId);
     const author = await this.getAuthorInfo(userId);
 
     return {
@@ -226,26 +241,30 @@ export class BranchesService {
       throw new NotFoundException('Target branch does not exist');
     }
 
+    const currentBranch = await this.getBranchById(dto.currentBranchId);
+    if (!currentBranch || currentBranch.project_id !== projectId) {
+      throw new NotFoundException('Branch not found');
+    }
+
     // BR-50 / CLAUDE.md §4.2: save the outgoing branch's draft before
     // switching — currentDraft is now required in the DTO, and saveDraft
     // throws on failure instead of silently swallowing the error.
-    await this.saveDraft(dto.currentBranchId, dto.currentDraft);
+    await this.saveDraft(dto.currentBranchId, dto.currentDraft, userId);
 
-    const activeSnapshot = await this.getActiveSnapshot(dto.targetBranchId);
+    const activeSnapshot = await this.getActiveSnapshot(
+      dto.targetBranchId,
+      userId,
+    );
     const author = await this.getAuthorInfo(targetBranch.created_by);
 
     // Track which branch is "active" for this project — needed by UC-52
     // (cannot delete the currently active branch). Every branch has a draft
     // row, so "has a draft" can't be used as a proxy for "is active".
-    const { error: activeError } = await this.supabase
-      .from('projects')
-      .update({ active_branch_id: dto.targetBranchId })
-      .eq('id', projectId);
-    if (activeError) {
-      throw new InternalServerErrorException(
-        `Failed to record active branch: ${activeError.message}`,
-      );
-    }
+    await this.activeBranch.setActiveBranch(
+      projectId,
+      userId,
+      dto.targetBranchId,
+    );
 
     return {
       branch: {
@@ -275,7 +294,7 @@ export class BranchesService {
     if (!branch) {
       throw new NotFoundException('Branch not found');
     }
-    await this.verifyUserEditPermission(branch.project_id, userId);
+    await this.access.assertCanView(branch.project_id, userId);
 
     const defaultBranch = await this.getDefaultBranch(branch.project_id);
     if (!defaultBranch) {
@@ -283,7 +302,9 @@ export class BranchesService {
     }
 
     const divergence = await this.calculateDivergence(branch, defaultBranch);
-    const isMerged = divergence.ahead === 0 && divergence.behind === 0;
+    const isMerged =
+      branch.id === defaultBranch.id ||
+      (divergence.ahead === 0 && (await this.countOwnCommits(branch.id)) > 0);
     const author = await this.getAuthorInfo(branch.created_by);
 
     return {
@@ -309,9 +330,8 @@ export class BranchesService {
 
   /**
    * Commit history for a branch, with each commit marked unique-to-this-branch
-   * vs inherited-from-default. Walks the real `parent_commit_id` chain to find
-   * the merge-base against the project's default branch, instead of comparing
-   * `created_at` timestamps (fragile under clock skew/concurrent commits).
+   * vs inherited-from-default, decided by the commit graph (parent and merge
+   * links) rather than `created_at` timestamps.
    */
   async getBranchHistory(
     branchId: string,
@@ -321,30 +341,36 @@ export class BranchesService {
     if (!branch) {
       throw new NotFoundException('Branch not found');
     }
-    await this.verifyUserEditPermission(branch.project_id, userId);
+    await this.access.assertCanView(branch.project_id, userId);
 
     const defaultBranch = await this.getDefaultBranch(branch.project_id);
     const isDefaultBranch = defaultBranch?.id === branch.id;
 
     // Tải MỘT lần toàn bộ commit của project rồi đi chuỗi cha trong bộ nhớ.
-    // `getAncestorIds`/`findMergeBase` tốn 1 truy vấn cho MỖI commit, và màn
-    // này gọi cả hai (≈3 lượt đi chuỗi) — với vài trăm commit là vài trăm
-    // round-trip tới Supabase chỉ để hiện 1 danh sách.
     const { data: projectBranches } = await this.supabase
       .from('branches')
       .select('id')
       .eq('project_id', branch.project_id);
     const branchIds = (projectBranches ?? []).map((b) => b.id as string);
 
-    const { data: rows, error } = await this.supabase
-      .from('commits')
-      .select('id, branch_id, author_id, message, created_at, parent_commit_id')
-      .in('branch_id', branchIds);
+    const rows: unknown[] = [];
+    for (let offset = 0; ; offset += HISTORY_PAGE) {
+      const { data: page, error } = await this.supabase
+        .from('commits')
+        .select(
+          'id, branch_id, author_id, message, created_at, parent_commit_id, merged_from_commit_id',
+        )
+        .in('branch_id', branchIds)
+        .order('id')
+        .range(offset, offset + HISTORY_PAGE - 1);
 
-    if (error) {
-      throw new InternalServerErrorException(
-        `Failed to fetch branch history: ${error.message}`,
-      );
+      if (error) {
+        throw new InternalServerErrorException(
+          `Failed to fetch branch history: ${error.message}`,
+        );
+      }
+      rows.push(...(page ?? []));
+      if ((page ?? []).length < HISTORY_PAGE) break;
     }
 
     type HistoryRow = {
@@ -354,6 +380,7 @@ export class BranchesService {
       message: string;
       created_at: string;
       parent_commit_id: string | null;
+      merged_from_commit_id: string | null;
     };
     const byId = new Map(((rows ?? []) as HistoryRow[]).map((c) => [c.id, c]));
 
@@ -372,46 +399,57 @@ export class BranchesService {
       return { branchId: branch.id, branchName: branch.name, commits: [] };
     }
 
-    // Merge-base = commit đầu tiên trên chuỗi nhánh mặc định cũng nằm trong
-    // chuỗi nhánh này (cùng định nghĩa với `findMergeBase`).
-    let mergeBase: string | null = null;
+    const defaultAncestors = new Set<string>();
     if (defaultBranch && !isDefaultBranch) {
-      const inChain = new Set(chainIds);
-      mergeBase =
-        walk(defaultBranch.head_commit_id).find((id) => inChain.has(id)) ??
-        null;
+      const queue: string[] = defaultBranch.head_commit_id
+        ? [defaultBranch.head_commit_id]
+        : [];
+      while (queue.length > 0 && defaultAncestors.size < MAX_CHAIN_HOPS) {
+        const id = queue.shift()!;
+        if (defaultAncestors.has(id)) continue;
+        defaultAncestors.add(id);
+        const row = byId.get(id);
+        if (row?.parent_commit_id) queue.push(row.parent_commit_id);
+        if (row?.merged_from_commit_id) queue.push(row.merged_from_commit_id);
+      }
     }
 
     const authorsMap = await this.getAuthorsInfo([
       ...new Set(chainIds.map((id) => byId.get(id)!.author_id)),
     ]);
 
-    const { data: tagRows } = await this.supabase
-      .from('commit_tags')
-      .select('id, commit_id, name')
-      .in('commit_id', chainIds);
+    const tagRows: Array<{ id: string; commit_id: string; name: string }> = [];
+    for (let i = 0; i < chainIds.length; i += ID_FILTER_CHUNK) {
+      const { data: part, error: tagError } = await this.supabase
+        .from('commit_tags')
+        .select('id, commit_id, name')
+        .in('commit_id', chainIds.slice(i, i + ID_FILTER_CHUNK));
+      if (tagError) {
+        throw new InternalServerErrorException(
+          `Failed to fetch commit tags: ${tagError.message}`,
+        );
+      }
+      tagRows.push(...((part ?? []) as typeof tagRows));
+    }
     const tagsByCommit = new Map<string, Array<{ id: string; name: string }>>();
-    for (const t of tagRows ?? []) {
-      const list = tagsByCommit.get(t.commit_id as string) ?? [];
-      list.push({ id: t.id as string, name: t.name as string });
-      tagsByCommit.set(t.commit_id as string, list);
+    for (const t of tagRows) {
+      const list = tagsByCommit.get(t.commit_id) ?? [];
+      list.push({ id: t.id, name: t.name });
+      tagsByCommit.set(t.commit_id, list);
     }
 
-    // chainIds is head-first; walk it to know, for each commit, whether we've
-    // passed the merge-base yet (everything before it is unique to this
-    // branch, everything from it onward is shared/inherited history).
-    let pastMergeBase = isDefaultBranch; // mainline has no "unique vs shared" split
     const commitHistory: CommitInHistory[] = [];
     for (const id of chainIds) {
       const c = byId.get(id)!;
-      if (mergeBase && id === mergeBase) pastMergeBase = true;
+      const inherited = isDefaultBranch || defaultAncestors.has(id);
       commitHistory.push({
         id: c.id,
         branch_id: c.branch_id,
         message: c.message,
         created_at: c.created_at,
-        isUniqueToBranch: !pastMergeBase,
-        isInherited: pastMergeBase,
+        isUniqueToBranch: !inherited,
+        isInherited: inherited,
+        parent_commit_id: c.parent_commit_id,
         author: authorsMap.get(c.author_id) ?? {
           id: c.author_id,
           username: null,
@@ -451,26 +489,69 @@ export class BranchesService {
     }
     await this.verifyUserEditPermission(branch.project_id, userId);
 
-    const { data: commits, error } = await this.supabase
-      .from('commits')
-      .select('id')
-      .eq('branch_id', branchId);
-
-    if (error) {
-      throw new InternalServerErrorException(
-        `Failed to compute delete preview: ${error.message}`,
-      );
-    }
-
-    const unmergedCommitIds = (commits ?? []).map((c) => c.id);
+    const { lostIds } = await this.classifyOwnCommits(branch, false);
 
     return {
       branchId: branch.id,
       branchName: branch.name,
       isDefault: branch.is_default,
-      unmergedCommitsCount: unmergedCommitIds.length,
-      unmergedCommitIds,
+      unmergedCommitsCount: lostIds.length,
+      unmergedCommitIds: lostIds,
     };
+  }
+
+  private async classifyOwnCommits(
+    branch: BranchDbRow,
+    rehomeOnly: boolean,
+  ): Promise<{
+    rehome: Array<{ branchId: string; ids: string[] }>;
+    lostIds: string[];
+  }> {
+    const { data: otherBranches } = await this.supabase
+      .from('branches')
+      .select('id, head_commit_id')
+      .eq('project_id', branch.project_id)
+      .neq('id', branch.id);
+
+    const heads = (otherBranches ?? []).filter(
+      (other: { head_commit_id: string | null }) => !!other.head_commit_id,
+    );
+    if (heads.length === 0 && rehomeOnly) return { rehome: [], lostIds: [] };
+
+    const ownIds: string[] = [];
+    for (let offset = 0; ; offset += HISTORY_PAGE) {
+      const { data: own, error } = await this.supabase
+        .from('commits')
+        .select('id')
+        .eq('branch_id', branch.id)
+        .order('id')
+        .range(offset, offset + HISTORY_PAGE - 1);
+      if (error) {
+        throw new InternalServerErrorException(
+          `Failed to compute delete preview: ${error.message}`,
+        );
+      }
+      ownIds.push(...(own ?? []).map((c: { id: string }) => c.id));
+      if ((own ?? []).length < HISTORY_PAGE) break;
+    }
+    const ownSet = new Set(ownIds);
+    const claimed = new Set<string>();
+    const rehome: Array<{ branchId: string; ids: string[] }> = [];
+
+    const nodes = await this.loadAncestry(
+      heads.map((other) => other.head_commit_id),
+    );
+    for (const other of heads) {
+      if (ownSet.size === claimed.size) break;
+      const reachable = this.reachable(nodes, other.head_commit_id);
+      const shared = reachable.filter(
+        (id) => ownSet.has(id) && !claimed.has(id),
+      );
+      if (shared.length === 0) continue;
+      rehome.push({ branchId: other.id, ids: shared });
+      for (const id of shared) claimed.add(id);
+    }
+    return { rehome, lostIds: ownIds.filter((id) => !claimed.has(id)) };
   }
 
   /**
@@ -503,37 +584,35 @@ export class BranchesService {
       );
     }
 
-    // A fast-forward merge moves another branch's head_commit_id to point at
-    // a commit whose `branch_id` is still THIS branch (a commit's branch_id
-    // never changes once created). The cascade-delete below would then try
-    // to delete that still-referenced commit and hit `branches_head_commit_id_fkey`
-    // (no ON DELETE action — by design, a branch's head must never silently
-    // go null). Re-home any such commit onto the branch that actually needs
-    // it before deleting — this is exactly what POST-2 ("commits already
-    // merged into another branch remain reachable") requires; branch_id is
-    // bookkeeping, not "musical content or message" (BR-41), so this doesn't
-    // touch commit immutability.
-    const { data: otherBranches } = await this.supabase
-      .from('branches')
-      .select('id, head_commit_id')
-      .eq('project_id', branch.project_id)
-      .neq('id', branchId);
+    const { data: openedByMembers, error: membersError } = await this.supabase
+      .from('project_member_active_branches')
+      .select('user_id')
+      .eq('branch_id', branchId)
+      .limit(1);
+    if (membersError) {
+      throw new InternalServerErrorException(
+        `Failed to check who has the branch open: ${membersError.message}`,
+      );
+    }
+    if ((openedByMembers ?? []).length > 0) {
+      throw new ConflictException(
+        'Branch is the working branch of a collaborator',
+      );
+    }
 
-    for (const other of otherBranches ?? []) {
-      if (!other.head_commit_id) continue;
-      const { data: headCommit } = await this.supabase
-        .from('commits')
-        .select('id, branch_id')
-        .eq('id', other.head_commit_id)
-        .single();
-      if (headCommit?.branch_id === branchId) {
+    // A fast-forward merge moves another branch's head_commit_id to point at
+    // a commit whose `branch_id` is still THIS branch; re-home those commits
+    // before the cascade so a branch head never ends up dangling.
+    const { rehome } = await this.classifyOwnCommits(branch, true);
+    for (const group of rehome) {
+      for (let i = 0; i < group.ids.length; i += ID_FILTER_CHUNK) {
         const { error: reassignError } = await this.supabase
           .from('commits')
-          .update({ branch_id: other.id })
-          .eq('id', headCommit.id);
+          .update({ branch_id: group.branchId })
+          .in('id', group.ids.slice(i, i + ID_FILTER_CHUNK));
         if (reassignError) {
           throw new InternalServerErrorException(
-            `Failed to re-home shared commit before deleting branch: ${reassignError.message}`,
+            `Failed to re-home shared commits before deleting branch: ${reassignError.message}`,
           );
         }
       }
@@ -559,7 +638,7 @@ export class BranchesService {
     projectId: string,
     userId: string,
   ): Promise<BranchWithAuthor[]> {
-    await this.verifyUserEditPermission(projectId, userId);
+    await this.access.assertCanView(projectId, userId);
 
     const { data: branches, error } = await this.supabase
       .from('branches')
@@ -577,19 +656,16 @@ export class BranchesService {
     const authorIds = [...new Set((branches ?? []).map((b) => b.created_by))];
     const authorsMap = await this.getAuthorsInfo(authorIds);
 
-    // UC-48: cho client biết branch nào đang mở trong editor. `active_branch_id`
-    // còn NULL (project chưa từng chuyển nhánh) thì branch đang mở là branch
-    // mặc định — cùng quy tắc với `ProjectsService.getActiveBranchForOwner`,
-    // nếu sửa một bên phải sửa cả bên kia.
-    const { data: project } = await this.supabase
-      .from('projects')
-      .select('active_branch_id')
-      .eq('id', projectId)
-      .maybeSingle<{ active_branch_id: string | null }>();
+    // UC-48: cho client biết branch nào đang mở trong editor. Chưa từng chuyển
+    // nhánh thì branch đang mở là branch mặc định — cùng quy tắc với
+    // `ProjectsService.getActiveBranchForUser`, sửa một bên phải sửa cả bên kia.
+    const storedActiveId = await this.activeBranch.getActiveBranchId(
+      projectId,
+      userId,
+    );
     const activeId =
-      project?.active_branch_id &&
-      (branches ?? []).some((b) => b.id === project.active_branch_id)
-        ? project.active_branch_id
+      storedActiveId && (branches ?? []).some((b) => b.id === storedActiveId)
+        ? storedActiveId
         : ((branches ?? []).find((b) => b.is_default)?.id ?? null);
 
     return (branches ?? []).map((branch) => ({
@@ -629,25 +705,11 @@ export class BranchesService {
   // Private Helper Methods
   // ==========================================================================
 
-  private async verifyUserEditPermission(
+  private verifyUserEditPermission(
     projectId: string,
     userId: string,
   ): Promise<void> {
-    const { data: project } = await this.supabase
-      .from('projects')
-      .select('owner_id')
-      .eq('id', projectId)
-      .single();
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.owner_id !== userId) {
-      throw new ForbiddenException(
-        'You do not have edit permission on this project',
-      );
-    }
+    return this.access.assertCanEdit(projectId, userId);
   }
 
   private async projectHasCommits(projectId: string): Promise<boolean> {
@@ -731,6 +793,7 @@ export class BranchesService {
   private async initializeDraftForBranch(
     branchId: string,
     startCommitId: string | null,
+    userId: string,
   ): Promise<void> {
     let snapshot: DraftSnapshot;
 
@@ -749,6 +812,7 @@ export class BranchesService {
     const { error } = await this.supabase.from('drafts').insert({
       id: uuidv4(),
       branch_id: branchId,
+      user_id: userId,
       snapshot,
       updated_at: new Date().toISOString(),
     });
@@ -768,16 +832,18 @@ export class BranchesService {
   private async saveDraft(
     branchId: string,
     draftDto: DraftSnapshotDto,
+    userId: string,
   ): Promise<void> {
     const snapshot = this.normalizeSnapshot(draftDto);
 
     const { error } = await this.supabase.from('drafts').upsert(
       {
         branch_id: branchId,
+        user_id: userId,
         snapshot,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'branch_id' },
+      { onConflict: 'branch_id,user_id' },
     );
 
     if (error) {
@@ -787,12 +853,16 @@ export class BranchesService {
     }
   }
 
-  private async getActiveSnapshot(branchId: string): Promise<DraftSnapshot> {
+  private async getActiveSnapshot(
+    branchId: string,
+    userId: string,
+  ): Promise<DraftSnapshot> {
     const { data: draft } = await this.supabase
       .from('drafts')
       .select('snapshot')
       .eq('branch_id', branchId)
-      .single();
+      .eq('user_id', userId)
+      .maybeSingle();
 
     if (draft) {
       return (draft as DraftDbRow).snapshot;
@@ -839,37 +909,87 @@ export class BranchesService {
     return count ?? 0;
   }
 
-  /**
-   * Walk the `parent_commit_id` chain starting at `startId` (inclusive),
-   * collecting ancestor ids head-first until a commit with no parent is
-   * reached. The chain can cross branch_id boundaries (a branch's earliest
-   * own commit has parent_commit_id pointing at the commit it forked from,
-   * which belongs to a different branch_id) — that's what makes this a real
-   * shared commit graph instead of per-branch-isolated history.
-   */
-  async getAncestorIds(startId: string | null): Promise<string[]> {
-    const ids: string[] = [];
-    let current = startId;
-    let hops = 0;
-    while (current && hops < MAX_CHAIN_HOPS) {
-      ids.push(current);
-      const { data } = await this.supabase
-        .from('commits')
-        .select('parent_commit_id')
-        .eq('id', current)
-        .single();
-      current = data?.parent_commit_id ?? null;
-      hops++;
+  private async loadAncestry(
+    heads: Array<string | null>,
+  ): Promise<Map<string, CommitGraphNode>> {
+    const nodes = new Map<string, CommitGraphNode>();
+    const unique = [...new Set(heads.filter((id): id is string => !!id))];
+    if (unique.length === 0) return nodes;
+
+    const { data, error } = await this.supabase.rpc('commit_ancestry', {
+      p_heads: unique,
+      p_limit: MAX_CHAIN_HOPS + 1,
+    });
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to read commit history: ${error.message}`,
+      );
     }
-    return ids;
+
+    const rows = (data ?? []) as Array<{
+      id: string;
+      parent_commit_id: string | null;
+      merged_from_commit_id: string | null;
+      created_at: string;
+    }>;
+    if (rows.length > MAX_CHAIN_HOPS) {
+      throw new InternalServerErrorException(
+        'Commit history is too large to analyse',
+      );
+    }
+    for (const row of rows) {
+      const parents = [row.parent_commit_id, row.merged_from_commit_id].filter(
+        (id): id is string => !!id,
+      );
+      nodes.set(row.id, { id: row.id, parents, createdAt: row.created_at });
+    }
+    const referenced = [
+      ...unique,
+      ...rows.flatMap((row) => [
+        row.parent_commit_id,
+        row.merged_from_commit_id,
+      ]),
+    ];
+    for (const id of referenced) {
+      if (id && !nodes.has(id))
+        nodes.set(id, { id, parents: [], createdAt: '' });
+    }
+    return nodes;
+  }
+
+  private reachable(
+    nodes: Map<string, CommitGraphNode>,
+    startId: string | null,
+  ): string[] {
+    if (!startId) return [];
+    const order: string[] = [];
+    const seen = new Set<string>();
+    const queue = [startId];
+    while (queue.length > 0 && order.length < MAX_CHAIN_HOPS) {
+      const id = queue.shift()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      order.push(id);
+      for (const parent of nodes.get(id)?.parents ?? []) queue.push(parent);
+    }
+    return order;
   }
 
   /**
-   * Nearest common ancestor of two branch heads — the real merge-base,
-   * computed by walking both parent chains, instead of relying on the
-   * static `branches.base_commit_id` snapshot taken once at branch-creation
-   * time (which goes stale after either branch has since merged elsewhere).
-   * Returns null if the two heads share no ancestor (SRS UC-51 exception 2.E1).
+   * Every commit reachable from `startId` through both `parent_commit_id` and
+   * `merged_from_commit_id`, head first.
+   */
+  async getAncestorIds(startId: string | null): Promise<string[]> {
+    if (!startId) return [];
+    const nodes = await this.loadAncestry([startId]);
+    return this.reachable(nodes, startId);
+  }
+
+  /**
+   * Nearest common ancestor of two branch heads in the commit graph: the
+   * newest common ancestor that is not itself an ancestor of another common
+   * ancestor. Returns null if the two heads share no ancestor (SRS UC-51
+   * exception 2.E1).
    */
   async findMergeBase(
     headA: string | null,
@@ -878,44 +998,44 @@ export class BranchesService {
     if (!headA || !headB) return null;
     if (headA === headB) return headA;
 
-    const ancestorsA = new Set(await this.getAncestorIds(headA));
+    const nodes = await this.loadAncestry([headA, headB]);
+    const ancestorsB = new Set(this.reachable(nodes, headB));
+    const common = this.reachable(nodes, headA).filter((id) =>
+      ancestorsB.has(id),
+    );
+    if (common.length === 0) return null;
 
-    let current: string | null = headB;
-    let hops = 0;
-    while (current && hops < MAX_CHAIN_HOPS) {
-      if (ancestorsA.has(current)) return current;
-      const { data } = await this.supabase
-        .from('commits')
-        .select('parent_commit_id')
-        .eq('id', current)
-        .single();
-      current =
-        (data as { parent_commit_id: string | null } | null)
-          ?.parent_commit_id ?? null;
-      hops++;
+    const commonSet = new Set(common);
+    const dominated = new Set<string>();
+    const queue = common.flatMap((id) => nodes.get(id)?.parents ?? []);
+    while (queue.length > 0) {
+      const id = queue.pop()!;
+      if (dominated.has(id)) continue;
+      dominated.add(id);
+      for (const parent of nodes.get(id)?.parents ?? []) queue.push(parent);
     }
-    return null;
+    const candidates = common.filter(
+      (id) => commonSet.has(id) && !dominated.has(id),
+    );
+    candidates.sort((x, y) =>
+      (nodes.get(y)?.createdAt ?? '').localeCompare(
+        nodes.get(x)?.createdAt ?? '',
+      ),
+    );
+    return candidates[0] ?? null;
   }
 
-  /** Number of commits strictly between `headId` and `stopId` (exclusive of stopId), walking parent_commit_id. */
-  private async countCommitsUntil(
-    headId: string | null,
-    stopId: string | null,
-  ): Promise<number> {
-    let count = 0;
-    let current = headId;
-    let hops = 0;
-    while (current && current !== stopId && hops < MAX_CHAIN_HOPS) {
-      count++;
-      const { data } = await this.supabase
-        .from('commits')
-        .select('parent_commit_id')
-        .eq('id', current)
-        .single();
-      current = data?.parent_commit_id ?? null;
-      hops++;
+  private async countOwnCommits(branchId: string): Promise<number> {
+    const { count, error } = await this.supabase
+      .from('commits')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', branchId);
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to read branch commits: ${error.message}`,
+      );
     }
-    return count;
+    return count ?? 0;
   }
 
   private async calculateDivergence(
@@ -926,29 +1046,31 @@ export class BranchesService {
       return { ahead: 0, behind: 0 };
     }
 
-    const mergeBase = await this.findMergeBase(
+    const nodes = await this.loadAncestry([
       branch.head_commit_id,
       defaultBranch.head_commit_id,
+    ]);
+    const onBranch = new Set(this.reachable(nodes, branch.head_commit_id));
+    const onDefault = new Set(
+      this.reachable(nodes, defaultBranch.head_commit_id),
     );
 
-    const ahead = await this.countCommitsUntil(
-      branch.head_commit_id,
-      mergeBase,
-    );
-    const behind = await this.countCommitsUntil(
-      defaultBranch.head_commit_id,
-      mergeBase,
-    );
-
+    let ahead = 0;
+    for (const id of onBranch) if (!onDefault.has(id)) ahead++;
+    let behind = 0;
+    for (const id of onDefault) if (!onBranch.has(id)) behind++;
     return { ahead, behind };
   }
 
-  private async getAuthorInfo(userId: string): Promise<{
+  private async getAuthorInfo(userId: string | null): Promise<{
     id: string;
     username: string | null;
     display_name: string | null;
     avatar_url: string | null;
   }> {
+    if (!userId) {
+      return { id: '', username: null, display_name: null, avatar_url: null };
+    }
     const { data: user } = await this.supabase
       .from('users')
       .select('id, username, display_name, avatar_url')
@@ -974,6 +1096,7 @@ export class BranchesService {
       }
     >
   > {
+    userIds = userIds.filter((id) => !!id);
     if (userIds.length === 0) {
       return new Map();
     }
@@ -1006,7 +1129,7 @@ export class BranchesService {
 
   private normalizeSnapshot(dto: DraftSnapshotDto): DraftSnapshot {
     return {
-      schemaVersion: dto.schemaVersion ?? 1,
+      schemaVersion: dto.schemaVersion ?? DRAFT_SCHEMA_VERSION,
       meta: dto.meta ?? { tempo: 120, timeSignature: [4, 4], ppq: 480 },
       tracks: (dto.tracks ?? []).map((t) => ({
         id: t.id ?? uuidv4(),

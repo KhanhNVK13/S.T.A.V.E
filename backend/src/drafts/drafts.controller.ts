@@ -23,6 +23,11 @@ export class DraftsController {
     return this.draftsService.getDraft(id, req.user.id);
   }
 
+  @Get('draft/recovery')
+  getRecovery(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.draftsService.getRecovery(id, req.user.id);
+  }
+
   @Put('draft')
   putDraft(
     @Req() req: AuthenticatedRequest,

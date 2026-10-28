@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -43,6 +45,8 @@ export interface AudioSketchResponse extends AudioSketchRow {
 
 @Injectable()
 export class AudioSketchesService {
+  private readonly logger = new Logger(AudioSketchesService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
@@ -60,12 +64,17 @@ export class AudioSketchesService {
   ): Promise<void> {
     const { data: project, error } = await this.supabase
       .from('projects')
-      .select('owner_id')
+      .select('owner_id, archived_at')
       .eq('id', projectId)
-      .maybeSingle<{ owner_id: string }>();
+      .maybeSingle<{ owner_id: string; archived_at: string | null }>();
 
     if (error) throw new InternalServerErrorException('Could not read project');
     if (!project) throw new NotFoundException('Project not found');
+    if (project.archived_at) {
+      throw new ConflictException(
+        'Archived projects are read-only. Restore the project first',
+      );
+    }
     if (project.owner_id === userId) return;
 
     const { data: collab } = await this.supabase
@@ -129,9 +138,7 @@ export class AudioSketchesService {
       dto.durationSec > MAX_SKETCH_DURATION_SEC ||
       dto.sizeBytes > MAX_SKETCH_SIZE_BYTES
     ) {
-      throw new BadRequestException(
-        'Audio sketch tối đa 3 phút và 20MB',
-      );
+      throw new BadRequestException('Audio sketch tối đa 3 phút và 20MB');
     }
 
     const sketchId = randomUUID();
@@ -232,6 +239,83 @@ export class AudioSketchesService {
       rows.map((r) => this.signPlayback(r.file_url)),
     );
     return rows.map((row, i) => ({ ...row, playbackUrl: urls[i] }));
+  }
+
+  async remove(
+    projectId: string,
+    sketchId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.assertCanEdit(projectId, userId);
+
+    const { data: sketch, error: readError } = await this.supabase
+      .from('audio_sketches')
+      .select('*')
+      .eq('id', sketchId)
+      .eq('project_id', projectId)
+      .maybeSingle<AudioSketchRow>();
+
+    if (readError) {
+      throw new InternalServerErrorException('Could not read audio sketch');
+    }
+    if (!sketch) throw new NotFoundException('Audio sketch not found');
+
+    const { error: deleteError } = await this.supabase
+      .from('audio_sketches')
+      .delete()
+      .eq('id', sketchId)
+      .eq('project_id', projectId);
+
+    if (deleteError) {
+      throw new InternalServerErrorException('Could not delete audio sketch');
+    }
+
+    const { error: storageError } = await this.supabase.storage
+      .from(BUCKET)
+      .remove([sketch.file_url]);
+
+    if (storageError) {
+      const { error: restoreError } = await this.supabase
+        .from('audio_sketches')
+        .insert(sketch);
+      if (restoreError) {
+        this.logger.error(
+          `Could not restore audio sketch ${sketchId}: ${restoreError.message}`,
+        );
+      }
+      throw new InternalServerErrorException('Could not delete audio sketch');
+    }
+  }
+
+  async purgeProjectFiles(projectIds: string[]): Promise<void> {
+    const pageSize = 1000;
+    for (const projectId of projectIds) {
+      try {
+        let more = true;
+        while (more) {
+          const { data: files } = await this.supabase.storage
+            .from(BUCKET)
+            .list(projectId, { limit: pageSize });
+          const paths = (files ?? []).map((f) => `${projectId}/${f.name}`);
+          if (paths.length > 0) {
+            const { error } = await this.supabase.storage
+              .from(BUCKET)
+              .remove(paths);
+            if (error) {
+              this.logger.warn(
+                `Could not purge audio sketch files of project ${projectId}: ${error.message}`,
+              );
+              break;
+            }
+          }
+          more = paths.length === pageSize;
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Could not purge audio sketch files of project ${projectId}: ${String(err)}`,
+        );
+      }
+    }
   }
 
   /** Bucket là private nên mọi lần nghe đều cần link ký lại. */

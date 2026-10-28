@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import {
   createSupabaseMock,
   type SupabaseMockOptions,
@@ -28,7 +29,9 @@ const userRow: UserRow = {
 
 function makeService(tables: SupabaseMockOptions['tables'] = {}) {
   const mock = createSupabaseMock([], { tables });
-  const service = new UsersService(mock.client);
+  const service = new UsersService(mock.client, {
+    getOrThrow: () => 'https://project.supabase.co',
+  } as unknown as ConfigService);
   return { service, ...mock };
 }
 
@@ -352,5 +355,94 @@ describe('BE-USR-04 UsersService.setPresetTheme(userId, presetKey)', () => {
       type: 'preset',
       preset_key: 'claret',
     });
+  });
+});
+
+describe('BE-USR-05 UsersService avatar upload', () => {
+  const fileName = '33333333-3333-4333-8333-333333333333.webp';
+  const path = `${userId}/${fileName}`;
+
+  function makeAvatarService(
+    storage: Record<string, unknown>,
+    tables: SupabaseMockOptions['tables'] = {},
+  ) {
+    const mock = createSupabaseMock([], {
+      tables,
+      storage: { avatars: storage as never },
+    });
+    const service = new UsersService(mock.client, {
+      getOrThrow: () => 'https://project.supabase.co',
+    } as unknown as ConfigService);
+    return { service, ...mock };
+  }
+
+  it('UTCID01 creates a signed upload URL under the user folder', async () => {
+    const { service } = makeAvatarService(
+      { createSignedUploadUrl: { data: { token: 'tok' } } },
+      { users: [{ data: { avatar_url: null } }] },
+    );
+
+    const result = await service.createAvatarUploadUrl(userId, 'image/webp');
+
+    expect(result.token).toBe('tok');
+    expect(result.path).toMatch(new RegExp(`^${userId}/[0-9a-f-]{36}[.]webp$`));
+  });
+
+  it('UTCID02 rejects a confirm for a path outside the user folder', async () => {
+    const { service } = makeAvatarService({});
+
+    await expect(
+      service.confirmAvatar(userId, `other-user/${fileName}`),
+    ).rejects.toThrow(new BadRequestException('Invalid avatar path'));
+  });
+
+  it('UTCID03 rejects a confirm when the file was never uploaded', async () => {
+    const { service } = makeAvatarService({ list: { data: [] } });
+
+    await expect(service.confirmAvatar(userId, path)).rejects.toThrow(
+      new BadRequestException('Avatar file was not uploaded'),
+    );
+  });
+
+  it('UTCID04 removes and rejects a file above 2 MB', async () => {
+    const { service, storage } = makeAvatarService({
+      list: { data: [{ name: fileName, metadata: { size: 3 * 1024 * 1024 } }] },
+      remove: { data: [] },
+    });
+
+    await expect(service.confirmAvatar(userId, path)).rejects.toThrow(
+      new BadRequestException('Avatar file is too large'),
+    );
+    expect(storage.from).toHaveBeenCalledWith('avatars');
+  });
+
+  it('UTCID05 saves the public URL and removes older avatars', async () => {
+    const { service, builders } = makeAvatarService(
+      {
+        list: [
+          { data: [{ name: fileName, metadata: { size: 40_000 } }] },
+          { data: [{ name: fileName }, { name: 'old.png' }] },
+        ],
+        remove: { data: [] },
+      },
+      { users: [{ data: { ...userRow, avatar_url: 'x' } }] },
+    );
+
+    await service.confirmAvatar(userId, path);
+
+    expect(builders.users.update).toHaveBeenCalledWith({
+      avatar_url: `https://project.supabase.co/storage/v1/object/public/avatars/${path}`,
+    });
+  });
+
+  it('UTCID06 clears the avatar column when removing', async () => {
+    const { service, builders } = makeAvatarService(
+      { list: { data: [{ name: 'old.png' }] }, remove: { data: [] } },
+      { users: [{ data: { ...userRow, avatar_url: null } }] },
+    );
+
+    await service.removeAvatar(userId);
+
+    expect(builders.users.update).toHaveBeenCalledWith({ avatar_url: null });
   });
 });

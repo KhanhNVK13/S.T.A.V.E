@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
-import { CustomSoundsModule } from '../custom-sounds/custom-sounds.module';
+import { AccountRemovalModule } from '../account-removal/account-removal.module';
 
 @Module({
-  imports: [CustomSoundsModule],
+  imports: [AccountRemovalModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

@@ -3,6 +3,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { User } from '@supabase/supabase-js';
 import { createSupabaseMock } from '../test-utils/supabase-mock';
 import type { UserRow } from '../users/user-row.type';
+import type { AccountRemovalService } from '../account-removal/account-removal.service';
 import { AuthService } from './auth.service';
 
 function makeUser(overrides: Partial<User> = {}): User {
@@ -16,7 +17,11 @@ function makeUser(overrides: Partial<User> = {}): User {
 
 function makeService(results: Parameters<typeof createSupabaseMock>[0]) {
   const mock = createSupabaseMock(results);
-  const service = new AuthService(mock.client, {} as ConfigService);
+  const service = new AuthService(
+    mock.client,
+    {} as ConfigService,
+    {} as AccountRemovalService,
+  );
   return { service, ...mock };
 }
 
