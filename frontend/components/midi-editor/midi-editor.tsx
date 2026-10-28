@@ -27,7 +27,7 @@ import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { GridDivision, PianoRollHandle, ToolMode } from "./piano-roll";
 import { EditorRedesign } from "./redesign/editor-redesign";
-import { getDraft, getDraftRecovery, putDraft, resolveProjectCustomSounds } from "../../lib/api-client";
+import { getDraft, getDraftRecovery, isDraftStaleError, putDraft, resolveProjectCustomSounds } from "../../lib/api-client";
 import type { ResolvedCustomSound } from "../../lib/api-client";
 import { collectSoundIds, loadCustomSoundBuffers } from "../../lib/custom-sound-buffers";
 import { isDialogOpen } from "../../lib/use-dialog";
@@ -35,6 +35,9 @@ import { APP_LOCALE } from "../../lib/format-date";
 import { parseMidiBuffer } from "../../lib/midi-parser";
 import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
+import { Dialog, DialogActions, DialogError } from "../ui/dialog";
+import { Button } from "../ui/button";
+import { apiErrorMessage } from "../../lib/error-message";
 import { Toast, type ToastVariant } from "../ui/toast";
 import { buildClipboard, describePaste, pastePattern, type PatternClipboard } from "../../lib/paste-pattern";
 import { getPatternClipboard, setPatternClipboard } from "../../lib/pattern-clipboard";
@@ -81,6 +84,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [saveRetryInSec, setSaveRetryInSec] = useState<number | null>(null);
+  const [draftConflict, setDraftConflict] = useState(false);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
+  const draftConflictRef = useRef(false);
+  const draftVersionRef = useRef<string | null | undefined>(undefined);
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const versionSyncRef = useRef<Promise<unknown>>(Promise.resolve());
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [tool, setTool] = useState<ToolMode>("pencil");
   const [gridDivision, setGridDivision] = useState<GridDivision>(16);
@@ -268,24 +279,23 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // ── Load draft on mount ─────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    getDraft(projectId)
-      .then((snap) => {
+    getDraftRecovery(projectId)
+      .then((recovery) => getDraft(projectId).then((snap) => ({ snap, recovery })))
+      .then(({ snap, recovery }) => {
         if (cancelled) return;
+        draftVersionRef.current = recovery.version;
         setSnapshot(snap);
         setLoadError(null);
         if (snap.tracks.length > 0) {
           setSelectedTrackId(snap.tracks[0].id);
         }
-        getDraftRecovery(projectId)
-          .then((recovery) => {
-            if (cancelled || !recovery.recovered || !recovery.savedAt) return;
-            const savedAt = new Date(recovery.savedAt).toLocaleString(APP_LOCALE);
-            setEditorToast({
-              message: `Đã khôi phục các thay đổi chưa commit, lưu lúc ${savedAt}.`,
-              variant: "info",
-            });
-          })
-          .catch(() => {});
+        if (recovery.recovered && recovery.savedAt) {
+          const savedAt = new Date(recovery.savedAt).toLocaleString(APP_LOCALE);
+          setEditorToast({
+            message: `Đã khôi phục các thay đổi chưa commit, lưu lúc ${savedAt}.`,
+            variant: "info",
+          });
+        }
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -386,7 +396,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       mountedRef.current = false;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       if (saveStatusRef.current !== "saved") {
-        putDraft(projectId, snapshotRef.current).catch(() => {});
+        void saveChainRef.current
+          .catch(() => undefined)
+          .then(() => versionSyncRef.current)
+          .then(() => putDraft(projectId, snapshotRef.current, draftVersionRef.current))
+          .catch(() => {});
       }
     };
   }, [projectId]);
@@ -443,23 +457,59 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     saveTimerRef.current = setTimeout(() => void run(), delay);
   }, []);
 
+  const persistDraft = useCallback(
+    (snap: DraftSnapshot) => {
+      const run = saveChainRef.current
+        .catch(() => undefined)
+        .then(() => versionSyncRef.current)
+        .then(async () => {
+          const { version } = await putDraft(projectId, snap, draftVersionRef.current);
+          draftVersionRef.current = version;
+        });
+      saveChainRef.current = run;
+      return run;
+    },
+    [projectId],
+  );
+
+  const markDraftConflict = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    saveAttemptRef.current = 0;
+    setSaveRetryInSec(null);
+    setSaveStatus("error");
+    if (!draftConflictRef.current) {
+      draftConflictRef.current = true;
+      setDraftConflict(true);
+      setConflictError(null);
+      setConflictDialogOpen(true);
+    }
+  }, []);
+
   const runSave = useCallback(async function run(): Promise<void> {
     saveTimerRef.current = null;
     const version = editVersionRef.current;
     setSaveStatus("saving");
     try {
-      await putDraft(projectId, snapshotRef.current);
+      await persistDraft(snapshotRef.current);
       if (!mountedRef.current) return;
       setLastSavedAt(new Date());
       if (editVersionRef.current !== version) return;
       saveAttemptRef.current = 0;
       setSaveRetryInSec(null);
       setSaveStatus("saved");
-    } catch {
-      if (!mountedRef.current || editVersionRef.current !== version) return;
+    } catch (err) {
+      if (!mountedRef.current) return;
+      if (isDraftStaleError(err)) {
+        markDraftConflict();
+        return;
+      }
+      if (editVersionRef.current !== version) return;
       scheduleRetry(run);
     }
-  }, [projectId, scheduleRetry]);
+  }, [persistDraft, markDraftConflict, scheduleRetry]);
 
   const scheduleSave = useCallback(
     (snap: DraftSnapshot) => {
@@ -469,6 +519,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       setSaveRetryInSec(null);
       setSaveStatus((s) => (s === "error" ? "error" : "unsaved"));
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (draftConflictRef.current) {
+        saveTimerRef.current = null;
+        return;
+      }
       saveTimerRef.current = setTimeout(() => void runSave(), 2000);
     },
     [runSave],
@@ -476,8 +530,37 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   const retrySaveNow = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if (draftConflictRef.current) {
+      setConflictDialogOpen(true);
+      return;
+    }
     void runSave();
   }, [runSave]);
+
+  const clearDraftConflict = useCallback(() => {
+    draftConflictRef.current = false;
+    setDraftConflict(false);
+    setConflictDialogOpen(false);
+    setConflictError(null);
+  }, []);
+
+  const overwriteWithMine = useCallback(async () => {
+    setConflictBusy(true);
+    setConflictError(null);
+    try {
+      draftVersionRef.current = undefined;
+      await persistDraft(snapshotRef.current);
+      setLastSavedAt(new Date());
+      saveAttemptRef.current = 0;
+      setSaveRetryInSec(null);
+      setSaveStatus("saved");
+      clearDraftConflict();
+    } catch (err) {
+      setConflictError(apiErrorMessage(err, "Không ghi đè được bản nháp."));
+    } finally {
+      setConflictBusy(false);
+    }
+  }, [persistDraft, clearDraftConflict]);
 
   function updateSnapshot(next: DraftSnapshot) {
     // Chỉ ghi 1 điểm khôi phục ở lần gọi ĐẦU của mỗi "đợt" thay đổi liên tiếp
@@ -555,7 +638,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     const version = editVersionRef.current;
     setSaveStatus("saving");
     try {
-      await putDraft(projectId, snapshotRef.current);
+      await persistDraft(snapshotRef.current);
       setLastSavedAt(new Date());
       if (editVersionRef.current === version) {
         saveAttemptRef.current = 0;
@@ -563,10 +646,11 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         setSaveStatus("saved");
       }
     } catch (err) {
-      scheduleRetry(runSave);
+      if (isDraftStaleError(err)) markDraftConflict();
+      else scheduleRetry(runSave);
       throw err;
     }
-  }, [projectId, runSave, scheduleRetry]);
+  }, [persistDraft, markDraftConflict, runSave, scheduleRetry]);
 
   /**
    * UC-48: đọc bản nháp đang mở tại đúng thời điểm gọi, để gửi kèm lời gọi
@@ -611,7 +695,29 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     saveAttemptRef.current = 0;
     setSaveRetryInSec(null);
     setSaveStatus("saved");
-  }, []);
+    draftConflictRef.current = false;
+    setDraftConflict(false);
+    setConflictDialogOpen(false);
+    draftVersionRef.current = undefined;
+    versionSyncRef.current = getDraftRecovery(projectId)
+      .then((recovery) => {
+        if (mountedRef.current) draftVersionRef.current = recovery.version;
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  const reloadDraftFromServer = useCallback(async () => {
+    setConflictBusy(true);
+    setConflictError(null);
+    try {
+      const snap = await getDraft(projectId);
+      applyRestoredSnapshot(snap);
+    } catch (err) {
+      setConflictError(apiErrorMessage(err, "Không nạp lại được bản nháp."));
+    } finally {
+      setConflictBusy(false);
+    }
+  }, [projectId, applyRestoredSnapshot]);
 
   // ── Note changes ────────────────────────────────────────────
   function handleNotesChange(notes: DraftNote[]) {
@@ -1412,6 +1518,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         saveRetryInSec={saveRetryInSec}
         lastSavedAt={lastSavedAt}
         onRetrySave={retrySaveNow}
+        draftConflict={draftConflict}
         onFlushDraft={flushDraft}
         onReadSnapshot={readSnapshot}
         onSnapshotRestored={applyRestoredSnapshot}
@@ -1436,6 +1543,36 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           onDismiss={dismissEditorToast}
         />
       )}
+      <Dialog
+        open={conflictDialogOpen}
+        title="Bản nháp đã thay đổi ở tab khác"
+        onClose={() => setConflictDialogOpen(false)}
+        closeDisabled={conflictBusy}
+      >
+        <p className="mb-4 text-sm text-muted">
+          Bản nháp của nhánh này vừa được lưu từ một tab hoặc cửa sổ khác. Tự lưu đã tạm dừng để
+          không ghi đè lên nhau. Bạn chọn một trong hai cách:
+        </p>
+        <ul className="mb-4 list-disc space-y-1 pl-5 text-sm text-muted">
+          <li>
+            <strong className="text-foreground">Nạp lại bản mới</strong>: lấy bản nháp từ máy chủ;
+            các thay đổi chưa lưu ở tab này sẽ mất.
+          </li>
+          <li>
+            <strong className="text-foreground">Ghi đè bằng bản của tôi</strong>: giữ bản ở tab này;
+            các thay đổi vừa lưu ở tab kia sẽ mất.
+          </li>
+        </ul>
+        <DialogError message={conflictError} />
+        <DialogActions>
+          <Button variant="secondary" disabled={conflictBusy} onClick={() => void reloadDraftFromServer()}>
+            Nạp lại bản mới
+          </Button>
+          <Button variant="danger" disabled={conflictBusy} onClick={() => void overwriteWithMine()}>
+            Ghi đè bằng bản của tôi
+          </Button>
+        </DialogActions>
+      </Dialog>
       <ConfirmDialog
         open={confirmEmptyExport}
         title="Xuất file MIDI trống?"
