@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Put,
   Req,
@@ -33,7 +34,13 @@ export class DraftsController {
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: UpdateDraftDto,
+    @Headers('x-draft-version') expectedVersion?: string,
   ) {
-    return this.draftsService.putDraft(id, req.user.id, dto);
+    return this.draftsService.putDraft(
+      id,
+      req.user.id,
+      dto,
+      expectedVersion || undefined,
+    );
   }
 }
