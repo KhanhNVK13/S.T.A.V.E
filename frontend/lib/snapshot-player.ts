@@ -1,9 +1,8 @@
 import * as Tone from "tone";
 import type { DraftSnapshot } from "@stave/shared-types";
+import { startNoteScheduler } from "./note-scheduler";
 import { createVoiceCache, disposeVoiceCache, prepareVoices, triggerNotes } from "./tone-synth-engine";
 
-const LOOKAHEAD_SEC = 0.15;
-const SCHEDULE_INTERVAL_MS = 50;
 const TAIL_SEC = 0.6;
 
 /**
@@ -19,7 +18,7 @@ export class SnapshotPlayer {
   private context: Tone.Context | null = null;
   private gain: Tone.Gain | null = null;
   private limiter: Tone.Limiter | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private stopScheduler: (() => void) | null = null;
 
   async play(
     snapshot: DraftSnapshot,
@@ -45,47 +44,41 @@ export class SnapshotPlayer {
     if (this.session !== mine) return true;
 
     const { tempo, ppq } = snapshot.meta;
-    const secPerTick = 60 / (tempo * ppq);
-    const endTick = Math.max(...snapshot.notes.map((n) => n.start + n.duration));
     const startTime = Tone.now() + 0.1;
-    let scheduledUpTo = 0;
-
-    const tick = () => {
-      if (this.session !== mine) return;
-      const now = Tone.now();
-      const target = Math.min(endTick, Math.ceil((now + LOOKAHEAD_SEC - startTime) / secPerTick));
-      if (target > scheduledUpTo) {
+    this.stopScheduler = startNoteScheduler({
+      now: () => Tone.now(),
+      startTime,
+      fromTick: 0,
+      endTick: Math.max(...snapshot.notes.map((n) => n.start + n.duration)),
+      secPerTick: 60 / (tempo * ppq),
+      schedule: (fromTick, toTick) =>
         triggerNotes({
           notes: snapshot.notes,
           tracks: snapshot.tracks,
           ppq,
           bpm: tempo,
           startTime,
-          fromTick: scheduledUpTo,
-          toTick: target,
+          fromTick,
+          toTick,
           anchorTick: 0,
           voiceByTrack: voices,
           customBuffers,
-        });
-        scheduledUpTo = target;
-      }
-      if (now >= startTime + endTick * secPerTick + TAIL_SEC) {
-        this.stop();
-        onEnd();
-        return;
-      }
-      this.timer = setTimeout(tick, SCHEDULE_INTERVAL_MS);
-    };
-    tick();
+        }),
+      onEnd: {
+        afterSec: TAIL_SEC,
+        run: () => {
+          this.stop();
+          onEnd();
+        },
+      },
+    });
     return true;
   }
 
   stop(): void {
     this.session += 1;
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+    this.stopScheduler?.();
+    this.stopScheduler = null;
     disposeVoiceCache(this.cache);
     this.gain?.dispose();
     this.limiter?.dispose();

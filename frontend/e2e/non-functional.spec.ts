@@ -212,10 +212,6 @@ test.describe("Non-functional requirements", () => {
   test("NFR-015 two tabs editing the same project do not overwrite each other silently", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID110: the second tab is told to reload, but its autosave has already replaced the shared draft, so after reloading and committing the note committed from the first tab is gone from the latest version",
-    );
     const actor = await makeActor();
     const { id, branchId } = await songWithCommit(actor, [{ id: "n1", pitch: 60 }]);
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -230,12 +226,14 @@ test.describe("Non-functional requirements", () => {
     await expect(await commitThroughUi(page, "Tab one note")).toHaveCount(0);
 
     await drawNotes(tab2, [2 * BAR], 67);
-    const dialog = await commitThroughUi(tab2, "Tab two note");
-    await expect(dialog.getByText(/commit mới từ nơi khác|tải lại trang/i)).toBeVisible();
-
-    await tab2.reload();
-    await tab2.getByRole("button", { name: /^File$/ }).waitFor();
-    await tab2.waitForLoadState("networkidle");
+    const conflict = tab2.getByRole("dialog", {
+      name: /bản nháp đã thay đổi ở tab khác/i,
+    });
+    await expect(conflict).toBeVisible(saved);
+    await conflict.getByRole("button", { name: /nạp lại bản mới/i }).click();
+    await expect(conflict).toBeHidden();
+    await drawNotes(tab2, [2 * BAR], 67);
+    await expect(tab2.getByText("Đã lưu nháp").first()).toBeVisible(saved);
     await expect(await commitThroughUi(tab2, "Tab two note")).toHaveCount(0);
 
     const history = await actor.api.history(branchId);
@@ -243,6 +241,36 @@ test.describe("Non-functional requirements", () => {
     const latest = await actor.api.commitSnapshot(history[0].id);
     const pitches = latest.notes.map((n) => n.pitch).sort();
     expect(pitches).toEqual([60, 64, 67]);
+  });
+
+  test("NFR-015 switching branch refuses to overwrite a draft saved from another tab", async () => {
+    const actor = await makeActor();
+    const { id, branchId } = await songWithCommit(actor, [{ id: "n1", pitch: 60 }]);
+    const side = await actor.api.createBranch(id, "side");
+    const recovery = () =>
+      actor.api.call("GET", `/projects/${id}/draft/recovery`) as Promise<{
+        version: string | null;
+      }>;
+    const seen = await recovery();
+    await actor.api.putDraft(id, [{ id: "n9", pitch: 70 }]);
+    const switchWith = (version: string | null) =>
+      actor.api.call("POST", "/branches/switch", {
+        currentBranchId: branchId,
+        targetBranchId: side.id,
+        currentDraft: snapshotOf([{ id: "n1", pitch: 60 }]),
+        expectedDraftVersion: version ?? "none",
+      });
+    await expect(switchWith(seen.version)).rejects.toThrow(/-> 409 .*DRAFT_STALE/);
+    const draft = (await actor.api.call("GET", `/projects/${id}/draft`)) as {
+      notes: { pitch: number }[];
+    };
+    expect(draft.notes.map((n) => n.pitch)).toEqual([70]);
+    const result = (await switchWith((await recovery()).version)) as {
+      branch: { id: string };
+      activeDraftVersion: string | null;
+    };
+    expect(result.branch.id).toBe(side.id);
+    expect(typeof result.activeDraftVersion).toBe("string");
   });
 
   test("NFR-018 API endpoints enforce roles when called directly", async () => {
@@ -389,7 +417,7 @@ test.describe("Non-functional requirements", () => {
     await tabTo(page, page.locator('input[type="password"]'));
     await page.keyboard.type(actor.user.password);
     await page.keyboard.press("Enter");
-    await page.waitForURL((url) => url.pathname === "/");
+    await page.waitForURL((url) => url.pathname !== "/login");
     await page.waitForFunction(() => Boolean(window.localStorage.getItem("stave_session_id")));
 
     await page.goto("/projects");
@@ -535,10 +563,6 @@ test.describe("Non-functional requirements", () => {
   test("NFR-039 file type and size are validated on the server even when the client check is bypassed", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID076: MIDI files are only read in the browser and have no type or size check anywhere; a 6 MB file and an .exe renamed to .mid reach the importer and no message is shown",
-    );
     const actor = await makeActor();
     const env = requireTestEnv();
     const storage = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY).storage;

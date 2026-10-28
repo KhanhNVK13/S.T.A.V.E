@@ -129,10 +129,6 @@ test.describe("MIDI import and export", () => {
   test("EDT-003 rejects a file that is not .mid or .midi before parsing", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID076: the import has no file type or size check; a file of another type is handed to the parser and no message is shown",
-    );
     const { api, id } = await seedProject(page);
     await openEditor(page, id);
     const before = (await draftNotes(api, id)).length;
@@ -150,10 +146,6 @@ test.describe("MIDI import and export", () => {
   test("EDT-004 rejects a MIDI file larger than 5 MB before parsing", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID076: the import has no file type or size check; a 6 MB file is parsed and imported and no message states the 5 MB limit",
-    );
     const { api, id } = await seedProject(page);
     await openEditor(page, id);
     await importFile(page, {
@@ -174,10 +166,6 @@ test.describe("MIDI import and export", () => {
   test("EDT-005 reports a corrupt .mid file as unreadable and imports nothing", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID077: a corrupt file makes the import fail silently with an unhandled error; the editor shows no message",
-    );
     const { api, id } = await seedProject(page);
     await openEditor(page, id);
     const errors: string[] = [];
@@ -198,10 +186,6 @@ test.describe("MIDI import and export", () => {
   test("API: importing a file recorded at 960 PPQ keeps the note positions", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID075: the importer converts time with the file's PPQ but stores the notes under the project's PPQ, so a 960 PPQ file lands at twice the source position",
-    );
     const { api, id } = await seedProject(page);
     await openEditor(page, id);
     await importFile(page, {
@@ -303,10 +287,6 @@ test.describe("MIDI import and export", () => {
   test("EDT-094 asks for confirmation before exporting a project without notes", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID079: exporting a project without notes downloads an empty file at once and never warns",
-    );
     const { id } = await seedProject(page, { notes: false });
     await openEditor(page, id);
     const pending = page

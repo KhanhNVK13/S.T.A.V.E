@@ -81,6 +81,20 @@ export async function scrollGrid(
   return grid(page);
 }
 
+export async function velocityLaneBox(
+  page: Page,
+): Promise<{ top: number; height: number }> {
+  return page.evaluate(() => {
+    const canvas = Array.from(document.querySelectorAll("canvas")).find((c) => {
+      const r = c.getBoundingClientRect();
+      return r.height > 40 && r.height < 200 && r.width > 200;
+    });
+    if (!canvas) throw new Error("velocity lane canvas not found");
+    const r = canvas.getBoundingClientRect();
+    return { top: r.top, height: r.height };
+  });
+}
+
 export function point(g: Grid, tick: number, pitch: number) {
   return {
     x: g.left + KEY_WIDTH + tick * g.pxPerTick - g.scrollLeft,

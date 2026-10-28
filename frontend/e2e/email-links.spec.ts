@@ -107,7 +107,9 @@ test.describe("Account email links", () => {
       const context = await browser.newContext();
       const page = await context.newPage();
       await openVerification(page, link);
-      const alert = page.getByRole("alert").filter({ hasText: "Không đăng nhập được" });
+      const alert = page
+        .getByRole("alert")
+        .filter({ hasText: /Không đăng nhập được|Liên kết không còn dùng được/ });
       await expect(alert).toBeVisible();
       messages.push(await alert.innerText());
       await context.close();
@@ -120,10 +122,6 @@ test.describe("Account email links", () => {
   test("AUTH-019 shows a neutral message when the link is opened for an already verified account", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID056: the link of an already verified account gets the same error as an invalid link; no neutral message says the address is already confirmed",
-    );
     const pending = await pendingWithLink("done");
     await admin().auth.admin.updateUserById(pending.id, { email_confirm: true });
     await openVerification(page, pending.link);

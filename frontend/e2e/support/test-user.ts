@@ -247,7 +247,7 @@ export async function loginThroughUi(page: Page, user: E2eUser): Promise<void> {
   await page.locator('input[name="email"]').fill(user.email);
   await page.locator('input[name="password"]').fill(user.password);
   await page.locator('form button[type="submit"]').click();
-  await page.waitForURL((url) => url.pathname === "/");
+  await page.waitForURL((url) => url.pathname !== "/login");
   await page.waitForFunction(() =>
     Boolean(window.localStorage.getItem("stave_session_id")),
   );

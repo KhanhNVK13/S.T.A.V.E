@@ -184,10 +184,6 @@ test.describe("Branch management, further cases", () => {
   test("BRN-012 loads the latest commit of a branch that has no saved draft and offers no commit", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID024: with a draft equal to the latest commit the Commit Changes action stays enabled",
-    );
     const { api, id } = await build(page, ["Try new chorus"]);
     await openEditorFor(page, id, "Change chorus");
     await chooseBranch(page, "alt-chorus");
@@ -223,10 +219,6 @@ test.describe("Branch management, further cases", () => {
   test("BRN-016 shows the branch list with counts and the details of a branch", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID036: the branch screen has no graph and a branch row cannot be expanded to show its starting point, latest commit and author",
-    );
     const { id } = await build(page, ["Try new chorus", "Bridge idea"]);
     await openTab(page, id, "branches");
     const main = page.locator("div").filter({ hasText: /^main\s*Mặc định/ });
@@ -234,16 +226,18 @@ test.describe("Branch management, further cases", () => {
     await expect(page.getByText("Đang mở")).toBeVisible();
     await expect(page.getByText("+2")).toBeVisible();
     await expect(page.getByText("-1", { exact: true }).first()).toBeVisible();
-    await page.getByText("alt-chorus", { exact: true }).click();
-    await expect(page.getByText("Add drums")).toBeVisible();
-    await expect(page.getByText("Bridge idea")).toBeVisible();
+    const graph = page.getByRole("region", { name: "Đồ thị nhánh" });
+    await expect(graph).toContainText("alt-chorus");
+    await expect(graph).toContainText("Bridge idea");
+    await page
+      .getByRole("button", { name: /xem chi tiết nhánh alt-chorus/i })
+      .click();
+    const details = page.locator("dl").last();
+    await expect(details).toContainText("Add drums");
+    await expect(details).toContainText("Bridge idea");
   });
 
   test("BRN-018 marks a fully merged branch as merged", async ({ page }) => {
-    test.fail(
-      true,
-      "DFID039: a fully merged branch gets the merged badge but the screen never suggests that it can be deleted safely",
-    );
     const { api, id } = await mergedBranch(page);
     await openTab(page, id, "branches");
     await expect(page.getByText("Đã hợp nhất")).toBeVisible();
@@ -346,10 +340,6 @@ test.describe("Branch management, further cases", () => {
   test("BRN-037 refuses to delete the default branch and explains why", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID038: the default branch has no delete action at all, so there is no refusal and no explanation",
-    );
     const { api, id, mainId, altId } = await build(page, ["Try new chorus"]);
     await api.switchTo(mainId, altId!, id);
     await openTab(page, id, "branches");
@@ -365,7 +355,7 @@ test.describe("Branch management, further cases", () => {
     await api.switchTo(mainId, altId!, id);
     await openTab(page, id, "branches");
     await expect(page.getByText("Đang mở")).toBeVisible();
-    const del = page.getByRole("button", { name: /xoá/i });
+    const del = page.getByRole("button", { name: /xoá nhánh alt-chorus/i });
     await expect(del).toHaveCount(1);
     await expect(del).toBeDisabled();
     await expect(del).toHaveAttribute("title", /chuyển sang nhánh khác/i);

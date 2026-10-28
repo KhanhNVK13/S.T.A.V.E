@@ -18,6 +18,7 @@ import { ProjectAccessService } from '../project-access/project-access.service';
 import { ActiveBranchService } from '../active-branch/active-branch.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { SwitchBranchDto, DraftSnapshotDto } from './dto/switch-branch.dto';
+import { writeDraft } from '../drafts/draft-write';
 
 /** Raw row from branches table */
 interface BranchDbRow {
@@ -109,6 +110,7 @@ export interface BranchHistory {
 export interface SwitchBranchResponse {
   branch: BranchWithAuthor;
   activeSnapshot: DraftSnapshot;
+  activeDraftVersion: string | null;
 }
 
 const ID_FILTER_CHUNK = 100;
@@ -250,12 +252,15 @@ export class BranchesService {
     // BR-50 / CLAUDE.md §4.2: save the outgoing branch's draft before
     // switching — currentDraft is now required in the DTO, and saveDraft
     // throws on failure instead of silently swallowing the error.
-    await this.saveDraft(dto.currentBranchId, dto.currentDraft, userId);
-
-    const activeSnapshot = await this.getActiveSnapshot(
-      dto.targetBranchId,
+    await this.saveDraft(
+      dto.currentBranchId,
+      dto.currentDraft,
       userId,
+      dto.expectedDraftVersion,
     );
+
+    const { snapshot: activeSnapshot, version: activeDraftVersion } =
+      await this.getActiveSnapshot(dto.targetBranchId, userId);
     const author = await this.getAuthorInfo(targetBranch.created_by);
 
     // Track which branch is "active" for this project — needed by UC-52
@@ -280,6 +285,7 @@ export class BranchesService {
         author,
       },
       activeSnapshot,
+      activeDraftVersion,
     };
   }
 
@@ -835,39 +841,37 @@ export class BranchesService {
     branchId: string,
     draftDto: DraftSnapshotDto,
     userId: string,
+    expectedVersion?: string,
   ): Promise<void> {
-    const snapshot = this.normalizeSnapshot(draftDto);
-
-    const { error } = await this.supabase.from('drafts').upsert(
+    await writeDraft(
+      this.supabase,
       {
-        branch_id: branchId,
-        user_id: userId,
-        snapshot,
-        updated_at: new Date().toISOString(),
+        branchId,
+        userId,
+        snapshot: this.normalizeSnapshot(draftDto),
+        expectedVersion,
       },
-      { onConflict: 'branch_id,user_id' },
+      (message) =>
+        new InternalServerErrorException(
+          `Failed to save draft before switching branch: ${message}`,
+        ),
     );
-
-    if (error) {
-      throw new InternalServerErrorException(
-        `Failed to save draft before switching branch: ${error.message}`,
-      );
-    }
   }
 
   private async getActiveSnapshot(
     branchId: string,
     userId: string,
-  ): Promise<DraftSnapshot> {
+  ): Promise<{ snapshot: DraftSnapshot; version: string | null }> {
     const { data: draft } = await this.supabase
       .from('drafts')
-      .select('snapshot')
+      .select('snapshot, updated_at')
       .eq('branch_id', branchId)
       .eq('user_id', userId)
       .maybeSingle();
 
     if (draft) {
-      return (draft as DraftDbRow).snapshot;
+      const row = draft as DraftDbRow & { updated_at?: string };
+      return { snapshot: row.snapshot, version: row.updated_at ?? null };
     }
 
     const { data: branch } = await this.supabase
@@ -877,7 +881,7 @@ export class BranchesService {
       .single();
 
     if (!branch?.head_commit_id) {
-      return this.getEmptySnapshot();
+      return { snapshot: this.getEmptySnapshot(), version: null };
     }
 
     const { data: commit } = await this.supabase
@@ -886,7 +890,10 @@ export class BranchesService {
       .eq('id', branch.head_commit_id)
       .single();
 
-    return commit?.snapshot ?? this.getEmptySnapshot();
+    return {
+      snapshot: commit?.snapshot ?? this.getEmptySnapshot(),
+      version: null,
+    };
   }
 
   private async getDefaultBranch(

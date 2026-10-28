@@ -541,8 +541,9 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
         notifications: opts.notifications ?? [ok],
       },
       authAdmin: {
+        getUserById: { data: { user: { banned_until: null } }, error: null },
         deleteUser: opts.deleteUser ?? ok,
-        updateUserById: ok,
+        updateUserById: [ok, ok],
       },
     });
     const sounds = {

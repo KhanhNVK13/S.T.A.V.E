@@ -83,15 +83,24 @@ export class UserApi {
     body?: unknown,
     noSession = false,
   ): Promise<unknown> {
-    const res = await fetch(`${BACKEND}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        ...(noSession ? {} : { "X-Session-Id": this.sessionId }),
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const send = () =>
+      fetch(`${BACKEND}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          ...(noSession ? {} : { "X-Session-Id": this.sessionId }),
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    let res: Response;
+    try {
+      res = await send();
+    } catch (error) {
+      const code = (error as { cause?: { code?: string } }).cause?.code;
+      if (code !== "ECONNRESET" || method === "POST") throw error;
+      res = await send();
+    }
     const text = await res.text();
     if (!res.ok) throw new Error(`${method} ${path} -> ${res.status} ${text}`);
     return text ? JSON.parse(text) : null;

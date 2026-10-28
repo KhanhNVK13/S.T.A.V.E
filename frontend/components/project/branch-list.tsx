@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronRight, GitBranch, GitMerge, History, Plus, Trash2 } from "lucide-react";
 import {
   compareCommits,
+  createBranch,
   deleteBranch,
   getBranchDeletePreview,
   getBranchDetails,
@@ -67,6 +68,7 @@ export function BranchList({ projectId }: { projectId: string }) {
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [switchAfterCreate, setSwitchAfterCreate] = useState(true);
   const [createBusy, setCreateBusy] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -142,6 +144,16 @@ export function BranchList({ projectId }: { projectId: string }) {
     if (invalid) return;
     setCreateBusy(true);
     try {
+      if (!switchAfterCreate) {
+        await createBranch(projectId, { name });
+        setNewName("");
+        setCreating(false);
+        setNotice(
+          `Đã tạo nhánh "${name}". Nhánh đang mở trong editor không đổi; bạn có thể chuyển sang nhánh mới bất cứ lúc nào.`,
+        );
+        await load();
+        return;
+      }
       const outcome = await createAndActivateBranch(projectId, { name });
       setNewName("");
       setCreating(false);
@@ -339,6 +351,16 @@ export function BranchList({ projectId }: { projectId: string }) {
           <p className="basis-full text-xs text-muted">
             Nhánh mới bắt đầu từ commit mới nhất của nhánh mặc định.
           </p>
+          <label className="flex basis-full items-center gap-2 text-[13px]">
+            <input
+              type="checkbox"
+              name="switchAfterCreate"
+              checked={switchAfterCreate}
+              onChange={(e) => setSwitchAfterCreate(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
+            />
+            Chuyển sang nhánh mới sau khi tạo
+          </label>
           <div className="flex gap-2">
             <Button type="submit" disabled={createBusy}>
               {createBusy ? "Đang tạo…" : "Tạo nhánh"}

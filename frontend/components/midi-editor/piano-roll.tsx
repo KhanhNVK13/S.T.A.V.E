@@ -651,12 +651,16 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
           snapToGrid(drag.origStart + dx / pxPerTick) - drag.origStart,
         );
         const requestedPitch = -Math.round(dy / ROW_H);
-        const outOfRange = minPitch + requestedPitch < 0 || maxPitch + requestedPitch > 127;
+        const single = origs.length === 1;
+        const outOfRange =
+          !single && (minPitch + requestedPitch < 0 || maxPitch + requestedPitch > 127);
         if (outOfRange && !pitchRejectNotedRef.current) {
           pitchRejectNotedRef.current = true;
           onNotify?.("Các nốt giữ nguyên cao độ vì sẽ vượt ngoài khoảng 0 đến 127.", "warning");
         }
-        const deltaPitch = outOfRange ? 0 : requestedPitch;
+        const deltaPitch = outOfRange
+          ? 0
+          : Math.min(127 - maxPitch, Math.max(-minPitch, requestedPitch));
         onNotesChange(
           notes.map((n) => {
             const o = drag.group.get(n.id);

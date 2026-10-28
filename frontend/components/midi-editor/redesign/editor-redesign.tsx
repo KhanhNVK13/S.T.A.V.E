@@ -177,7 +177,11 @@ interface EditorRedesignProps {
   /** UC-48: đọc bản nháp đang mở để gửi kèm khi chuyển nhánh. */
   onReadSnapshot: () => DraftSnapshot;
   /** Nạp lại editor theo snapshot backend trả về sau khi khôi phục (UC-46). */
-  onSnapshotRestored: (snapshot: DraftSnapshot) => void;
+  onSnapshotRestored: (snapshot: DraftSnapshot, draftVersion?: string | null) => void;
+  onReadDraftVersion: () => string | null | undefined;
+  onDraftStale: () => void;
+  onResyncDraftVersion: () => void;
+  draftReloadNonce: number;
   /** 0..1 — âm lượng chung cho TẤT CẢ track (chỉ ảnh hưởng lúc phát, không ghi vào snapshot). */
   masterVolume: number;
   onMasterVolumeChange: (v: number) => void;
@@ -209,7 +213,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     onQuantize, onImportMidi, onCopy, onCut, snapEnabled, onSnapToggle, onExportMidiSelection, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
     isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
-    saveStatus, draftConflict, saveRetryInSec, lastSavedAt, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored,
+    saveStatus, draftConflict, saveRetryInSec, lastSavedAt, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored, onReadDraftVersion, onDraftStale, onResyncDraftVersion, draftReloadNonce,
     masterVolume, onMasterVolumeChange,
     customSounds, onSetSoundMapping, onCustomSoundsChanged,
     onTempoChange, metronomeOn, onMetronomeToggle,
@@ -228,7 +232,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
     flushDraft: onFlushDraft,
     readSnapshot: onReadSnapshot,
     onSnapshotRestored,
+    readDraftVersion: onReadDraftVersion,
+    onDraftStale,
+    resyncDraftVersion: onResyncDraftVersion,
   });
+  const { refreshHead, reloadHistory } = vc;
+  useEffect(() => {
+    if (draftReloadNonce === 0) return;
+    void refreshHead();
+    reloadHistory();
+  }, [draftReloadNonce, refreshHead, reloadHistory]);
   const [commitOpen, setCommitOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [sketchState, setSketchState] = useState<AudioSketchState>("idle");
@@ -249,6 +262,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     () => typeof window === "undefined" || window.innerWidth >= 1280,
   );
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [bpmDraft, setBpmDraft] = useState<string | null>(null);
   const [isNarrow, setIsNarrow] = useState(
     () => typeof window !== "undefined" && window.matchMedia(NARROW_QUERY).matches,
@@ -308,6 +322,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
   function runFileAction(action: () => void) {
     setFileMenuOpen(false);
+    action();
+  }
+  function runEditAction(action: () => void) {
+    setEditMenuOpen(false);
     action();
   }
   const branchLabel = vc.branch?.name ?? "main";
@@ -763,10 +781,6 @@ export function EditorRedesign(props: EditorRedesignProps) {
         >
           Snap {snapEnabled ? "bật" : "tắt"}
         </button>
-        <button onClick={onQuantize} title="Căn các nốt đang chọn (hoặc track đang chọn) vào lưới" style={styles.ghostBtn}>
-          <Magnet size={14} />
-          Quantize
-        </button>
 
         <span style={styles.stripDivider} />
 
@@ -843,36 +857,77 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
         <span style={styles.stripDivider} />
 
-        <button onClick={onSelectAll} title="Chọn tất cả note (Ctrl+A)" aria-label="Select all" style={styles.iconBtn}>
-          <SquareCheck size={14} />
-        </button>
-        <button
-          onClick={onCopy}
-          disabled={!hasSelection}
-          title={hasSelection ? "Copy note đã chọn (Ctrl+C)" : "Chọn note trước đã"}
-          aria-label="Copy"
-          style={{ ...styles.iconBtn, opacity: hasSelection ? 1 : 0.4, cursor: hasSelection ? "pointer" : "not-allowed" }}
-        >
-          <Copy size={14} />
-        </button>
-        <button
-          onClick={onCut}
-          disabled={!hasSelection}
-          title={hasSelection ? "Cắt note đã chọn (Ctrl+X)" : "Chọn note trước đã"}
-          aria-label="Cut"
-          style={{ ...styles.iconBtn, opacity: hasSelection ? 1 : 0.4, cursor: hasSelection ? "pointer" : "not-allowed" }}
-        >
-          <Scissors size={14} />
-        </button>
-        <button
-          onClick={onPaste}
-          disabled={!hasClipboard}
-          title={hasClipboard ? "Dán note (Ctrl+V)" : "Chưa có gì để dán"}
-          aria-label="Paste"
-          style={{ ...styles.iconBtn, opacity: hasClipboard ? 1 : 0.4, cursor: hasClipboard ? "pointer" : "not-allowed" }}
-        >
-          <ClipboardPaste size={14} />
-        </button>
+        <div style={styles.fileMenuWrap}>
+          <button
+            type="button"
+            onClick={() => setEditMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={editMenuOpen}
+            title="Chọn tất cả, copy, cắt, dán, quantize"
+            style={styles.ghostBtn}
+          >
+            Edit
+            <ChevronDown size={13} />
+          </button>
+          {editMenuOpen && (
+            <>
+              <div style={styles.branchBackdrop} onClick={() => setEditMenuOpen(false)} />
+              <div
+                role="menu"
+                style={{ ...styles.fileMenu, left: 0, right: "auto" }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setEditMenuOpen(false);
+                  }
+                }}
+              >
+                <button role="menuitem" autoFocus onClick={() => runEditAction(onSelectAll)} title="Chọn tất cả note" style={styles.fileMenuItem}>
+                  <SquareCheck size={14} /> Select all
+                  <span style={styles.menuShortcut}>Ctrl+A</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!hasSelection}
+                  onClick={() => runEditAction(onCopy)}
+                  title={hasSelection ? "Copy note đã chọn" : "Chọn note trước đã"}
+                  style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
+                >
+                  <Copy size={14} /> Copy
+                  <span style={styles.menuShortcut}>Ctrl+C</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!hasSelection}
+                  onClick={() => runEditAction(onCut)}
+                  title={hasSelection ? "Cắt note đã chọn" : "Chọn note trước đã"}
+                  style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
+                >
+                  <Scissors size={14} /> Cut
+                  <span style={styles.menuShortcut}>Ctrl+X</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!hasClipboard}
+                  onClick={() => runEditAction(onPaste)}
+                  title={hasClipboard ? "Dán note" : "Chưa có gì để dán"}
+                  style={{ ...styles.fileMenuItem, opacity: hasClipboard ? 1 : 0.45 }}
+                >
+                  <ClipboardPaste size={14} /> Paste
+                  <span style={styles.menuShortcut}>Ctrl+V</span>
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => runEditAction(onQuantize)}
+                  title="Căn các nốt đang chọn (hoặc track đang chọn) vào lưới"
+                  style={styles.fileMenuItem}
+                >
+                  <Magnet size={14} /> Quantize
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={onUndo}
           disabled={!canUndo}
@@ -919,7 +974,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 role="menu"
                 style={styles.fileMenu}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") setFileMenuOpen(false);
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setFileMenuOpen(false);
+                  }
                 }}
               >
                 <button role="menuitem" autoFocus onClick={() => runFileAction(onImportMidi)} title="Nhập file MIDI" style={styles.fileMenuItem}>
@@ -1353,6 +1411,13 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${DC.border}`,
     borderRadius: 10,
     boxShadow: "0 12px 28px rgba(15, 42, 92, .14)",
+  },
+  menuShortcut: {
+    marginLeft: "auto",
+    paddingLeft: 16,
+    color: DC.textMuted,
+    fontSize: 12,
+    fontFamily: DC.mono,
   },
   fileMenuItem: {
     display: "flex",

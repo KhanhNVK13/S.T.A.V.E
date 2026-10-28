@@ -5,6 +5,8 @@ import {
   IsObject,
   ValidateNested,
   IsNumber,
+  IsString,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -83,4 +85,9 @@ export class SwitchBranchDto {
   @ValidateNested()
   @Type(() => DraftSnapshotDto)
   currentDraft!: DraftSnapshotDto;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  expectedDraftVersion?: string;
 }

@@ -82,10 +82,6 @@ test.describe("Version control", () => {
     test("VC-005 makes the commit action unavailable when the draft has no changes", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID024: with no changes the commit dialog still opens and the commit can be submitted; only a warning line is shown",
-      );
       const { api, id, branchId } = await setup(page);
       await api.commit(branchId, "First");
       await openEditor(page, id);
@@ -296,10 +292,6 @@ test.describe("Version control", () => {
     test("VC-035 restores an earlier version as a new commit that names it", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID026: the restore commit message uses the short commit id (Revert to commit xxxxxxxx), not the name of the restored version",
-      );
       const { api, branchId } = await withRestoreTarget(page);
       const dialog = page.getByRole("dialog");
       await dialog.getByRole("button", { name: /^khôi phục$/i }).click();

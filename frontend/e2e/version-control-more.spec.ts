@@ -1,6 +1,13 @@
 import { expect as baseExpect, test, type Page } from "@playwright/test";
 import { UserApi, type NoteSeed, type TrackSeed } from "./support/api";
 import {
+  drag,
+  grid,
+  point,
+  scrollGrid,
+  velocityLaneBox,
+} from "./support/piano-roll";
+import {
   cleanupE2eUsers,
   createE2eProfile,
   createE2eUser,
@@ -123,10 +130,6 @@ test.describe("Version control, further cases", () => {
     test("VC-020 adds a tag to a commit and offers it when picking versions", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID041: the tag is saved and shown beside the commit, but compare and restore have no version pickers that list tags",
-      );
       const { api, id, drums } = await threeCommits(page);
       await openCommits(page, id, "Add drums");
       await startTag(page, "Add drums", "demo-v1");
@@ -138,9 +141,13 @@ test.describe("Version control, further cases", () => {
       };
       expect(stored.message).toBe("Add drums");
       expect(stored.snapshot.notes).toHaveLength(B.length);
-      await expect(
-        page.getByRole("option", { name: /demo-v1/ }),
-      ).not.toHaveCount(0);
+      await page.getByRole("button", { name: /chọn phiên bản/i }).click();
+      let picker = page.getByRole("dialog", { name: /chọn phiên bản để so sánh/i });
+      await expect(picker.getByRole("option", { name: /\[demo-v1\]/ })).not.toHaveCount(0);
+      await picker.getByRole("button", { name: /^huỷ$/i }).click();
+      await page.getByRole("button", { name: /khôi phục theo phiên bản/i }).click();
+      picker = page.getByRole("dialog", { name: /chọn phiên bản để khôi phục/i });
+      await expect(picker.getByRole("option", { name: /\[demo-v1\]/ })).not.toHaveCount(0);
     });
 
     test("VC-022 refuses a renamed tag already used in the project and accepts a free name", async ({
@@ -152,10 +159,12 @@ test.describe("Version control, further cases", () => {
       await openCommits(page, id, "Add drums");
       await startTag(page, "Add drums", "final");
       await page.getByRole("button", { name: /^lưu$/i }).click();
+      await page.getByRole("button", { name: /^thay tag$/i }).click();
       await expect(page.getByText(/đã được dùng|chọn tên khác/i)).toBeVisible();
       await expect(row(page, "Add drums")).toContainText("demo-v1");
       await page.locator('input[name="tagName"]').fill("demo-v2");
       await page.getByRole("button", { name: /^lưu$/i }).click();
+      await page.getByRole("button", { name: /^thay tag$/i }).click();
       await expect(row(page, "Add drums")).toContainText("demo-v2");
       await expect(row(page, "Add drums")).not.toContainText("demo-v1");
       const stored = (await api.call("GET", `/commits/${drums.id}`)) as {
@@ -167,10 +176,6 @@ test.describe("Version control, further cases", () => {
     test("VC-023 says the tag name is required when it is left empty", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID042: an empty tag name only leaves the Save button disabled; no inline error says the name is required",
-      );
       const { api, id, drums } = await threeCommits(page);
       await openCommits(page, id, "Add drums");
       await row(page, "Add drums")
@@ -263,10 +268,6 @@ test.describe("Version control, further cases", () => {
     test("VC-029 compares commits taken from two different branches", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID044: the commit list shows one branch at a time and has no all-branches filter, so commits of two branches cannot be selected together",
-      );
       const { api, id, branchId } = await threeCommits(page);
       const alt = await api.createBranch(id, "alt-chorus");
       await api.commitOnBranch(
@@ -277,9 +278,19 @@ test.describe("Version control, further cases", () => {
         "Try new chorus",
       );
       await openCommits(page, id, "Change chorus");
-      await expect(
-        page.getByRole("option", { name: /tất cả nhánh|all branches/i }),
-      ).toHaveCount(1);
+      await page
+        .getByLabel("Chọn nhánh để xem lịch sử")
+        .selectOption({ label: "Mọi nhánh" });
+      await expect(row(page, "Try new chorus")).toBeVisible();
+      await expect(row(page, "Change chorus")).toBeVisible();
+      await page.getByRole("button", { name: /chọn phiên bản/i }).click();
+      await page
+        .getByRole("dialog", { name: /chọn phiên bản để so sánh/i })
+        .getByRole("button", { name: /^so sánh$/i })
+        .click();
+      const dialog = page.getByRole("dialog", { name: /so sánh phiên bản/i });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByText(/nốt thêm/)).toBeVisible();
     });
 
     test("VC-030 swaps added and removed counts when the direction is switched", async ({
@@ -369,14 +380,12 @@ test.describe("Version control, further cases", () => {
       await api.commit(branchId, "Base");
       await openEditor(page, id, "Base");
       await page.getByRole("button", { name: /^select$/i }).click();
-      await page.mouse.move(345, 489);
-      await page.mouse.down();
-      await page.mouse.move(345, 533, { steps: 6 });
-      await page.mouse.up();
-      await page.mouse.move(456, 625);
-      await page.mouse.down();
-      await page.mouse.move(456, 650, { steps: 6 });
-      await page.mouse.up();
+      const g = await scrollGrid(page, { pitch: 62, tick: 0 });
+      await drag(page, point(g, 60, 60), point(g, 60, 58));
+      const lane = await velocityLaneBox(page);
+      const bx = point(await grid(page), BAR + 60, 64).x;
+      const by = lane.top + lane.height * (1 - 90 / 127) + 4;
+      await drag(page, { x: bx, y: by }, { x: bx, y: by + 25 });
       await expect
         .poll(async () => {
           const notes = (await api.draft(id)).notes as Array<{
@@ -455,10 +464,6 @@ test.describe("Version control, further cases", () => {
     test("VC-041 saves the draft automatically without a commit and shows when", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID045: the draft is saved a few seconds after an edit but the screen never shows the time of the last automatic save",
-      );
       const { api, id, branchId } = await plainProject(page);
       await api.commit(branchId, "Verse idea");
       await openEditor(page, id, "Verse idea");
@@ -491,10 +496,6 @@ test.describe("Version control, further cases", () => {
     test("VC-043 makes no automatic save after a commit until editing resumes", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID045: the screen never shows the time of the last automatic save, so the unchanged and updated time cannot be observed",
-      );
       const { id } = await plainProject(page);
       await openEditor(page, id);
       const writes = countDraftWrites(page);
@@ -523,7 +524,7 @@ test.describe("Version control, further cases", () => {
       await context.setOffline(true);
       await drawNote(page, 6);
       await expect(page.getByText(/không lưu được/i).first()).toBeVisible();
-      await expect(page.getByText("Đã lưu nháp", { exact: true })).toHaveCount(0);
+      await expect(page.getByText(/^Đã lưu nháp lúc/)).toHaveCount(0);
       expect(await api.history(branchId)).toHaveLength(1);
       await context.setOffline(false);
     });
@@ -539,9 +540,9 @@ test.describe("Version control, further cases", () => {
       await drawNote(page, 6);
       await expect(page.getByText(/không lưu được/i).first()).toBeVisible();
       await context.setOffline(false);
-      await expect(
-        page.getByText("Đã lưu nháp", { exact: true }).first(),
-      ).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByText(/^Đã lưu nháp lúc/).first()).toBeVisible({
+        timeout: 60_000,
+      });
       await expect
         .poll(async () => (await api.draft(id)).notes.length)
         .toBe(A.length + 1);
@@ -579,7 +580,9 @@ test.describe("Version control, further cases", () => {
       await openEditor(page, id, "Verse idea");
       await expect(page.getByText(`${A.length + 1} note`).first()).toBeVisible();
       await page.getByRole("button", { name: /^select$/i }).click();
-      await page.mouse.click(334 + 3 * 115.2 + 14, 489);
+      const g = await scrollGrid(page, { pitch: 60, tick: 3 * BAR });
+      const p = point(g, 3 * BAR + 60, 60);
+      await page.mouse.click(p.x, p.y);
       await page.keyboard.press("Delete");
       await expect
         .poll(async () => (await api.draft(id)).notes.map((n) => n.id))

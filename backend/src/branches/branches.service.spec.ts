@@ -743,8 +743,13 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
         { data: null, error: null },
       ],
       drafts: [
-        { data: null, error: null },
-        { data: { snapshot: targetSnapshot } },
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        {
+          data: {
+            snapshot: targetSnapshot,
+            updated_at: '2026-10-28T01:00:00Z',
+          },
+        },
       ],
       users: [{ data: { id: userId, username: 'owner' } }],
       ...overrides,
@@ -883,6 +888,54 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
       ).rejects.toThrow(new NotFoundException('Target branch does not exist'));
     },
   );
+
+  it('UTCID12 saves the outgoing draft only at the expected version and returns the target draft version', async () => {
+    const { service, builders } = makeService(switchTables());
+    const result = await service.switchBranch(
+      projectId,
+      {
+        currentBranchId: branchId,
+        targetBranchId: otherBranchId,
+        currentDraft,
+        expectedDraftVersion: '2026-10-27T23:00:00Z',
+      },
+      userId,
+    );
+
+    expect(builders.drafts.update).toHaveBeenCalled();
+    expect(builders.drafts.eq).toHaveBeenCalledWith(
+      'updated_at',
+      '2026-10-27T23:00:00Z',
+    );
+    expect(builders.drafts.upsert).not.toHaveBeenCalled();
+    expect(result.activeDraftVersion).toBe('2026-10-28T01:00:00Z');
+  });
+
+  it('UTCID13 refuses to switch when another tab changed the outgoing draft', async () => {
+    const { service, builders } = makeService(
+      switchTables({
+        drafts: [{ data: null, error: null }],
+      }),
+    );
+    const error = await service
+      .switchBranch(
+        projectId,
+        {
+          currentBranchId: branchId,
+          targetBranchId: otherBranchId,
+          currentDraft,
+          expectedDraftVersion: '2026-10-27T23:00:00Z',
+        },
+        userId,
+      )
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      code: 'DRAFT_STALE',
+    });
+    expect(builders.projects.update).not.toHaveBeenCalled();
+  });
 
   it('UTCID09 reports a draft save error', async () => {
     const { service } = makeService(
@@ -1865,7 +1918,10 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
         { data: makeBranch({ id: otherBranchId }) },
         { data: makeBranch() },
       ],
-      drafts: [{ data: null, error: null }, { data: { snapshot } }],
+      drafts: [
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        { data: { snapshot } },
+      ],
       users: [{ data: { id: userId } }],
     });
     const result = await service.switchBranch(
@@ -1894,7 +1950,10 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
         { data: makeBranch() },
         { data: { head_commit_id: commitId } },
       ],
-      drafts: [{ data: null, error: null }, { data: null }],
+      drafts: [
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        { data: null },
+      ],
       commits: [{ data: { snapshot } }],
       users: [{ data: { id: userId } }],
     });
@@ -1935,7 +1994,10 @@ describe('BE-BRN-10 BranchesService.getActiveSnapshot', () => {
           { data: makeBranch() },
           targetRow,
         ],
-        drafts: [{ data: null, error: null }, { data: null }],
+        drafts: [
+          { data: { updated_at: '2026-10-28T00:00:00Z' } },
+          { data: null },
+        ],
         commits: _id === 'UTCID05' ? [{ data: null }] : [],
         users: [{ data: { id: userId } }],
       });
@@ -2306,7 +2368,10 @@ describe('BE-BRN-14 BranchesService.normalizeSnapshot', () => {
         { data: target },
         { data: makeBranch() },
       ],
-      drafts: [{ data: null, error: null }, { data: { snapshot: {} } }],
+      drafts: [
+        { data: { updated_at: '2026-10-28T00:00:00Z' } },
+        { data: { snapshot: {} } },
+      ],
       users: [{ data: { id: userId } }],
     });
     return service.switchBranch(

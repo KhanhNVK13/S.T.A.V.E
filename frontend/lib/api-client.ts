@@ -389,6 +389,7 @@ export interface SwitchBranchResult {
    * dựng từ snapshot của head commit, không phải trả về rỗng.
    */
   activeSnapshot: DraftSnapshot;
+  activeDraftVersion?: string | null;
 }
 
 /**
@@ -403,10 +404,16 @@ export async function switchBranch(payload: {
   currentBranchId: string;
   targetBranchId: string;
   currentDraft: DraftSnapshot;
+  expectedDraftVersion?: string | null;
 }): Promise<SwitchBranchResult> {
+  const { expectedDraftVersion, ...rest } = payload;
   return apiFetch<SwitchBranchResult>("/branches/switch", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(
+      expectedDraftVersion === undefined
+        ? rest
+        : { ...rest, expectedDraftVersion: expectedDraftVersion ?? "none" },
+    ),
   });
 }
 

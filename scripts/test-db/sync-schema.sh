@@ -47,8 +47,9 @@ psql_test -v ON_ERROR_STOP=1 -1 -f /work/public.sql >/dev/null
 
 echo "Seeding storage buckets and platform settings..."
 psql_test -v ON_ERROR_STOP=1 \
-  -c "insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types) values ('audio-sketches','audio-sketches',false,20971520,array['audio/wav','audio/x-wav','audio/wave']),('custom-sounds','custom-sounds',false,10485760,array['audio/wav','audio/x-wav','audio/wave']) on conflict (id) do nothing" \
-  -c "insert into public.platform_settings (key,value) select 'custom_sound_quota_bytes','52428800'::jsonb where not exists (select 1 from public.platform_settings where key='custom_sound_quota_bytes')"
+  -c "insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types) values ('audio-sketches','audio-sketches',false,20971520,array['audio/wav','audio/x-wav','audio/wave']),('custom-sounds','custom-sounds',false,10485760,array['audio/wav','audio/x-wav','audio/wave']),('avatars','avatars',true,2097152,array['image/jpeg','image/png','image/webp']) on conflict (id) do nothing" \
+  -c "insert into public.platform_settings (key,value) select 'custom_sound_quota_bytes','52428800'::jsonb where not exists (select 1 from public.platform_settings where key='custom_sound_quota_bytes')" \
+  -c "insert into public.platform_settings (key,value) values ('ranking_weight_play','1'::jsonb),('ranking_weight_fork','5'::jsonb),('ranking_weight_comment','3'::jsonb),('ranking_window_days','7'::jsonb) on conflict (key) do nothing"
 
 echo "Done. Tables in public:"
 psql_test -tAc "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'"

@@ -103,9 +103,6 @@ async function confirmMerge(page: Page) {
     .click();
 }
 
-const UNREACHABLE =
-  "DFID033: when a merge has conflicts the server answers 409 with the conflicts under a conflicts key, the app only reads a top-level hasConflicts flag, so it shows a generic error and the resolve screen never opens";
-
 test.describe("Branch merge", () => {
   test.setTimeout(120_000);
   test.afterAll(async () => {
@@ -146,14 +143,10 @@ test.describe("Branch merge", () => {
   test("BRN-027 merges a branch that is only ahead without a merge commit and says so", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID032: the merge succeeds without a merge commit but the message does not say that no separate merge commit was needed",
-    );
     const { api, id, mainId } = await fastForward(page);
     await startMerge(page, id);
     await confirmMerge(page);
-    await expect(page.getByText(/đã hợp nhất/i)).toBeVisible();
+    await expect(page.getByText(/^đã hợp nhất "/i)).toBeVisible();
     expect((await api.head(mainId)).message).toBe("Fix bar 2");
     expect(await api.history(mainId)).toHaveLength(1);
     await expect(
@@ -164,7 +157,6 @@ test.describe("Branch merge", () => {
   test("BRN-030 warns about conflicts and opens the resolve screen without creating a commit", async ({
     page,
   }) => {
-    test.fail(true, UNREACHABLE);
     const { api, id, mainId } = await diverged(page, true);
     const before = await api.head(mainId);
     await startMerge(page, id);
@@ -179,17 +171,15 @@ test.describe("Branch merge", () => {
   test("BRN-033 reports the conflict of a note changed on both branches", async ({
     page,
   }) => {
-    test.fail(true, UNREACHABLE);
     const { id } = await diverged(page, true);
     await startMerge(page, id);
     await confirmMerge(page);
     await expect(page.getByRole("dialog").getByText(/ô nhịp 3/i)).toBeVisible();
   });
 
-  test("Blocked by DFID033, BRN-044 applies the last choice made for a conflict", async ({
+  test("BRN-044 applies the last choice made for a conflict", async ({
     page,
   }) => {
-    test.fail(true, UNREACHABLE);
     const { api, id, mainId } = await diverged(page, true);
     await startMerge(page, id);
     await confirmMerge(page);
@@ -205,10 +195,9 @@ test.describe("Branch merge", () => {
     expect(snapshot.notes.find((n) => n.id === "c1")?.pitch).toBe(67);
   });
 
-  test("Blocked by DFID033, BRN-045 discards every choice when the merge is cancelled", async ({
+  test("BRN-045 discards every choice when the merge is cancelled", async ({
     page,
   }) => {
-    test.fail(true, UNREACHABLE);
     const { api, id, mainId } = await diverged(page, true);
     const before = await api.head(mainId);
     await startMerge(page, id);
@@ -220,10 +209,9 @@ test.describe("Branch merge", () => {
     expect((await api.head(mainId)).id).toBe(before.id);
   });
 
-  test("Blocked by DFID033, BRN-048 reports a server error while applying the merge and records no merge commit", async ({
+  test("BRN-048 reports a server error while applying the merge and records no merge commit", async ({
     page,
   }) => {
-    test.fail(true, UNREACHABLE);
     const { api, id, mainId } = await diverged(page, true);
     const before = await api.head(mainId);
     await startMerge(page, id);
@@ -250,13 +238,9 @@ test.describe("Branch delete with commits", () => {
   test("BRN-034 states the commits that will be lost and that deleting cannot be undone", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID034: the delete confirmation states the number of commits that will be lost but not that the action cannot be undone",
-    );
     const { id } = await fastForward(page);
     await page.goto(`/projects/${id}?tab=branches`);
-    await page.getByRole("button", { name: "Xoá nhánh", exact: true }).click();
+    await page.getByRole("button", { name: /^xoá nhánh (?!mặc định)/i }).click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText(/1\s*commit/i);
     await expect(dialog).toContainText(/không thể hoàn tác|cannot be undone/i);

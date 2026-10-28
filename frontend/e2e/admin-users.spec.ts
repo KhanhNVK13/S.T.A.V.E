@@ -562,10 +562,6 @@ test.describe("Admin - User Management", () => {
   });
 
   test("API: reactivating another administrator account is refused", async () => {
-    test.fail(
-      true,
-      "DFID073: the API reactivates a suspended administrator account; only the interface hides the button",
-    );
     const adminActor = await makeActor("Admin", { role: "admin" });
     const admin2 = await makeActor("Admin2", {
       role: "admin",

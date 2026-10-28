@@ -43,10 +43,6 @@ test.describe("Project management, further cases", () => {
   test("PRJ-013 blocks editing a project that was archived in another session", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID053: a project archived in another session can still be renamed; the save succeeds with Saved and no message says archived projects are read-only",
-    );
     const { api, id } = await ownerWith(page, "private");
     await page.goto(`/projects/${id}/settings`);
     await expect(page.locator('input[name="name"]')).toHaveValue("Test Song");
@@ -119,10 +115,6 @@ test.describe("Project management, further cases", () => {
   test("PRJ-037 keeps the previous visibility when the confirmation is cancelled", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID022: visibility changes as soon as the option is selected; there is no confirmation to cancel",
-    );
     const { api, id } = await ownerWith(page, "private");
     await page.goto(`/projects/${id}/settings`);
     await page.getByRole("radio", { name: /công khai/i }).click();

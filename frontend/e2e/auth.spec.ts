@@ -52,10 +52,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-004 blocks registration when the email format is invalid", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID008: invalid email format shows only a browser tooltip, not an inline error beneath the field",
-      );
       const email = "newuser01.stave.test";
       await fillRegister(page, email, "Passw0rd!", "Passw0rd!");
       await expect(page.locator('p[role="alert"]')).toBeVisible();
@@ -99,10 +95,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-021 logs in with a correct email and password and shows the Project Dashboard", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID009: login always lands on the home page and ignores the redirect parameter, so the Project Dashboard is not shown",
-      );
       const user = await createE2eUser();
       await createE2eProfile(user);
       await attemptLogin(page, user.email, user.password);
@@ -113,10 +105,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-021 step 4 returns to the page that required login", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID009: login always lands on the home page and ignores the redirect parameter, so the Project Dashboard is not shown",
-      );
       const user = await createE2eUser();
       await createE2eProfile(user);
       await page.goto("/login?redirect=%2Fprofile");
@@ -156,10 +144,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-026 refuses a suspended account and directs the user to support", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID010: a suspended account stays signed in on the interface and no message directs the user to support",
-      );
       const user = await createE2eUser();
       await createE2eProfile(user, { status: "suspended" });
       await attemptLogin(page, user.email, user.password);
@@ -171,10 +155,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-028 logs in after four failed attempts and shows the Project Dashboard", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID009: login always lands on the home page instead of the Project Dashboard",
-      );
       const user = await createE2eUser();
       await createE2eProfile(user);
       for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -191,10 +171,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-037 rejects an empty or malformed email inline", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID008: empty or malformed email shows only a browser tooltip, not an inline error",
-      );
       await page.goto("/forgot-password");
       await page.locator('form button[type="submit"]').click();
       await expect(page.locator('p[role="alert"]')).toBeVisible();
@@ -264,10 +240,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-055 shows a retry message when the profile cannot be loaded", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID012: no retry message is shown when the profile request fails; empty fields are shown instead",
-      );
       const user = await createE2eUser();
       await createE2eProfile(user, { display_name: "User A" });
       await page.route("**/users/me", (route) =>
