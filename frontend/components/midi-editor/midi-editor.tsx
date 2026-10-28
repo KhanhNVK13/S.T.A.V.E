@@ -33,6 +33,7 @@ import { collectSoundIds, loadCustomSoundBuffers } from "../../lib/custom-sound-
 import { isDialogOpen } from "../../lib/use-dialog";
 import { APP_LOCALE } from "../../lib/format-date";
 import { parseMidiBuffer } from "../../lib/midi-parser";
+import { startNoteScheduler } from "../../lib/note-scheduler";
 import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
@@ -88,6 +89,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
+  const [draftReloadNonce, setDraftReloadNonce] = useState(0);
   const draftConflictRef = useRef(false);
   const draftVersionRef = useRef<string | null | undefined>(undefined);
   const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
@@ -227,7 +229,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const metronomeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // UC-37 note scheduler's own lookahead timer (see scheduleNotes) — same
   // reason as metronomeTimerRef, cleared in stopAudio().
-  const noteScheduleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopNoteSchedulerRef = useRef<(() => void) | null>(null);
   // Kéo slider master volume trong lúc đang phát phải nghe thấy thay đổi
   // ngay lập tức, không chỉ áp dụng cho lần Play tiếp theo.
   useEffect(() => {
@@ -666,7 +668,16 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
    * transaction, nên KHÔNG gọi scheduleSave ở đây; ngược lại còn phải huỷ
    * autosave đang chờ vì nó mang snapshot CŨ và sẽ ghi đè ngược lại.
    */
-  const applyRestoredSnapshot = useCallback((restored: DraftSnapshot) => {
+  const resyncDraftVersion = useCallback(() => {
+    draftVersionRef.current = undefined;
+    versionSyncRef.current = getDraftRecovery(projectId)
+      .then((recovery) => {
+        if (mountedRef.current) draftVersionRef.current = recovery.version;
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  const applyRestoredSnapshot = useCallback((restored: DraftSnapshot, draftVersion?: string | null) => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
@@ -698,13 +709,15 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     draftConflictRef.current = false;
     setDraftConflict(false);
     setConflictDialogOpen(false);
-    draftVersionRef.current = undefined;
-    versionSyncRef.current = getDraftRecovery(projectId)
-      .then((recovery) => {
-        if (mountedRef.current) draftVersionRef.current = recovery.version;
-      })
-      .catch(() => {});
-  }, [projectId]);
+    if (draftVersion !== undefined) {
+      draftVersionRef.current = draftVersion;
+      versionSyncRef.current = Promise.resolve();
+      return;
+    }
+    resyncDraftVersion();
+  }, [resyncDraftVersion]);
+
+  const readDraftVersion = useCallback(() => draftVersionRef.current, []);
 
   const reloadDraftFromServer = useCallback(async () => {
     setConflictBusy(true);
@@ -712,6 +725,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     try {
       const snap = await getDraft(projectId);
       applyRestoredSnapshot(snap);
+      setDraftReloadNonce((n) => n + 1);
     } catch (err) {
       setConflictError(apiErrorMessage(err, "Không nạp lại được bản nháp."));
     } finally {
@@ -1110,10 +1124,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       clearTimeout(metronomeTimerRef.current);
       metronomeTimerRef.current = null;
     }
-    if (noteScheduleTimerRef.current) {
-      clearTimeout(noteScheduleTimerRef.current);
-      noteScheduleTimerRef.current = null;
-    }
+    stopNoteSchedulerRef.current?.();
+    stopNoteSchedulerRef.current = null;
   }
 
   // ── UC-36: Metronome ──────────────────────────────────────────
@@ -1186,7 +1198,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // Fix: schedule notes in small lookahead chunks instead — same pattern as
   // scheduleMetronome above (wakes up every SCHEDULE_INTERVAL_MS, commits
   // only whatever falls within the next LOOKAHEAD_SEC of the audio clock).
-  // stopAudio() clearing noteScheduleTimerRef stops anything further from
+  // stopAudio() calling stopNoteSchedulerRef stops anything further from
   // being scheduled; notes already handed to a voice (sounding, or queued
   // within the lookahead window) are cut by stopAudio() disposing voices.
   function scheduleNotes(
@@ -1200,39 +1212,26 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     voiceByTrack: Map<string, TrackVoice>,
     customBuffers: Map<string, AudioBuffer>,
   ) {
-    const LOOKAHEAD_SEC = 0.15;
-    const SCHEDULE_INTERVAL_MS = 50;
-    const secPerTick = 60 / (bpm * ppq);
-
-    let scheduledUpToTick = fromTick;
-
-    function scheduleChunk() {
-      const now = Tone.now();
-      const targetTick = Math.min(
-        endTick,
-        fromTick + Math.ceil((now + LOOKAHEAD_SEC - startTime) / secPerTick),
-      );
-      if (targetTick > scheduledUpToTick) {
+    stopNoteSchedulerRef.current = startNoteScheduler({
+      now: () => Tone.now(),
+      startTime,
+      fromTick,
+      endTick,
+      secPerTick: 60 / (bpm * ppq),
+      schedule: (chunkFrom, chunkTo) =>
         triggerNotes({
           notes: allNotes,
           tracks,
           ppq,
           bpm,
           startTime,
-          fromTick: scheduledUpToTick,
-          toTick: targetTick,
+          fromTick: chunkFrom,
+          toTick: chunkTo,
           anchorTick: fromTick,
           voiceByTrack,
           customBuffers,
-        });
-        scheduledUpToTick = targetTick;
-      }
-      if (scheduledUpToTick < endTick) {
-        noteScheduleTimerRef.current = setTimeout(scheduleChunk, SCHEDULE_INTERVAL_MS);
-      }
-    }
-
-    scheduleChunk();
+        }),
+    });
   }
 
   async function startPlayback(fromTick: number) {
@@ -1522,6 +1521,10 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         onFlushDraft={flushDraft}
         onReadSnapshot={readSnapshot}
         onSnapshotRestored={applyRestoredSnapshot}
+        onReadDraftVersion={readDraftVersion}
+        onDraftStale={markDraftConflict}
+        onResyncDraftVersion={resyncDraftVersion}
+        draftReloadNonce={draftReloadNonce}
         masterVolume={masterVolume}
         onMasterVolumeChange={handleMasterVolumeChange}
         customSounds={customSounds}

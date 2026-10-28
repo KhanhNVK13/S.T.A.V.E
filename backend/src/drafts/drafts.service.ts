@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -13,6 +12,7 @@ import { DiffService } from '../commits/diff.service';
 import { buildDefaultDraftSnapshot } from './default-snapshot';
 import type { DraftRow } from './draft-row.type';
 import type { UpdateDraftDto } from './dto/update-draft.dto';
+import { writeDraft } from './draft-write';
 
 @Injectable()
 export class DraftsService {
@@ -133,64 +133,12 @@ export class DraftsService {
       userId,
       { accessChecked: true },
     );
-    const updatedAt = new Date().toISOString();
-    const stale = () =>
-      new ConflictException({
-        message: 'Draft was changed elsewhere',
-        code: 'DRAFT_STALE',
-      });
-
-    if (expectedVersion === undefined) {
-      const { data, error } = await this.supabase
-        .from('drafts')
-        .upsert(
-          {
-            branch_id: branch.id,
-            user_id: userId,
-            snapshot: dto,
-            updated_at: updatedAt,
-          },
-          { onConflict: 'branch_id,user_id' },
-        )
-        .select('updated_at')
-        .single<{ updated_at: string }>();
-      if (error || !data) {
-        throw new InternalServerErrorException('Could not write draft');
-      }
-      return { version: data.updated_at };
-    }
-
-    if (expectedVersion === 'none') {
-      const { data, error } = await this.supabase
-        .from('drafts')
-        .insert({
-          branch_id: branch.id,
-          user_id: userId,
-          snapshot: dto,
-          updated_at: updatedAt,
-        })
-        .select('updated_at')
-        .single<{ updated_at: string }>();
-      if (error?.code === '23505') throw stale();
-      if (error || !data) {
-        throw new InternalServerErrorException('Could not write draft');
-      }
-      return { version: data.updated_at };
-    }
-
-    const { data, error } = await this.supabase
-      .from('drafts')
-      .update({ snapshot: dto, updated_at: updatedAt })
-      .eq('branch_id', branch.id)
-      .eq('user_id', userId)
-      .eq('updated_at', expectedVersion)
-      .select('updated_at')
-      .maybeSingle<{ updated_at: string }>();
-    if (error) {
-      throw new InternalServerErrorException('Could not write draft');
-    }
-    if (!data) throw stale();
-    return { version: data.updated_at };
+    const version = await writeDraft(
+      this.supabase,
+      { branchId: branch.id, userId, snapshot: dto, expectedVersion },
+      () => new InternalServerErrorException('Could not write draft'),
+    );
+    return { version };
   }
 
   /**
