@@ -3,6 +3,7 @@ import type {
   CollaboratorItem,
   CollaborationInvitation,
   CollaboratorPermissionLevel,
+  ProjectContributionsDto,
 } from "@stave/shared-types";
 
 /**
@@ -83,4 +84,26 @@ export async function declineInvitation(invitationId: string): Promise<void> {
   await apiFetch<void>(`/users/me/collaboration-invitations/${invitationId}/decline`, {
     method: "POST",
   });
+}
+
+// ── UC-65: đóng góp của cộng tác viên (read-only, BR-72) ────────────────
+
+/**
+ * GET /projects/:id/contributions — thống kê theo tác giả, backend dẫn xuất
+ * on-the-fly từ snapshot commit (BR-72: không lưu bảng riêng). `owner` +
+ * cộng tác viên đã chấp nhận được xem; pending/ngoài → 403.
+ */
+export async function getProjectContributions(
+  projectId: string,
+  query?: { branchId?: string; from?: string; to?: string; userId?: string },
+): Promise<ProjectContributionsDto> {
+  const params = new URLSearchParams();
+  if (query?.branchId) params.set("branchId", query.branchId);
+  if (query?.from) params.set("from", query.from);
+  if (query?.to) params.set("to", query.to);
+  if (query?.userId) params.set("userId", query.userId);
+  const qs = params.toString();
+  return apiFetch<ProjectContributionsDto>(
+    `/projects/${projectId}/contributions${qs ? `?${qs}` : ""}`,
+  );
 }

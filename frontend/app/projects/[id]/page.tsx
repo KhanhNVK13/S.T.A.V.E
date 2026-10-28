@@ -14,6 +14,7 @@ import {
   FileUp,
 } from "lucide-react";
 import { getPublicProject, getProject, forkProject, ApiError } from "../../../lib/api-client";
+import { listCollaborators } from "../../../lib/api-collab";
 import { apiErrorMessage } from "../../../lib/error-message";
 import type { PublicProject } from "../../../lib/api-client";
 import { useAuth } from "../../../context/auth-context";
@@ -27,6 +28,7 @@ import { BranchList } from "../../../components/project/branch-list";
 import { VersionSummary } from "../../../components/project/version-summary";
 import { ImportMidiDialog } from "../../../components/project/import-midi-dialog";
 import { ProjectPullRequests } from "../../../components/pull-request/project-pull-requests";
+import { ContributionsView } from "../../../components/collaboration/contributions-view";
 import { formatRelativeTime, APP_LOCALE } from "../../../lib/format-date";
 
 interface Props {
@@ -66,7 +68,7 @@ interface OverviewData {
 const PENDING_FORK_KEY = "stave_pending_fork";
 const PENDING_FORK_TTL_MS = 15 * 60 * 1000;
 
-type TabId = "overview" | "commits" | "branches" | "pulls";
+type TabId = "overview" | "commits" | "branches" | "pulls" | "contributions";
 
 function ProjectOverview({ id }: { id: string }) {
   const router = useRouter();
@@ -81,6 +83,8 @@ function ProjectOverview({ id }: { id: string }) {
   const [importedMessage, setImportedMessage] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  /** UC-65: chủ dự án hoặc cộng tác viên đã CHẤP NHẬN (BR-65: pending chưa có quyền). */
+  const [collabInfo, setCollabInfo] = useState<{ projectId: string; accepted: boolean } | null>(null);
   const dismissToast = useCallback(() => setToastMessage(null), []);
 
   const tab = (searchParams.get("tab") ?? "overview") as TabId;
@@ -165,6 +169,44 @@ function ProjectOverview({ id }: { id: string }) {
       cancelled = true;
     };
   }, [id, user, profile, authLoading]);
+
+  // UC-65: tab "Đóng góp" chỉ hiện với chủ dự án hoặc cộng tác viên đã
+  // CHẤP NHẬN (BR-65: pending chưa có quyền). Không hiện với khách.
+  // Pattern giống effect load() bên trên: không setState đồng bộ trong thân
+  // effect — chỉ set sau lần await đầu tiên (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    let cancelled = false;
+    if (authLoading || !user || !data || data.isOwner) return;
+    const userId = user.id;
+
+    async function loadCollab() {
+      try {
+        const items = await listCollaborators(id);
+        if (cancelled) return;
+        setCollabInfo({
+          projectId: id,
+          accepted: items.some(
+            (item) => item.userId === userId && item.status === "accepted",
+          ),
+        });
+      } catch {
+        // Không đọc được danh sách → coi như chưa chấp nhận (tab ẩn,
+        // ContributionsView tự hiện lỗi "Thử lại" nếu được mở trực tiếp).
+        if (!cancelled) setCollabInfo({ projectId: id, accepted: false });
+      }
+    }
+
+    void loadCollab();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, data, id]);
+
+  const isCollaborator =
+    !!user &&
+    !!collabInfo &&
+    collabInfo.projectId === id &&
+    collabInfo.accepted;
 
   function switchTab(next: TabId) {
     const params = new URLSearchParams(searchParams.toString());
@@ -259,6 +301,8 @@ function ProjectOverview({ id }: { id: string }) {
     { id: "commits", label: "Commit", visible: data.isOwner, ready: true },
     { id: "branches", label: "Nhánh", visible: data.isOwner, ready: true },
     { id: "pulls", label: "Pull request", visible: !!user && (data.isOwner || data.visibility === "public"), ready: true },
+    // UC-65: chỉ chủ dự án hoặc cộng tác viên đã chấp nhận (xem trên, BR-65).
+    { id: "contributions", label: "Đóng góp", visible: data.isOwner || isCollaborator, ready: true },
   ];
 
   const activeTab = tabs.find((t) => t.id === tab && t.visible && t.ready) ? tab : "overview";
@@ -394,6 +438,17 @@ function ProjectOverview({ id }: { id: string }) {
           <BranchList key={refreshKey} projectId={data.id} />
         ) : activeTab === "pulls" ? (
           <ProjectPullRequests projectId={data.id} canCreate={data.isOwner} />
+        ) : activeTab === "contributions" ? (
+          <ContributionsView
+            key={refreshKey}
+            projectId={data.id}
+            onSelectCommit={(commitId) => {
+              // UC-65 (6): mở commit trong lịch sử phiên bản — chuyển tab
+              // "Commit" kèm id để CommitHistory focus.
+              switchTab("commits");
+              void commitId;
+            }}
+          />
         ) : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">

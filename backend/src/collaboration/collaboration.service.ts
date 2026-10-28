@@ -1,22 +1,43 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   CollaboratorItem,
   CollaborationInvitation,
+  ContributorSummaryItem,
+  ContributionCommitItem,
+  DraftSnapshot,
+  ProjectContributionsDto,
 } from '@stave/shared-types';
 import { v4 as uuidv4 } from 'uuid';
+import { DiffService, type SnapshotDiff } from '../commits/diff.service';
+import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
 import { CollaborationGateway } from './collaboration.gateway';
 import { InviteCollaboratorDto } from './dto/invite-collaborator.dto';
+import { ListContributionsQueryDto } from './dto/list-contributions-query.dto';
 import { PatchCollaboratorDto } from './dto/patch-collaborator.dto';
+
+/** Raw row from the real `commits` table (id, branch_id, author_id, message, snapshot, parent_commit_id, merged_from_branch_id, created_at). */
+interface CommitRow {
+  id: string;
+  branch_id: string;
+  author_id: string;
+  message: string;
+  snapshot: DraftSnapshot;
+  parent_commit_id: string | null;
+  merged_from_branch_id: string | null;
+  created_at: string;
+}
 
 /** Raw row from project_collaborators (columns per docs/duc.md — no others). */
 interface CollaboratorRow {
@@ -41,11 +62,14 @@ const MAX_COLLABORATORS = 10;
 
 @Injectable()
 export class CollaborationService {
+  private static readonly logger = new Logger(CollaborationService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly projectAccess: ProjectAccessService,
     private readonly gateway: CollaborationGateway,
+    private readonly diffService: DiffService,
   ) {}
 
   // ==========================================================================
@@ -354,6 +378,435 @@ export class CollaborationService {
       });
     }
     // Pending invitation: withdrawal only, no "you were removed" notice.
+  }
+
+  /** Cap on the commits considered per request (BR-72 — keep diffing fast). */
+  private static readonly MAX_COMMITS_CONSIDERED = 300;
+
+  // ==========================================================================
+  // UC-65: Contributor contributions (derived, read-only — BR-72)
+  // ==========================================================================
+
+  /**
+   * Per-author contribution stats for a project: commit counts, note
+   * add/remove/modify totals, per-track distribution, recent commits.
+   *
+   * Everything is derived on-the-fly from commit snapshots — there is no
+   * contribution table in the DB (BR-72). Merge commits
+   * (`merged_from_branch_id IS NOT NULL`) count toward `totalCommits` but
+   * contribute 0 notes, so the same change is never counted twice.
+   */
+  async listContributions(
+    projectId: string,
+    userId: string,
+    query: ListContributionsQueryDto,
+  ): Promise<ProjectContributionsDto> {
+    // BR-43/65: only the owner or an accepted collaborator may view.
+    await this.projectAccess.assertCanView(projectId, userId);
+
+    try {
+      const branches = await this.listProjectBranchIds(
+        projectId,
+        query.branchId,
+      );
+      if (branches.length === 0) {
+        // PRE-3 (4.E1): no branches or no matching branch → nothing to derive.
+        return { projectId, contributors: [], recentCommits: [] };
+      }
+
+      const commits = await this.listProjectCommits(
+        branches,
+        query.from,
+        query.to,
+      );
+      if (commits.length === 0) {
+        // PRE-3 (4.E1): project without commits → empty result, never 500.
+        return { projectId, contributors: [], recentCommits: [] };
+      }
+
+      const authorStats = new Map<string, ContributorSummaryItem>();
+      /** Per author: trackId → cumulative change count. */
+      const authorTrackCounts = new Map<string, Map<string, number>>();
+      const recentCommits: ContributionCommitItem[] = [];
+
+      for (const commit of commits) {
+        const isMergeCommit = commit.merged_from_branch_id !== null;
+        const diff = isMergeCommit
+          ? null
+          : await this.snapshotDiffForCommit(commit);
+        const stats = diff ? this.commitNoteStats(diff) : null;
+        const notesAdded = stats ? stats.added : 0;
+        const notesRemoved = stats ? stats.removed : 0;
+        const notesModified = stats ? stats.modified : 0;
+        const trackCounts = diff ? this.trackChangeCounts(diff) : undefined;
+
+        const author =
+          authorStats.get(commit.author_id) ??
+          this.newContributor(commit.author_id, commit.created_at);
+        author.totalCommits += 1;
+        author.notesAdded += notesAdded;
+        author.notesRemoved += notesRemoved;
+        author.notesModified += notesModified;
+        // `commits` is oldest-first, so the last write is the most recent.
+        author.lastActivityAt = commit.created_at;
+        if (trackCounts) {
+          const perAuthor =
+            authorTrackCounts.get(commit.author_id) ??
+            new Map<string, number>();
+          for (const [trackId, count] of trackCounts) {
+            perAuthor.set(trackId, (perAuthor.get(trackId) ?? 0) + count);
+          }
+          authorTrackCounts.set(commit.author_id, perAuthor);
+        }
+        authorStats.set(commit.author_id, author);
+
+        recentCommits.push({
+          id: commit.id,
+          message: commit.message,
+          authorId: commit.author_id,
+          createdAt: commit.created_at,
+          notesAdded,
+          notesRemoved,
+          notesModified,
+        });
+      }
+
+      const contributors = await this.enrichContributors(projectId, [
+        ...authorStats.values(),
+      ]);
+      this.fillTrackDistribution(commits, contributors, authorTrackCounts);
+
+      // Optional single-author filter (5.1) — applied to both lists.
+      const filteredContributors = query.userId
+        ? contributors.filter((c) => c.userId === query.userId)
+        : contributors;
+      // Newest-first (the loop above ran oldest-first for the diffs).
+      const filteredCommits = (
+        query.userId
+          ? recentCommits.filter((c) => c.authorId === query.userId)
+          : recentCommits
+      ).reverse();
+
+      return {
+        projectId,
+        contributors: filteredContributors,
+        recentCommits: filteredCommits,
+      };
+    } catch (error) {
+      // 2.E1: already-committed HTTP exceptions (403/404 from the guards)
+      // pass through untouched; anything else is a read failure → 500 and the
+      // UI shows "Thử lại", never a fake "0 contributions".
+      if (error instanceof HttpException) throw error;
+      CollaborationService.logger.error(
+        `Failed to fetch project contributions: ${String(error)}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to fetch project contributions: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  // ==========================================================================
+  // UC-65: private helpers
+  // ==========================================================================
+
+  /** A branch row belongs to this project; `branchId` (when set) must too. */
+  private async listProjectBranchIds(
+    projectId: string,
+    branchId?: string,
+  ): Promise<string[]> {
+    if (branchId) {
+      const { data: branch, error } = await this.supabase
+        .from('branches')
+        .select('id')
+        .eq('id', branchId)
+        .eq('project_id', projectId)
+        .maybeSingle<{ id: string }>();
+      if (error) {
+        throw new InternalServerErrorException(
+          `Failed to fetch project branches: ${error.message}`,
+        );
+      }
+      if (!branch) {
+        throw new NotFoundException('Branch not found');
+      }
+      return [branch.id];
+    }
+
+    const { data: branches, error } = await this.supabase
+      .from('branches')
+      .select('id')
+      .eq('project_id', projectId);
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to fetch project branches: ${error.message}`,
+      );
+    }
+    return ((branches ?? []) as Array<{ id: string }>).map((b) => b.id);
+  }
+
+  /**
+   * The newest `MAX_COMMITS_CONSIDERED` commits across the project's
+   * branches (BR-72), returned oldest-first. When `from`/`to` are set the
+   * window is narrowed first and the cap still applies to that window.
+   *
+   * `commits` has no `project_id` column — the project link runs through
+   * `branches` (gotcha: querying commits by project directly is a runtime
+   * SQL error).
+   */
+  private async listProjectCommits(
+    branchIds: string[],
+    from?: string,
+    to?: string,
+  ): Promise<CommitRow[]> {
+    let query = this.supabase
+      .from('commits')
+      .select('*')
+      .in('branch_id', branchIds)
+      .order('created_at', { ascending: false })
+      .limit(CollaborationService.MAX_COMMITS_CONSIDERED);
+
+    if (from) {
+      query = query.gte('created_at', from);
+    }
+    if (to) {
+      query = query.lte('created_at', to);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to fetch project commits: ${error.message}`,
+      );
+    }
+    // Descending for the cap; oldest-first for the diff loop.
+    return ((data ?? []) as unknown as CommitRow[]).reverse();
+  }
+
+  private newContributor(
+    authorId: string,
+    createdAt: string,
+  ): ContributorSummaryItem {
+    return {
+      userId: authorId,
+      username: null,
+      displayName: null,
+      avatarUrl: null,
+      isOwner: false,
+      isRemoved: false,
+      isDeletedAccount: false,
+      totalCommits: 0,
+      notesAdded: 0,
+      notesRemoved: 0,
+      notesModified: 0,
+      trackDistribution: [],
+      lastActivityAt: createdAt,
+    };
+  }
+
+  /**
+   * Fill identities for every author (3.E1/3.E2): a missing `users` row →
+   * "Người dùng đã xoá" (flagged, data kept); an author who is no longer the
+   * owner or an accepted collaborator → `isRemoved` (BR-67 keeps their
+   * commits).
+   */
+  private async enrichContributors(
+    projectId: string,
+    contributors: ContributorSummaryItem[],
+  ): Promise<ContributorSummaryItem[]> {
+    const authorIds = contributors.map((c) => c.userId);
+
+    const { data: projects, error: projectError } = await this.supabase
+      .from('projects')
+      .select('owner_id')
+      .eq('id', projectId)
+      .maybeSingle<{ owner_id: string }>();
+    if (projectError) {
+      throw new InternalServerErrorException(
+        `Failed to fetch project owner: ${projectError.message}`,
+      );
+    }
+    const ownerId = projects?.owner_id;
+
+    const { data: collaborators, error: collabError } = await this.supabase
+      .from('project_collaborators')
+      .select('user_id, status')
+      .eq('project_id', projectId);
+    if (collabError) {
+      throw new InternalServerErrorException(
+        `Failed to fetch collaborators: ${collabError.message}`,
+      );
+    }
+    const acceptedCollaborators = new Set(
+      (collaborators ?? [])
+        .filter((row) => row.status === 'accepted')
+        .map((row) => row.user_id),
+    );
+
+    const userMap = await this.getNames(
+      'users',
+      authorIds,
+      'username',
+      'display_name',
+      'avatar_url',
+    );
+
+    return contributors.map((item) => {
+      const known = userMap.has(`${item.userId}:username`);
+      const isOwner = item.userId === ownerId;
+      return {
+        ...item,
+        isDeletedAccount: !known,
+        username: known
+          ? (userMap.get(`${item.userId}:username`) ?? null)
+          : null,
+        displayName: known
+          ? (userMap.get(`${item.userId}:display_name`) ?? null)
+          : null,
+        avatarUrl: known
+          ? (userMap.get(`${item.userId}:avatar_url`) ?? null)
+          : null,
+        isOwner,
+        // 3.E1: no longer the owner or an accepted collaborator → flagged
+        // "đã rời dự án"; their commits are kept intact (BR-67).
+        isRemoved: !isOwner && !acceptedCollaborators.has(item.userId),
+      };
+    });
+  }
+
+  /**
+   * Fill each contributor's `trackDistribution` with resolved track names and
+   * integer percentages (against that author's total note changes, so the
+   * bars of one card sum to ~100).
+   */
+  private fillTrackDistribution(
+    commits: CommitRow[],
+    contributors: ContributorSummaryItem[],
+    authorTrackCounts: Map<string, Map<string, number>>,
+  ): void {
+    // Track names, preferring the newest snapshot that still has the track
+    // (a later rename wins). `commits` is ascending — scan in reverse.
+    const trackNames = new Map<string, string>();
+    for (let i = commits.length - 1; i >= 0; i -= 1) {
+      for (const track of commits[i].snapshot.tracks) {
+        if (!trackNames.has(track.id)) trackNames.set(track.id, track.name);
+      }
+    }
+
+    for (const item of contributors) {
+      const counts = authorTrackCounts.get(item.userId);
+      if (!counts || counts.size === 0) {
+        item.trackDistribution = [];
+        continue;
+      }
+      // Percent = share of this author's tracked changes, so the bars of one
+      // card always sum to ~100 (rounded to one decimal).
+      const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
+      item.trackDistribution = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([trackId, changeCount]) => ({
+          trackId,
+          trackName: trackNames.get(trackId) ?? 'Track đã xoá',
+          changeCount,
+          percentage:
+            total === 0 ? 0 : Math.round((changeCount / total) * 1000) / 10,
+        }));
+    }
+  }
+
+  /**
+   * Note-level diff of a commit against its parent — the parent's snapshot
+   * comes from the parent commit when one exists, otherwise from the empty
+   * default snapshot (first commit). Null when the parent is unknown.
+   */
+  private async snapshotDiffForCommit(
+    commit: CommitRow,
+  ): Promise<SnapshotDiff | null> {
+    const parentSnapshot = await this.parentSnapshotOfCommit(commit);
+    if (!parentSnapshot) return null;
+    return this.diffService.compareSnapshots(parentSnapshot, commit.snapshot);
+  }
+
+  private async parentSnapshotOfCommit(
+    commit: CommitRow,
+  ): Promise<DraftSnapshot | null> {
+    if (!commit.parent_commit_id) {
+      // First commit of the branch: diff against the empty default snapshot.
+      return buildDefaultDraftSnapshot();
+    }
+    const { data: parent, error } = await this.supabase
+      .from('commits')
+      .select('snapshot')
+      .eq('id', commit.parent_commit_id)
+      .maybeSingle<{ snapshot: DraftSnapshot }>();
+    if (error) {
+      // Parent vanished (e.g. history pruned) — skip this commit's diff
+      // rather than failing the whole response.
+      CollaborationService.logger.warn(
+        `Failed to fetch parent commit ${commit.parent_commit_id}: ${error.message}`,
+      );
+      return null;
+    }
+    return parent?.snapshot ?? buildDefaultDraftSnapshot();
+  }
+
+  /**
+   * Note-level totals of a commit. `summary.notes` alone would UNDERCOUNT
+   * contributions that add/remove a whole track with its notes: UC-45 3.E2
+   * deliberately excludes those notes from the summary and puts them in
+   * `tracksDiff.noteCounts`. For contribution stats they still count — a
+   * track addition means its notes were added.
+   */
+  private commitNoteStats(diff: SnapshotDiff): {
+    added: number;
+    removed: number;
+    modified: number;
+  } {
+    const addedTrackIds = new Set(diff.tracksDiff.added.map((t) => t.id));
+    let added = diff.summary.notes.added;
+    let removed = diff.summary.notes.removed;
+    for (const [trackId, count] of Object.entries(diff.tracksDiff.noteCounts)) {
+      if (addedTrackIds.has(trackId)) {
+        added += count;
+      } else {
+        removed += count;
+      }
+    }
+    return {
+      added,
+      removed,
+      modified: diff.summary.notes.modified,
+    };
+  }
+
+  /**
+   * Which tracks a commit touched and how much: note adds/removes/modifies
+   * per `trackId`, plus one change per track that was added/removed/modified
+   * itself, plus the notes that moved with a whole track (3.E2 — they are
+   * intentionally NOT in `changesByBar`/`summary.notes`).
+   */
+  private trackChangeCounts(diff: SnapshotDiff): Map<string, number> {
+    const counts = new Map<string, number>();
+    const bump = (trackId: string, amount: number) => {
+      counts.set(trackId, (counts.get(trackId) ?? 0) + amount);
+    };
+
+    for (const bar of Object.values(diff.changesByBar)) {
+      for (const note of bar.added) bump(note.trackId, 1);
+      for (const note of bar.removed) bump(note.trackId, 1);
+      for (const { new: newNote } of bar.modified) bump(newNote.trackId, 1);
+    }
+    for (const track of diff.tracksDiff.added) bump(track.id, 1);
+    for (const track of diff.tracksDiff.removed) bump(track.id, 1);
+    for (const { new: newTrack } of diff.tracksDiff.modified) {
+      bump(newTrack.id, 1);
+    }
+    for (const [trackId, count] of Object.entries(diff.tracksDiff.noteCounts)) {
+      bump(trackId, count);
+    }
+    return counts;
   }
 
   // ==========================================================================
