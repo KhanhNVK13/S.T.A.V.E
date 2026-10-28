@@ -65,7 +65,7 @@ export interface SnapshotDiff {
  * phải x/4, và lệch với `MergeService.groupConflictsByBar`, khiến cùng 1 note
  * nằm ở ô nhịp khác nhau giữa màn Compare và màn giải quyết xung đột.
  */
-function calculateTicksPerBar(
+export function calculateTicksPerBar(
   timeSignature: [number, number],
   ppq: number,
 ): number {
@@ -83,7 +83,7 @@ function calculateBarNumber(startTime: number, ticksPerBar: number): number {
 /**
  * Deep equality check for two values
  */
-function deepEqual(a: unknown, b: unknown): boolean {
+export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a === null || b === null) return false;
   if (typeof a !== typeof b) return false;
@@ -116,7 +116,10 @@ function deepEqual(a: unknown, b: unknown): boolean {
  * `instrument` từng bị bỏ sót: BR-33 ghi rõ việc gán nhạc cụ "appear in
  * version comparisons", nên đổi nhạc cụ mà không đổi gì khác phải hiện ra.
  */
-function isTrackModified(oldTrack: DraftTrack, newTrack: DraftTrack): boolean {
+export function isTrackModified(
+  oldTrack: DraftTrack,
+  newTrack: DraftTrack,
+): boolean {
   return (
     oldTrack.name !== newTrack.name ||
     (oldTrack.instrument ?? null) !== (newTrack.instrument ?? null) ||
