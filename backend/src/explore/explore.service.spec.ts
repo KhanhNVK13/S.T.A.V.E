@@ -1009,3 +1009,78 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
     });
   });
 });
+
+// ============================================================================
+// SHEET: BE-EXP-07 (ExploreService.getForkCounts)
+//
+// Single query per call:
+//   projects .in('forked_from_project_id', ids) - awaited directly
+// An empty id list issues no query at all.
+// ============================================================================
+describe('BE-EXP-07 ExploreService.getForkCounts(projectIds)', () => {
+  const forkRows = (parents: string[]) =>
+    parents.map((id) => ({ forked_from_project_id: id }));
+
+  const makeService = (main?: QueryResult) => {
+    const mock = createSupabaseMock([], {
+      tables: { projects: main ? [main] : [] },
+    });
+    const service = new ExploreService(mock.client);
+    const counts = (
+      service as unknown as {
+        getForkCounts(ids: string[]): Promise<Map<string, number>>;
+      }
+    ).getForkCounts.bind(service) as (
+      ids: string[],
+    ) => Promise<Map<string, number>>;
+    return { counts, mock };
+  };
+
+  it('UTCID01 returns an empty Map and sends no query for an empty id list', async () => {
+    const { counts, mock } = makeService();
+
+    const result = await counts([]);
+
+    expect(result).toEqual(new Map<string, number>());
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 counts forks per parent (2 of P1, 1 of P2)', async () => {
+    const { counts, mock } = makeService({
+      data: forkRows(['P1', 'P1', 'P2']),
+    });
+
+    const result = await counts(['P1', 'P2', 'P3']);
+
+    expect(mock.builders.projects.in).toHaveBeenCalledWith(
+      'forked_from_project_id',
+      ['P1', 'P2', 'P3'],
+    );
+    expect(result).toEqual(
+      new Map([
+        ['P1', 2],
+        ['P2', 1],
+      ]),
+    );
+    expect(result.has('P3')).toBe(false);
+  });
+
+  it('UTCID03 returns an empty Map when no forks are found', async () => {
+    const { counts } = makeService({ data: [] });
+
+    const result = await counts(['P1', 'P2', 'P3']);
+
+    expect(result).toEqual(new Map<string, number>());
+  });
+
+  it('UTCID04 returns an empty Map when Supabase returns an error', async () => {
+    const { counts } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    const result = await counts(['P1', 'P2', 'P3']);
+
+    expect(result).toEqual(new Map<string, number>());
+  });
+});
