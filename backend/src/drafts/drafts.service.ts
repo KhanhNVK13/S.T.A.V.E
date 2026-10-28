@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -66,7 +67,11 @@ export class DraftsService {
   async getRecovery(
     projectId: string,
     userId: string,
-  ): Promise<{ recovered: boolean; savedAt: string | null }> {
+  ): Promise<{
+    recovered: boolean;
+    savedAt: string | null;
+    version: string | null;
+  }> {
     const branch = await this.projectsService.getActiveBranchForUser(
       projectId,
       userId,
@@ -82,7 +87,7 @@ export class DraftsService {
     if (error) {
       throw new InternalServerErrorException('Could not read draft');
     }
-    if (!draft) return { recovered: false, savedAt: null };
+    if (!draft) return { recovered: false, savedAt: null, version: null };
 
     let headSnapshot: DraftSnapshot = buildDefaultDraftSnapshot();
     if (branch.head_commit_id) {
@@ -99,41 +104,93 @@ export class DraftsService {
       draft.snapshot,
     ).areIdentical;
     return identical
-      ? { recovered: false, savedAt: null }
-      : { recovered: true, savedAt: draft.updated_at };
+      ? { recovered: false, savedAt: null, version: draft.updated_at }
+      : {
+          recovered: true,
+          savedAt: draft.updated_at,
+          version: draft.updated_at,
+        };
   }
 
-  /** PUT /projects/:id/draft — ghi đè snapshot draft của người gọi trên branch ĐANG MỞ (UC-48). */
+  /**
+   * PUT /projects/:id/draft — ghi đè snapshot draft của người gọi trên branch
+   * ĐANG MỞ (UC-48).
+   *
+   * `expectedVersion` là khoá lạc quan giữa các tab của cùng một người: giá
+   * trị `updated_at` của draft mà tab này đã đọc/ghi lần cuối (hoặc `none`
+   * nếu lúc đọc chưa có dòng draft). Lệch thì 409 `DRAFT_STALE` và KHÔNG ghi.
+   * Bỏ trống = ghi đè không kiểm tra (đường "ghi đè bản của tôi").
+   */
   async putDraft(
     projectId: string,
     userId: string,
     dto: UpdateDraftDto,
-  ): Promise<DraftSnapshot> {
+    expectedVersion?: string,
+  ): Promise<{ version: string }> {
     await this.access.assertCanEdit(projectId, userId);
     const branch = await this.projectsService.getActiveBranchForUser(
       projectId,
       userId,
       { accessChecked: true },
     );
+    const updatedAt = new Date().toISOString();
+    const stale = () =>
+      new ConflictException({
+        message: 'Draft was changed elsewhere',
+        code: 'DRAFT_STALE',
+      });
 
-    const { data, error } = await this.supabase
-      .from('drafts')
-      .upsert(
-        {
+    if (expectedVersion === undefined) {
+      const { data, error } = await this.supabase
+        .from('drafts')
+        .upsert(
+          {
+            branch_id: branch.id,
+            user_id: userId,
+            snapshot: dto,
+            updated_at: updatedAt,
+          },
+          { onConflict: 'branch_id,user_id' },
+        )
+        .select('updated_at')
+        .single<{ updated_at: string }>();
+      if (error || !data) {
+        throw new InternalServerErrorException('Could not write draft');
+      }
+      return { version: data.updated_at };
+    }
+
+    if (expectedVersion === 'none') {
+      const { data, error } = await this.supabase
+        .from('drafts')
+        .insert({
           branch_id: branch.id,
           user_id: userId,
           snapshot: dto,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'branch_id,user_id' },
-      )
-      .select('*')
-      .single<DraftRow>();
+          updated_at: updatedAt,
+        })
+        .select('updated_at')
+        .single<{ updated_at: string }>();
+      if (error?.code === '23505') throw stale();
+      if (error || !data) {
+        throw new InternalServerErrorException('Could not write draft');
+      }
+      return { version: data.updated_at };
+    }
 
-    if (error || !data) {
+    const { data, error } = await this.supabase
+      .from('drafts')
+      .update({ snapshot: dto, updated_at: updatedAt })
+      .eq('branch_id', branch.id)
+      .eq('user_id', userId)
+      .eq('updated_at', expectedVersion)
+      .select('updated_at')
+      .maybeSingle<{ updated_at: string }>();
+    if (error) {
       throw new InternalServerErrorException('Could not write draft');
     }
-    return data.snapshot;
+    if (!data) throw stale();
+    return { version: data.updated_at };
   }
 
   /**

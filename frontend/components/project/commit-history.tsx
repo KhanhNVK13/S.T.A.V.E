@@ -30,6 +30,7 @@ import { createAndActivateBranch } from "../../lib/create-and-activate-branch";
 import { RowList, RowHeader, RowItem, RowTime } from "../ui/row-list";
 import { Toast } from "../ui/toast";
 import { CommitCompare } from "./commit-compare";
+import { VersionPickerDialog } from "./version-picker-dialog";
 import type { CompareSide } from "./commit-compare";
 import { apiErrorMessage } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
@@ -39,6 +40,8 @@ import { formatAuthorName } from "../../lib/format-name";
 const COLS = "md:grid-cols-[20px_minmax(0,1fr)_150px_88px_96px_auto]";
 
 const PAGE_SIZE = 20;
+
+const ALL_BRANCHES = "__all__";
 
 const TAG_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
 
@@ -94,6 +97,8 @@ export function CommitHistory({
 
   /** Tối đa 2 commit được chọn để so sánh; chọn cái thứ 3 thì bỏ cái chọn sớm nhất. */
   const [selected, setSelected] = useState<string[]>([]);
+  const [allView, setAllView] = useState(false);
+  const [picker, setPicker] = useState<"compare" | "restore" | null>(null);
   const [comparing, setComparing] = useState<{ base: CompareSide; target: CompareSide } | null>(
     null,
   );
@@ -107,6 +112,28 @@ export function CommitHistory({
     } catch (err) {
       // 2.E2: báo lỗi kèm nút thử lại, không hiện danh sách rỗng dễ gây hiểu
       // nhầm là mất lịch sử.
+      setCommits([]);
+      setError(apiErrorMessage(err, "Không tải được lịch sử commit."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadAllHistory = useCallback(async (list: Branch[]) => {
+    setLoading(true);
+    try {
+      const results = await Promise.all(list.map((b) => getBranchHistory(b.id)));
+      const byId = new Map<string, BranchHistoryCommit>();
+      for (const result of results) {
+        for (const commit of result.commits) byId.set(commit.id, commit);
+      }
+      setCommits(
+        [...byId.values()].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
+      );
+      setError(null);
+    } catch (err) {
       setCommits([]);
       setError(apiErrorMessage(err, "Không tải được lịch sử commit."));
     } finally {
@@ -147,12 +174,24 @@ export function CommitHistory({
   }, [projectId, initialBranchId, loadHistory]);
 
   function selectBranch(branchId: string) {
-    const next = branches.find((b) => b.id === branchId) ?? null;
-    setBranch(next);
     setPage(1);
     setSelected([]);
     setTaggingId(null);
+    if (branchId === ALL_BRANCHES) {
+      setAllView(true);
+      setBranch(null);
+      void loadAllHistory(branches);
+      return;
+    }
+    const next = branches.find((b) => b.id === branchId) ?? null;
+    setAllView(false);
+    setBranch(next);
     if (next) void loadHistory(next.id);
+  }
+
+  function retryLoad() {
+    if (allView) void loadAllHistory(branches);
+    else if (branch) void loadHistory(branch.id);
   }
 
   async function handleTag(commitId: string, replaceConfirmed = false) {
@@ -276,8 +315,9 @@ export function CommitHistory({
     setComparing({ base: older, target: newer });
   }
 
-  const head = commits[0] ?? null;
-  const isDefault = branch?.is_default ?? false;
+  const head = allView ? null : (commits[0] ?? null);
+  const isDefault = allView || (branch?.is_default ?? false);
+  const branchNames = new Map(branches.map((b) => [b.id, b.name]));
   const uniqueCount = commits.filter((c) => c.isUniqueToBranch).length;
   const totalPages = Math.max(1, Math.ceil(commits.length / PAGE_SIZE));
   const pageItems = commits.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -314,12 +354,13 @@ export function CommitHistory({
           <GitBranch className="h-3.5 w-3.5" />
           {/* UC-50 Alt 1.1: đổi bộ lọc lịch sử sang 1 nhánh cụ thể. */}
           <select
-            value={branch?.id ?? ""}
+            value={allView ? ALL_BRANCHES : (branch?.id ?? "")}
             onChange={(e) => selectBranch(e.target.value)}
             className={`${INPUT_CLASS} h-8 w-auto font-mono`}
             aria-label="Chọn nhánh để xem lịch sử"
             disabled={branches.length === 0}
           >
+            {branches.length > 1 && <option value={ALL_BRANCHES}>Mọi nhánh</option>}
             {branches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -359,15 +400,23 @@ export function CommitHistory({
             >
               <GitCompareArrows className="h-3.5 w-3.5" /> So sánh
             </Button>
+            <Button variant="ghost" onClick={() => setPicker("compare")}>
+              Chọn phiên bản…
+            </Button>
           </div>
+        )}
+        {!allView && commits.length > 0 && (
+          <Button variant="ghost" onClick={() => setPicker("restore")}>
+            <RotateCcw className="h-3.5 w-3.5" /> Khôi phục theo phiên bản…
+          </Button>
         )}
       </div>
 
       {error && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-danger/20 bg-danger-muted px-4 py-3">
           <p className="text-xs text-danger">{error}</p>
-          {branch && (
-            <Button variant="secondary" onClick={() => void loadHistory(branch.id)}>
+          {(branch || allView) && (
+            <Button variant="secondary" onClick={retryLoad}>
               Thử lại
             </Button>
           )}
@@ -439,6 +488,12 @@ export function CommitHistory({
                     <div className="mt-1 flex flex-wrap gap-1">
                       {isHead && <Badge variant="info">Mới nhất</Badge>}
                       {/* UC-50 bước 3: phân biệt commit riêng của nhánh và commit kế thừa. */}
+                      {allView && (
+                        <Badge variant="neutral">
+                          <GitBranch className="h-3 w-3" />{" "}
+                          {branchNames.get(commit.branch_id) ?? "nhánh đã xoá"}
+                        </Badge>
+                      )}
                       {!isDefault &&
                         (commit.isUniqueToBranch ? (
                           <Badge variant="success">Riêng nhánh</Badge>
@@ -575,9 +630,11 @@ export function CommitHistory({
                       >
                         <GitBranchPlus className="h-3.5 w-3.5" /> Nhánh từ đây
                       </Button>
-                      <Button variant="secondary" onClick={() => setRestoreTarget(commit)}>
-                        <RotateCcw className="h-3.5 w-3.5" /> Khôi phục
-                      </Button>
+                      {!allView && (
+                        <Button variant="secondary" onClick={() => setRestoreTarget(commit)}>
+                          <RotateCcw className="h-3.5 w-3.5" /> Khôi phục
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -605,8 +662,31 @@ export function CommitHistory({
         </div>
       )}
 
+      <VersionPickerDialog
+        open={picker !== null}
+        mode={picker ?? "compare"}
+        commits={commits}
+        initialIds={
+          picker === "compare"
+            ? selected.length === 2
+              ? selected
+              : [commits[1]?.id ?? "", commits[0]?.id ?? ""]
+            : [commits.find((c) => c.tags.length > 0)?.id ?? commits[0]?.id ?? ""]
+        }
+        onClose={() => setPicker(null)}
+        onConfirm={(ids) => {
+          const chosen = ids
+            .map((id) => commits.find((c) => c.id === id))
+            .filter((c): c is BranchHistoryCommit => !!c);
+          setPicker(null);
+          if (picker === "compare" && chosen.length === 2) openCompare(chosen[0], chosen[1]);
+          else if (picker === "restore" && chosen[0]) setRestoreTarget(chosen[0]);
+        }}
+      />
+
       {comparing && (
         <CommitCompare
+          projectId={projectId}
           base={comparing.base}
           target={comparing.target}
           onClose={() => setComparing(null)}

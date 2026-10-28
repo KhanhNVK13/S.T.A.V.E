@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Loader2, Mic, Music, Pause, Play, Save, Square, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, Loader2, MoreHorizontal, Mic, Music, Pause, Pencil, Play, Save, Square, Trash2, Upload, X } from "lucide-react";
 import {
   confirmCustomSoundUpload,
   createCustomSoundUploadUrl,
   deleteCustomSound,
   getCustomSoundUsage,
   listCustomSounds,
+  renameCustomSound,
 } from "../../lib/api-client";
 import type { CustomSound, CustomSoundLibrary, CustomSoundUsage } from "../../lib/api-client";
 import { supabase } from "../../lib/supabase-browser";
@@ -15,6 +16,8 @@ import { apiErrorMessage } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
 import { encodeWav, normalizeForStorage } from "../../lib/wav-encoder";
 import { useAudioRecorder } from "../../lib/use-audio-recorder";
+import { loadWaveformPeaks } from "../../lib/sound-waveform";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { EmptyState } from "../ui/empty-state";
@@ -270,12 +273,147 @@ function DeleteSoundDialog({
   );
 }
 
+const WAVE_BARS = 48;
+const WAVE_W = 96;
+const WAVE_H = 28;
+
+function Waveform({ soundId, url }: { soundId: string; url: string | null }) {
+  const [peaks, setPeaks] = useState<number[] | "error" | null>(null);
+
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
+    loadWaveformPeaks(soundId, url, WAVE_BARS)
+      .then((p) => !cancelled && setPeaks(p))
+      .catch(() => !cancelled && setPeaks("error"));
+    return () => {
+      cancelled = true;
+    };
+  }, [soundId, url]);
+
+  const bar = WAVE_W / WAVE_BARS;
+  const values = Array.isArray(peaks) ? peaks : null;
+  return (
+    <svg
+      width={WAVE_W}
+      height={WAVE_H}
+      viewBox={`0 0 ${WAVE_W} ${WAVE_H}`}
+      className="hidden shrink-0 sm:block"
+      aria-hidden="true"
+    >
+      {values
+        ? values.map((v, i) => {
+            const h = Math.max(2, v * (WAVE_H - 2));
+            return (
+              <rect
+                key={i}
+                x={i * bar + 0.5}
+                y={(WAVE_H - h) / 2}
+                width={Math.max(1, bar - 1)}
+                height={h}
+                rx={0.5}
+                style={{ fill: "var(--accent)" }}
+              />
+            );
+          })
+        : (
+          <line
+            x1={0}
+            x2={WAVE_W}
+            y1={WAVE_H / 2}
+            y2={WAVE_H / 2}
+            strokeWidth={2}
+            strokeDasharray="2 3"
+            style={{ stroke: "var(--border-strong)" }}
+          />
+        )}
+    </svg>
+  );
+}
+
+function RowMenu({
+  name,
+  onRename,
+  onDelete,
+}: {
+  name: string;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Tuỳ chọn cho ${name}`}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-9 z-20 min-w-40 rounded-card border border-border bg-surface p-1 text-[13px]"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onRename();
+            }}
+            className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left hover:bg-surface-subtle"
+          >
+            <Pencil size={14} aria-hidden /> Đổi tên
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-danger hover:bg-danger-muted"
+          >
+            <Trash2 size={14} aria-hidden /> Xoá
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export interface SoundLibraryPanelProps {
   renderRowAction?: (sound: CustomSound) => React.ReactNode;
+  mappedIds?: Set<string>;
   onLibraryChange?: (library: CustomSoundLibrary) => void;
 }
 
-export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLibraryPanelProps = {}) {
+export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange }: SoundLibraryPanelProps = {}) {
   const [library, setLibrary] = useState<CustomSoundLibrary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -284,6 +422,10 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
   const [recording, setRecording] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<CustomSound | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const onLibraryChangeRef = useRef(onLibraryChange);
@@ -339,6 +481,29 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
       setError(errorText(err, "Không tải lên được âm thanh."));
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function submitRename(sound: CustomSound) {
+    const next = renameValue.trim();
+    if (!next) {
+      setRenameError("Hãy đặt tên cho âm thanh.");
+      return;
+    }
+    if (next === sound.name) {
+      setRenamingId(null);
+      return;
+    }
+    setRenameBusy(true);
+    setRenameError(null);
+    try {
+      await renameCustomSound(sound.id, next);
+      setRenamingId(null);
+      await load();
+    } catch (err) {
+      setRenameError(apiErrorMessage(err, "Không đổi được tên âm thanh."));
+    } finally {
+      setRenameBusy(false);
     }
   }
 
@@ -440,7 +605,57 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
                 {playingId === sound.id ? <Pause size={14} /> : <Play size={14} />}
               </button>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-semibold">{sound.name}</div>
+                {renamingId === sound.id ? (
+                  <form
+                    noValidate
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void submitRename(sound);
+                    }}
+                    className="flex flex-wrap items-center gap-1.5"
+                  >
+                    <input
+                      name="sound-rename"
+                      autoComplete="off"
+                      data-autofocus
+                      autoFocus
+                      value={renameValue}
+                      maxLength={100}
+                      aria-label={`Tên mới cho ${sound.name}`}
+                      onChange={(e) => {
+                        setRenameValue(e.target.value);
+                        setRenameError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.stopPropagation();
+                          setRenamingId(null);
+                        }
+                      }}
+                      className={`${INPUT_CLASS} h-8 min-w-0 flex-1`}
+                    />
+                    <Button type="submit" disabled={renameBusy}>
+                      {renameBusy ? "Đang lưu…" : "Lưu"}
+                    </Button>
+                    <Button type="button" variant="ghost" disabled={renameBusy} onClick={() => setRenamingId(null)}>
+                      Huỷ
+                    </Button>
+                    {renameError && (
+                      <p role="alert" className="basis-full text-xs text-danger">
+                        {renameError}
+                      </p>
+                    )}
+                  </form>
+                ) : (
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-[13px] font-semibold">{sound.name}</span>
+                    {mappedIds && (
+                      <Badge variant={mappedIds.has(sound.id) ? "success" : "neutral"}>
+                        {mappedIds.has(sound.id) ? "Đã gán" : "Chưa gán"}
+                      </Badge>
+                    )}
+                  </div>
+                )}
                 <div className="text-xs text-muted">
                   <span className="font-mono tabular-nums">{formatTime(sound.durationSec)}</span> · {formatSize(sound.sizeBytes)} ·{" "}
                   {sound.source === "recorded" ? "Ghi âm" : "Tải lên"}
@@ -452,15 +667,17 @@ export function SoundLibraryPanel({ renderRowAction, onLibraryChange }: SoundLib
                   </div>
                 )}
               </div>
+              <Waveform soundId={sound.id} url={sound.playbackUrl} />
               {renderRowAction?.(sound)}
-              <button
-                type="button"
-                onClick={() => setDeleting(sound)}
-                aria-label={`Xoá ${sound.name}`}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-danger-muted hover:text-danger"
-              >
-                <Trash2 size={14} />
-              </button>
+              <RowMenu
+                name={sound.name}
+                onRename={() => {
+                  setRenameValue(sound.name);
+                  setRenameError(null);
+                  setRenamingId(sound.id);
+                }}
+                onDelete={() => setDeleting(sound)}
+              />
             </li>
           ))}
         </ul>

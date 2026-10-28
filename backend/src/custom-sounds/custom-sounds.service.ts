@@ -330,6 +330,30 @@ export class CustomSoundsService {
     };
   }
 
+  async rename(
+    ownerId: string,
+    soundId: string,
+    rawName: string,
+  ): Promise<CustomSoundResponse> {
+    const name = cleanName(rawName);
+    if (!name) {
+      throw new BadRequestException('Tên âm thanh không được để trống');
+    }
+    const { data, error } = await this.supabase
+      .from('custom_sounds')
+      .update({ name })
+      .eq('id', soundId)
+      .eq('owner_id', ownerId)
+      .is('deleted_at', null)
+      .select('*')
+      .maybeSingle<CustomSoundRow>();
+    if (error) {
+      throw new InternalServerErrorException('Could not rename custom sound');
+    }
+    if (!data) throw new NotFoundException('Custom sound not found');
+    return this.toResponse(data, await this.signPlayback(data.file_url));
+  }
+
   async getUsage(
     ownerId: string,
     soundId: string,

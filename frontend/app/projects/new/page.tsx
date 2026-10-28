@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { RequireAuth } from "../../../components/require-auth";
-import { createProject, ApiError } from "../../../lib/api-client";
+import { createProject } from "../../../lib/api-client";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
@@ -50,11 +50,7 @@ export default function NewProjectPage() {
       setFlashToast("Đã tạo dự án.");
       router.push(created?.id ? `/projects/${created.id}/edit` : "/projects");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setError("Một dự án với tên này đã tồn tại trong tài khoản của bạn.");
-      } else {
-        setError(apiErrorMessage(err, "Không tạo được dự án."));
-      }
+      setError(apiErrorMessage(err, "Không tạo được dự án."));
     } finally {
       // Only re-enable on error; on success we navigate away anyway
       setSubmitting(false);

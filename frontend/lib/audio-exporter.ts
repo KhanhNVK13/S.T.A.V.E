@@ -8,15 +8,13 @@
  * Limiter on the master bus — so the exported file sounds like what the
  * user actually heard on Play, not a separately-tuned rendering.
  *
- * Only WAV is implemented. A real MP3 encoder needs a WASM/JS dependency
- * (e.g. lamejs) that hasn't been added to the project yet — rather than
- * silently relabeling a WAV file as .mp3, MP3 is simply not offered until
- * that dependency decision is made (see CLAUDE.md §4.7 on placeholders).
+ * WAV is encoded here; MP3 goes through `mp3-encoder.ts` (`@breezystack/lamejs`).
  */
 
 import * as Tone from "tone";
 import type { DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import { prepareVoices, triggerNotes, createVoiceCache } from "./tone-synth-engine";
+import { encodeMp3 } from "./mp3-encoder";
 
 export interface ExportOptions {
   /** Sample rate for the output file (default: 44100) */
@@ -25,14 +23,16 @@ export interface ExportOptions {
   onProgress?: (p: number) => void;
   /** Decoded custom sounds by id (see custom-sound-buffers.ts). */
   customBuffers?: Map<string, AudioBuffer>;
+  /** Output format (default: wav). */
+  format?: "wav" | "mp3";
 }
 
-/** Synthesise and export the project audio. Returns a downloadable WAV Blob. */
+/** Synthesise and export the project audio. Returns a downloadable WAV or MP3 Blob. */
 export async function exportAudio(
   snapshot: DraftSnapshot,
   options: ExportOptions = {},
 ): Promise<Blob> {
-  const { sampleRate = 44100, onProgress, customBuffers } = options;
+  const { sampleRate = 44100, onProgress, customBuffers, format = "wav" } = options;
   const { meta, notes, tracks } = snapshot;
   const bpm = meta.tempo;
   const ppq = meta.ppq;
@@ -84,7 +84,12 @@ export async function exportAudio(
 
   onProgress?.(0.7);
 
-  // ── 3. Encode to WAV ──────────────────────────────────────
+  // ── 3. Encode ─────────────────────────────────────────────
+  if (format === "mp3") {
+    const mp3 = await encodeMp3(rendered.get()!, 192, (p) => onProgress?.(0.7 + p * 0.3));
+    onProgress?.(1.0);
+    return mp3;
+  }
   const wavBlob = audioBufferToWav(rendered.get()!);
   onProgress?.(1.0);
 

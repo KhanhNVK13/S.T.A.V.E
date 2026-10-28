@@ -10,9 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 
-const UNIQUE_VIOLATION = '23505';
 const MAX_NAME_LENGTH = 100;
-const MAX_NAME_ATTEMPTS = 6;
 
 interface SourceProject {
   id: string;
@@ -21,12 +19,6 @@ interface SourceProject {
   visibility: string;
   archived_at: string | null;
   moderation_hidden_at: string | null;
-}
-
-export function forkNameCandidate(base: string, attempt: number): string {
-  if (attempt === 0) return base.slice(0, MAX_NAME_LENGTH);
-  const suffix = attempt === 1 ? ' (fork)' : ` (fork ${attempt})`;
-  return `${base.slice(0, MAX_NAME_LENGTH - suffix.length)}${suffix}`;
 }
 
 @Injectable()
@@ -47,31 +39,14 @@ export class ForksService {
       throw new BadRequestException('You cannot fork your own project');
     }
 
-    const takenNames = await this.loadTakenNames(userId, source.name);
-
-    let newId: string | null = null;
-    for (let attempt = 0; attempt < MAX_NAME_ATTEMPTS && !newId; attempt++) {
-      const name = forkNameCandidate(source.name, attempt);
-      if (takenNames.has(name)) continue;
-
-      const { data, error } = await this.supabase.rpc('fork_project', {
-        p_source: source.id,
-        p_new_owner: userId,
-        p_name: name,
-      });
-
-      if (error) {
-        if (error.code === UNIQUE_VIOLATION) {
-          takenNames.add(name);
-          continue;
-        }
-        throw new InternalServerErrorException('Could not fork project');
-      }
-      newId = data as string;
-    }
-
-    if (!newId)
+    const { data: newId, error } = await this.supabase.rpc('fork_project', {
+      p_source: source.id,
+      p_new_owner: userId,
+      p_name: source.name.slice(0, MAX_NAME_LENGTH),
+    });
+    if (error || !newId) {
       throw new InternalServerErrorException('Could not fork project');
+    }
 
     await this.notifications.notify(source.owner_id, 'fork.created', {
       forkerName: await this.displayName(userId),
@@ -79,7 +54,7 @@ export class ForksService {
       projectId: source.id,
     });
 
-    return { id: newId };
+    return { id: newId as string };
   }
 
   private async loadSource(projectId: string): Promise<SourceProject> {
@@ -104,18 +79,6 @@ export class ForksService {
       throw new NotFoundException('Project not found');
     }
     return data;
-  }
-
-  private async loadTakenNames(
-    userId: string,
-    baseName: string,
-  ): Promise<Set<string>> {
-    const { data } = await this.supabase
-      .from('projects')
-      .select('name')
-      .eq('owner_id', userId)
-      .ilike('name', `${baseName.replace(/[%_\\]/g, '\\$&')}%`);
-    return new Set((data ?? []).map((row: { name: string }) => row.name));
   }
 
   private async displayName(userId: string): Promise<string> {

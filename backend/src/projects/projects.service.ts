@@ -17,9 +17,6 @@ import { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
 
 export const DEFAULT_BRANCH_NAME = 'main';
 
-/** Postgres unique_violation error code (`projects_owner_id_name_key`). */
-const UNIQUE_VIOLATION = '23505';
-
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -45,9 +42,6 @@ export class ProjectsService {
       .single<ProjectRow>();
 
     if (projectError) {
-      if (projectError.code === UNIQUE_VIOLATION) {
-        throw new ConflictException('A project with this name already exists');
-      }
       throw new InternalServerErrorException('Could not create project');
     }
     if (!project) {
@@ -191,9 +185,6 @@ export class ProjectsService {
       .single<ProjectRow>();
 
     if (error) {
-      if (error.code === UNIQUE_VIOLATION) {
-        throw new ConflictException('A project with this name already exists');
-      }
       throw new InternalServerErrorException('Could not update project');
     }
     if (!data) {

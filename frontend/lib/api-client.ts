@@ -238,18 +238,38 @@ export async function getDraft(projectId: string): Promise<DraftSnapshot> {
 /** GET /projects/:id/draft/recovery — nháp có phải thay đổi chưa commit được khôi phục không. */
 export async function getDraftRecovery(
   projectId: string,
-): Promise<{ recovered: boolean; savedAt: string | null }> {
-  return apiFetch<{ recovered: boolean; savedAt: string | null }>(
+): Promise<{ recovered: boolean; savedAt: string | null; version: string | null }> {
+  return apiFetch<{ recovered: boolean; savedAt: string | null; version: string | null }>(
     `/projects/${projectId}/draft/recovery`,
   );
 }
 
-/** PUT /projects/:id/draft — save draft snapshot (auto-save) */
-export async function putDraft(projectId: string, snapshot: DraftSnapshot): Promise<void> {
-  await apiFetch<void>(`/projects/${projectId}/draft`, {
+/**
+ * PUT /projects/:id/draft — lưu nháp (autosave).
+ * `expectedVersion`: phiên bản nháp tab này đã biết (`null` = lúc đọc chưa có
+ * nháp); lệch thì backend trả 409 `DRAFT_STALE`. Bỏ trống = ghi đè không kiểm tra.
+ */
+export async function putDraft(
+  projectId: string,
+  snapshot: DraftSnapshot,
+  expectedVersion?: string | null,
+): Promise<{ version: string | undefined }> {
+  const headers: Record<string, string> = {};
+  if (expectedVersion !== undefined) headers["X-Draft-Version"] = expectedVersion ?? "none";
+  const result = await apiFetch<{ version?: string } | undefined>(`/projects/${projectId}/draft`, {
     method: "PUT",
+    headers,
     body: JSON.stringify(snapshot),
   });
+  return { version: result?.version };
+}
+
+export function isDraftStaleError(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    err.status === 409 &&
+    (err.body as { code?: string } | undefined)?.code === "DRAFT_STALE"
+  );
 }
 
 // ============================================
@@ -567,6 +587,7 @@ export interface BranchHistoryCommit {
   /** Commit kế thừa từ trước điểm rẽ nhánh. Với nhánh mặc định luôn là `true`. */
   isInherited: boolean;
   parent_commit_id: string | null;
+  merged_from_commit_id?: string | null;
   author: {
     id: string;
     username: string | null;
@@ -796,6 +817,13 @@ export async function getCustomSoundUsage(
   soundId: string,
 ): Promise<CustomSoundUsage> {
   return apiFetch(`/users/me/custom-sounds/${soundId}/usage`);
+}
+
+export async function renameCustomSound(soundId: string, name: string): Promise<CustomSound> {
+  return apiFetch<CustomSound>(`/users/me/custom-sounds/${soundId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
 }
 
 export async function deleteCustomSound(

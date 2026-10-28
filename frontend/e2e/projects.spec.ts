@@ -112,10 +112,6 @@ test.describe("Project management", () => {
     test("PRJ-008 allows two projects of the same user to share a name", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID020: a second project with the same name is refused with a conflict message",
-      );
       const user = await signedIn(page);
       await createE2eProject(user.id, "Test Song");
       await createViaForm(page, "Test Song");

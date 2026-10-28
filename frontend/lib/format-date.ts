@@ -56,3 +56,21 @@ export function formatDate(dateStr: string | null | undefined): string {
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
 }
+
+/**
+ * Format a date string to date and time (locale-driven)
+ */
+export function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+
+  return date.toLocaleString(APP_LOCALE, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}

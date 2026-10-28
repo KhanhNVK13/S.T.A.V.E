@@ -168,6 +168,7 @@ interface EditorRedesignProps {
   onSeek: (tick: number) => void;
   // Lưu
   saveStatus: SaveStatus;
+  draftConflict: boolean;
   saveRetryInSec: number | null;
   lastSavedAt: Date | null;
   onRetrySave: () => void;
@@ -208,7 +209,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     onQuantize, onImportMidi, onCopy, onCut, snapEnabled, onSnapToggle, onExportMidiSelection, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
     isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
-    saveStatus, saveRetryInSec, lastSavedAt, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored,
+    saveStatus, draftConflict, saveRetryInSec, lastSavedAt, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored,
     masterVolume, onMasterVolumeChange,
     customSounds, onSetSoundMapping, onCustomSoundsChanged,
     onTempoChange, metronomeOn, onMetronomeToggle,
@@ -672,15 +673,22 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
       {saveStatus === "error" && (
         <div role="alert" style={styles.saveErrorBar}>
-          <span>
-            <strong>Không lưu được bản nháp.</strong>{" "}
-            {saveRetryInSec !== null
-              ? `Sẽ tự thử lại sau ${saveRetryInSec} giây.`
-              : "Đang thử lại…"}{" "}
-            Đừng đóng trang cho tới khi thấy &quot;Đã lưu nháp&quot;.
-          </span>
+          {draftConflict ? (
+            <span>
+              <strong>Bản nháp đã thay đổi ở tab khác.</strong> Tự lưu đang tạm dừng cho tới khi
+              bạn chọn nạp lại bản mới hoặc ghi đè.
+            </span>
+          ) : (
+            <span>
+              <strong>Không lưu được bản nháp.</strong>{" "}
+              {saveRetryInSec !== null
+                ? `Sẽ tự thử lại sau ${saveRetryInSec} giây.`
+                : "Đang thử lại…"}{" "}
+              Đừng đóng trang cho tới khi thấy &quot;Đã lưu nháp&quot;.
+            </span>
+          )}
           <button type="button" onClick={onRetrySave} style={styles.saveErrorBtn}>
-            Thử lại ngay
+            {draftConflict ? "Xử lý xung đột" : "Thử lại ngay"}
           </button>
         </div>
       )}
@@ -1152,6 +1160,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
               notes.find((n) => selectedNoteIds.has(n.id) && n.trackId === selectedTrackId)?.pitch ?? 60
             }
             customSounds={customSounds}
+            mappedIds={new Set(tracks.flatMap((t) => Object.values(t.soundMap ?? {})))}
             onSetSoundMapping={onSetSoundMapping}
             onLibraryChange={onCustomSoundsChanged}
           />

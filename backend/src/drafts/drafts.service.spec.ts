@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import type { DraftSnapshot } from '@stave/shared-types';
 import { createSupabaseMock } from '../test-utils/supabase-mock';
 import { ProjectAccessService } from '../project-access/project-access.service';
@@ -64,13 +64,63 @@ describe('DraftsService per-user drafts', () => {
   it('writes the draft keyed by branch and user', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: userId } }],
-      drafts: [{ data: { snapshot } }],
+      drafts: [{ data: { snapshot, updated_at: '2026-10-28T10:00:00Z' } }],
     });
-    await service.putDraft(projectId, userId, snapshot);
+    await expect(
+      service.putDraft(projectId, userId, snapshot),
+    ).resolves.toEqual({ version: '2026-10-28T10:00:00Z' });
     expect(builders.drafts.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ branch_id: branchId, user_id: userId }),
       { onConflict: 'branch_id,user_id' },
     );
+  });
+
+  it('updates only the row still at the expected version', async () => {
+    const { service, builders } = makeService({
+      projects: [{ data: { owner_id: userId } }],
+      drafts: [{ data: { updated_at: '2026-10-28T10:05:00Z' } }],
+    });
+    await expect(
+      service.putDraft(projectId, userId, snapshot, '2026-10-28T10:00:00Z'),
+    ).resolves.toEqual({ version: '2026-10-28T10:05:00Z' });
+    expect(builders.drafts.eq).toHaveBeenCalledWith(
+      'updated_at',
+      '2026-10-28T10:00:00Z',
+    );
+    expect(builders.drafts.upsert).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 DRAFT_STALE when another tab changed the draft', async () => {
+    const { service } = makeService({
+      projects: [{ data: { owner_id: userId } }],
+      drafts: [{ data: null }],
+    });
+    const error = await service
+      .putDraft(projectId, userId, snapshot, '2026-10-28T10:00:00Z')
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      code: 'DRAFT_STALE',
+    });
+  });
+
+  it('inserts only when no draft exists yet for the "none" version', async () => {
+    const { service, builders } = makeService({
+      projects: [{ data: { owner_id: userId } }],
+      drafts: [{ data: { updated_at: '2026-10-28T10:00:00Z' } }],
+    });
+    await service.putDraft(projectId, userId, snapshot, 'none');
+    expect(builders.drafts.insert).toHaveBeenCalled();
+  });
+
+  it('answers 409 DRAFT_STALE when a draft appeared meanwhile for "none"', async () => {
+    const { service } = makeService({
+      projects: [{ data: { owner_id: userId } }],
+      drafts: [{ data: null, error: { code: '23505', message: 'dup' } }],
+    });
+    await expect(
+      service.putDraft(projectId, userId, snapshot, 'none'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('refuses a write from someone without edit access', async () => {
@@ -115,6 +165,7 @@ describe('DraftsService.getRecovery', () => {
     await expect(service.getRecovery(projectId, userId)).resolves.toEqual({
       recovered: false,
       savedAt: null,
+      version: null,
     });
   });
 
@@ -131,6 +182,7 @@ describe('DraftsService.getRecovery', () => {
     await expect(service.getRecovery(projectId, userId)).resolves.toEqual({
       recovered: true,
       savedAt: '2026-10-26T10:00:00Z',
+      version: '2026-10-26T10:00:00Z',
     });
   });
 
@@ -145,6 +197,7 @@ describe('DraftsService.getRecovery', () => {
     await expect(service.getRecovery(projectId, userId)).resolves.toEqual({
       recovered: false,
       savedAt: null,
+      version: '2026-10-26T10:00:00Z',
     });
   });
 });
