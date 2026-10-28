@@ -1212,6 +1212,11 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
         'custom-sounds': { remove: [{ data: null, error: null }] },
       },
       authAdmin: {
+        getUserById: { data: { user: { banned_until: null } }, error: null },
+        updateUserById: [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
         deleteUser: opts.deleteUser ?? { data: null, error: null },
       },
     });
@@ -1288,7 +1293,7 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
   });
 
   it('UTCID04 reports the deletion failure when the users delete returns an error', async () => {
-    const { service } = makeService({
+    const { service, mock } = makeService({
       users: [{ data: null, error: { message: 'delete failed' } }],
     });
     stubVerify(service, true);
@@ -1297,17 +1302,22 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
 
     await expect(promise).rejects.toBeInstanceOf(InternalServerErrorException);
     await expect(promise).rejects.toThrow('Could not delete account');
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+    expect(mock.auth.admin.updateUserById).toHaveBeenLastCalledWith('usr_1', {
+      ban_duration: 'none',
+    });
   });
 
-  it('UTCID05 reports the deletion failure when auth.admin.deleteUser returns an error', async () => {
-    const { service } = makeService({
+  it('UTCID05 completes once the profile is gone even if the banned auth account cannot be deleted', async () => {
+    const { service, mock } = makeService({
       deleteUser: { data: null, error: { message: 'auth delete failed' } },
     });
     stubVerify(service, true);
 
-    const promise = del(service, 'Correct#123');
-
-    await expect(promise).rejects.toBeInstanceOf(InternalServerErrorException);
-    await expect(promise).rejects.toThrow('Could not delete account');
+    await expect(del(service, 'Correct#123')).resolves.toBeUndefined();
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+    expect(mock.auth.admin.updateUserById).toHaveBeenCalledWith('usr_1', {
+      ban_duration: expect.any(String),
+    });
   });
 });

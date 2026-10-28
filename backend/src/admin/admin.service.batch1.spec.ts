@@ -26,7 +26,17 @@ function makeService(
   tables: Record<string, Array<Record<string, unknown>>>,
   authAdmin: Record<string, Array<Record<string, unknown>>> = {},
 ) {
-  const mock = createSupabaseMock([], { tables, authAdmin });
+  const mock = createSupabaseMock([], {
+    tables,
+    authAdmin: {
+      getUserById: [{ data: { user: { banned_until: null } }, error: null }],
+      updateUserById: [
+        { data: null, error: null },
+        { data: null, error: null },
+      ],
+      ...authAdmin,
+    },
+  });
   const customSounds = {
     removeAllFilesOf: jest.fn().mockResolvedValue(undefined),
     collectGarbage: jest.fn().mockResolvedValue(undefined),
@@ -156,19 +166,48 @@ describe('AdminService.reactivateUser', () => {
 });
 
 describe('AdminService.removeUser', () => {
-  it('keeps the account when the credentials cannot be deleted', async () => {
-    const { service, builders } = makeService(
+  it('finishes the removal when only the banned auth account cannot be deleted', async () => {
+    const { service, builders, auth } = makeService(
       {
-        users: [{ data: user({ status: 'active' }) }],
+        users: [
+          { data: user({ status: 'active' }) },
+          { data: null, error: null },
+        ],
+        sessions: [{ data: null, error: null }],
+        projects: [{ data: [] }],
+        admin_audit_log: [{ data: null, error: null }],
+      },
+      { deleteUser: [{ data: null, error: { status: 500 } }] },
+    );
+    await service.removeUser(adminId, targetId, 'reason', 'target');
+    expect(builders.users.delete).toHaveBeenCalled();
+    expect(auth.admin.updateUserById).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a suspended account banned when its profile cannot be deleted', async () => {
+    const { service, auth } = makeService(
+      {
+        users: [
+          { data: user({ status: 'suspended' }) },
+          { data: null, error: { message: 'fk' } },
+        ],
         sessions: [{ data: null, error: null }],
         projects: [{ data: [] }],
       },
-      { deleteUser: [{ data: null, error: { status: 500 } }] },
+      {
+        getUserById: [
+          {
+            data: { user: { banned_until: '2999-01-01T00:00:00Z' } },
+            error: null,
+          },
+        ],
+      },
     );
     await expect(
       service.removeUser(adminId, targetId, 'reason', 'target'),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
-    expect(builders.users.delete).not.toHaveBeenCalled();
+    expect(auth.admin.updateUserById).toHaveBeenCalledTimes(1);
+    expect(auth.admin.deleteUser).not.toHaveBeenCalled();
   });
 
   it('reports failure when the profile row cannot be deleted', async () => {
@@ -188,6 +227,7 @@ describe('AdminService.removeUser', () => {
       service.removeUser(adminId, targetId, 'reason', 'target'),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
     expect(builders.admin_audit_log.insert).not.toHaveBeenCalled();
+    expect(builders.users.delete).toHaveBeenCalled();
   });
 
   it('writes the audit entry only after the account is gone', async () => {
