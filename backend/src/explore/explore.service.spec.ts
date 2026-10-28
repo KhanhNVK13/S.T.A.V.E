@@ -822,3 +822,190 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
     expect(result.map((c) => c.id)).not.toContain('p1');
   });
 });
+
+// ============================================================================
+// SHEET: BE-EXP-06 (ExploreService.getFeatured)
+//
+// Mock order per call:
+//   Promise.all #1: projects [featured, trending, totalProjects, totalForks]
+//                   + users [totalUsers]
+//   Promise.all #2: (per non-empty list) project_tags + projects fork query
+// Per-table queues keep the order deterministic.
+// ============================================================================
+describe('BE-EXP-06 ExploreService.getFeatured()', () => {
+  const featRow = (
+    id: string,
+    ownerId: string,
+    plays: number,
+    index: number,
+  ) => ({
+    id,
+    name: `Project ${id}`,
+    description: null,
+    genre: null,
+    visibility: 'public',
+    archived_at: null,
+    created_at: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+    updated_at: '2026-01-01T00:00:00Z',
+    play_count: plays,
+    owner: {
+      id: ownerId,
+      username: 'owner',
+      display_name: null,
+      avatar_url: null,
+    },
+  });
+
+  const rows = (ids: string[], ownerId = 'usr_active') =>
+    ids.map((id, i) => featRow(id, ownerId, i + 1, i));
+
+  const listResult = (
+    idList: string[],
+    ownerId = 'usr_active',
+  ): QueryResult => ({ data: rows(idList, ownerId) });
+
+  const makeService = (
+    projects: QueryResult[],
+    users: QueryResult[],
+    tags: QueryResult[],
+    fork?: QueryResult[],
+  ) => {
+    const projectsQueue = [
+      ...projects,
+      ...(fork && fork.length > 0 ? fork : []),
+    ];
+    const tables: Record<string, QueryResult[]> = {
+      projects: projectsQueue,
+      users,
+      project_tags: tags,
+    };
+    const mock = createSupabaseMock([], { tables });
+    return { service: new ExploreService(mock.client), mock };
+  };
+
+  it('UTCID01 returns the hero, 6 featured, 6 trending and the platform stats', async () => {
+    const newest6 = ['p6', 'p5', 'p4', 'p3', 'p2', 'p1'];
+    const played6 = ['p3', 'p1', 'p5', 'p2', 'p4', 'p6'];
+    const { service } = makeService(
+      [
+        listResult(newest6),
+        listResult(played6),
+        { data: null, count: 8 },
+        { data: null, count: 4 },
+      ],
+      [{ data: null, count: 20 }],
+      [{ data: [] }, { data: [] }],
+      [{ data: [] }, { data: [] }],
+    );
+
+    const result = await service.getFeatured();
+
+    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
+    expect(result.featured_projects.map((c) => c.id)).toEqual(newest6);
+    expect(result.trending_projects.map((c) => c.id)).toEqual(played6);
+    expect(result.stats).toEqual({
+      total_projects: 8,
+      total_users: 20,
+      total_forks: 4,
+    });
+  });
+
+  it('UTCID02 returns 3 featured and 3 trending items when only 3 projects are public', async () => {
+    const { service } = makeService(
+      [
+        listResult(['p1', 'p2', 'p3']),
+        listResult(['p2', 'p1', 'p3']),
+        { data: null, count: 3 },
+        { data: null, count: 0 },
+      ],
+      [{ data: null, count: 5 }],
+      [{ data: [] }, { data: [] }],
+      [{ data: [] }, { data: [] }],
+    );
+
+    const result = await service.getFeatured();
+
+    expect(result.featured_projects).toHaveLength(3);
+    expect(result.trending_projects.map((c) => c.id)).toEqual([
+      'p2',
+      'p1',
+      'p3',
+    ]);
+    expect(result.stats).toEqual({
+      total_projects: 3,
+      total_users: 5,
+      total_forks: 0,
+    });
+  });
+
+  it('UTCID03 returns the hero, empty lists and zero stats when nothing is public', async () => {
+    const { service } = makeService(
+      [
+        { data: [] },
+        { data: [] },
+        { data: null, count: 0 },
+        { data: null, count: 0 },
+      ],
+      [{ data: null, count: 0 }],
+      [],
+    );
+
+    const result = await service.getFeatured();
+
+    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
+    expect(result.featured_projects).toEqual([]);
+    expect(result.trending_projects).toEqual([]);
+    expect(result.stats).toEqual({
+      total_projects: 0,
+      total_users: 0,
+      total_forks: 0,
+    });
+  });
+
+  it('UTCID04 keeps the stats when the project list queries error', async () => {
+    const { service } = makeService(
+      [
+        { data: null, error: { message: 'db error' } },
+        { data: null, error: { message: 'db error' } },
+        { data: null, count: 6 },
+        { data: null, count: 2 },
+      ],
+      [{ data: null, count: 4 }],
+      [],
+    );
+
+    const result = await service.getFeatured();
+
+    expect(result.featured_projects).toEqual([]);
+    expect(result.trending_projects).toEqual([]);
+    expect(result.stats).toEqual({
+      total_projects: 6,
+      total_users: 4,
+      total_forks: 2,
+    });
+  });
+
+  it('UTCID05 falls back to empty lists and zero stats when every query errors', async () => {
+    const { service } = makeService(
+      [
+        { data: null, error: { message: 'db error' } },
+        { data: null, error: { message: 'db error' } },
+        { data: null, error: { message: 'db error' }, count: null },
+        { data: null, error: { message: 'db error' }, count: null },
+      ],
+      [{ data: null, error: { message: 'db error' }, count: null }],
+      [],
+    );
+
+    const result = await service.getFeatured();
+
+    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
+    expect(result.featured_projects).toEqual([]);
+    expect(result.trending_projects).toEqual([]);
+    expect(result.stats).toEqual({
+      total_projects: 0,
+      total_users: 0,
+      total_forks: 0,
+    });
+  });
+});
