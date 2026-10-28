@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
@@ -56,6 +57,8 @@ const PROJECT_CARD_COLUMNS = `id, name, description, genre, visibility, archived
 
 @Injectable()
 export class ExploreService {
+  private readonly logger = new Logger(ExploreService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
@@ -293,11 +296,16 @@ export class ExploreService {
       { count: totalForks },
     ] = await Promise.all([
       visibleProjectsBase().order('created_at', { ascending: false }).limit(6),
-      this.rankedProjectIds('trending_score', { offset: 0, limit: 6 }).then(
-        async (ranked) => ({
+      this.rankedProjectIds('trending_score', { offset: 0, limit: 6 })
+        .then(async (ranked) => ({
           data: await this.loadCardRows(ranked.ids),
+        }))
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Trending list unavailable on the landing page: ${String(error)}`,
+          );
+          return { data: [] as ProjectCardRow[] };
         }),
-      ),
       this.supabase
         .from('projects')
         .select('id', { count: 'exact', head: true })

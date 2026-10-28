@@ -2,7 +2,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { ExploreService } from './explore.service';
+import { ExploreService, type PublicProjectCard } from './explore.service';
 import {
   createSupabaseMock,
   type QueryResult,
@@ -781,6 +781,471 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
     expect(mock.builders.projects.eq).toHaveBeenCalledWith(
       'owner.status',
       'active',
+    );
+  });
+});
+
+// ============================================================================
+// SHEET: BE-EXP-06 (ExploreService.getFeatured)
+//
+// Trending now comes from the ranking view: project_engagement ids, then the
+// projects rows for those ids.
+// Mock order per call:
+//   project_engagement: [trending ids]
+//   projects:           [featured, totalProjects, totalForks, trending cards]
+//                       then, per non-empty list, one fork-count query
+//                       (featured first, trending second)
+//   users:              [totalUsers]
+//   project_tags:       one query per non-empty list (featured, trending)
+// Per-table queues keep the order deterministic.
+// ============================================================================
+describe('BE-EXP-06 ExploreService.getFeatured()', () => {
+  const featRow = (
+    id: string,
+    ownerId: string,
+    plays: number,
+    index: number,
+  ) => ({
+    id,
+    name: `Project ${id}`,
+    description: null,
+    genre: null,
+    visibility: 'public',
+    archived_at: null,
+    created_at: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+    updated_at: '2026-01-01T00:00:00Z',
+    play_count: plays,
+    owner: {
+      id: ownerId,
+      username: 'owner',
+      display_name: null,
+      avatar_url: null,
+    },
+  });
+
+  const rows = (ids: string[], ownerId = 'usr_active') =>
+    ids.map((id, i) => featRow(id, ownerId, i + 1, i));
+
+  const listResult = (
+    idList: string[],
+    ownerId = 'usr_active',
+  ): QueryResult => ({ data: rows(idList, ownerId) });
+
+  const engagementResult = (ids: string[]): QueryResult => ({
+    data: ids.map((project_id) => ({ project_id })),
+    count: ids.length,
+  });
+
+  const makeService = (opts: {
+    engagement: QueryResult[];
+    projects: QueryResult[];
+    users: QueryResult[];
+    tags: QueryResult[];
+  }) => {
+    const mock = createSupabaseMock([], {
+      tables: {
+        project_engagement: opts.engagement,
+        projects: opts.projects,
+        users: opts.users,
+        project_tags: opts.tags,
+      },
+    });
+    return { service: new ExploreService(mock.client), mock };
+  };
+
+  it('UTCID01 returns the hero, 6 featured, 6 trending and the platform stats', async () => {
+    const newest6 = ['p6', 'p5', 'p4', 'p3', 'p2', 'p1'];
+    const played6 = ['p3', 'p1', 'p5', 'p2', 'p4', 'p6'];
+    const { service } = makeService({
+      engagement: [engagementResult(played6)],
+      projects: [
+        listResult(newest6),
+        { data: null, count: 8 },
+        { data: null, count: 4 },
+        listResult(newest6),
+        { data: [] },
+        { data: [] },
+      ],
+      users: [{ data: null, count: 20 }],
+      tags: [{ data: [] }, { data: [] }],
+    });
+
+    const result = await service.getFeatured();
+
+    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
+    expect(result.featured_projects.map((c) => c.id)).toEqual(newest6);
+    expect(result.trending_projects.map((c) => c.id)).toEqual(played6);
+    expect(result.stats).toEqual({
+      total_projects: 8,
+      total_users: 20,
+      total_forks: 4,
+    });
+  });
+
+  it('UTCID02 returns 3 featured and 3 trending items when only 3 projects are public', async () => {
+    const { service } = makeService({
+      engagement: [engagementResult(['p2', 'p1', 'p3'])],
+      projects: [
+        listResult(['p1', 'p2', 'p3']),
+        { data: null, count: 3 },
+        { data: null, count: 0 },
+        listResult(['p1', 'p2', 'p3']),
+        { data: [] },
+        { data: [] },
+      ],
+      users: [{ data: null, count: 5 }],
+      tags: [{ data: [] }, { data: [] }],
+    });
+
+    const result = await service.getFeatured();
+
+    expect(result.featured_projects).toHaveLength(3);
+    expect(result.trending_projects.map((c) => c.id)).toEqual([
+      'p2',
+      'p1',
+      'p3',
+    ]);
+    expect(result.stats).toEqual({
+      total_projects: 3,
+      total_users: 5,
+      total_forks: 0,
+    });
+  });
+
+  it('UTCID03 returns the hero, empty lists and zero stats when nothing is public', async () => {
+    const { service } = makeService({
+      engagement: [engagementResult([])],
+      projects: [
+        { data: [] },
+        { data: null, count: 0 },
+        { data: null, count: 0 },
+      ],
+      users: [{ data: null, count: 0 }],
+      tags: [],
+    });
+
+    const result = await service.getFeatured();
+
+    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
+    expect(result.featured_projects).toEqual([]);
+    expect(result.trending_projects).toEqual([]);
+    expect(result.stats).toEqual({
+      total_projects: 0,
+      total_users: 0,
+      total_forks: 0,
+    });
+  });
+
+  it('UTCID04 keeps the stats and trending list when the featured query errors', async () => {
+    const { service } = makeService({
+      engagement: [engagementResult(['p1', 'p2'])],
+      projects: [
+        { data: null, error: { message: 'db error' } },
+        { data: null, count: 6 },
+        { data: null, count: 2 },
+        listResult(['p1', 'p2']),
+        { data: [] },
+      ],
+      users: [{ data: null, count: 4 }],
+      tags: [{ data: [] }],
+    });
+
+    const result = await service.getFeatured();
+
+    expect(result.featured_projects).toEqual([]);
+    expect(result.trending_projects.map((c) => c.id)).toEqual(['p1', 'p2']);
+    expect(result.stats).toEqual({
+      total_projects: 6,
+      total_users: 4,
+      total_forks: 2,
+    });
+  });
+
+  it('UTCID05 keeps featured and stats with an empty trending list when the ranking view query errors', async () => {
+    const { service } = makeService({
+      engagement: [{ data: null, error: { message: 'db error' } }],
+      projects: [
+        listResult(['p1', 'p2']),
+        { data: null, count: 2 },
+        { data: null, count: 0 },
+        { data: [] },
+      ],
+      users: [{ data: null, count: 3 }],
+      tags: [{ data: [] }],
+    });
+
+    const result = await service.getFeatured();
+
+    expect(result.featured_projects.map((c) => c.id)).toEqual(['p1', 'p2']);
+    expect(result.trending_projects).toEqual([]);
+    expect(result.stats).toEqual({
+      total_projects: 2,
+      total_users: 3,
+      total_forks: 0,
+    });
+  });
+});
+
+// ============================================================================
+// SHEET: BE-EXP-07 (ExploreService.getForkCounts)
+//
+// Single query per call:
+//   projects .in('forked_from_project_id', ids) - awaited directly
+// An empty id list issues no query at all.
+// ============================================================================
+describe('BE-EXP-07 ExploreService.getForkCounts(projectIds)', () => {
+  const forkRows = (parents: string[]) =>
+    parents.map((id) => ({ forked_from_project_id: id }));
+
+  const makeService = (main?: QueryResult) => {
+    const mock = createSupabaseMock([], {
+      tables: { projects: main ? [main] : [] },
+    });
+    const service = new ExploreService(mock.client);
+    const counts = (
+      service as unknown as {
+        getForkCounts(ids: string[]): Promise<Map<string, number>>;
+      }
+    ).getForkCounts.bind(service) as (
+      ids: string[],
+    ) => Promise<Map<string, number>>;
+    return { counts, mock };
+  };
+
+  it('UTCID01 returns an empty Map and sends no query for an empty id list', async () => {
+    const { counts, mock } = makeService();
+
+    const result = await counts([]);
+
+    expect(result).toEqual(new Map<string, number>());
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 counts forks per parent (2 of P1, 1 of P2)', async () => {
+    const { counts, mock } = makeService({
+      data: forkRows(['P1', 'P1', 'P2']),
+    });
+
+    const result = await counts(['P1', 'P2', 'P3']);
+
+    expect(mock.builders.projects.in).toHaveBeenCalledWith(
+      'forked_from_project_id',
+      ['P1', 'P2', 'P3'],
+    );
+    expect(result).toEqual(
+      new Map([
+        ['P1', 2],
+        ['P2', 1],
+      ]),
+    );
+    expect(result.has('P3')).toBe(false);
+  });
+
+  it('UTCID03 returns an empty Map when no forks are found', async () => {
+    const { counts } = makeService({ data: [] });
+
+    const result = await counts(['P1', 'P2', 'P3']);
+
+    expect(result).toEqual(new Map<string, number>());
+  });
+
+  it('UTCID04 returns an empty Map when Supabase returns an error', async () => {
+    const { counts } = makeService({
+      data: null,
+      error: { message: 'db error' },
+    });
+
+    const result = await counts(['P1', 'P2', 'P3']);
+
+    expect(result).toEqual(new Map<string, number>());
+  });
+});
+
+// ============================================================================
+// SHEET: BE-EXP-08 (ExploreService.enrichProjectCards)
+//
+// Mock order per call:
+//   Promise.all: project_tags .in('project_id', ids)
+//                + (no precomputed map) projects fork .in('forked_from_project_id', ids)
+// An empty input short-circuits before any query.
+// ============================================================================
+describe('BE-EXP-08 ExploreService.enrichProjectCards(projects, precomputedForkCounts)', () => {
+  const enrichRow = (
+    id: string,
+    owner: unknown,
+    created = '2026-01-01T00:00:00Z',
+  ) => ({
+    id,
+    name: `Project ${id}`,
+    description: null,
+    genre: null,
+    visibility: 'public',
+    archived_at: null,
+    created_at: created,
+    updated_at: created,
+    play_count: 0,
+    owner,
+  });
+
+  const owner = {
+    id: 'usr_1',
+    username: 'owner',
+    display_name: null,
+    avatar_url: null,
+  };
+
+  const twoRows = (ownerValue: unknown = owner) => [
+    enrichRow('P1', ownerValue, '2026-01-02T00:00:00Z'),
+    enrichRow('P2', ownerValue, '2026-01-01T00:00:00Z'),
+  ];
+
+  const makeService = (
+    tags?: QueryResult,
+    fork?: QueryResult,
+    precomputed?: Map<string, number>,
+  ) => {
+    const tables: Record<string, QueryResult[]> = {
+      project_tags: tags ? [tags] : [],
+      projects: fork ? [fork] : [],
+    };
+    const mock = createSupabaseMock([], { tables });
+    const service = new ExploreService(mock.client);
+    const enrich = (
+      service as unknown as {
+        enrichProjectCards(
+          projects: unknown[],
+          precomputedForkCounts?: Map<string, number>,
+        ): Promise<PublicProjectCard[]>;
+      }
+    ).enrichProjectCards.bind(service) as (
+      projects: unknown[],
+      precomputedForkCounts?: Map<string, number>,
+    ) => Promise<PublicProjectCard[]>;
+    return { enrich, mock, service, precomputed };
+  };
+
+  it('UTCID01 returns [] without sending any query for an empty input', async () => {
+    const { enrich, mock } = makeService();
+
+    const result = await enrich([]);
+
+    expect(result).toEqual([]);
+    expect(mock.builders.project_tags.in).not.toHaveBeenCalled();
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 collects array-form tag names and fork counts into the cards', async () => {
+    const { enrich } = makeService(
+      {
+        data: [
+          {
+            project_id: 'P1',
+            tag: [{ name: 'rock' }, { name: 'lofi' }],
+          },
+        ],
+      },
+      {
+        data: [
+          { forked_from_project_id: 'P1' },
+          { forked_from_project_id: 'P2' },
+        ],
+      },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result.map((c) => c.id)).toEqual(['P1', 'P2']);
+    expect(result[0].tags).toEqual(['rock', 'lofi']);
+    expect(result[1].tags).toEqual([]);
+    expect(result[0].fork_count).toBe(1);
+    expect(result[1].fork_count).toBe(1);
+    expect(result[0].owner).toEqual(owner);
+  });
+
+  it('UTCID03 reuses the precomputed fork map instead of querying forks', async () => {
+    const { enrich, mock, precomputed } = makeService(
+      {
+        data: [{ project_id: 'P1', tag: [{ name: 'rock' }, { name: 'lofi' }] }],
+      },
+      undefined,
+      new Map([['P1', 7]]),
+    );
+
+    const result = await enrich(twoRows(), precomputed);
+
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+    expect(result[0].tags).toEqual(['rock', 'lofi']);
+    expect(result[0].fork_count).toBe(7);
+    expect(result[1].fork_count).toBe(0);
+  });
+
+  it('UTCID04 collects object-form tag names into the cards', async () => {
+    const { enrich } = makeService(
+      { data: [{ project_id: 'P1', tag: { name: 'rock' } }] },
+      { data: [] },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result[0].tags).toEqual(['rock']);
+    expect(result[1].tags).toEqual([]);
+  });
+
+  it('UTCID05 defaults a null owner to an empty id and null fields', async () => {
+    const { enrich } = makeService({ data: [] }, { data: [] });
+
+    const result = await enrich([enrichRow('P1', null)]);
+
+    expect(result[0].owner).toEqual({
+      id: '',
+      username: null,
+      display_name: null,
+      avatar_url: null,
+    });
+    expect(result[0].tags).toEqual([]);
+  });
+
+  it('UTCID06 returns cards with empty tag lists when no tags exist', async () => {
+    const { enrich } = makeService({ data: [] }, { data: [] });
+
+    const result = await enrich(twoRows());
+
+    expect(result).toHaveLength(2);
+    expect(result[0].tags).toEqual([]);
+    expect(result[1].tags).toEqual([]);
+  });
+
+  it('UTCID07 returns cards with empty tags when the tag query errors', async () => {
+    const { enrich } = makeService(
+      { data: null, error: { message: 'db error' } },
+      { data: [] },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result[0].tags).toEqual([]);
+    expect(result[1].tags).toEqual([]);
+  });
+
+  it('UTCID08 skips empty tag names', async () => {
+    const { enrich } = makeService(
+      { data: [{ project_id: 'P1', tag: [{ name: '' }] }] },
+      { data: [] },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result[0].tags).toEqual([]);
+  });
+
+  it('UTCID09 throws a TypeError when a tag join row returns a null tag', async () => {
+    const { enrich } = makeService(
+      { data: [{ project_id: 'P1', tag: null }] },
+      { data: [] },
+    );
+
+    await expect(enrich(twoRows())).rejects.toThrow(
+      "Cannot read properties of null (reading 'name')",
     );
   });
 });
