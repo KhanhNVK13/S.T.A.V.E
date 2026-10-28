@@ -2,7 +2,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { ExploreService } from './explore.service';
+import { ExploreService, type PublicProjectCard } from './explore.service';
 import {
   createSupabaseMock,
   type QueryResult,
@@ -1082,5 +1082,194 @@ describe('BE-EXP-07 ExploreService.getForkCounts(projectIds)', () => {
     const result = await counts(['P1', 'P2', 'P3']);
 
     expect(result).toEqual(new Map<string, number>());
+  });
+});
+
+// ============================================================================
+// SHEET: BE-EXP-08 (ExploreService.enrichProjectCards)
+//
+// Mock order per call:
+//   Promise.all: project_tags .in('project_id', ids)
+//                + (no precomputed map) projects fork .in('forked_from_project_id', ids)
+// An empty input short-circuits before any query.
+// ============================================================================
+describe('BE-EXP-08 ExploreService.enrichProjectCards(projects, precomputedForkCounts)', () => {
+  const enrichRow = (
+    id: string,
+    owner: unknown,
+    created = '2026-01-01T00:00:00Z',
+  ) => ({
+    id,
+    name: `Project ${id}`,
+    description: null,
+    genre: null,
+    visibility: 'public',
+    archived_at: null,
+    created_at: created,
+    updated_at: created,
+    play_count: 0,
+    owner,
+  });
+
+  const owner = {
+    id: 'usr_1',
+    username: 'owner',
+    display_name: null,
+    avatar_url: null,
+  };
+
+  const twoRows = (ownerValue: unknown = owner) => [
+    enrichRow('P1', ownerValue, '2026-01-02T00:00:00Z'),
+    enrichRow('P2', ownerValue, '2026-01-01T00:00:00Z'),
+  ];
+
+  const makeService = (
+    tags?: QueryResult,
+    fork?: QueryResult,
+    precomputed?: Map<string, number>,
+  ) => {
+    const tables: Record<string, QueryResult[]> = {
+      project_tags: tags ? [tags] : [],
+      projects: fork ? [fork] : [],
+    };
+    const mock = createSupabaseMock([], { tables });
+    const service = new ExploreService(mock.client);
+    const enrich = (
+      service as unknown as {
+        enrichProjectCards(
+          projects: unknown[],
+          precomputedForkCounts?: Map<string, number>,
+        ): Promise<PublicProjectCard[]>;
+      }
+    ).enrichProjectCards.bind(service) as (
+      projects: unknown[],
+      precomputedForkCounts?: Map<string, number>,
+    ) => Promise<PublicProjectCard[]>;
+    return { enrich, mock, service, precomputed };
+  };
+
+  it('UTCID01 returns [] without sending any query for an empty input', async () => {
+    const { enrich, mock } = makeService();
+
+    const result = await enrich([]);
+
+    expect(result).toEqual([]);
+    expect(mock.builders.project_tags.in).not.toHaveBeenCalled();
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 collects array-form tag names and fork counts into the cards', async () => {
+    const { enrich } = makeService(
+      {
+        data: [
+          {
+            project_id: 'P1',
+            tag: [{ name: 'rock' }, { name: 'lofi' }],
+          },
+        ],
+      },
+      {
+        data: [
+          { forked_from_project_id: 'P1' },
+          { forked_from_project_id: 'P2' },
+        ],
+      },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result.map((c) => c.id)).toEqual(['P1', 'P2']);
+    expect(result[0].tags).toEqual(['rock', 'lofi']);
+    expect(result[1].tags).toEqual([]);
+    expect(result[0].fork_count).toBe(1);
+    expect(result[1].fork_count).toBe(1);
+    expect(result[0].owner).toEqual(owner);
+  });
+
+  it('UTCID03 reuses the precomputed fork map instead of querying forks', async () => {
+    const { enrich, mock, precomputed } = makeService(
+      {
+        data: [{ project_id: 'P1', tag: [{ name: 'rock' }, { name: 'lofi' }] }],
+      },
+      undefined,
+      new Map([['P1', 7]]),
+    );
+
+    const result = await enrich(twoRows(), precomputed);
+
+    expect(mock.builders.projects.in).not.toHaveBeenCalled();
+    expect(result[0].tags).toEqual(['rock', 'lofi']);
+    expect(result[0].fork_count).toBe(7);
+    expect(result[1].fork_count).toBe(0);
+  });
+
+  it('UTCID04 collects object-form tag names into the cards', async () => {
+    const { enrich } = makeService(
+      { data: [{ project_id: 'P1', tag: { name: 'rock' } }] },
+      { data: [] },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result[0].tags).toEqual(['rock']);
+    expect(result[1].tags).toEqual([]);
+  });
+
+  it('UTCID05 defaults a null owner to an empty id and null fields', async () => {
+    const { enrich } = makeService({ data: [] }, { data: [] });
+
+    const result = await enrich([enrichRow('P1', null)]);
+
+    expect(result[0].owner).toEqual({
+      id: '',
+      username: null,
+      display_name: null,
+      avatar_url: null,
+    });
+    expect(result[0].tags).toEqual([]);
+  });
+
+  it('UTCID06 returns cards with empty tag lists when no tags exist', async () => {
+    const { enrich } = makeService({ data: [] }, { data: [] });
+
+    const result = await enrich(twoRows());
+
+    expect(result).toHaveLength(2);
+    expect(result[0].tags).toEqual([]);
+    expect(result[1].tags).toEqual([]);
+  });
+
+  it('UTCID07 returns cards with empty tags when the tag query errors', async () => {
+    const { enrich } = makeService(
+      { data: null, error: { message: 'db error' } },
+      { data: [] },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result[0].tags).toEqual([]);
+    expect(result[1].tags).toEqual([]);
+  });
+
+  it('UTCID08 skips empty tag names', async () => {
+    const { enrich } = makeService(
+      { data: [{ project_id: 'P1', tag: [{ name: '' }] }] },
+      { data: [] },
+    );
+
+    const result = await enrich(twoRows());
+
+    expect(result[0].tags).toEqual([]);
+  });
+
+  it('UTCID09 throws a TypeError when a tag join row returns a null tag', async () => {
+    const { enrich } = makeService(
+      { data: [{ project_id: 'P1', tag: null }] },
+      { data: [] },
+    );
+
+    await expect(enrich(twoRows())).rejects.toThrow(
+      "Cannot read properties of null (reading 'name')",
+    );
   });
 });
