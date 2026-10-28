@@ -25,7 +25,12 @@ function makeService(
     : never,
   branch: Record<string, unknown> = { id: branchId, head_commit_id: null },
 ) {
-  const mock = createSupabaseMock([], { tables });
+  const mock = createSupabaseMock([], {
+    tables: {
+      project_collaborators: Array.from({ length: 12 }, () => ({ data: null })),
+      ...tables,
+    },
+  });
   const projects = {
     getActiveBranchForUser: jest.fn().mockResolvedValue(branch),
   } as unknown as ProjectsService;

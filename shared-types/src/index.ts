@@ -384,3 +384,8 @@ export interface PaginatedCommitHistory {
   totalPages: number;
   limit: number;
 }
+
+// Collaboration (UC-60/61/62) — shapes shared with `backend/src/collaboration/`.
+export * from './collaboration';
+// Comments (UC-63 — pinned comment) — shapes shared with `backend/src/comments/`.
+export * from './comments';

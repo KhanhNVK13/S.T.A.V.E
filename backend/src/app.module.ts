@@ -18,6 +18,9 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ForksModule } from './forks/forks.module';
 import { ConnectedAccountsModule } from './connected-accounts/connected-accounts.module';
 import { PullRequestsModule } from './pull-requests/pull-requests.module';
+import { ProjectAccessModule } from './project-access/project-access.module';
+import { CollaborationModule } from './collaboration/collaboration.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { PullRequestsModule } from './pull-requests/pull-requests.module';
     ForksModule,
     ConnectedAccountsModule,
     PullRequestsModule,
+    ProjectAccessModule,
+    CollaborationModule,
+    CommentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

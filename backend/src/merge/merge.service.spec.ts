@@ -71,7 +71,13 @@ function makeService(
   rpc: SupabaseMockOptions['rpc'] = {},
   mergeBase: string | null = baseId,
 ) {
-  const mock = createSupabaseMock([], { tables, rpc });
+  const mock = createSupabaseMock([], {
+    tables: {
+      project_collaborators: Array.from({ length: 12 }, () => ({ data: null })),
+      ...tables,
+    },
+    rpc,
+  });
   const findMergeBase = jest.fn().mockResolvedValue(mergeBase);
   const branchesService = {
     findMergeBase,
