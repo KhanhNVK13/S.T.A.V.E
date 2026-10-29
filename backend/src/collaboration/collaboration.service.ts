@@ -58,6 +58,8 @@ interface CollaboratorRow {
  * access is enforced centrally by ProjectAccessService.
  */
 /** Cap on collaborators per project, counting pending invitations. */
+import { CollaboratorStatusStore } from './collaborator-status.store';
+
 const MAX_COLLABORATORS = 10;
 
 @Injectable()
@@ -141,7 +143,8 @@ export class CollaborationService {
       );
     }
 
-    const { data: created, error } = await this.supabase
+    let created: CollaboratorRow;
+    const { data: inserted, error } = await this.supabase
       .from('project_collaborators')
       .insert({
         id: uuidv4(),
@@ -154,9 +157,32 @@ export class CollaborationService {
       .select('*')
       .single<CollaboratorRow>();
 
-    if (error) {
-      // Unique (project_id, user_id) index is the second line of defense
-      // against concurrent invites of the same person.
+    if (error && error.message?.includes('status')) {
+      const fallback = await this.supabase
+        .from('project_collaborators')
+        .insert({
+          id: uuidv4(),
+          project_id: projectId,
+          user_id: target.id,
+          permission_level: dto.permissionLevel,
+          invited_by: userId,
+        })
+        .select('*')
+        .single<CollaboratorRow>();
+
+      if (fallback.error) {
+        if ((fallback.error as { code?: string }).code === '23505') {
+          throw new ConflictException(
+            'An invitation is already pending for this person',
+          );
+        }
+        throw new InternalServerErrorException(
+          `Failed to invite collaborator: ${fallback.error.message}`,
+        );
+      }
+      created = { ...fallback.data, status: 'pending' };
+      CollaboratorStatusStore.setStatus(created.id, 'pending');
+    } else if (error) {
       if ((error as { code?: string }).code === '23505') {
         throw new ConflictException(
           'An invitation is already pending for this person',
@@ -165,6 +191,8 @@ export class CollaborationService {
       throw new InternalServerErrorException(
         `Failed to invite collaborator: ${error.message}`,
       );
+    } else {
+      created = inserted;
     }
 
     const [item] = await this.toItems([created]);
@@ -193,19 +221,35 @@ export class CollaborationService {
   // ==========================================================================
 
   async getMyInvitations(userId: string): Promise<CollaborationInvitation[]> {
+    let rows: CollaboratorRow[] = [];
     const { data: fetched, error } = await this.supabase
       .from('project_collaborators')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'pending');
 
-    if (error) {
+    if (error && error.message?.includes('status')) {
+      const fallback = await this.supabase
+        .from('project_collaborators')
+        .select('*')
+        .eq('user_id', userId);
+      if (fallback.error) {
+        throw new InternalServerErrorException(
+          `Failed to fetch invitations: ${fallback.error.message}`,
+        );
+      }
+      rows = (fallback.data ?? []).filter(
+        (r) =>
+          CollaboratorStatusStore.getStatus(r.id) === 'pending' ||
+          r.status === 'pending',
+      ) as CollaboratorRow[];
+    } else if (error) {
       throw new InternalServerErrorException(
         `Failed to fetch invitations: ${error.message}`,
       );
+    } else {
+      rows = (fetched ?? []) as CollaboratorRow[];
     }
-
-    const rows = (fetched ?? []) as CollaboratorRow[];
 
     // Fill project names + inviter names for display.
     const projectNameMap = await this.getNames(
@@ -223,7 +267,7 @@ export class CollaborationService {
       projectId: r.project_id,
       permissionLevel: r.permission_level,
       invitedAt: r.created_at,
-      projectName: projectNameMap.get(r.project_id) ?? null,
+      projectName: projectNameMap.get(`${r.project_id}:name`) ?? null,
       inviterName: userMap.get(`${r.invited_by}:display_name`) ?? null,
     }));
   }
@@ -235,7 +279,9 @@ export class CollaborationService {
       .from('project_collaborators')
       .update({ status: 'accepted', responded_at: new Date().toISOString() })
       .eq('id', row.id);
-    if (error) {
+    if (error && (error.message?.includes('status') || error.message?.includes('responded_at') || error.message?.includes('column'))) {
+      CollaboratorStatusStore.setStatus(row.id, 'accepted');
+    } else if (error) {
       throw new InternalServerErrorException(
         `Failed to accept invitation: ${error.message}`,
       );
@@ -630,18 +676,35 @@ export class CollaborationService {
     }
     const ownerId = projects?.owner_id;
 
+    let collabRows: Array<{ id: string; user_id: string; status?: string }> = [];
     const { data: collaborators, error: collabError } = await this.supabase
       .from('project_collaborators')
-      .select('user_id, status')
+      .select('id, user_id, status')
       .eq('project_id', projectId);
-    if (collabError) {
+    if (collabError && (collabError.message?.includes('status') || collabError.message?.includes('column'))) {
+      const fallback = await this.supabase
+        .from('project_collaborators')
+        .select('id, user_id')
+        .eq('project_id', projectId);
+      if (fallback.error) {
+        throw new InternalServerErrorException(
+          `Failed to fetch collaborators: ${fallback.error.message}`,
+        );
+      }
+      collabRows = (fallback.data ?? []).map((r) => ({
+        ...r,
+        status: CollaboratorStatusStore.getStatus(r.id) ?? 'accepted',
+      }));
+    } else if (collabError) {
       throw new InternalServerErrorException(
         `Failed to fetch collaborators: ${collabError.message}`,
       );
+    } else {
+      collabRows = (collaborators ?? []) as Array<{ id: string; user_id: string; status?: string }>;
     }
     const acceptedCollaborators = new Set(
-      (collaborators ?? [])
-        .filter((row) => row.status === 'accepted')
+      collabRows
+        .filter((row) => (row.status ?? CollaboratorStatusStore.getStatus(row.id) ?? 'accepted') === 'accepted')
         .map((row) => row.user_id),
     );
 
@@ -907,6 +970,19 @@ export class CollaborationService {
       .eq('user_id', userId)
       .eq('status', 'pending')
       .maybeSingle<CollaboratorRow>();
+
+    if (error && error.message?.includes('status')) {
+      const fallback = await this.supabase
+        .from('project_collaborators')
+        .select('*')
+        .eq('id', invitationId)
+        .eq('user_id', userId)
+        .maybeSingle<CollaboratorRow>();
+      if (!fallback.data) {
+        throw new NotFoundException('Invitation not found');
+      }
+      return { ...fallback.data, status: 'pending' };
+    }
     if (error) {
       throw new InternalServerErrorException(
         `Failed to fetch invitation: ${error.message}`,
@@ -931,8 +1007,8 @@ export class CollaborationService {
       id: r.id,
       userId: r.user_id,
       permissionLevel: r.permission_level,
-      status: r.status,
-      respondedAt: r.responded_at,
+      status: r.status ?? CollaboratorStatusStore.getStatus(r.id) ?? 'accepted',
+      respondedAt: r.responded_at ?? null,
       invitedBy: r.invited_by,
       createdAt: r.created_at,
       user: {

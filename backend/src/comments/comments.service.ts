@@ -64,7 +64,23 @@ export class CommentsService {
       );
     }
 
-    const comments = (rows ?? []) as CommentRow[];
+    const comments = ((rows ?? []) as Array<CommentRow & { anchor_ref?: string }>).map((row) => {
+      if ((row.track_id === undefined || row.track_id === null) && row.anchor_ref) {
+        try {
+          const parsed = JSON.parse(row.anchor_ref);
+          return {
+            ...row,
+            track_id: parsed.track_id ?? null,
+            bar: parsed.bar ?? null,
+            note_id: parsed.note_id ?? null,
+            parent_id: parsed.parent_id ?? null,
+          };
+        } catch {
+          return row;
+        }
+      }
+      return row;
+    });
     const noteIds = await this.currentNoteIds(projectId);
     const userMap = await this.getAuthorNames(comments.map((c) => c.author_id));
 
@@ -130,7 +146,8 @@ export class CommentsService {
         dto.noteId !== undefined && dto.noteId !== null ? dto.noteId : null;
     }
 
-    const { data: created, error } = await this.supabase
+    let created: CommentRow;
+    const { data: inserted, error } = await this.supabase
       .from('comments')
       .insert({
         project_id: projectId,
@@ -144,10 +161,41 @@ export class CommentsService {
       .select('*')
       .single<CommentRow>();
 
-    if (error) {
+    if (error && (error.message?.includes('track_id') || error.message?.includes('anchor_ref'))) {
+      const fallbackInsert = await this.supabase
+        .from('comments')
+        .insert({
+          project_id: projectId,
+          author_id: userId,
+          body,
+          anchor_ref: JSON.stringify({
+            track_id: trackId,
+            bar,
+            note_id: noteId,
+            parent_id: dto.parentId ?? null,
+          }),
+        })
+        .select('*')
+        .single<CommentRow>();
+
+      if (fallbackInsert.error) {
+        throw new InternalServerErrorException(
+          `Failed to create comment: ${fallbackInsert.error.message}`,
+        );
+      }
+      created = {
+        ...fallbackInsert.data,
+        track_id: trackId,
+        bar,
+        note_id: noteId,
+        parent_id: dto.parentId ?? null,
+      };
+    } else if (error) {
       throw new InternalServerErrorException(
         `Failed to create comment: ${error.message}`,
       );
+    } else {
+      created = inserted;
     }
 
     const userMap = await this.getAuthorNames([created.author_id]);
@@ -237,6 +285,8 @@ export class CommentsService {
       .from('drafts')
       .select('snapshot')
       .eq('branch_id', branch.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .maybeSingle<{ snapshot: DraftSnapshot }>();
     if (draftError) {
       throw new InternalServerErrorException(

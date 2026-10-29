@@ -9,6 +9,8 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 
+import { CollaboratorStatusStore } from '../collaboration/collaborator-status.store';
+
 export type ProjectAccess = 'owner' | 'edit' | 'view' | null;
 
 /** Raw row from projects table */
@@ -68,17 +70,39 @@ export class ProjectAccessService {
       return { access: 'owner', project };
     }
 
-    const { data: collaborator, error } = await this.supabase
+    let collaborator: CollaboratorDbRow | null = null;
+    const { data, error } = await this.supabase
       .from('project_collaborators')
       .select('permission_level, status')
       .eq('project_id', projectId)
       .eq('user_id', userId)
       .maybeSingle<CollaboratorDbRow>();
 
-    if (error) {
+    if (error && error.message?.includes('status')) {
+      const fallback = await this.supabase
+        .from('project_collaborators')
+        .select('id, permission_level')
+        .eq('project_id', projectId)
+        .eq('user_id', userId)
+        .maybeSingle<{ id: string; permission_level: 'view' | 'edit' }>();
+      if (fallback.data) {
+        const st = CollaboratorStatusStore.getStatus(fallback.data.id) ?? 'accepted';
+        collaborator = {
+          id: fallback.data.id,
+          permission_level: fallback.data.permission_level,
+          status: st,
+          project_id: projectId,
+          user_id: userId,
+          invited_by: '',
+          created_at: '',
+        };
+      }
+    } else if (error) {
       throw new InternalServerErrorException(
         `Failed to check collaborator status: ${error.message}`,
       );
+    } else {
+      collaborator = data;
     }
 
     // BR-65: pending collaborators have no access.

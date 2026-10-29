@@ -56,6 +56,7 @@ function mockSupabase(rows: Record<string, Row[]>) {
       return q;
     };
     q.order = () => q;
+    q.limit = () => q;
     q.ilike = (col: string, val: string) => {
       preds.push(
         (row) =>
