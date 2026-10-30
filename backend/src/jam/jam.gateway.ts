@@ -69,71 +69,79 @@ export class JamGateway {
    * stored on `socket.data` for the join handler.
    */
   async handleConnection(client: Socket): Promise<void> {
-    const auth = client.handshake.auth as JamHandshakeAuth | undefined;
+    const authPromise = (async (): Promise<JamSocketData | null> => {
+      const auth = client.handshake.auth as JamHandshakeAuth | undefined;
 
-    if (!auth?.accessToken || !auth.sessionId) {
-      this.logger.warn('Rejecting /jam socket: missing handshake auth');
-      client.disconnect(true);
-      return;
+      if (!auth?.accessToken || !auth.sessionId) {
+        this.logger.warn('Rejecting /jam socket: missing handshake auth');
+        client.disconnect(true);
+        return null;
+      }
+
+      const { data, error: tokenError } = await this.supabase.auth.getUser(
+        auth.accessToken,
+      );
+      if (tokenError || !data.user) {
+        this.logger.warn('Rejecting /jam socket: invalid access token');
+        client.disconnect(true);
+        return null;
+      }
+
+      const { data: session, error: sessionError } = await this.supabase
+        .from('sessions')
+        .select('id, user_id, revoked_at')
+        .eq('id', auth.sessionId)
+        .maybeSingle<{
+          id: string;
+          user_id: string;
+          revoked_at: string | null;
+        }>();
+
+      if (
+        sessionError ||
+        !session ||
+        session.user_id !== data.user.id ||
+        session.revoked_at !== null
+      ) {
+        this.logger.warn('Rejecting /jam socket: revoked or unknown session');
+        client.disconnect(true);
+        return null;
+      }
+
+      const user = data.user;
+      const { data: profile } = await this.supabase
+        .from('users')
+        .select('username, display_name, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle<{
+          username: string | null;
+          display_name: string | null;
+          avatar_url: string | null;
+        }>();
+
+      const participant: JamParticipant = {
+        userId: user.id,
+        username: profile?.username ?? null,
+        displayName: profile?.display_name ?? user.email ?? null,
+        avatarUrl: profile?.avatar_url ?? null,
+        socketId: client.id,
+        joinedAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+      };
+
+      return {
+        user,
+        participant,
+        eventId: null,
+        sessionId: session.id,
+      };
+    })();
+
+    (client.data as any).authPromise = authPromise;
+    const resolved = await authPromise;
+    if (resolved) {
+      client.data = resolved;
     }
-
-    const { data, error: tokenError } = await this.supabase.auth.getUser(
-      auth.accessToken,
-    );
-    if (tokenError || !data.user) {
-      this.logger.warn('Rejecting /jam socket: invalid access token');
-      client.disconnect(true);
-      return;
-    }
-
-    const { data: session, error: sessionError } = await this.supabase
-      .from('sessions')
-      .select('id, user_id, revoked_at')
-      .eq('id', auth.sessionId)
-      .maybeSingle<{
-        id: string;
-        user_id: string;
-        revoked_at: string | null;
-      }>();
-
-    if (
-      sessionError ||
-      !session ||
-      session.user_id !== data.user.id ||
-      session.revoked_at !== null
-    ) {
-      this.logger.warn('Rejecting /jam socket: revoked or unknown session');
-      client.disconnect(true);
-      return;
-    }
-
-    const user = data.user;
-    const { data: profile } = await this.supabase
-      .from('users')
-      .select('username, display_name, avatar_url')
-      .eq('id', user.id)
-      .maybeSingle<{
-        username: string | null;
-        display_name: string | null;
-        avatar_url: string | null;
-      }>();
-
-    const participant: JamParticipant = {
-      userId: user.id,
-      username: profile?.username ?? null,
-      displayName: profile?.display_name ?? user.email ?? null,
-      avatarUrl: profile?.avatar_url ?? null,
-      socketId: client.id,
-      joinedAt: new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-    };
-
-    client.data = {
-      user,
-      participant,
-      eventId: null,
-      sessionId: session.id,
-    } satisfies JamSocketData;
   }
 
   /**
@@ -147,8 +155,12 @@ export class JamGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: JamJoinPayload,
   ): Promise<void> {
-    const data = client.data as JamSocketData | undefined;
-    if (!data) {
+    let data = client.data as JamSocketData | undefined;
+    if ((!data || !data.user) && (client.data as any)?.authPromise) {
+      data = (await (client.data as any).authPromise) ?? undefined;
+    }
+
+    if (!data || !data.user) {
       client.disconnect(true);
       return;
     }

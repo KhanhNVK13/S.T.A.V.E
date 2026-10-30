@@ -6,7 +6,7 @@
 // the snapshot lives in server RAM and flushes to `drafts` every 5s (BR-75).
 // =============================================================================
 
-import type { DraftSnapshot } from './index';
+import type { DraftNote, DraftSnapshot } from './index';
 
 /**
  * Trạng thái sự kiện. `scheduled`/`active`/`ended` khớp enum Postgres
@@ -75,9 +75,19 @@ export interface JamRoomState {
   lastEditAtByUser: Record<string, number>;
   lastFlushedAt: number;
   isDirty: boolean;
+  /**
+   * BR-116/12.E1 — số chu kỳ sweep 5s liên tiếp flush `drafts` THẤT BẠI.
+   * Khi flush lỗi, giữ `isDirty` để thử lại chu kỳ sau; đếm này tăng dần và
+   * về 0 khi một lần flush thành công. Vượt `JamRoomState.MAX_FLUSH_FAILURES`
+   * (3 chu kỳ ≈ 15s) → server phát `jam:storage_warning` cho client.
+   */
+  consecutiveFlushFailures: number;
   /** Tối đa 50 mục — hoạt động gần đây (client + server cùng giữ). */
   recentActivities: JamActivityItem[];
 }
+
+/** BR-116/12.E1: 3 chu kỳ flush liên tiếp thất bại (15s) → cảnh báo client. */
+export const JAM_MAX_FLUSH_FAILURES = 3;
 
 /** 1 dòng "ai làm gì" hiện ở cột hoạt động gần đây (UC-66, tối đa 50 mục). */
 export interface JamActivityItem {
@@ -127,6 +137,141 @@ export interface JamErrorPayload {
     | 'EVENT_COMPLETED'
     | 'ACCOUNT_NOT_ACTIVE'
     | 'ROOM_FULL'
-    | 'JAM_CONNECTION_FAILED';
+    | 'JAM_CONNECTION_FAILED'
+    // UC-67 — các mã do thao tác chỉnh sửa vi phạm (xem bảng Exceptions):
+    | 'COOLDOWN_ACTIVE' // 2.E1: gửi thao tác khi chưa hết cooldown
+    | 'UNAUTHORIZED' // 3.E1: phiên/JWT hết hạn → server ngắt kết nối
+    | 'JAM_EVENT_ENDED' // 5.E1: sự kiện đã kết thúc → phòng khoá chỉ đọc
+    | 'JAM_ROOM_NOT_FOUND' // 5.E2: phòng không có trong RAM lẫn DB
+    | 'INVALID_NOTE_DATA' // 7.E1: nốt vi phạm quy chuẩn MIDI
+    | 'TRACK_NOT_FOUND'; // 7.E2: trackId không tồn tại trong snapshot
   message: string;
+  /** 2.E1 — số giây cooldown còn lại (client vẽ lại đồng hồ đếm ngược). */
+  remainingSeconds?: number;
+}
+
+// ── UC-67: collaborative real-time editing ─────────────────────────────────
+
+/**
+ * Nốt nhạc theo dạng wire của UC-67. Ánh xạ 1:1 với `DraftNote` của
+ * `DraftSnapshot` (bắt buộc để diff/LWW so `===` chính xác, CLAUDE.md §4.2)
+ * nhưng dùng tên "tick" cho rõ ràng ở tầng socket:
+ * `midi` ↔ `pitch`, `startTick` ↔ `start`, `durationTicks` ↔ `duration`.
+ */
+export interface JamNoteDto {
+  /** UUID bền vững của nốt (CLAUDE.md §4.1) — server tự cấp khi `add`. */
+  id: string;
+  trackId: string;
+  /** Cao độ MIDI 0–127 (DUY NHẤT trong khoảng này, BR-71). */
+  midi: number;
+  /** Tick bắt đầu, số nguyên ≥ 0 (BR-71). */
+  startTick: number;
+  /** Độ dài, số nguyên tick ≥ 1 (BR-71). */
+  durationTicks: number;
+  /** Velocity MIDI 1–127 (BR-71). */
+  velocity: number;
+}
+
+/** Inbound `jam:edit_note` (alias `jam:edit`) — payload khách gửi lên. */
+export interface EditJamNoteDto {
+  /** Event id của phòng đang tham gia. */
+  jamId: string;
+  action: 'add' | 'update' | 'delete';
+  note: JamNoteDto;
+  /** Mốc client (ms) — chỉ để log; LWW dùng SERVER timestamp (BR-69). */
+  clientTimestamp: number;
+}
+
+/** Outbound `jam:note_updated` — broadcast tới TOÀN bộ client trong phòng. */
+export interface JamNoteUpdatedPayload {
+  jamId: string;
+  action: 'add' | 'update' | 'delete';
+  note: JamNoteDto;
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+  /** SERVER timestamp (ms) — mốc LWW (BR-69). */
+  timestamp: number;
+}
+
+/**
+ * Outbound `jam:cooldown_active` — 2.E1: thao tác bị từ chối vì chưa hết
+ * cooldown (chỉ người gửi, kèm `remainingSeconds` để client đếm ngược).
+ */
+export interface JamCooldownActivePayload {
+  jamId: string;
+  remainingSeconds: number;
+}
+
+/** Outbound `jam:event_ended` — 5.E1/BR-70: sự kiện kết thúc, khoá chỉ đọc. */
+export interface JamEventEndedPayload {
+  jamId: string;
+  endedAt: string;
+}
+
+/**
+ * Outbound `jam:storage_warning` — 12.E1: tiến trình nền flush `drafts`
+ * thất bại liên tiếp quá `JAM_MAX_FLUSH_FAILURES` chu kỳ. Bản nhạc vẫn an
+ * toàn trên RAM, nhưng client phải biết. Tự hết cảnh báo khi flush thành công.
+ */
+export interface JamStorageWarningPayload {
+  jamId: string;
+  consecutiveFlushFailures: number;
+}
+
+// ── Mapping 2 chiều JamNoteDto ↔ DraftNote (BR-71, CLAUDE.md §4.2) ────────
+
+/** `JamNoteDto` (wire) → `DraftNote` (snapshot) để áp dụng LWW vào RAM. */
+export function jamNoteToDraftNote(note: JamNoteDto): DraftNote {
+  return {
+    id: note.id,
+    trackId: note.trackId,
+    pitch: note.midi,
+    start: note.startTick,
+    duration: note.durationTicks,
+    velocity: note.velocity,
+  };
+}
+
+/** `DraftNote` (snapshot) → `JamNoteDto` (wire) để broadcast `jam:note_updated`. */
+export function draftNoteToJamNote(note: DraftNote): JamNoteDto {
+  return {
+    id: note.id,
+    trackId: note.trackId,
+    midi: note.pitch,
+    startTick: note.start,
+    durationTicks: note.duration,
+    velocity: note.velocity,
+  };
+}
+
+// ── UC-68 — Xem kết quả Jam (GET /jam/events/:id/result) ────────────────────
+
+/** Người đóng góp vào sự kiện (từ `jam_participants.edit_count > 0`). */
+export interface JamContributorDto {
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  /** Số thao tác nốt đã áp dụng thành công trong phiên. */
+  actionCount: number;
+}
+
+/**
+ * Dạng trả về của `GET /jam/events/:id/result` (UC-68). Chỉ được gọi khi sự
+ * kiện đã `ended`; `hasContributions = false` kèm `snapshot: null` là tình
+ * huống 2.E1 (kết thúc mà không có đóng góp — UC-95 3.E1: `no_result = true`,
+ * không tạo commit).
+ */
+export interface JamResultResponseDto {
+  eventId: string;
+  name: string;
+  status: 'ended';
+  startedAt: string | null;
+  endedAt: string | null;
+  /** Dự án kết quả (archived, read-only) — đích của nút Fork (BR-76/POST-4). */
+  resultingProjectId: string | null;
+  hasContributions: boolean;
+  snapshot: DraftSnapshot | null;
+  contributors: JamContributorDto[];
 }

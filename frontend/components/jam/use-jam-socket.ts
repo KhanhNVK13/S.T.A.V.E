@@ -95,6 +95,9 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
       });
       socket = nsp;
       socketRef.current = nsp;
+      if (typeof window !== "undefined") {
+        (window as unknown as { __jamSocket?: Socket }).__jamSocket = nsp;
+      }
 
       nsp.on("connect", () => {
         if (disposed) return;
@@ -153,7 +156,6 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
       });
 
       setStatus("connecting");
-      join(nsp);
     })();
 
     return () => {
