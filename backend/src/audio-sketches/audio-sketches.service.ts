@@ -129,9 +129,7 @@ export class AudioSketchesService {
       dto.durationSec > MAX_SKETCH_DURATION_SEC ||
       dto.sizeBytes > MAX_SKETCH_SIZE_BYTES
     ) {
-      throw new BadRequestException(
-        'Audio sketch tối đa 3 phút và 20MB',
-      );
+      throw new BadRequestException('Audio sketch tối đa 3 phút và 20MB');
     }
 
     const sketchId = randomUUID();
