@@ -122,6 +122,16 @@ const API_MESSAGES: Record<string, string> = {
     "Chỉ được trả lời 1 cấp — không thể trả lời bình luận đã là trả lời.",
   "You are not allowed to delete this comment":
     "Bạn không thể xoá bình luận của người khác.",
+  // Community Jam (UC-66) — thêm cuối bảng, không sửa dòng cũ.
+  "Jam event not found":
+    "Không tìm thấy sự kiện Jam này — có thể vừa được huỷ. Hãy tải lại.",
+  "The jam has not started yet":
+    "Sự kiện Jam chưa bắt đầu. Hãy quay lại đúng giờ mở.",
+  "The jam has already ended":
+    "Sự kiện Jam đã kết thúc.",
+  "Your account is not active":
+    "Tài khoản của bạn không ở trạng thái hoạt động nên không tham gia được.",
+  "The jam room is full": "Phòng Jam hiện đã đầy. Hãy thử sự kiện khác.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;

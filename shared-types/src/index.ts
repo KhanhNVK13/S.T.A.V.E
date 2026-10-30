@@ -389,3 +389,5 @@ export interface PaginatedCommitHistory {
 export type * from './collaboration';
 // Comments (UC-63 — pinned comment) — shapes shared with `backend/src/comments/`.
 export type * from './comments';
+// Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
+export type * from './jam';

@@ -21,6 +21,7 @@ import { PullRequestsModule } from './pull-requests/pull-requests.module';
 import { ProjectAccessModule } from './project-access/project-access.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
 import { CommentsModule } from './comments/comments.module';
+import { JamModule } from './jam/jam.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { CommentsModule } from './comments/comments.module';
     ProjectAccessModule,
     CollaborationModule,
     CommentsModule,
+    JamModule,
   ],
   controllers: [AppController],
   providers: [AppService],
