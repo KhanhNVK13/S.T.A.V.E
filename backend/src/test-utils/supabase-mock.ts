@@ -28,6 +28,7 @@ const CHAIN_METHODS = [
   'order',
   'range',
   'limit',
+  'returns',
 ] as const;
 
 const TERMINAL_METHODS = ['single', 'maybeSingle'] as const;
