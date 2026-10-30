@@ -7,6 +7,9 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    env: {
+      NEXT_PUBLIC_API_URL: "http://api.test",
+    },
     include: ["**/*.test.{ts,tsx}"],
     exclude: ["node_modules/**", ".next/**"],
   },
