@@ -69,13 +69,21 @@ export function JamSession({ event }: { event: JamEvent }) {
   const isEnded = event.status === "ended" || event.status === "cancelled";
 
   // 3.E1: a rejected join — "Không vào được phiên" + retry, no music shown.
+  // Wording follows the UC-66 exception table (REPORT 3/4).
   if (socket.joinError) {
     const codeText: Record<string, string> = {
-      EVENT_NOT_STARTED: "Sự kiện chưa bắt đầu — hãy quay lại đúng giờ mở.",
-      EVENT_COMPLETED: "Sự kiện đã kết thúc.",
-      ROOM_FULL: "Phòng Jam hiện đã đầy — hãy thử sự kiện khác.",
-      ACCOUNT_NOT_ACTIVE: "Tài khoản của bạn không ở trạng thái hoạt động.",
-      EVENT_NOT_FOUND: "Không tìm thấy sự kiện này.",
+      EVENT_NOT_STARTED:
+        "Sự kiện Community Jam chưa bắt đầu. Vui lòng quay lại sau.",
+      EVENT_COMPLETED:
+        "Sự kiện Community Jam đã kết thúc. Bạn chỉ có thể xem lại bản nhạc hoặc tạo bản sao (Fork).",
+      ROOM_FULL:
+        "Phòng Jam hiện đã đạt giới hạn số lượng người tham gia tối đa (50 người). Vui lòng thử lại sau ít phút.",
+      ACCOUNT_NOT_ACTIVE:
+        "Tài khoản của bạn hiện đang bị giới hạn tính năng cộng đồng. Không thể tham gia phòng Jam.",
+      EVENT_NOT_FOUND:
+        "Sự kiện Community Jam không tồn tại hoặc đã bị gỡ bỏ.",
+      JAM_CONNECTION_FAILED:
+        "Không vào được phiên Jam. Vui lòng thử lại.",
     };
     return (
       <Card className="p-8">

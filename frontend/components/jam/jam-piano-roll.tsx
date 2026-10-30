@@ -38,11 +38,12 @@ export function JamPianoRoll({
     };
   }, []);
 
+  const pianoRollRef = useRef(null);
   const selectedTrackId = tracks[0]?.id ?? null;
 
   return (
     <PianoRoll
-      ref={useRef(null)}
+      ref={pianoRollRef}
       notes={notes}
       tracks={tracks}
       selectedTrackId={selectedTrackId}
