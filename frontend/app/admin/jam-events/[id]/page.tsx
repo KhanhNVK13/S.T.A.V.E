@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { use } from "react";
 import { ShieldAlert } from "lucide-react";
+import { use } from "react";
 import { RequireAuth } from "../../../../components/require-auth";
 import { useAuth } from "../../../../context/auth-context";
 import {
+  adminEndJamEvent,
   adminGetJamEvent,
   adminListJamEvents,
 } from "../../../../lib/api-jam";
@@ -14,13 +15,15 @@ import type { JamEvent, JamEventListItem } from "@stave/shared-types";
 import { PageHeader } from "../../../../components/ui/page-header";
 import { EmptyState } from "../../../../components/ui/empty-state";
 import { Toast } from "../../../../components/ui/toast";
-import { JamEventControlPanel } from "../../../../components/admin/jam/jam-event-control-panel";
+import {
+  JamEventControlPanel,
+} from "../../../../components/admin/jam/jam-event-control-panel";
 
 /**
- * UC-95 — trang điều khiển quản trị 1 sự kiện Jam (route chuẩn:
- * `/admin/jam-events/:id`; backend cũng nhận alias `/admin/jam/events/:id`).
- * 1.E3: người không phải admin thấy cảnh báo "không có quyền"; phía server
- * triple guard (JwtAuth → SessionAuth → Admin) chặn mọi endpoint tương ứng.
+ * UC-95 — trang điều khiển quản trị 1 sự kiện Jam (admin-only phía
+ * server, triple guard). 1.E3: người không phải admin thấy cảnh báo "không
+ * có quyền". Nút "Kết thúc sự kiện" mở hộp xác nhận rồi gọi
+ * `POST /admin/jam-events/:id/end` (hoặc alias `jam/events`).
  */
 export default function AdminJamEventPage({
   params,
@@ -49,15 +52,17 @@ function AdminJamEventContent({
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setLoadingEvent(true);
+    setLoadError(null);
     try {
-      // Chi tiết (admin GET) + số người online (từ listing — phòng có thể
-      // chưa hydrate nên có thể vắng → null).
+      // Chi tiết + số người online (1 dòng trong listing) — 2 lần gọi nhẹ,
+      // số liệu "đang online" có thể vắng (phòng chưa hydrate) → null.
       const [detail, items] = await Promise.all([
         adminGetJamEvent(id),
         adminListJamEvents().catch(() => [] as JamEventListItem[]),
       ]);
       setEvent(detail);
-      setOnline(items.find((e) => e.id === id)?.currentParticipantCount ?? 0);
+      setOnline(items.find((e: JamEventListItem) => e.id === id)?.currentParticipantCount ?? 0);
     } catch (err) {
       // 3.E1 (404): sự kiện không tồn tại → empty state "Quay lại danh sách".
       setEvent(null);
@@ -67,47 +72,14 @@ function AdminJamEventContent({
     }
   }, [id]);
 
-  // Load lần đầu khi mount (định dạng inline IIFE + `active` guard — cùng
-  // pattern với trang danh sách UC-94; tránh `set-state-in-effect`).
-  // `loadingEvent` đã là `true` ban đầu nên mount không cần set lại; chỉ
-  // `retryLoad` (event handler) mới bật cờ loading thủ công.
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const [detail, items] = await Promise.all([
-          adminGetJamEvent(id),
-          adminListJamEvents().catch(() => [] as JamEventListItem[]),
-        ]);
-        if (!active) return;
-        setEvent(detail);
-        setOnline(
-          items.find((e) => e.id === id)?.currentParticipantCount ?? 0,
-        );
-      } catch (err) {
-        if (!active) return;
-        setEvent(null);
-        setLoadError(apiErrorMessage(err, "Không tải được thông tin sự kiện."));
-      } finally {
-        if (active) setLoadingEvent(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [id]);
-
-  /** Retry after a load error (cũng là đường vào "Thử lại" của panel). */
-  const retryLoad = useCallback(() => {
-    setLoadError(null);
-    setLoadingEvent(true);
     void load();
   }, [load]);
 
-  const handleEnded = useCallback(() => {
+  const handleEnded = useCallback((endedId: string) => {
     setDoneMessage("Sự kiện Community Jam đã kết thúc thành công.");
     setEvent((prev) =>
-      prev
+      prev && prev.id === endedId
         ? {
             ...prev,
             status: "ended" as const,
@@ -136,13 +108,11 @@ function AdminJamEventContent({
         <JamEventControlPanel
           event={
             event && online !== null
-              ? ({ ...event, currentParticipantCount: online } as JamEvent & {
-                  currentParticipantCount?: number;
-                })
+              ? { ...event, currentParticipantCount: online }
               : event
           }
           loadError={loadError}
-          onRetry={retryLoad}
+          onRetry={() => void load()}
           loading={loadingEvent}
           onEnded={handleEnded}
         />

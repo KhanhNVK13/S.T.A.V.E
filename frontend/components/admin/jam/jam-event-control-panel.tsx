@@ -37,8 +37,8 @@ export interface JamEventControlPanelProps {
 
 /**
  * UC-95 — bảng điều khiển quản trị cho 1 sự kiện Jam: thông tin sự kiện,
- * badge trạng thái, số người online và nút "Kết thúc sự kiện" (chỉ hiện
- * khi `active`/`scheduled` — mở `EndJamConfirmModal`).
+ * trạng thái, số người online và nút "Kết thúc sự kiện" (chỉ khi
+ * `active`/`scheduled` — mở `EndJamConfirmModal`).
  */
 export function JamEventControlPanel({
   event,
@@ -65,7 +65,7 @@ export function JamEventControlPanel({
 
   if (loadError && !event) {
     return (
-      <Card className="space-y-3 p-6">
+      <Card className="p-6">
         <div
           role="alert"
           className="flex items-center gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
@@ -73,9 +73,6 @@ export function JamEventControlPanel({
           <TriangleAlert className="h-3.5 w-3.5" />
           {loadError}
         </div>
-        <Button variant="secondary" onClick={onRetry}>
-          <Loader2 className="h-3.5 w-3.5" aria-hidden /> Thử lại
-        </Button>
       </Card>
     );
   }
@@ -97,7 +94,8 @@ export function JamEventControlPanel({
     );
   }
 
-  const online = event.currentParticipantCount;
+  const online = (event as JamEvent & { currentParticipantCount?: number })
+    .currentParticipantCount;
 
   return (
     <div className="space-y-4">

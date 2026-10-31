@@ -10,9 +10,9 @@ export interface JamFrozenBannerProps {
 
 /**
  * UC-95 (BR-70) — banner đóng băng hiện khi sự kiện vừa kết thúc (nhận
- * `jam:ended` / `jam:event_ended` từ server, hoặc `event.status === 'ended'`
- * khi tải lại). Piano roll lúc này ở chế độ chỉ đọc; banner dẫn người
- * tham gia về trang kết quả (UC-68: nghe lại hoặc Fork).
+ * `jam:ended` / `jam:event_ended` hoặc `event.status === 'ended'`). Piano
+ * roll lúc này ở chế độ chỉ đọc; banner dẫn người tham gia về trang kết
+ * quả (UC-68: nghe lại hoặc Fork).
  */
 export function JamFrozenBanner({ eventId }: JamFrozenBannerProps) {
   return (
@@ -22,8 +22,8 @@ export function JamFrozenBanner({ eventId }: JamFrozenBannerProps) {
     >
       <span className="flex items-center gap-2 text-sm">
         <Snowflake className="h-4 w-4 text-accent" />
-        Sự kiện Jam đã kết thúc! Bản nhạc đã được đóng băng. Bạn có thể
-        nghe lại tác phẩm hoặc Fork về không gian cá nhân.
+        Sự kiện Jam đã kết thúc! Bản nhạc đã được đóng băng. Bạn có thể nghe
+        lại tác phẩm hoặc Fork về không gian cá nhân.
       </span>
       <Link href={`/jam/${eventId}/result`}>
         <Button variant="secondary">Xem kết quả Jam</Button>

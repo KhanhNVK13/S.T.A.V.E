@@ -10,10 +10,10 @@ import { apiErrorMessage } from "../../../lib/error-message";
 
 export interface EndJamConfirmModalProps {
   event: JamEvent;
-  /** Số người đang có mặt trong phòng (từ dữ liệu listing). */
+  /** Số người đang có mặt trong phòng (từ dữ liệu listing/room). */
   participantCount?: number;
   onClosed: () => void;
-  /** Thành công: thông báo toast, kèm id sự kiện. */
+  /** Thành công: thông báo toast (đã map tiếng Việt), kèm id sự kiện. */
   onEnded: (eventId: string) => void;
 }
 
@@ -58,9 +58,8 @@ export function EndJamConfirmModal({
       </p>
       {participantCount > 0 && (
         <p className="mt-2 text-xs text-muted">
-          Đang có{" "}
-          <strong className="text-foreground">{participantCount}</strong> người
-          tham gia trong phòng.
+          Đang có <strong className="text-foreground">{participantCount}</strong>{" "}
+          người tham gia trong phòng.
         </p>
       )}
       <div className="mt-3 rounded-card border border-danger/40 bg-danger-muted p-3 text-xs text-danger">
