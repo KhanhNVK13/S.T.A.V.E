@@ -162,6 +162,19 @@ const API_MESSAGES: Record<string, string> = {
     "Thời gian kết thúc mới phải là thời điểm trong tương lai.",
   "New end time must be in the future and after start time":
     "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.",
+  // UC-95 (admin kết thúc sự kiện Jam) — thêm cuối bảng, không sửa dòng cũ.
+  "Mã định danh sự kiện Jam không hợp lệ.":
+    "Mã định danh sự kiện Jam không hợp lệ.",
+  "Không tìm thấy sự kiện Community Jam yêu cầu.":
+    "Không tìm thấy sự kiện Community Jam yêu cầu.",
+  "Sự kiện Jam này đã kết thúc trước đó.":
+    "Sự kiện Jam này đã kết thúc trước đó.",
+  "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.":
+    "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.",
+  "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.":
+    "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.",
+  "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.":
+    "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;

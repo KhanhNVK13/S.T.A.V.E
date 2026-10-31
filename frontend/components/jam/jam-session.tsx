@@ -19,6 +19,7 @@ import { Toast } from "../ui/toast";
 import { formatDateTime } from "../../lib/format-date";
 import { JamParticipantsBar } from "./jam-participants-bar";
 import { JamCountdownTimer } from "./jam-countdown-timer";
+import { JamFrozenBanner } from "./jam-frozen-banner";
 import { useJamSocket } from "./use-jam-socket";
 import { PIANO_ROLL_FALLBACK_NOTES } from "./jam-piano-roll";
 import { JamLiveEditor } from "./jam-live-editor";
@@ -313,18 +314,13 @@ export function JamSession({ event }: { event: JamEvent }) {
         </Card>
       )}
 
-      {isEnded && joined && (
-        <p className="text-sm text-muted">
-          Sự kiện đã kết thúc — xem{" "}
-          <Link
-            href={`/jam/${event.id}/result`}
-            className="text-accent hover:underline"
-          >
-            kết quả
-          </Link>{" "}
-          (UC-68).
-        </p>
-      )}
+      {/* UC-95 / BR-70 — the event ended: either it was already `ended` on
+          load (`isEnded`) or the server just broadcast `jam:ended` /
+          `jam:event_ended` while we were in the room (`endedByServer`).
+          The room is frozen read-only; the banner steers to the result. */}
+      {(isEnded && joined) || socket.endedByServer ? (
+        <JamFrozenBanner eventId={event.id} />
+      ) : null}
 
       {toast && (
         <Toast

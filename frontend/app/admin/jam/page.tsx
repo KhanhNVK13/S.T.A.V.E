@@ -20,6 +20,7 @@ import type {
   JamEventStatus,
 } from "@stave/shared-types";
 import { AdminJamConfigDialog } from "../../../components/admin/admin-jam-config-dialog";
+import { EndJamConfirmModal } from "../../../components/admin/jam/end-jam-confirm-modal";
 import { PageHeader } from "../../../components/ui/page-header";
 import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
 import { Badge } from "../../../components/ui/badge";
@@ -122,6 +123,8 @@ function AdminJamManager() {
   const [toast, setToast] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<JamEvent | null>(null);
   const [cancelling, setCancelling] = useState<JamEvent | null>(null);
+  const [ending, setEnding] = useState<JamEvent | null>(null);
+  const [endingCount, setEndingCount] = useState(0);
   const [projects, setProjects] = useState<AvailableJamProjectDto[]>([]);
 
   const load = useCallback(async (status: JamEventStatus | "") => {
@@ -181,6 +184,18 @@ function AdminJamManager() {
     // Fresh copy from the admin endpoint (full field values).
     try {
       setConfiguring(await adminGetJamEvent(row.id));
+    } catch (err) {
+      setToast(apiErrorMessage(err, "Không tải được sự kiện."));
+    }
+  };
+
+  const openEnd = async (row: JamEventListItem) => {
+    // UC-95 — fetch the full event + keep the row's live participant count
+    // for the "đang có N người đang sửa" warning (1.1 duc.md).
+    try {
+      const detail = await adminGetJamEvent(row.id);
+      setEnding(detail);
+      setEndingCount(row.currentParticipantCount ?? 0);
     } catch (err) {
       setToast(apiErrorMessage(err, "Không tải được sự kiện."));
     }
@@ -287,6 +302,14 @@ function AdminJamManager() {
                           Huỷ
                         </Button>
                       )}
+                      {e.status === "active" && (
+                        <Button
+                          variant="danger"
+                          onClick={() => void openEnd(e)}
+                        >
+                          Kết thúc
+                        </Button>
+                      )}
                     </>
                   )}
                   {e.status === "ended" && (
@@ -332,6 +355,18 @@ function AdminJamManager() {
           onClose={() => setCancelling(null)}
           onCancelled={(message) => {
             setToast(message);
+            void load(tab);
+          }}
+        />
+      )}
+      {ending && (
+        <EndJamConfirmModal
+          event={ending}
+          participantCount={endingCount}
+          onClosed={() => setEnding(null)}
+          onEnded={() => {
+            setEnding(null);
+            setToast("Sự kiện Jam đã được kết thúc thành công.");
             void load(tab);
           }}
         />

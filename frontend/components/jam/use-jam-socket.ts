@@ -59,6 +59,11 @@ export interface UseJamSocketResult {
   // ── UC-67: collaborative editing ─────────────────────────────
   /** 5.E1/BR-70 — the event ended (locally or via `jam:event_ended`). */
   isReadonly: boolean;
+  /**
+   * UC-95 — the server broadcast the end (`jam:ended` / `jam:event_ended`);
+   * drives the frozen banner + "Xem kết quả Jam" in the live room.
+   */
+  endedByServer: boolean;
   /** 2.E1 — ms remaining on the caller's cooldown (0 = ready to edit). */
   cooldownRemainingMs: number;
   /** Seconds the server enforces between two edits of the same user. */
@@ -102,6 +107,9 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
   // ── UC-67 live-edit state ──────────────────────────────────────────────────
   const [isReadonly, setIsReadonly] = useState(false);
   const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0);
+  // UC-95 / BR-70 — set when the server broadcast the end (`jam:ended` or
+  // `jam:event_ended`); the live room shows the frozen banner on this.
+  const [endedByServer, setEndedByServer] = useState(false);
   const [storageWarning, setStorageWarning] = useState<JamStorageWarningPayload | null>(null);
   const [lastRemoteNoteUpdate, setLastRemoteNoteUpdate] = useState<{
     noteId: string;
@@ -229,6 +237,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
         // fresh join is to a live room, so clear the read-only flag.
         setCooldownSec(payload.cooldownSec);
         setIsReadonly(false);
+        setEndedByServer(false);
         setStorageWarning(null);
       });
 
@@ -280,11 +289,18 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
       });
 
       // 5.E1 / BR-70 — the event ended; the room is frozen read-only from now.
-      nsp.on("jam:event_ended", () => {
+      // UC-95: the server emits BOTH `jam:ended` (spec name) and
+      // `jam:event_ended` (the legacy name) into the room; either one
+      // freezes us — the handler is idempotent, so a double delivery is a
+      // no-op.
+      const onEventEnded = () => {
         if (disposed) return;
         setIsReadonly(true);
         setCooldownRemainingMs(0);
-      });
+        setEndedByServer(true);
+      };
+      nsp.on("jam:ended", onEventEnded);
+      nsp.on("jam:event_ended", onEventEnded);
 
       // UC-94 (BR-75) — the admin extended a running event's end time. Push
       // the new `endsAt` into our local payload so the countdown (the UI's
@@ -342,6 +358,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
       setParticipants([]);
       setActivity([]);
       setJoinError(null);
+      setEndedByServer(false);
       setStatus("idle");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,6 +420,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
     failed: status === "failed",
     retry,
     isReadonly,
+    endedByServer,
     cooldownRemainingMs,
     cooldownSec,
     storageWarning,
