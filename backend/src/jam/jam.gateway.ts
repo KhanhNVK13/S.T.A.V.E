@@ -12,6 +12,7 @@ import { validate } from 'class-validator';
 import type {
   JamCooldownActivePayload,
   JamEndExtendedPayload,
+  JamEndedPayload,
   JamErrorPayload,
   JamEventEndedPayload,
   JamJoinPayload,
@@ -264,6 +265,26 @@ export class JamGateway {
   }
 
   /**
+   * UC-95 — an admin (or the wall clock) just ended the event. Emit BOTH
+   * `jam:ended` (the spec name) and `jam:event_ended` (the name the current
+   * client hook in `use-jam-socket.ts` listens to) into the live room, so
+   * old and new clients freeze identically: `jam:ended` carries the full
+   * payload, the legacy event keeps the `{ jamId, endedAt }` shape.
+   */
+  broadcastJamEnded(
+    eventId: string,
+    payload: JamEndedPayload,
+  ): void {
+    this.server?.to(`jam:${eventId}`).emit('jam:ended', payload);
+    this.server
+      ?.to(`jam:${eventId}`)
+      .emit('jam:event_ended', {
+        jamId: eventId,
+        endedAt: payload.endedAt,
+      });
+  }
+
+  /**
    * Tell the sweep what to broadcast when it finds a freshly-ended event or
    * a storage flush that kept failing (12.E1). Called once from
    * `onModuleInit` so the very first sweep tick already has a listener.
@@ -281,6 +302,9 @@ export class JamGateway {
     });
     this.jamService.settleEndExtended((eventId, payload) => {
       this.broadcastEndExtended(eventId, payload);
+    });
+    this.jamService.settleEndEventEnded((payload) => {
+      this.broadcastJamEnded(payload.eventId, payload);
     });
   }
 

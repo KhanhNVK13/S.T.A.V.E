@@ -289,13 +289,20 @@ function AdminJamManager() {
                       )}
                     </>
                   )}
-                  {e.status === "ended" && e.resulting_project_id && (
-                    <Link
-                      href={`/projects/${e.resulting_project_id}`}
-                      className="text-xs text-muted hover:underline"
-                    >
-                      Kết quả
-                    </Link>
+                  {e.status === "ended" && (
+                    <>
+                      <Button variant="ghost" onClick={() => void openConfigure(e)}>
+                        Chi tiết
+                      </Button>
+                      {e.resulting_project_id && (
+                        <Link
+                          href={`/projects/${e.resulting_project_id}`}
+                          className="text-xs text-muted hover:underline"
+                        >
+                          Kết quả
+                        </Link>
+                      )}
+                    </>
                   )}
                 </div>
               </RowItem>

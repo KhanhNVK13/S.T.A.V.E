@@ -24,6 +24,7 @@ import {
   type JamContributorDto,
   type JamEndEventResponse,
   type JamEndExtendedPayload,
+  type JamEndedPayload,
   type JamEvent,
   type JamEventEndedPayload,
   type JamEventListItem,
@@ -239,6 +240,10 @@ export class JamService {
    */
   private endExtendedListener:
     | ((eventId: string, payload: JamEndExtendedPayload) => void)
+    | null = null;
+
+  private endEventEndedListener:
+    | ((payload: JamEndedPayload) => void)
     | null = null;
 
   /** Minimum scope cap (duc.md): ~50 simultaneous participants per room. */
@@ -1257,6 +1262,15 @@ export class JamService {
     this.endExtendedListener = listener;
   }
 
+  /**
+   * UC-95 — attach the gateway so a forced end event emits `jam:ended`.
+   */
+  settleEndEventEnded(
+    listener: (payload: JamEndedPayload) => void,
+  ): void {
+    this.endEventEndedListener = listener;
+  }
+
   /** Freeze a room read-only (BR-70): a final flush is forced by the sweep. */
   private freezeRoom(eventId: string): void {
     const room = this.rooms.get(eventId);
@@ -1744,31 +1758,135 @@ export class JamService {
   }
 
   /**
-   * UC-95 (`POST /admin/jam-events/:id/end`) — force-end a live jam event.
+   * UC-95 — force-end a jam event (`POST /admin/jam-events/:id/end`).
+   *
+   * The full freeze pipeline (duc.md UC-95, CLAUDE.md §4.5 "đóng băng 1 lần
+   * khi kết thúc, flush dữ liệu xuống drafts"):
+   *
+   *  1. Load + re-check the event row against the wall clock (`loadEvent` —
+   *     3.E1 unknown → 404 Vietnamese; `ensureStatus` so a scheduled event
+   *     past its start is already active, and one past its end is already
+   *     ended → 3.E2).
+   *  2. Status gate: `ended` → 3.E2 (409), `cancelled` → 3.E3 (400). Only
+   *     `active` and `scheduled` can be ended.
+   *  3. Freeze the room in RAM (BR-73/BR-70): every further `jam:edit` is
+   *     refused with `JAM_EVENT_ENDED`. A scheduled event's room is
+   *     hydrated first so its (draft) snapshot is the one that gets frozen.
+   *  4. FINAL FLUSH (4.E1 — a DB failure here is a 500, the admin retries;
+   *     the in-RAM snapshot is never lost, the room stays dirty for the
+   *     next sweep as a backstop). Zero notes → `no_result = true`
+   *     (duc.md 3.E1: no commit will ever represent this event).
+   *  5. STRICT status write (5.E1 — `jam_events` update failure is a 500,
+   *     unlike the best-effort sweep `persistStatus`).
+   *  6. STRICT audit write (5.E1): `admin_audit_log` row
+   *     `action = 'JAM_EVENT_ENDED'`. The table has no `details` column
+   *     (verified against the live schema) — the machine-readable payload
+   *     rides in `reason` as JSON, matching the existing
+   *     `writeJamAuditLog` shape.
+   *  7. Realtime broadcast `jam:ended` (+ the legacy `jam:event_ended` the
+   *     current client hook listens to) through the gateway listener.
    */
   async endJamEvent(id: string, adminId: string): Promise<JamEndEventResponse> {
-    const row = await this.loadEvent(id);
-    await this.ensureStatus(row);
-    if (row.status !== 'active') {
-      throw new BadRequestException('Chỉ có thể kết thúc sự kiện đang diễn ra.');
+    let row: JamEventRow;
+    try {
+      row = await this.loadEvent(id);
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw new NotFoundException(
+          'Không tìm thấy sự kiện Community Jam yêu cầu.',
+        );
+      }
+      throw err;
     }
+    await this.ensureStatus(row);
+
+    // 3.E2 / 3.E3 — terminal states.
+    if (row.status === 'ended') {
+      throw new ConflictException('Sự kiện Jam này đã kết thúc trước đó.');
+    }
+    if (row.status === 'cancelled') {
+      throw new BadRequestException(
+        'Không thể kết thúc sự kiện Jam đã bị hủy bỏ.',
+      );
+    }
+
+    // 3.BR-73 — hydrate the room into RAM (so the snapshot we freeze is the
+    // real one, even after a server reboot), then freeze FIRST, before any
+    // DB write: from this instant every in-flight and future `jam:edit` is
+    // refused (JAM_EVENT_ENDED), even if the flush below fails and the
+    // admin retries. (Order matters: `getOrCreateRoom` bootstraps fresh
+    // rooms as `active`; freezing before hydration would be undone by it.)
+    const room = await this.getOrCreateRoom(row);
+    this.freezeRoom(id);
+
+    // 4.E1 — the final flush of the in-RAM snapshot to `drafts`. 'skipped'
+    // means no jam project / owner key (nothing to persist) — not an error;
+    // 'failed' (a DB step rejected) is 4.E1 and the admin retries.
+    const flushResult = await this.flushRoom(room);
+    if (flushResult === 'failed') {
+      throw new InternalServerErrorException(
+        'Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.',
+      );
+    }
+
     const nowIso = new Date().toISOString();
+    const totalNotes = room.snapshot.notes.length;
+
+    // 5.E1 — STRICT: `jam_events` must actually move to `ended`. The sweep's
+    // `persistStatus` swallows errors (it is a backstop, not a user action);
+    // an explicit force-end that cannot persist its result must surface 500.
+    const { error: statusError } = await this.supabase
+      .from('jam_events')
+      .update({
+        status: 'ended',
+        ended_at: nowIso,
+        updated_at: nowIso,
+        // duc.md 3.E1 — nobody contributed anything: mark it, so the UC-68
+        // result view reports "không có đóng góp" explicitly.
+        ...(totalNotes === 0 ? { no_result: true } : {}),
+      })
+      .eq('id', row.id);
+    if (statusError) {
+      throw new InternalServerErrorException(
+        'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
+      );
+    }
+
+    // 5.E1 — STRICT audit row. `reason` carries the JSON details (the live
+    // table schema has no `details` column — verified 2026-10-31).
+    const auditDetails = {
+      endedAt: nowIso,
+      totalNotes,
+      participantCount: this.participantCount(id),
+    };
+    const { error: auditError } = await this.supabase
+      .from('admin_audit_log')
+      .insert({
+        admin_id: adminId,
+        action: 'JAM_EVENT_ENDED',
+        target_type: 'jam_event',
+        target_id: id,
+        reason: `JAM_EVENT_ENDED: "${row.name}" — ${JSON.stringify(auditDetails)}`,
+      });
+    if (auditError) {
+      throw new InternalServerErrorException(
+        'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
+      );
+    }
+
+    // Mirror the result into the public event shape + the sweep row.
     row.status = 'ended';
     row.ended_at = nowIso;
     row.updated_at = nowIso;
-    this.freezeRoom(id);
-    await this.persistStatus(row);
+    if (totalNotes === 0) row.no_result = true;
 
-    await this.writeJamAuditLog(
-      adminId,
-      'jam.end',
-      id,
-      `Force-ended "${row.name}" by admin`,
-    );
-
-    const room = this.rooms.get(id);
-    const totalNotes = room?.snapshot?.notes?.length ?? 0;
-    const participantCount = this.participantCount(id);
+    // Realtime: `jam:ended` (spec) + `jam:event_ended` (existing client
+    // hook) — the gateway emits both into the room (see broadcastJamEnded).
+    this.endEventEndedListener?.({
+      eventId: row.id,
+      status: 'ended',
+      endedAt: nowIso,
+    });
 
     return {
       id: row.id,
@@ -1777,8 +1895,8 @@ export class JamService {
       endedAt: nowIso,
       projectId: row.resulting_project_id ?? row.jam_project_id,
       totalNotes,
-      participantCount,
-      message: 'Sự kiện đã kết thúc thành công.',
+      participantCount: this.participantCount(id),
+      message: 'Sự kiện Community Jam đã kết thúc thành công.',
     };
   }
 

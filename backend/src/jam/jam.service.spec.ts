@@ -29,6 +29,10 @@ function createInMemorySupabase(
     failUpsertTables?: Set<string>;
     /** select() on these tables returns a non-null error (UC-68 2.E2 hook). */
     failSelectTables?: Set<string>;
+    /** UC-95 5.E1 — update() on these tables returns a non-null error. */
+    failUpdateTables?: Set<string>;
+    /** UC-95 5.E1 — insert() on these tables returns a non-null error. */
+    failInsertTables?: Set<string>;
   } = {},
 ): SupabaseClient {
   const state: Record<string, Row[]> = {};
@@ -110,12 +114,28 @@ function createInMemorySupabase(
           };
         }
         case 'update': {
+          // UC-95 5.E1 test hook: a table in `failUpdateTables` always
+          // rejects (a failed `jam_events` update must surface as 500).
+          if (options.failUpdateTables?.has(table)) {
+            return {
+              data: null,
+              error: { message: `update rejected on ${table} (simulated)` },
+            };
+          }
           for (const row of rows) {
             if (filterRow(row, preds)) Object.assign(row, payload);
           }
           return { data: null, error: null };
         }
         case 'insert': {
+          // UC-95 5.E1 test hook: a table in `failInsertTables` always
+          // rejects (a failed `admin_audit_log` insert must surface as 500).
+          if (options.failInsertTables?.has(table)) {
+            return {
+              data: null,
+              error: { message: `insert rejected on ${table} (simulated)` },
+            };
+          }
           const inserted = { ...payload };
           rows.push(inserted);
           return { data: inserted, error: null };
@@ -1419,5 +1439,241 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
         service.cancelEvent(ADMIN_ID, '00000000-0000-0000-0000-000000000099'),
       ).rejects.toThrow(NotFoundException);
     });
+  });
+});
+
+// ── UC-95 — endJamEvent (force-end: freeze + final flush + audit) ──────────
+
+describe('JamService — UC-95 endJamEvent', () => {
+  const ADMIN_ID = 'admin-user-1';
+
+  /**
+   * A clock-safe ACTIVE event that owns a jam project + default branch +
+   * draft, so `endJamEvent`'s final flush writes to `drafts` (the
+   * `projects`/`branches`/`drafts` rows are the `flushRoom` keys).
+   */
+  function setupEndService(
+    overrides: {
+      events?: Row[];
+      branches?: Row[];
+      failUpsertTables?: Set<string>;
+      failUpdateTables?: Set<string>;
+      failInsertTables?: Set<string>;
+    } = {},
+  ) {
+    const tables: Record<string, Row[]> = {
+      jam_events:
+        overrides.events ??
+        [
+          activeEventRow({
+            id: 'ev-end-1',
+            jam_project_id: 'proj-end',
+          }),
+        ],
+      users: overrides.events ? [] : [userRow(ALICE)],
+      jam_participants: [],
+      admin_audit_log: [],
+      projects: [{ id: 'proj-end', owner_id: ADMIN_ID }],
+      branches:
+        overrides.branches ??
+        [{ id: 'br-end', project_id: 'proj-end', is_default: true }],
+      drafts: [],
+    };
+    const supabase = createInMemorySupabase(tables, {
+      failUpsertTables: overrides.failUpsertTables,
+      failUpdateTables: overrides.failUpdateTables,
+      failInsertTables: overrides.failInsertTables,
+    });
+    const service = new JamService(supabase);
+    const state = (supabase as unknown as { _state: Record<string, Row[]> })
+      ._state;
+    return { service, state };
+  }
+
+  it('happy path: active event → room frozen, snapshot flushed, event ended, audit row + realtime broadcast', async () => {
+    const { service, state } = setupEndService();
+    const wsMock = jest.fn();
+    service.settleEndEventEnded(wsMock);
+
+    // A participant is in the room, with one note already in the draft.
+    state.drafts.push({
+      branch_id: 'br-end',
+      user_id: ADMIN_ID,
+      snapshot: {
+        schemaVersion: 3,
+        meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
+        tracks: [JAM_TRACK],
+        notes: [{ ...JAM_SEED_NOTE }],
+      },
+    });
+    state.jam_participants.push({
+      event_id: 'ev-end-1',
+      user_id: ALICE,
+      edit_count: 0,
+    });
+
+    const result = await service.endJamEvent('ev-end-1', ADMIN_ID);
+
+    // Response shape (the controller's 200 body).
+    expect(result).toMatchObject({
+      id: 'ev-end-1',
+      title: 'Open Jam',
+      status: 'ended',
+      totalNotes: 1,
+      projectId: 'proj-end',
+    });
+    expect(result.endedAt).toEqual(expect.any(String));
+    expect(result.message).toMatch(/kết thúc thành công/i);
+
+    // 1) the room is frozen read-only (BR-73): further edits are refused.
+    const room = service.getRoom('ev-end-1');
+    expect(room?.status).toBe('frozen');
+
+    // 2) the final flush wrote the snapshot to `drafts`.
+    const draft = state.drafts.find((d) => d.branch_id === 'br-end');
+    expect(draft).toBeDefined();
+    expect((draft!.snapshot as { notes: unknown[] }).notes).toHaveLength(1);
+
+    // 3) the event row moved to `ended` with `ended_at` stamped.
+    const event = state.jam_events.find((e) => e.id === 'ev-end-1')!;
+    expect(event.status).toBe('ended');
+    expect(event.ended_at).toBe(result.endedAt);
+    expect(event.no_result).toBe(false);
+
+    // 4) the audit row (strict 5.E1 — it must exist).
+    expect(state.admin_audit_log).toHaveLength(1);
+    expect(state.admin_audit_log[0]).toMatchObject({
+      admin_id: ADMIN_ID,
+      action: 'JAM_EVENT_ENDED',
+      target_type: 'jam_event',
+      target_id: 'ev-end-1',
+    });
+
+    // 5) the realtime fan-out reached the gateway listener.
+    expect(wsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'ev-end-1',
+        status: 'ended',
+      }),
+    );
+  });
+
+  it('no contributions: the event ends with no_result = true (duc.md 3.E1 — no commit)', async () => {
+    const { service, state } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-end-empty',
+          jam_project_id: 'proj-end',
+        }),
+      ],
+    });
+    const result = await service.endJamEvent('ev-end-empty', ADMIN_ID);
+    expect(result.totalNotes).toBe(0);
+    const event = state.jam_events.find((e) => e.id === 'ev-end-empty')!;
+    expect(event.status).toBe('ended');
+    expect(event.no_result).toBe(true);
+  });
+
+  it('3.E1: unknown event → NotFoundException (Vietnamese copy)', async () => {
+    const { service } = setupEndService();
+    await expect(
+      service.endJamEvent('00000000-0000-0000-0000-000000000099', ADMIN_ID),
+    ).rejects.toThrow(
+      new NotFoundException(
+        'Không tìm thấy sự kiện Community Jam yêu cầu.',
+      ),
+    );
+  });
+
+  it('3.E2: an already-ended event → ConflictException', async () => {
+    const { service } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-ended-95',
+          status: 'ended',
+          ended_at: '2026-01-01T00:00:00Z',
+        }),
+      ],
+    });
+    await expect(
+      service.endJamEvent('ev-ended-95', ADMIN_ID),
+    ).rejects.toThrow(
+      new ConflictException('Sự kiện Jam này đã kết thúc trước đó.'),
+    );
+  });
+
+  it('3.E3: a cancelled event → BadRequestException', async () => {
+    const { service } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-cancelled-95',
+          status: 'cancelled',
+          ended_at: '2026-01-01T00:00:00Z',
+        }),
+      ],
+    });
+    await expect(
+      service.endJamEvent('ev-cancelled-95', ADMIN_ID),
+    ).rejects.toThrow(
+      new BadRequestException(
+        'Không thể kết thúc sự kiện Jam đã bị hủy bỏ.',
+      ),
+    );
+  });
+
+  it('4.E1: the final flush fails → 500, event stays active (admin retries)', async () => {
+    const { service, state } = setupEndService({
+      failUpsertTables: new Set(['drafts']),
+    });
+    await expect(
+      service.endJamEvent('ev-end-1', ADMIN_ID),
+    ).rejects.toThrow(
+      new InternalServerErrorException(
+        'Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.',
+      ),
+    );
+    // The event did NOT move to `ended` and nothing was audited — a retry
+    // can still complete the pipeline.
+    expect(state.jam_events[0].status).toBe('active');
+    expect(state.admin_audit_log).toHaveLength(0);
+  });
+
+  it('5.E1: a `jam_events` update failure → 500 (status write is strict)', async () => {
+    const { service } = setupEndService({
+      failUpdateTables: new Set(['jam_events']),
+    });
+    await expect(
+      service.endJamEvent('ev-end-1', ADMIN_ID),
+    ).rejects.toThrow(
+      'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
+    );
+  });
+
+  it('5.E1: an `admin_audit_log` insert failure → 500 (audit is strict)', async () => {
+    const { service, state } = setupEndService({
+      failInsertTables: new Set(['admin_audit_log']),
+    });
+    await expect(
+      service.endJamEvent('ev-end-1', ADMIN_ID),
+    ).rejects.toThrow(
+      'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
+    );
+    // The event row did move to `ended` before the audit failed.
+    expect(state.jam_events[0].status).toBe('ended');
+  });
+
+  it('a scheduled event may also be ended early (admin “kết thúc ngay”)', async () => {
+    const { service, state } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-sched-95',
+          status: 'scheduled',
+          scheduled_start_at: new Date(Date.now() + 3600000).toISOString(),
+        }),
+      ],
+    });
+    const result = await service.endJamEvent('ev-sched-95', ADMIN_ID);
+    expect(result.status).toBe('ended');
+    expect(state.jam_events[0].status).toBe('ended');
   });
 });

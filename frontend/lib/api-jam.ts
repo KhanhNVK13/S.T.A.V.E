@@ -2,6 +2,7 @@ import { apiFetch } from "./api-client";
 import type {
   AvailableJamProjectDto,
   ConfigureJamEventDto,
+  JamEndEventResponse,
   JamEvent,
   JamEventListItem,
   JamEventStatus,
@@ -118,4 +119,21 @@ export async function adminGetAvailableJamProjects(): Promise<
   AvailableJamProjectDto[]
 > {
   return apiFetch<AvailableJamProjectDto[]>("/admin/jam/available-projects");
+}
+
+// ── UC-95 — admin: kết thúc sự kiện Jam ─────────────────────────────────────
+
+/**
+ * POST /admin/jam-events/:id/end (UC-95) — force-end: đóng băng phòng, flush
+ * snapshot cuối xuống `drafts`, chuyển sự kiện `ended`, ghi nhật ký quản trị
+ * và phát `jam:ended` cho cả room. Chỉ Admin tới được (guard 3 lớp phía
+ * server). Ngoại lệ: 3.E1 (404) / 3.E2 (409) / 3.E3 (400) / 4.E1 (500) —
+ * thông báo tiếng Việt được map trong `error-message.ts`.
+ */
+export async function adminEndJamEvent(
+  id: string,
+): Promise<JamEndEventResponse> {
+  return apiFetch<JamEndEventResponse>(`/admin/jam-events/${id}/end`, {
+    method: "POST",
+  });
 }
