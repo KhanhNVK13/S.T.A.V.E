@@ -2,13 +2,18 @@ import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 import { loadE2eEnv } from "./e2e/support/env";
 
-const env = loadE2eEnv();
+let env = { backend: {} as Record<string, string>, frontend: {} as Record<string, string> };
+try {
+  env = loadE2eEnv();
+} catch {
+  // Fallback for mock-only E2E runs without local test database
+}
 
-const FRONTEND_PORT = 3100;
-const BACKEND_PORT = 3101;
+const FRONTEND_PORT = process.env.PLAYWRIGHT_PORT || 3000;
+const BACKEND_PORT = process.env.BACKEND_PORT || 3001;
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: path.resolve(__dirname, "e2e"),
   testMatch: "**/*.spec.ts",
   fullyParallel: false,
   workers: 1,
@@ -27,7 +32,7 @@ export default defineConfig({
       command: "npm run start",
       cwd: path.resolve(__dirname, "../backend"),
       url: `http://localhost:${BACKEND_PORT}`,
-      reuseExistingServer: false,
+      reuseExistingServer: true,
       timeout: 180_000,
       env: { ...env.backend, PORT: String(BACKEND_PORT) },
     },
@@ -35,7 +40,7 @@ export default defineConfig({
       command: `npm run dev -- --port ${FRONTEND_PORT}`,
       cwd: __dirname,
       url: `http://localhost:${FRONTEND_PORT}`,
-      reuseExistingServer: false,
+      reuseExistingServer: true,
       timeout: 180_000,
       env: {
         ...env.frontend,

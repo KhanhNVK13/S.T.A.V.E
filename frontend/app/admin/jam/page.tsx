@@ -295,7 +295,7 @@ function AdminJamManager() {
                   {(e.status === "scheduled" || e.status === "active") && (
                     <>
                       <Button variant="ghost" onClick={() => void openConfigure(e)}>
-                        {e.status === "active" ? "Kéo dài" : "Cấu hình"}
+                        Cấu hình
                       </Button>
                       {e.status === "scheduled" && (
                         <Button variant="danger" onClick={() => setCancelling(e)}>
@@ -307,7 +307,7 @@ function AdminJamManager() {
                           variant="danger"
                           onClick={() => void openEnd(e)}
                         >
-                          Kết thúc
+                          Kết thúc sự kiện
                         </Button>
                       )}
                     </>

@@ -318,7 +318,7 @@ export function JamSession({ event }: { event: JamEvent }) {
           load (`isEnded`) or the server just broadcast `jam:ended` /
           `jam:event_ended` while we were in the room (`endedByServer`).
           The room is frozen read-only; the banner steers to the result. */}
-      {(isEnded && joined) || socket.endedByServer ? (
+      {isEnded || socket.endedByServer ? (
         <JamFrozenBanner eventId={event.id} />
       ) : null}
 

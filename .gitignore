@@ -19,6 +19,8 @@ out/
 # turborepo / test / misc
 coverage/
 test-results/
+e2e-results/
+scratch/
 *-results*.json
 *.tsbuildinfo
 .DS_Store
