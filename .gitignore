@@ -20,6 +20,7 @@ out/
 coverage/
 test-results/
 e2e-results/
+playwright-report/
 scratch/
 *-results*.json
 *.tsbuildinfo
