@@ -135,6 +135,13 @@ interface PianoRollProps {
   onSeek: (tick: number) => void;
   onNotify?: (message: string, variant: "success" | "warning" | "info") => void;
   /**
+   * UC-68 — a frozen grid: every note mutation (draw / drag / resize /
+   * delete, incl. right-click) is blocked and each attempt is reported
+   * through `onNotify` (Exception 3.E1). Selection still works so a note
+   * can be highlighted, and ruler / playhead scrubbing is untouched.
+   */
+  isReadOnly?: boolean;
+  /**
    * Báo vị trí cuộn ngang ra ngoài để dải velocity bám theo. Piano roll vẫn
    * là nơi DUY NHẤT có thanh cuộn ngang — dải kia chỉ vẽ lại theo giá trị này.
    */
@@ -159,6 +166,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       isPlaying,
       onSeek,
       onNotify,
+      isReadOnly,
       onScrollXChange,
     },
     ref,
@@ -201,6 +209,28 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     // note editing) since seeking has no note/pitch/duration to track.
     const isSeekDraggingRef = useRef(false);
     const pitchRejectNotedRef = useRef(false);
+    // UC-68 read-only: a pointer press on a note arms a drag-warning — the
+    // user moves > 4px (a deliberate drag on the frozen grid) or double-
+    // clicks and exactly one 3.E1 notification fires.
+    const readOnlyArmedRef = useRef(false);
+    const readOnlyDownPosRef = useRef<{ x: number; y: number } | null>(null);
+
+    // UC-68 (3.E1) — in a frozen grid, Delete/Backspace on a selection is
+    // swallowed with a warning instead of deleting notes.
+    useEffect(() => {
+      if (!isReadOnly || selectedNoteIds.size === 0) return;
+      function onKey(e: KeyboardEvent) {
+        if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          onNotify?.(
+            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            "warning",
+          );
+        }
+      }
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [isReadOnly, selectedNoteIds, onNotify]);
 
     useEffect(() => {
       const container = containerRef.current;
@@ -482,6 +512,41 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       const { cx, cy } = canvasCoords(e);
       if (cx < KEY_WIDTH) return;
 
+      // UC-68 (3.E1): a frozen grid still lets you inspect a note —
+      // selection is allowed, but ANY attempt to mutate (draw / drag /
+      // resize / delete) reports instead of doing it. Ruler / playhead
+      // scrubbing is not a mutation, so it keeps working first.
+      if (isReadOnly) {
+        const playheadX = KEY_WIDTH + playheadTick * pxPerTick - scrollX;
+        const nearPlayhead =
+          tool === "pointer" &&
+          Math.abs(cx - playheadX) <= 4 &&
+          !hitNote(cx, cy);
+        if (cy < HEADER_H || nearPlayhead) {
+          isSeekDraggingRef.current = true;
+          const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
+          onSeek(Math.max(0, Math.round(snapToGrid(tick))));
+          return;
+        }
+        if (e.button === 2) {
+          onNotify?.(
+            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            "warning",
+          );
+          return;
+        }
+        const hit = hitNote(cx, cy);
+        if (hit) {
+          onSelectedNotesChange(new Set([hit.note.id]));
+          readOnlyArmedRef.current = true;
+          readOnlyDownPosRef.current = { x: cx, y: cy };
+          return;
+        }
+        readOnlyArmedRef.current = false;
+        readOnlyDownPosRef.current = null;
+        return;
+      }
+
       // UC-37: Click-and-drag the ruler, or grab the red playhead line
       // directly anywhere over the note area, to scrub through the
       // project — every subsequent mousemove keeps calling onSeek (see
@@ -601,6 +666,20 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       const { cx, cy } = canvasCoords(e);
       lastMouseRef.current = { x: cx, y: cy };
 
+      // UC-68 (3.E1): the press was on a note but the grid is frozen —
+      // a deliberate drag (> 4px) warns once per press, silently otherwise.
+      if (isReadOnly && readOnlyArmedRef.current && readOnlyDownPosRef.current) {
+        const down = readOnlyDownPosRef.current;
+        if (Math.hypot(cx - down.x, cy - down.y) > 4) {
+          onNotify?.(
+            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            "warning",
+          );
+          readOnlyArmedRef.current = false;
+        }
+        return;
+      }
+
       if (isSeekDraggingRef.current) {
         const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
         onSeek(Math.max(0, Math.round(snapToGrid(tick))));
@@ -618,7 +697,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
           canvasRef.current!.style.cursor = "ew-resize";
         } else if (tool === "pointer") {
           const hit = hitNote(cx, cy);
-          if (hit) {
+          if (hit && !isReadOnly) {
             canvasRef.current!.style.cursor =
               hit.zone === "resize" ? "ew-resize" : "grab";
           } else {
@@ -684,6 +763,8 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
     function handleMouseUp() {
       isSeekDraggingRef.current = false;
+      readOnlyArmedRef.current = false;
+      readOnlyDownPosRef.current = null;
       const drag = dragRef.current;
       const last = lastMouseRef.current;
 
@@ -782,6 +863,19 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
             ref={canvasRef}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
+            onDoubleClick={(e) => {
+              // UC-68 (3.E1): a deliberate double-tap on the frozen grid is
+              // still an edit attempt — warn instead of doing anything.
+              if (isReadOnly) {
+                const { cx } = canvasCoords(e);
+                if (cx >= KEY_WIDTH) {
+                  onNotify?.(
+                    "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+                    "warning",
+                  );
+                }
+              }
+            }}
             onContextMenu={(e) => e.preventDefault()}
             style={{
               position: "sticky",

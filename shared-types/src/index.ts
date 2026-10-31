@@ -385,6 +385,47 @@ export interface PaginatedCommitHistory {
   limit: number;
 }
 
+// ── UC-67 Jam Note Helpers & Constants (BR-71, CLAUDE.md §4.2) ─────────────
+export const JAM_MAX_FLUSH_FAILURES = 3;
+
+/** `JamNoteDto` (wire) → `DraftNote` (snapshot) để áp dụng LWW vào RAM. */
+export function jamNoteToDraftNote(note: {
+  id: string;
+  trackId: string;
+  midi: number;
+  startTick: number;
+  durationTicks: number;
+  velocity: number;
+}): DraftNote {
+  return {
+    id: note.id,
+    trackId: note.trackId,
+    pitch: note.midi,
+    start: note.startTick,
+    duration: note.durationTicks,
+    velocity: note.velocity,
+  };
+}
+
+/** `DraftNote` (snapshot) → `JamNoteDto` (wire) để broadcast `jam:note_updated`. */
+export function draftNoteToJamNote(note: DraftNote): {
+  id: string;
+  trackId: string;
+  midi: number;
+  startTick: number;
+  durationTicks: number;
+  velocity: number;
+} {
+  return {
+    id: note.id,
+    trackId: note.trackId,
+    midi: note.pitch,
+    startTick: note.start,
+    durationTicks: note.duration,
+    velocity: note.velocity,
+  };
+}
+
 // Collaboration (UC-60/61/62) — shapes shared with `backend/src/collaboration/`.
 export type * from './collaboration';
 // Comments (UC-63 — pinned comment) — shapes shared with `backend/src/comments/`.

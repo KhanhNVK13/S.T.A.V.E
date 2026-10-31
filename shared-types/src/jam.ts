@@ -148,6 +148,8 @@ export interface JamErrorPayload {
   message: string;
   /** 2.E1 — số giây cooldown còn lại (client vẽ lại đồng hồ đếm ngược). */
   remainingSeconds?: number;
+  /** Tên trường bị lỗi (7.E1/7.E2) — client dùng để chọn thông báo chính xác. */
+  detail?: string;
 }
 
 // ── UC-67: collaborative real-time editing ─────────────────────────────────
@@ -243,6 +245,37 @@ export function draftNoteToJamNote(note: DraftNote): JamNoteDto {
     durationTicks: note.duration,
     velocity: note.velocity,
   };
+}
+
+// ── UC-94: admin configuration ──────────────────────────────────────────────
+
+/**
+ * Body của `PATCH /admin/jam/events/:id` — mọi trường là optional; PATCH
+ * semantics = chỉ gán lại trường admin truyền lên. Backend validate (DTO
+ * class-validator phía server), frontend giữ hình mirror này để type-safe.
+ */
+export interface ConfigureJamEventDto {
+  /** Tên sự kiện (2.E1: khoá cứng khi sự kiện đang `active`). */
+  name?: string;
+  description?: string;
+  /** ISO 8601 (2.E1: khoá cứng khi sự kiện đang `active`). */
+  scheduledStartAt?: string;
+  /** ISO 8601 — 4.E1: không được trong quá khứ; sự kiện `active` chỉ cho KÉO DÀI (BR-75). */
+  scheduledEndAt?: string;
+  /** Dự án công khai khởi đầu (2.E1: khoá cứng khi `active`). */
+  startingProjectId?: string;
+  /** Cooldown riêng 1..3600 giây; null = dùng `platform_settings` (3.1: hiệu lực ngay). */
+  editCooldownSec?: number;
+}
+
+/**
+ * Outbound `jam:end_extended` — UC-94 BR-75: admin kéo dài giờ kết thúc sự
+ * kiện đang chạy, room nhận payload để chạy lại đồng hồ đếm ngược.
+ */
+export interface JamEndExtendedPayload {
+  eventId: string;
+  newEndAt: string;
+  extendedMinutes: number;
 }
 
 // ── UC-68 — Xem kết quả Jam (GET /jam/events/:id/result) ────────────────────

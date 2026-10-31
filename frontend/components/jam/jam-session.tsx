@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, Music4, RefreshCw, TriangleAlert } from "lucide-react";
 import type {
   JamActivityItem,
   JamEvent,
   JamParticipant,
+  JamNoteDto,
 } from "@stave/shared-types";
 import { useAuth } from "../../context/auth-context";
 import { apiErrorMessage } from "../../lib/error-message";
@@ -14,12 +15,13 @@ import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { EmptyState } from "../ui/empty-state";
+import { Toast } from "../ui/toast";
 import { formatDateTime } from "../../lib/format-date";
 import { JamParticipantsBar } from "./jam-participants-bar";
 import { JamCountdownTimer } from "./jam-countdown-timer";
 import { useJamSocket } from "./use-jam-socket";
 import { PIANO_ROLL_FALLBACK_NOTES } from "./jam-piano-roll";
-import { JamPianoRoll } from "./jam-piano-roll";
+import { JamLiveEditor } from "./jam-live-editor";
 
 /**
  * UC-66 — the shared jam room. The note view is a READ-ONLY re-use of the
@@ -67,6 +69,36 @@ export function JamSession({ event }: { event: JamEvent }) {
   );
 
   const isEnded = event.status === "ended" || event.status === "cancelled";
+
+  // 2.E1 / 5.E1 / 12.E1 — surface for toasts raised by the collaborative
+  // editor (cooldown, read-only attempt, storage flush warning, 8.E1 note
+  // overwrite notice). A single transient toast at a time.
+  const [toast, setToast] = useState<{
+    message: string;
+    variant: "success" | "warning" | "info" | "danger";
+  } | null>(null);
+  const notify = (message: string, variant: "success" | "warning" | "info" = "info") =>
+    setToast({ message, variant });
+
+  // The editNote callback the live editor drives. Pre-checks read-only /
+  // cooldown, optimistically applies locally, and emits `jam:edit_note`.
+  const sendNote = (action: "add" | "update" | "delete", note: JamNoteDto) =>
+    socket.editNote(action, note);
+
+  // 8.E1 — a remote note just overwrote one of ours; surface a brief inline
+  // hint that auto-dismisses 6s after each new remote write. The hint is
+  // derived from state (show while the note's `at` is newer than the last
+  // dismissed one) so nothing is set synchronously in an effect body.
+  const remoteNote = socket.lastRemoteNoteUpdate;
+  const [hintDismissedAt, setHintDismissedAt] = useState(0);
+  useEffect(() => {
+    const at = remoteNote?.at;
+    if (at == null) return;
+    const id = window.setTimeout(() => setHintDismissedAt(at), 6000);
+    return () => clearTimeout(id);
+  }, [remoteNote?.at]);
+  const showRemoteHint =
+    remoteNote !== null && remoteNote.at > hintDismissedAt;
 
   // 3.E1: a rejected join — "Không vào được phiên" + retry, no music shown.
   // Wording follows the UC-66 exception table (REPORT 3/4).
@@ -144,6 +176,37 @@ export function JamSession({ event }: { event: JamEvent }) {
         </div>
       )}
 
+      {/* 12.E1 — the background flush has been failing; the in-RAM snapshot
+          is still live but not yet saved to the DB. The banner clears itself
+          the moment a flush succeeds again (the server re-broadcasts a 0). */}
+      {socket.storageWarning && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-card border border-warning/40 bg-warning-muted px-4 py-2.5 text-sm text-warning-foreground"
+        >
+          <span className="flex items-center gap-2">
+            <TriangleAlert className="h-4 w-4" />
+            Không thể lưu bản nhạc chung tạm thời — các thay đổi vẫn đang
+            được giữ an toàn trên máy chủ.
+          </span>
+        </div>
+      )}
+
+      {/* 8.E1 — a remote contributor just wrote a note the caller also had
+          open; a short, self-dismissing inline hint (not blocking). */}
+      {showRemoteHint && remoteNote && (
+        <div
+          role="status"
+          className="rounded-card border border-accent/30 bg-accent-muted px-3 py-1.5 text-xs text-accent"
+        >
+          Nốt nhạc vừa được ghi đè bởi{" "}
+          <span className="font-semibold">
+            {remoteNote.displayName?.trim() || "một người khác"}
+          </span>
+          .
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -188,9 +251,18 @@ export function JamSession({ event }: { event: JamEvent }) {
         </Card>
       ) : socket.state ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-          {/* BR-74: no commit/branch/merge/history controls exist here. */}
+          {/* UC-67: the collaborative live editor (shared canvas + velocity
+              lane). Read-only when the room froze (BR-70). No commit /
+              branch / merge / history controls — BR-74. */}
           <Card className="flex h-[320px] min-h-[320px] flex-col overflow-hidden lg:h-[460px]">
-            <JamPianoRoll notes={notes} tracks={tracks} ppq={ppq} />
+            <JamLiveEditor
+              notes={notes}
+              tracks={tracks}
+              ppq={ppq}
+              isReadOnly={socket.isReadonly}
+              cooldownRemainingMs={socket.cooldownRemainingMs}
+              callbacks={{ sendNote, notify }}
+            />
           </Card>
 
           <Card className="flex max-h-[420px] flex-col overflow-hidden">
@@ -237,11 +309,22 @@ export function JamSession({ event }: { event: JamEvent }) {
       {isEnded && joined && (
         <p className="text-sm text-muted">
           Sự kiện đã kết thúc — xem{" "}
-          <Link href={`/jam/${event.id}`} className="text-accent hover:underline">
+          <Link
+            href={`/jam/${event.id}/result`}
+            className="text-accent hover:underline"
+          >
             kết quả
           </Link>{" "}
           (UC-68).
         </p>
+      )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          variant={toast.variant}
+          onDismiss={() => setToast(null)}
+        />
       )}
     </div>
   );

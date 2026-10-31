@@ -3,6 +3,7 @@ import type {
   JamEvent,
   JamEventListItem,
   JamEventStatus,
+  JamResultResponseDto,
   JamStatePayload,
 } from "@stave/shared-types";
 
@@ -39,4 +40,16 @@ export async function joinJamEvent(id: string): Promise<JamStatePayload> {
   return apiFetch<JamStatePayload>(`/jam/events/${id}/join`, {
     method: "POST",
   });
+}
+
+/**
+ * GET /jam/events/:id/result (UC-68) — kết quả đóng băng của sự kiện đã
+ * kết thúc: snapshot + danh sách người đóng góp. Mở công khai cho cả khách
+ * (khách chỉ KHÔNG được fork — kiểm ở tầng frontend + BR-12 phía
+ * backend UC-69). 404 (2.E3), 400 (2.E4 chưa kết thúc), 500 (2.E2).
+ */
+export async function getJamResult(
+  id: string,
+): Promise<JamResultResponseDto> {
+  return apiFetch<JamResultResponseDto>(`/jam/events/${id}/result`);
 }

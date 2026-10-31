@@ -8,27 +8,34 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   JAM_MAX_FLUSH_FAILURES,
   jamNoteToDraftNote,
   draftNoteToJamNote,
+  type ConfigureJamEventDto,
   type DraftSnapshot,
   type JamActivityItem,
+  type JamContributorDto,
+  type JamEndExtendedPayload,
   type JamEvent,
+  type JamEventEndedPayload,
   type JamEventListItem,
   type JamErrorPayload,
   type JamNoteUpdatedPayload,
   type JamParticipant,
+  type JamResultResponseDto,
   type JamRoomState,
+  type JamStorageWarningPayload,
   type JamStatePayload,
 } from '@stave/shared-types';
-import type {
-  EditJamNoteRequestDto,
-} from './dto/edit-jam-note.dto';
+import type { EditJamNoteRequestDto } from './dto/edit-jam-note.dto';
 import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { JamEventQueryDto } from './dto/jam-event-query.dto';
 
@@ -133,7 +140,53 @@ export const SEEDED_JAM_EVENTS: JamEventRow[] = [
     created_at: new Date(Date.now() - 86400000).toISOString(),
     updated_at: new Date(Date.now() - 1800000).toISOString(),
   },
+  {
+    id: 'e0000000-0000-4000-8000-000000000005',
+    created_by: 'dc471149-12e7-4e94-88c0-9d0d8ca2cd43',
+    status: 'ended',
+    started_at: new Date(Date.now() - 345600000).toISOString(),
+    ended_at: new Date(Date.now() - 259200000).toISOString(),
+    resulting_project_id: null,
+    name: 'Acoustic Guitar Showcase (Không có đóng góp)',
+    description:
+      'Phiên Jam acoustic đã kết thúc mà không có người tham gia đóng góp nốt nhạc nào.',
+    scheduled_start_at: new Date(Date.now() - 345600000).toISOString(),
+    scheduled_end_at: new Date(Date.now() - 259200000).toISOString(),
+    starting_project_id: null,
+    jam_project_id: null,
+    edit_cooldown_sec: 5,
+    no_result: true,
+    created_at: new Date(Date.now() - 400000000).toISOString(),
+    updated_at: new Date(Date.now() - 259200000).toISOString(),
+  },
 ];
+
+/** Seeded contributors for demonstration and verification when table is empty or pre-migration */
+export const SEEDED_JAM_CONTRIBUTORS: Record<string, JamContributorDto[]> = {
+  'c0000000-0000-4000-8000-000000000003': [
+    {
+      userId: 'dc471149-12e7-4e94-88c0-9d0d8ca2cd43',
+      username: 'ductester',
+      displayName: 'Đức Tester (Chủ dự án)',
+      avatarUrl: null,
+      actionCount: 8,
+    },
+    {
+      userId: '6092c469-f48b-4e82-bfd2-e6b349e17737',
+      username: 'collab_b',
+      displayName: 'Cộng tác viên B',
+      avatarUrl: null,
+      actionCount: 5,
+    },
+    {
+      userId: 'ba1b24f3-9993-4792-911f-5e16e88790f3',
+      username: 'musician_c',
+      displayName: 'Nhạc sĩ C (Người nhận lời mời)',
+      avatarUrl: null,
+      actionCount: 3,
+    },
+  ],
+};
 
 /** A connected socket's identity, as resolved by the gateway handshake. */
 export interface JamSocketUser {
@@ -187,6 +240,11 @@ export class JamService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    // UC-94 — optional: in-app notifications for `jam.end_extended` /
+    // `jam.cancelled`. `@Optional` so the unit spec can build the service
+    // without the full DI graph; guarded with `?.` at every call site.
+    @Optional()
+    private readonly notifications?: NotificationsService,
   ) {}
 
   // ------------------------------------------------------------------
@@ -285,7 +343,7 @@ export class JamService {
       if (error || !data || data.length === 0) {
         rows = SEEDED_JAM_EVENTS.map((e) => ({ ...e }));
       } else {
-        rows = data as unknown as JamEventRow[];
+        rows = data;
       }
     } catch {
       rows = SEEDED_JAM_EVENTS.map((e) => ({ ...e }));
@@ -318,6 +376,176 @@ export class JamService {
     const row = await this.fetchEventRow(eventId);
     await this.ensureStatus(row);
     return row;
+  }
+
+  /**
+   * `GET /jam/events/:id/result` (UC-68) — the frozen result of an ended jam.
+   * Public endpoint (guests may view; only forking requires auth, BR-12).
+   *
+   *  - 2.E3 unknown event        → NotFoundException 'Jam event not found'
+   *  - 2.E4 not ended yet       → BadRequestException 'Jam event has not ended yet'
+   *  - 2.E1 no contributions    → 200 with `hasContributions: false`,
+   *    `snapshot: null`, `contributors: []` (never an unexplained blank grid)
+   *  - 2.E2 DB failure mid-read → InternalServerErrorException
+   *    'Failed to load jam result'
+   *
+   * The frozen snapshot comes from the result project's default branch:
+   * head commit first (the UC-95 commit), falling back to the branch's
+   * draft when the event ended without one (UC-95 3.E1 — `no_result`).
+   */
+  async getJamResult(eventId: string): Promise<JamResultResponseDto> {
+    const row = await this.fetchEventRow(eventId); // 2.E3 — throws NotFound
+    await this.ensureStatus(row);
+    if (row.status !== 'ended') {
+      // 2.E4 — the client bounces back to the live room.
+      throw new BadRequestException('Jam event has not ended yet');
+    }
+
+    try {
+      const contributors = await this.jamContributors(row.id);
+
+      // 2.E1 — ended with nothing to show: flagged `no_result`, no
+      // contributors at all, or the result project was never written.
+      if (
+        row.no_result ||
+        contributors.length === 0 ||
+        !row.resulting_project_id
+      ) {
+        return {
+          eventId: row.id,
+          name: row.name,
+          status: 'ended',
+          startedAt: row.started_at,
+          endedAt: row.ended_at,
+          resultingProjectId: row.resulting_project_id,
+          hasContributions: false,
+          snapshot: null,
+          contributors: [],
+        };
+      }
+
+      const snapshot = await this.resultSnapshot(row);
+      const hasNotes = (snapshot?.notes.length ?? 0) > 0;
+
+      return {
+        eventId: row.id,
+        name: row.name,
+        status: 'ended',
+        startedAt: row.started_at,
+        endedAt: row.ended_at,
+        resultingProjectId: row.resulting_project_id,
+        hasContributions: hasNotes,
+        snapshot: hasNotes ? snapshot : null,
+        contributors,
+      };
+    } catch (err) {
+      // 2.E2 — let the expected Nest errors above pass through untouched;
+      // anything else is a DB/system fault the UI must show as "try again".
+      if (err instanceof HttpException) throw err;
+      JamService.logger.error(
+        `Failed to load jam result for ${eventId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      throw new InternalServerErrorException('Failed to load jam result');
+    }
+  }
+
+  /**
+   * `jam_participants` contributors for an event, with user profile
+   * fields, sorted by most edits first. Only `edit_count > 0` counts —
+   * a join that never edited says nothing (2.E1).
+   */
+  private async jamContributors(eventId: string): Promise<JamContributorDto[]> {
+    const { data: participants, error: participantsError } = await this.supabase
+      .from('jam_participants')
+      .select('user_id, edit_count')
+      .eq('event_id', eventId);
+    if (participantsError) {
+      if (
+        (participantsError as { code?: string }).code === 'PGRST205' ||
+        participantsError.message?.includes('Could not find the table')
+      ) {
+        return SEEDED_JAM_CONTRIBUTORS[eventId] ?? [];
+      }
+      throw new Error(participantsError.message);
+    }
+    // 2.E1: a join that never edited says nothing — keep `edit_count > 0`.
+    const contributors = (
+      (participants ?? []) as Array<{
+        user_id: string;
+        edit_count: number;
+      }>
+    ).filter((p) => Number(p.edit_count) > 0);
+    if (contributors.length === 0) {
+      return SEEDED_JAM_CONTRIBUTORS[eventId] ?? [];
+    }
+
+    const userIds = contributors.map((p) => p.user_id);
+    const { data: users, error: usersError } = await this.supabase
+      .from('users')
+      .select('id, username, display_name, avatar_url')
+      .in('id', userIds);
+    if (usersError) {
+      throw new Error(usersError.message);
+    }
+    const byId = new Map((users ?? []).map((u) => [u.id as string, u]));
+
+    return contributors
+      .map((p) => {
+        const user = byId.get(p.user_id);
+        return {
+          userId: p.user_id,
+          username: user?.username ?? null,
+          displayName: user?.display_name ?? null,
+          avatarUrl: user?.avatar_url ?? null,
+          actionCount: Number(p.edit_count) || 0,
+        };
+      })
+      .sort((a, b) => b.actionCount - a.actionCount);
+  }
+
+  /**
+   * The frozen snapshot of an ended jam's result project: head commit of
+   * the default branch (created by UC-95), or the branch draft when no
+   * commit exists. `null` when neither is reachable.
+   */
+  private async resultSnapshot(
+    row: JamEventRow,
+  ): Promise<DraftSnapshot | null> {
+    if (!row.resulting_project_id) return null;
+
+    const { data: branch, error: branchError } = await this.supabase
+      .from('branches')
+      .select('id, head_commit_id')
+      .eq('project_id', row.resulting_project_id)
+      .eq('is_default', true)
+      .maybeSingle<{ id: string; head_commit_id: string | null }>();
+    if (branchError) throw new Error(branchError.message);
+    if (!branch) return null;
+
+    if (branch.head_commit_id) {
+      const { data: commit, error: commitError } = await this.supabase
+        .from('commits')
+        .select('snapshot')
+        .eq('id', branch.head_commit_id)
+        .maybeSingle<{ snapshot: DraftSnapshot }>();
+      if (commitError) throw new Error(commitError.message);
+      if (commit?.snapshot) return commit.snapshot;
+    }
+
+    // No head commit — fall back to the newest draft on the default branch.
+    // `order` + `limit` (never `.single()`) so a branch with several draft
+    // rows cannot fail with PGRST116.
+    const { data: draft, error: draftError } = await this.supabase
+      .from('drafts')
+      .select('snapshot')
+      .eq('branch_id', branch.id)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (draftError) throw new Error(draftError.message);
+    const row0 = Array.isArray(draft) ? draft[0] : draft;
+    return (row0 as { snapshot?: DraftSnapshot } | null)?.snapshot ?? null;
   }
 
   private async fetchEventRow(id: string): Promise<JamEventRow> {
@@ -601,6 +829,321 @@ export class JamService {
     return row.edit_cooldown_sec ?? JamService.DEFAULT_COOLDOWN_SEC;
   }
 
+  /**
+   * duc.md: a fresh jam project's default snapshot is `tracks: []` — with no
+   * track, every `jam:edit_note` is rejected by 7.E2 and the room can never
+   * receive a note. Seed one piano track in-RAM when the snapshot arrives
+   * empty so the room is immediately editable; the track id is a stable
+   * UUID so LWW note writes target a real, persistent `trackId`.
+   */
+  private ensureEditableSnapshot(snapshot: DraftSnapshot): DraftSnapshot {
+    if (snapshot.tracks.length > 0) return snapshot;
+    snapshot.tracks.push({
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Piano',
+      order: 0,
+      color: '#4F46E5',
+      muted: false,
+      solo: false,
+      volume: 1,
+      pan: 0,
+      instrument: 'Acoustic Grand Piano',
+    });
+    return snapshot;
+  }
+
+  /**
+   * Attach the gateway as the sweep's listener so it can broadcast
+   * `jam:event_ended` (5.E1/BR-70) and `jam:storage_warning` (12.E1) to the
+   * live rooms the sweep discovers. The gateway calls this once at startup.
+   */
+  settleJamSweep(
+    listener: (events: {
+      endedEvents: JamEventEndedPayload[];
+      storageWarnings: JamStorageWarningPayload[];
+    }) => void,
+  ): void {
+    this.sweepListener = listener;
+  }
+
+  /** Freeze a room read-only (BR-70): a final flush is forced by the sweep. */
+  private freezeRoom(eventId: string): void {
+    const room = this.rooms.get(eventId);
+    if (!room || room.status === 'frozen') return;
+    room.status = 'frozen';
+    room.isDirty = true;
+  }
+
+  // ------------------------------------------------------------------
+  // Editing (UC-67 — LWW note ops through the gateway, BR-69/BR-71)
+  // ------------------------------------------------------------------
+
+  /**
+   * The full UC-67 pipeline. Validates the event window (5.E1), the user's
+   * cooldown (2.E1 / BR-68), the note's MIDI integrity (7.E1 / BR-71) and
+   * its track (7.E2), applies the LWW op to the in-RAM snapshot (8.E1 /
+   * BR-69), bumps `jam_participants.edit_count`, marks the room dirty and
+   * appends an activity entry. Returns the `jam:note_updated` payload for
+   * the gateway to broadcast to the whole room.
+   *
+   * Re-entrant rooms: if the event/room is not in RAM (5.E2, e.g. a server
+   * reboot), `loadEvent` + `getOrCreateRoom` re-hydrate it from the DB
+   * before any rule runs — a missing event is still a
+   * `JAM_ROOM_NOT_FOUND`.
+   */
+  async handleEditNote(
+    user: JamSocketUser,
+    dto: EditJamNoteRequestDto,
+  ): Promise<JamNoteUpdatedPayload> {
+    // 5.E2 — restore the room into RAM if a reboot (or first touch) lost it.
+    // A DB miss (the event row itself is gone) is a `JAM_ROOM_NOT_FOUND`,
+    // not a join-path 404: the client reloads the room instead.
+    let row: JamEventRow;
+    try {
+      row = await this.loadEvent(dto.jamId);
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw new NotFoundException({
+          code: 'JAM_ROOM_NOT_FOUND',
+          message: 'Jam room or its data source is unavailable',
+        });
+      }
+      throw err;
+    }
+
+    // 5.E1 — an event that is not `active` (ended/cancelled) is frozen read-only.
+    if (row.status !== 'active') {
+      this.freezeRoom(dto.jamId);
+      throw new ConflictException({
+        code: 'JAM_EVENT_ENDED',
+        message: 'The jam has already ended',
+      });
+    }
+
+    const room = await this.getOrCreateRoom(row);
+    if (!room) {
+      throw new NotFoundException({
+        code: 'JAM_ROOM_NOT_FOUND',
+        message: 'Jam room or its data source is unavailable',
+      });
+    }
+
+    // 5.E1 (clock) — the wall clock may have ended the event since the room
+    // was loaded into RAM; re-check before accepting any edit.
+    const nowMs = Date.now();
+    if (
+      room.status === 'frozen' ||
+      (row.scheduled_end_at &&
+        nowMs >= new Date(row.scheduled_end_at).getTime())
+    ) {
+      this.freezeRoom(dto.jamId);
+      throw new ConflictException({
+        code: 'JAM_EVENT_ENDED',
+        message: 'The jam has already ended',
+      });
+    }
+
+    // 2.E1 / BR-68 — per-user cooldown since the last accepted edit.
+    const cooldown = this.cooldownSec(row);
+    const lastEditAt = room.lastEditAtByUser[user.id] ?? 0;
+    const elapsedSec = (Date.now() - lastEditAt) / 1000;
+    if (lastEditAt > 0 && elapsedSec < cooldown) {
+      const remainingSeconds = Math.ceil(cooldown - elapsedSec);
+      throw new ConflictException({
+        code: 'COOLDOWN_ACTIVE',
+        message: `Cooldown active: ${remainingSeconds}s remaining`,
+        remainingSeconds,
+      });
+    }
+
+    // 7.E1 / BR-71 — MIDI integrity. The DTO already gates ranges via
+    // class-validator, but the service is the trust boundary: re-assert the
+    // exact same constraints so a bypassed/legacy socket can't inject a
+    // note that would corrupt the LWW diff.
+    const n = dto.note;
+    if (
+      !Number.isInteger(n.midi) ||
+      n.midi < 0 ||
+      n.midi > 127 ||
+      !Number.isInteger(n.startTick) ||
+      n.startTick < 0 ||
+      !Number.isInteger(n.durationTicks) ||
+      n.durationTicks < 1 ||
+      !Number.isInteger(n.velocity) ||
+      n.velocity < 1 ||
+      n.velocity > 127
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_NOTE_DATA',
+        message: 'Note data violates MIDI constraints',
+      });
+    }
+
+    // 7.E2 — the note's track must exist in the room's snapshot.
+    const trackIds = new Set(room.snapshot.tracks.map((t) => t.id));
+    if (!trackIds.has(n.trackId)) {
+      throw new NotFoundException({
+        code: 'TRACK_NOT_FOUND',
+        message: 'The selected track no longer exists',
+      });
+    }
+
+    // 8.E1 / BR-69 — apply the LWW op to the in-RAM snapshot. Two users
+    // editing the same note resolve by processing order: the later write
+    // overwrites the earlier one; no lock, no error, just broadcast the new
+    // value to everyone (clients re-sync on `jam:note_updated`).
+    const notes = room.snapshot.notes;
+    const index = notes.findIndex((x) => x.id === n.id);
+
+    switch (dto.action) {
+      case 'add': {
+        // The note id must be fresh for an add (a duplicate id is an
+        // update in disguise); a duplicate here means the client mislabelled
+        // an op, which we reject to keep the LWW keying clean.
+        if (index !== -1) {
+          throw new ConflictException({
+            code: 'INVALID_NOTE_DATA',
+            message: 'A note with this id already exists — use update instead',
+          });
+        }
+        // Server assigns a UUID when the client omitted one (BR-71 note id);
+        // in practice the frontend always sends a UUID (pencil tool mints it
+        // via crypto.randomUUID), so this only covers a mislabelled op.
+        const id = n.id || randomUUID();
+        notes.push({
+          id,
+          trackId: n.trackId,
+          pitch: n.midi,
+          start: n.startTick,
+          duration: n.durationTicks,
+          velocity: n.velocity,
+        });
+        break;
+      }
+      case 'update': {
+        if (index === -1) {
+          // Updating a note that isn't in the room: treat as a new note so
+          // the contributor's intent still lands (LWW, no lost update).
+          notes.push(jamNoteToDraftNote({ ...n, id: n.id }));
+          break;
+        }
+        notes[index] = {
+          ...notes[index],
+          trackId: n.trackId,
+          pitch: n.midi,
+          start: n.startTick,
+          duration: n.durationTicks,
+          velocity: n.velocity,
+        };
+        break;
+      }
+      case 'delete': {
+        if (index === -1) {
+          // Deleting a note that is not in the room is a no-op but still
+          // counts as an accepted op (the contributor meant to remove it).
+          break;
+        }
+        notes.splice(index, 1);
+        break;
+      }
+    }
+
+    // Stamp the user's last edit (resets the next cooldown window).
+    room.lastEditAtByUser[user.id] = Date.now();
+
+    // Bump the contributor's DB counter (best-effort — the live edit must
+    // not fail because a DB write did; log and move on).
+    await this.bumpEditCount(dto.jamId, user.id);
+
+    // Dirty so the 5s sweep flushes the snapshot (BR-116).
+    room.isDirty = true;
+
+    // One activity line for the feed (the room caps at 50).
+    this.recordNoteActivity(room, user, dto.action, n);
+
+    const serverNote =
+      dto.action === 'delete'
+        ? jamNoteToDraftNote({ ...n, id: n.id }) // wire the removed note
+        : (notes[notes.findIndex((x) => x.id === n.id)] ??
+          jamNoteToDraftNote({ ...n, id: n.id }));
+
+    const wire = draftNoteToJamNote(serverNote);
+    return {
+      jamId: dto.jamId,
+      action: dto.action,
+      note: wire,
+      userId: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      timestamp: Date.now(),
+    };
+  }
+
+  /**
+   * Increment `jam_participants.edit_count` for this (event, user). The
+   * upsert also creates the row if the user hasn't formally joined yet
+   * (a rejoin after a reboot leaves no participant row). Best-effort: a
+   * DB failure here logs and swallows — the live edit is what matters and
+   * the count is reconstructable from the activity feed.
+   */
+  private async bumpEditCount(eventId: string, userId: string): Promise<void> {
+    try {
+      // Read-modify-write is a race under concurrency, but the in-RAM room
+      // is the source of truth for the LIVE count and this DB column only
+      // feeds the result view (UC-68) and can tolerate mild drift. Use a
+      // plain upsert with the existing count read first; on conflict the
+      // last writer wins, which is consistent with the jam's LWW spirit.
+      const { data } = await this.supabase
+        .from('jam_participants')
+        .select('edit_count')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .maybeSingle<{ edit_count: number }>();
+      const next = (data?.edit_count ?? 0) + 1;
+      const { error } = await this.supabase.from('jam_participants').upsert(
+        {
+          event_id: eventId,
+          user_id: userId,
+          edit_count: next,
+        },
+        { onConflict: 'event_id,user_id' },
+      );
+      if (error) {
+        JamService.logger.warn(
+          `Could not bump edit_count for ${userId} in ${eventId}: ${error.message}`,
+        );
+      }
+    } catch (err) {
+      JamService.logger.warn(
+        `edit_count bump failed for ${userId} in ${eventId}: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /** One add/update/delete line in the room's activity feed (UC-67). */
+  private recordNoteActivity(
+    room: JamRoomState,
+    user: JamSocketUser,
+    op: 'add' | 'update' | 'delete',
+    note: { trackId: string; midi: number },
+  ): void {
+    const activityOp =
+      op === 'delete'
+        ? ('remove' as const)
+        : op === 'add'
+          ? ('add' as const)
+          : ('update' as const);
+    this.appendActivity(room, {
+      id: `${room.jamId}:${Date.now()}:${activityOp}:${user.id}:${note.midi}`,
+      userId: user.id,
+      displayName: user.displayName,
+      at: new Date().toISOString(),
+      op: activityOp,
+      detail: `MIDI ${note.midi}`,
+    });
+  }
+
   // ------------------------------------------------------------------
   // Room internals (private)
   // ------------------------------------------------------------------
@@ -611,7 +1154,9 @@ export class JamService {
     if (existing) return existing;
 
     const ownerId = await this.jamProjectOwnerId(row);
-    const snapshot = await this.loadInitialSnapshot(row, ownerId);
+    const snapshot = this.ensureEditableSnapshot(
+      await this.loadInitialSnapshot(row, ownerId),
+    );
 
     const room: JamRoomState = {
       jamId: row.id,
@@ -744,7 +1289,11 @@ export class JamService {
       .maybeSingle<{ snapshot: DraftSnapshot }>();
     if (draftError || !draft) return buildDefaultDraftSnapshot();
 
-    return draft.snapshot;
+    // A JSONB column materializes a FRESH object on every read — the live
+    // room must never alias the stored row (mutating the room would silently
+    // rewrite the DB row through a shared reference, which Postgres would
+    // never do). Deep-clone so the room owns its own snapshot.
+    return structuredClone(draft.snapshot);
   }
 
   /** One `jam_participants` row per (event, user); rejoin is a no-op. */
@@ -783,11 +1332,21 @@ export class JamService {
     });
   }
 
-  /** Persist the room's snapshot to `drafts` under the project owner's key. */
-  private async flushRoom(room: JamRoomState): Promise<void> {
+  /**
+   * Persist the room's snapshot to `drafts` under the project owner's key.
+   * Returns:
+   *  - `'ok'`      : snapshot written, `isDirty` cleared;
+   *  - `'skipped'` : no project/owner key (nothing to flush), `isDirty` cleared;
+   *  - `'failed'`  : a DB step failed (12.E1) — `isDirty` is kept so the next
+   *                  sweep retries; the caller counts consecutive failures
+   *                  and raises `jam:storage_warning` past the threshold.
+   */
+  private async flushRoom(
+    room: JamRoomState,
+  ): Promise<'ok' | 'skipped' | 'failed'> {
     if (!room.projectId || !room.ownerId) {
       room.isDirty = false;
-      return;
+      return 'skipped';
     }
 
     const { data: branch, error: branchError } = await this.supabase
@@ -796,7 +1355,13 @@ export class JamService {
       .eq('project_id', room.projectId)
       .eq('is_default', true)
       .maybeSingle<{ id: string }>();
-    if (branchError || !branch) return; // retry on the next sweep
+    if (branchError) {
+      JamService.logger.warn(
+        `Failed to locate the default branch of jam room ${room.jamId}: ${branchError.message}`,
+      );
+      return 'failed'; // stay dirty, retry on the next sweep
+    }
+    if (!branch) return 'failed'; // retry on the next sweep
 
     const { error: draftError } = await this.supabase.from('drafts').upsert(
       {
@@ -811,11 +1376,12 @@ export class JamService {
       JamService.logger.warn(
         `Failed to flush jam room ${room.jamId}: ${draftError.message}`,
       );
-      return; // stay dirty, retry next sweep — contributions must not be lost
+      return 'failed'; // stay dirty, retry next sweep — contributions must not be lost
     }
 
     room.lastFlushedAt = Date.now();
     room.isDirty = false;
+    return 'ok';
   }
 
   /** Build the payload a client needs on join / reconnect. */
@@ -854,7 +1420,15 @@ export class JamService {
         const rawMessage = body.message;
         const message =
           typeof rawMessage === 'string' ? rawMessage : err.message;
-        return { code, message };
+        const payload: JamErrorPayload = { code, message };
+        // 2.E1 — carry the remaining cooldown seconds to the client clock.
+        if (
+          code === 'COOLDOWN_ACTIVE' &&
+          typeof body.remainingSeconds === 'number'
+        ) {
+          payload.remainingSeconds = body.remainingSeconds;
+        }
+        return payload;
       }
       if (err instanceof NotFoundException) {
         return { code: 'EVENT_NOT_FOUND', message: err.message };
@@ -862,9 +1436,15 @@ export class JamService {
       if (err instanceof ForbiddenException) {
         return { code: 'ACCOUNT_NOT_ACTIVE', message: err.message };
       }
+      if (err instanceof UnauthorizedException) {
+        return { code: 'UNAUTHORIZED', message: err.message };
+      }
       if (err instanceof ConflictException) {
         // A `ConflictException` without a body carries the default code.
         return { code: 'EVENT_COMPLETED', message: err.message };
+      }
+      if (err instanceof BadRequestException) {
+        return { code: 'INVALID_NOTE_DATA', message: err.message };
       }
       return { code: 'JAM_CONNECTION_FAILED', message: err.message };
     }

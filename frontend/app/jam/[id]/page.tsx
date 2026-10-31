@@ -62,6 +62,14 @@ function JamRoomContent({ id }: { id: string }) {
     };
   }, [id, user, loading, refreshKey]);
 
+  // UC-66 2.E1 → UC-68: the event already ended — the room itself is the
+  // wrong place; the frozen result page is. Bounce straight to it.
+  useEffect(() => {
+    if (event && event.status === "ended") {
+      router.replace(`/jam/${id}/result`);
+    }
+  }, [event, id, router]);
+
   if (loading || !user) {
     return (
       <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted">

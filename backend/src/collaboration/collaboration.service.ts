@@ -279,7 +279,12 @@ export class CollaborationService {
       .from('project_collaborators')
       .update({ status: 'accepted', responded_at: new Date().toISOString() })
       .eq('id', row.id);
-    if (error && (error.message?.includes('status') || error.message?.includes('responded_at') || error.message?.includes('column'))) {
+    if (
+      error &&
+      (error.message?.includes('status') ||
+        error.message?.includes('responded_at') ||
+        error.message?.includes('column'))
+    ) {
       CollaboratorStatusStore.setStatus(row.id, 'accepted');
     } else if (error) {
       throw new InternalServerErrorException(
@@ -676,12 +681,17 @@ export class CollaborationService {
     }
     const ownerId = projects?.owner_id;
 
-    let collabRows: Array<{ id: string; user_id: string; status?: string }> = [];
+    let collabRows: Array<{ id: string; user_id: string; status?: string }> =
+      [];
     const { data: collaborators, error: collabError } = await this.supabase
       .from('project_collaborators')
       .select('id, user_id, status')
       .eq('project_id', projectId);
-    if (collabError && (collabError.message?.includes('status') || collabError.message?.includes('column'))) {
+    if (
+      collabError &&
+      (collabError.message?.includes('status') ||
+        collabError.message?.includes('column'))
+    ) {
       const fallback = await this.supabase
         .from('project_collaborators')
         .select('id, user_id')
@@ -700,11 +710,16 @@ export class CollaborationService {
         `Failed to fetch collaborators: ${collabError.message}`,
       );
     } else {
-      collabRows = (collaborators ?? []) as Array<{ id: string; user_id: string; status?: string }>;
+      collabRows = collaborators ?? [];
     }
     const acceptedCollaborators = new Set(
       collabRows
-        .filter((row) => (row.status ?? CollaboratorStatusStore.getStatus(row.id) ?? 'accepted') === 'accepted')
+        .filter(
+          (row) =>
+            (row.status ??
+              CollaboratorStatusStore.getStatus(row.id) ??
+              'accepted') === 'accepted',
+        )
         .map((row) => row.user_id),
     );
 

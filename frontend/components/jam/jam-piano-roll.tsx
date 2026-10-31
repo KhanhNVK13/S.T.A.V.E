@@ -23,11 +23,16 @@ export function JamPianoRoll({
   tracks,
   ppq,
   gridDivision = 16,
+  isReadOnly = false,
+  onNotify,
 }: {
   notes: DraftNote[];
   tracks: DraftTrack[];
   ppq: number;
   gridDivision?: 4 | 8 | 16 | 32;
+  /** UC-68: frozen grid — blocks every note mutation (3.E1). */
+  isReadOnly?: boolean;
+  onNotify?: (message: string, variant: "success" | "warning" | "info") => void;
 }) {
   // A stable empty selection + no-op mutator so the roll renders without any
   // owning draft. `useMemo` keeps the no-op referentially stable.
@@ -52,7 +57,9 @@ export function JamPianoRoll({
       ppq={ppq}
       gridDivision={gridDivision}
       playheadTick={0}
+      isReadOnly={isReadOnly}
       onNotesChange={noop}
+      onNotify={onNotify}
       selectedNoteIds={emptySelection}
       onSelectedNotesChange={noop}
       isPlaying={false}

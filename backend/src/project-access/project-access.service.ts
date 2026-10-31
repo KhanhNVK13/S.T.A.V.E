@@ -86,7 +86,8 @@ export class ProjectAccessService {
         .eq('user_id', userId)
         .maybeSingle<{ id: string; permission_level: 'view' | 'edit' }>();
       if (fallback.data) {
-        const st = CollaboratorStatusStore.getStatus(fallback.data.id) ?? 'accepted';
+        const st =
+          CollaboratorStatusStore.getStatus(fallback.data.id) ?? 'accepted';
         collaborator = {
           id: fallback.data.id,
           permission_level: fallback.data.permission_level,

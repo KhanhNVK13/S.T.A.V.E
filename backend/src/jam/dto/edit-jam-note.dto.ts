@@ -8,7 +8,6 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import type { JamNoteDto } from '@stave/shared-types';
 
 /**
  * UC-67 — wire shape of one note. This is the class-validator mirror of

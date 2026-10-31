@@ -7,8 +7,13 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import type {
+  JamCooldownActivePayload,
+  JamEndExtendedPayload,
   JamErrorPayload,
+  JamEventEndedPayload,
   JamJoinPayload,
   JamParticipant,
   JamUserJoinedPayload,
@@ -19,7 +24,8 @@ import type {
   User as SupabaseUser,
 } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
-import { JamService } from './jam.service';
+import { JamService, type JamSocketUser } from './jam.service';
+import { EditJamNoteDto, EditJamNoteRequestDto } from './dto/edit-jam-note.dto';
 
 /**
  * The handshake must carry the same two layers the HTTP guards check
@@ -137,7 +143,7 @@ export class JamGateway {
       };
     })();
 
-    (client.data as any).authPromise = authPromise;
+    client.data.authPromise = authPromise;
     const resolved = await authPromise;
     if (resolved) {
       client.data = resolved;
@@ -156,8 +162,8 @@ export class JamGateway {
     @MessageBody() payload: JamJoinPayload,
   ): Promise<void> {
     let data = client.data as JamSocketData | undefined;
-    if ((!data || !data.user) && (client.data as any)?.authPromise) {
-      data = (await (client.data as any).authPromise) ?? undefined;
+    if ((!data || !data.user) && client.data?.authPromise) {
+      data = (await client.data.authPromise) ?? undefined;
     }
 
     if (!data || !data.user) {
@@ -246,6 +252,188 @@ export class JamGateway {
   /** A server-side Socket.IO error: log, never crash the gateway. */
   handleGatewayError(error: Error): void {
     this.logger.error('Jam gateway error', error.stack ?? error.message);
+  }
+
+  /**
+   * UC-94 (BR-75) — broadcast the admin's end-time extension to the whole
+   * live room so every connected client restarts its countdown toward the new
+   * `newEndAt`. Called by `JamService.configureEvent` on a running event.
+   */
+  broadcastEndExtended(eventId: string, payload: JamEndExtendedPayload): void {
+    this.server?.to(`jam:${eventId}`).emit('jam:end_extended', payload);
+  }
+
+  /**
+   * Tell the sweep what to broadcast when it finds a freshly-ended event or
+   * a storage flush that kept failing (12.E1). Called once from
+   * `onModuleInit` so the very first sweep tick already has a listener.
+   */
+  onModuleInit(): void {
+    this.jamService.settleJamSweep(({ endedEvents, storageWarnings }) => {
+      for (const ended of endedEvents) {
+        this.server?.to(`jam:${ended.jamId}`).emit('jam:event_ended', ended);
+      }
+      for (const warning of storageWarnings) {
+        this.server
+          ?.to(`jam:${warning.jamId}`)
+          .emit('jam:storage_warning', warning);
+      }
+    });
+  }
+
+  /**
+   * Inbound `jam:edit_note` (alias `jam:edit`) — UC-67. The socket must be
+   * in a room (`data.eventId`) or the op is dropped with a neutral error.
+   * The service runs every rule (5.E1 window, 2.E1 cooldown, 7.E1/7.E2
+   * integrity, 8.E1 LWW); on success we broadcast `jam:note_updated` to the
+   * WHOLE room and ack the sender with `jam:note_updated` too (the browser
+   * collapses its optimistic update against the server-stamped copy).
+   */
+  @SubscribeMessage('jam:edit_note')
+  async handleEditNote(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() raw: EditJamNoteRequestDto,
+  ): Promise<void> {
+    await this.applyEditNote(client, raw);
+  }
+
+  /** Backwards-compatible alias: the UC-66-era name of the same op. */
+  @SubscribeMessage('jam:edit')
+  async handleEditAlias(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() raw: EditJamNoteRequestDto,
+  ): Promise<void> {
+    await this.applyEditNote(client, raw);
+  }
+
+  private async applyEditNote(
+    client: Socket,
+    raw: EditJamNoteRequestDto,
+  ): Promise<void> {
+    const data = client.data as JamSocketData | undefined;
+    if (!data) {
+      // 3.E1 — the handshake already failed or was revoked.
+      this.emitError(client, {
+        code: 'UNAUTHORIZED',
+        message: 'Socket not authenticated',
+      });
+      client.disconnect(true);
+      return;
+    }
+
+    // The socket is only in one room; the op must target that room (or it
+    // is dropped — we never guess at a jamId the client is not part of).
+    const eventId = data.eventId;
+    if (!eventId || (raw && raw.jamId && raw.jamId !== eventId)) {
+      this.emitError(client, {
+        code: 'JAM_ROOM_NOT_FOUND',
+        message: 'You are not in this jam room',
+      });
+      return;
+    }
+
+    // Manual validation: the global ValidationPipe does not run on socket
+    // payloads, so class-validator enforces the same constraints the DTO
+    // declares (BR-71). A malformed note never reaches the room.
+    const dto = plainToInstance(EditJamNoteRequestDto, raw);
+    const noteDto = plainToInstance(EditJamNoteDto, raw?.note ?? {});
+    dto.note = noteDto;
+    // `validate()` descends into `@ValidateNested` objects by default
+    // (class-validator 0.15); `whitelist: true` mirrors the global pipe so an
+    // unadorned field is dropped, not trusted.
+    const issues = await validate(dto, { whitelist: true });
+    if (issues.length > 0) {
+      // class-validator reports nested violations with a dotted path
+      // (`note.trackId`); a `trackId` shape failure is 7.E2 (the track is
+      // outside the snapshot's vocabulary), any other malformed field is 7.E1.
+      const details = issues.map((i) => String(i.property ?? ''));
+      const isTrackIssue = details.some((d) => d.endsWith('trackId'));
+      const first = details[0] ?? 'unknown';
+      this.emitError(client, {
+        code: isTrackIssue ? 'TRACK_NOT_FOUND' : 'INVALID_NOTE_DATA',
+        message: isTrackIssue
+          ? 'The selected track no longer exists'
+          : `Invalid note data on '${first}'`,
+        detail: first,
+      });
+      return;
+    }
+
+    // The note id is freshly minted for an add; the client already carries
+    // a UUID (pencil tool mints it), but a `delete`/`update` for an id that
+    // has since been replaced by another contributor's LWW write just lands
+    // as a no-op on the server side — the broadcast tells everyone the
+    // current truth.
+    const user: JamSocketUser = {
+      id: data.user.id,
+      username: data.participant.username,
+      displayName: data.participant.displayName,
+      avatarUrl: data.participant.avatarUrl,
+    };
+
+    try {
+      const updated = await this.jamService.handleEditNote(user, dto);
+      // Ack the sender first (so its optimistic flag clears), then fan out
+      // to everyone else in the room. The sender is included in `.to(room)`
+      // as well — a double-delivery of the same payload is harmless on the
+      // client (it's idempotent per note id + LWW timestamp).
+      this.server?.to(`jam:${eventId}`).emit('jam:note_updated', updated);
+    } catch (err) {
+      this.handleEditNoteError(client, err);
+    }
+  }
+
+  /**
+   * 2.E1 (COOLDOWN_ACTIVE) → `jam:cooldown_active` (a distinct event the
+   * client timer listens for). 5.E1 (JAM_EVENT_ENDED) → also broadcast
+   * `jam:event_ended` to the whole room. 7.E1/7.E2/UNAUTHORIZED → `jam:error`.
+   */
+  private handleEditNoteError(client: Socket, err: unknown): void {
+    const payload = JamService.errorPayload(err);
+    const room = (client.data as JamSocketData | undefined)?.eventId;
+
+    switch (payload.code) {
+      case 'COOLDOWN_ACTIVE': {
+        const cooldown: JamCooldownActivePayload = {
+          jamId: room ?? payload.message,
+          remainingSeconds: payload.remainingSeconds ?? 0,
+        };
+        client.emit('jam:cooldown_active', cooldown);
+        return;
+      }
+      case 'JAM_EVENT_ENDED': {
+        if (room) {
+          const ended: JamEventEndedPayload = {
+            jamId: room,
+            endedAt: new Date().toISOString(),
+          };
+          this.server?.to(`jam:${room}`).emit('jam:event_ended', ended);
+        }
+        this.emitError(client, payload);
+        return;
+      }
+      case 'UNAUTHORIZED': {
+        this.emitError(client, payload);
+        client.disconnect(true);
+        return;
+      }
+      case 'JAM_ROOM_NOT_FOUND':
+      case 'INVALID_NOTE_DATA':
+      case 'TRACK_NOT_FOUND':
+      default: {
+        if (
+          payload.code === 'JAM_ROOM_NOT_FOUND' ||
+          payload.code === 'JAM_CONNECTION_FAILED'
+        ) {
+          this.logger.error(
+            `jam:edit_note failed: ${payload.message}`,
+            err instanceof Error ? err.stack : undefined,
+          );
+        }
+        this.emitError(client, payload);
+        return;
+      }
+    }
   }
 
   // ------------------------------------------------------------------

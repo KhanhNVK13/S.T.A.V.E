@@ -18,6 +18,7 @@ import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type {
   JamEvent,
   JamEventListItem,
+  JamResultResponseDto,
   JamStatePayload,
 } from '@stave/shared-types';
 import { JamService } from './jam.service';
@@ -78,5 +79,26 @@ export class JamController {
       `http:${profile.id}`,
       false,
     );
+  }
+
+  /**
+   * UC-68 — GET /jam/events/:id/result. The frozen result of an ended event:
+   * snapshot + contributors, public (guests may view; forking the result
+   * project is a separate, auth-protected act, BR-12/POST-4). NestJS allows
+   * one route per method, so the alias form lives in its own handler.
+   */
+  @Get('events/:id/result')
+  getResult(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<JamResultResponseDto> {
+    return this.jamService.getJamResult(id);
+  }
+
+  /** Alias of the above: GET /jam/:id/result (one param, no `events/`). */
+  @Get(':id/result')
+  getResultAlias(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<JamResultResponseDto> {
+    return this.jamService.getJamResult(id);
   }
 }

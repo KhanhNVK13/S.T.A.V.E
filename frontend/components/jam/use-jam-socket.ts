@@ -4,12 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import type {
   JamActivityItem,
+  JamCooldownActivePayload,
   JamErrorPayload,
+  JamNoteDto,
+  JamNoteUpdatedPayload,
   JamParticipant,
   JamStatePayload,
+  JamStorageWarningPayload,
   JamUserJoinedPayload,
   JamUserLeftPayload,
+  DraftNote,
 } from "@stave/shared-types";
+import { jamNoteToDraftNote } from "@stave/shared-types";
 import { supabase } from "../../lib/supabase-browser";
 import { getStoredSessionId } from "../../lib/api-client";
 
@@ -49,6 +55,39 @@ export interface UseJamSocketResult {
   failed: boolean;
   /** Re-emit `jam:join` after a failure. */
   retry: () => void;
+  // ── UC-67: collaborative editing ─────────────────────────────
+  /** 5.E1/BR-70 — the event ended (locally or via `jam:event_ended`). */
+  isReadonly: boolean;
+  /** 2.E1 — ms remaining on the caller's cooldown (0 = ready to edit). */
+  cooldownRemainingMs: number;
+  /** Seconds the server enforces between two edits of the same user. */
+  cooldownSec: number;
+  /**
+   * 12.E1 — the background flush has failed repeatedly; the in-RAM snapshot
+   * is still authoritative, and the UI shows the storage warning banner.
+   * Clears automatically when a flush succeeds again.
+   */
+  storageWarning: JamStorageWarningPayload | null;
+  /**
+   * 8.E1 — the most recent note written by SOMEONE ELSE (drives the brief
+   * "Nốt nhạc vừa được ghi đè bởi {username}" indicator).
+   */
+  lastRemoteNoteUpdate: {
+    noteId: string;
+    displayName: string | null;
+    at: number;
+  } | null;
+  /** Send one `jam:edit_note` op (add / update / delete) to the room. */
+  editNote: (
+    action: "add" | "update" | "delete",
+    note: JamNoteDto,
+  ) => Promise<boolean>;
+  /**
+   * Local LWW apply of the room's snapshot notes — call with the new notes
+   * array after `editNote` for optimistic UI; `jam:note_updated` broadcasts
+   * reconcile everyone (including the sender) to the server's truth.
+   */
+  applyLocalNotes: (notes: DraftNote[]) => void;
 }
 
 export function useJamSocket(eventId: string | null): UseJamSocketResult {
@@ -59,13 +98,65 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
   const [joinError, setJoinError] = useState<JamErrorPayload | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
+  // ── UC-67 live-edit state ──────────────────────────────────────────────────
+  const [isReadonly, setIsReadonly] = useState(false);
+  const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0);
+  const [storageWarning, setStorageWarning] = useState<JamStorageWarningPayload | null>(null);
+  const [lastRemoteNoteUpdate, setLastRemoteNoteUpdate] = useState<{
+    noteId: string;
+    displayName: string | null;
+    at: number;
+  } | null>(null);
+
   const socketRef = useRef<Socket | null>(null);
+  // The caller's own user id — needed to tell "my edit" from "someone else's"
+  // on `jam:note_updated` (8.E1 only notifies on REMOTE writes).
+  const myIdRef = useRef<string | null>(null);
+  const lastEditSentRef = useRef(0);
+  // The deadline the local cooldown countdown ticks down to (2.1: the client
+  // owns the display of 2.E1 rejections between server pings).
+  const cooldownUntilRef = useRef(0);
+  const [cooldownSec, setCooldownSec] = useState(5);
+
+  // Resolve the caller's Supabase user id once so event handlers can compare
+  // against it (the socket handshake already knows who we are server-side; the
+  // client just needs the id for the "is this me?" check).
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      myIdRef.current = data.session?.user.id ?? null;
+    })();
+  }, []);
 
   const join = useCallback((nsp: Socket) => {
     if (!eventId) return;
     setJoinError(null);
     nsp.emit("jam:join", { eventId });
   }, [eventId]);
+
+  // 8.E1 — apply one note op to the local snapshot so all clients converge
+  // on the server's LWW truth. Idempotent: re-applying the same op is a no-op.
+  const applyNoteOp = useCallback((action: "add" | "update" | "delete", note: JamNoteDto) => {
+    setState((prev) => {
+      if (!prev) return prev;
+      const notes = [...prev.snapshot.notes];
+      if (action === "delete") {
+        return { ...prev, snapshot: { ...prev.snapshot, notes: notes.filter((n) => n.id !== note.id) } };
+      }
+      const draft = jamNoteToDraftNote(note);
+      const idx = notes.findIndex((n) => n.id === note.id);
+      if (idx >= 0) notes[idx] = draft;
+      else notes.push(draft);
+      return { ...prev, snapshot: { ...prev.snapshot, notes } };
+    });
+  }, []);
+
+  // The caller asks us to push a new notes array into the snapshot — used for
+  // optimistically applying the caller's own batch of local edits. The server
+  // still reconciles everyone via `jam:note_updated` broadcasts (8.E1).
+  const applyLocalNotes = useCallback((notes: DraftNote[]) => {
+    setState((prev) => (prev ? { ...prev, snapshot: { ...prev.snapshot, notes } } : prev));
+  }, []);
 
   useEffect(() => {
     if (!eventId) return;
@@ -133,6 +224,76 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
         setState(payload);
         setParticipants(payload.participants);
         setActivity(payload.activity);
+        // Reset the local cooldown from the server's authoritative value. A
+        // fresh join is to a live room, so clear the read-only flag.
+        setCooldownSec(payload.cooldownSec);
+        setIsReadonly(false);
+        setStorageWarning(null);
+      });
+
+      // 8.E1 / BR-69 — the server applied one note op; apply the same op to
+      // our snapshot so everyone converges on the server's LWW truth. When the
+      // op came from someone else, also surface the "just overwritten" hint.
+      nsp.on("jam:note_updated", (payload: JamNoteUpdatedPayload) => {
+        if (disposed) return;
+        applyNoteOp(payload.action, payload.note);
+
+        const isMine = myIdRef.current !== null && payload.userId === myIdRef.current;
+        if (!isMine) {
+          setLastRemoteNoteUpdate({
+            noteId: payload.note.id,
+            displayName: payload.displayName,
+            at: Date.now(),
+          });
+        }
+        // Merge the op into the live activity feed as well.
+        setActivity((prev) =>
+          [
+            ...prev,
+            {
+              id: `${payload.jamId}:${payload.timestamp}:${payload.action}:${payload.userId}`,
+              userId: payload.userId,
+              displayName: payload.displayName,
+              at: new Date(payload.timestamp).toISOString(),
+              op:
+                payload.action === "delete"
+                  ? ("remove" as const)
+                  : payload.action === "add"
+                    ? ("add" as const)
+                    : ("update" as const),
+              detail: `MIDI ${payload.note.midi}`,
+            },
+          ].slice(-50),
+        );
+      });
+
+      // 2.E1 — the server rejected the caller's op for cooldown; the client
+      // owns the countdown from here (2.1).
+      nsp.on("jam:cooldown_active", (payload: JamCooldownActivePayload) => {
+        if (disposed) return;
+        // The server told us exactly how much time is left; the local
+        // ticker counts down from this deadline until the next edit is
+        // allowed (2.1 — the client owns the 2.E1 display).
+        cooldownUntilRef.current = Date.now() + payload.remainingSeconds * 1000;
+        setCooldownRemainingMs(payload.remainingSeconds * 1000);
+      });
+
+      // 5.E1 / BR-70 — the event ended; the room is frozen read-only from now.
+      nsp.on("jam:event_ended", () => {
+        if (disposed) return;
+        setIsReadonly(true);
+        setCooldownRemainingMs(0);
+      });
+
+      // 12.E1 — the background flush kept failing (or recovered); the in-RAM
+      // snapshot is still live, but the UI must show / clear the warning.
+      nsp.on("jam:storage_warning", (payload: JamStorageWarningPayload) => {
+        if (disposed) return;
+        if (payload.consecutiveFlushFailures === 0) {
+          setStorageWarning(null);
+        } else {
+          setStorageWarning(payload);
+        }
       });
 
       nsp.on("jam:user_joined", (payload: JamUserJoinedPayload) => {
@@ -174,6 +335,47 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, retryNonce]);
 
+  // 2.1 — the client owns the 2.E1 cooldown countdown between server pings:
+  // tick down to the deadline we were given (or that we set after sending).
+  useEffect(() => {
+    if (status !== "connected" && status !== "reconnecting") return;
+    const id = window.setInterval(() => {
+      const remain = cooldownUntilRef.current - Date.now();
+      setCooldownRemainingMs(remain > 0 ? remain : 0);
+    }, 200);
+    return () => clearInterval(id);
+  }, [status]);
+
+  // Send one `jam:edit_note` op. Locally pre-checks read-only + cooldown,
+  // optimistically applies, then emits to the room. The server's
+  // `jam:note_updated` (broadcast to everyone, incl. the sender) is the
+  // authoritative reconciliation; a `jam:cooldown_active` rejection re-arms
+  // the local clock. Resolves to whether the op was accepted for dispatch.
+  const editNote = useCallback(
+    async (action: "add" | "update" | "delete", note: JamNoteDto): Promise<boolean> => {
+      const nsp = socketRef.current;
+      if (!nsp || !eventId) return false;
+      if (isReadonly) return false; // BR-70 — the room is frozen
+      const now = Date.now();
+      if (cooldownUntilRef.current > now) {
+        setCooldownRemainingMs(cooldownUntilRef.current - now); // show the clock
+        return false; // 2.E1 — still inside the cooldown window
+      }
+      // Arm the local clock for the next edit and apply optimistically.
+      lastEditSentRef.current = now;
+      cooldownUntilRef.current = now + cooldownSec * 1000;
+      applyNoteOp(action, note);
+      nsp.emit("jam:edit_note", {
+        jamId: eventId,
+        action,
+        note,
+        clientTimestamp: now,
+      });
+      return true;
+    },
+    [eventId, isReadonly, cooldownSec, applyNoteOp],
+  );
+
   const retry = useCallback(() => {
     setJoinError(null);
     setRetryNonce((n) => n + 1);
@@ -188,5 +390,12 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
     isReconnecting: status === "reconnecting" || status === "connecting",
     failed: status === "failed",
     retry,
+    isReadonly,
+    cooldownRemainingMs,
+    cooldownSec,
+    storageWarning,
+    lastRemoteNoteUpdate,
+    editNote,
+    applyLocalNotes,
   };
 }

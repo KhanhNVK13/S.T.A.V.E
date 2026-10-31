@@ -64,8 +64,13 @@ export class CommentsService {
       );
     }
 
-    const comments = ((rows ?? []) as Array<CommentRow & { anchor_ref?: string }>).map((row) => {
-      if ((row.track_id === undefined || row.track_id === null) && row.anchor_ref) {
+    const comments = (
+      (rows ?? []) as Array<CommentRow & { anchor_ref?: string }>
+    ).map((row) => {
+      if (
+        (row.track_id === undefined || row.track_id === null) &&
+        row.anchor_ref
+      ) {
         try {
           const parsed = JSON.parse(row.anchor_ref);
           return {
@@ -161,7 +166,11 @@ export class CommentsService {
       .select('*')
       .single<CommentRow>();
 
-    if (error && (error.message?.includes('track_id') || error.message?.includes('anchor_ref'))) {
+    if (
+      error &&
+      (error.message?.includes('track_id') ||
+        error.message?.includes('anchor_ref'))
+    ) {
       const fallbackInsert = await this.supabase
         .from('comments')
         .insert({

@@ -132,6 +132,12 @@ const API_MESSAGES: Record<string, string> = {
   "Your account is not active":
     "Tài khoản của bạn không ở trạng thái hoạt động nên không tham gia được.",
   "The jam room is full": "Phòng Jam hiện đã đầy. Hãy thử sự kiện khác.",
+  // UC-68 (xem kết quả Jam) — thêm cuối bảng, không sửa dòng cũ
+  // (key "Jam event not found" của UC-66 giữ nguyên phía trên).
+  "Jam event has not ended yet":
+    "Sự kiện Jam này vẫn đang diễn ra. Đang chuyển hướng bạn đến phòng Jam...",
+  "Failed to load jam result":
+    "Không thể tải kết quả sự kiện Jam. Vui lòng thử lại.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
