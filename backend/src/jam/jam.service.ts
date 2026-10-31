@@ -17,10 +17,12 @@ import {
   JAM_MAX_FLUSH_FAILURES,
   jamNoteToDraftNote,
   draftNoteToJamNote,
+  type AvailableJamProjectDto,
   type ConfigureJamEventDto,
   type DraftSnapshot,
   type JamActivityItem,
   type JamContributorDto,
+  type JamEndEventResponse,
   type JamEndExtendedPayload,
   type JamEvent,
   type JamEventEndedPayload,
@@ -34,6 +36,7 @@ import {
   type JamStatePayload,
 } from '@stave/shared-types';
 import type { EditJamNoteRequestDto } from './dto/edit-jam-note.dto';
+import type { CreateJamEventDto } from './dto/create-jam-event.dto';
 import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
@@ -226,6 +229,16 @@ export class JamService {
         endedEvents: JamEventEndedPayload[];
         storageWarnings: JamStorageWarningPayload[];
       }) => void)
+    | null = null;
+
+  /**
+   * UC-94 (BR-75) — set by the gateway (`settleEndExtended`) so an admin's
+   * end-time extension can be fanned out to the live room as
+   * `jam:end_extended`. Null until the gateway attaches; optional because a
+   * reboot or a spec-driven build may not have one.
+   */
+  private endExtendedListener:
+    | ((eventId: string, payload: JamEndExtendedPayload) => void)
     | null = null;
 
   /** Minimum scope cap (duc.md): ~50 simultaneous participants per room. */
@@ -593,12 +606,370 @@ export class JamService {
       ended_at: row.ended_at,
       jam_project_id: row.jam_project_id,
       starting_project_id: row.starting_project_id,
+      resulting_project_id: row.resulting_project_id ?? null,
       edit_cooldown_sec: row.edit_cooldown_sec,
       no_result: row.no_result,
       max_participants: JamService.MAX_JAM_PARTICIPANTS,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
+  }
+
+  // ------------------------------------------------------------------
+  // UC-93 — admin: create a jam event (+ its private jam project)
+  // ------------------------------------------------------------------
+
+  /**
+   * UC-93 (report 3 §3.2.93) — create a Community Jam event. The event and
+   * its dedicated workspace project are created together: if the
+   * `jam_events` insert fails, the freshly created project is deleted
+   * (5.E2 — "cùng thành công hoặc cùng huỷ").
+   *
+   * Rules enforced here:
+   *  - 4.E2: `scheduledEndAt` must be strictly after `scheduledStartAt`;
+   *  - 4.E3 / BR-105: the window must not overlap any `scheduled`/`active`
+   *    event unless the caller explicitly passes `confirmOverlap: true`
+   *    (first attempt throws `JAM_OVERLAP_CONFLICT`);
+   *  - 5.E1 / BR-106: a `startingProjectId` must be public, not archived
+   *    and not moderation-hidden; its latest snapshot is COPIED into the
+   *    new private project — the source project is never mutated;
+   *  - BR-105: a start time in the past/now opens the event immediately
+   *    (`status = 'active'`, "bắt đầu ngay" 6.1), otherwise `scheduled`;
+   *  - BR-107: one immutable `admin_audit_log` row (`create_jam_event`) —
+   *    the table has SELECT+INSERT policies only (CLAUDE.md §4.3).
+   */
+  async createEvent(adminId: string, dto: CreateJamEventDto): Promise<JamEvent> {
+    // 4.E2 — the window must have a positive length.
+    const startMs = new Date(dto.scheduledStartAt).getTime();
+    const endMs = new Date(dto.scheduledEndAt).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      throw new BadRequestException('End time must be after start time');
+    }
+
+    // 4.E3 / BR-105 — overlap with any scheduled/active event.
+    if (dto.confirmOverlap !== true) {
+      await this.assertNoOverlap(startMs, endMs);
+    }
+
+    // 5.E1 / BR-106 — optional starting project; it must be copyable now.
+    let startingSnapshot: DraftSnapshot | null = null;
+    if (dto.startingProjectId) {
+      startingSnapshot = await this.copyStartingSnapshot(dto.startingProjectId);
+      if (!startingSnapshot) {
+        // The chosen source vanished (private/archived/hidden) between the
+        // dropdown fetch and this submit: create NOTHING.
+        throw new BadRequestException('Starting project cannot be copied');
+      }
+    }
+
+    // BR-106 — every event owns a private workspace project.
+    const jamProject = await this.createJamProject(adminId, dto.name, startingSnapshot);
+
+    // BR-105 — a start time already reached opens the room immediately.
+    const isStartNow = startMs <= Date.now();
+    const nowIso = new Date().toISOString();
+    const row: JamEventRow = {
+      id: randomUUID(),
+      created_by: adminId,
+      status: isStartNow ? 'active' : 'scheduled',
+      started_at: isStartNow ? nowIso : null,
+      ended_at: null,
+      resulting_project_id: null,
+      name: dto.name,
+      description: dto.description ?? null,
+      scheduled_start_at: dto.scheduledStartAt,
+      scheduled_end_at: dto.scheduledEndAt,
+      starting_project_id: dto.startingProjectId ?? null,
+      jam_project_id: jamProject.id,
+      edit_cooldown_sec: dto.editCooldownSec ?? JamService.DEFAULT_COOLDOWN_SEC,
+      no_result: false,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    try {
+      const { data, error: insertError } = await this.supabase
+        .from('jam_events')
+        .insert(row)
+        .select()
+        .single<JamEventRow>();
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+      if (!data) {
+        throw new Error('empty insert result');
+      }
+      const created = data;
+
+      // BR-107 — the immutable audit trail (INSERT-only table, §4.3).
+      const { error: auditError } = await this.supabase
+        .from('admin_audit_log')
+        .insert({
+          admin_id: adminId,
+          action: 'create_jam_event',
+          target_type: 'jam_event',
+          target_id: created.id,
+          reason: dto.description?.trim()
+            ? dto.description.trim()
+            : 'Khởi tạo sự kiện Community Jam mới',
+        });
+      if (auditError) {
+        // The audit row is best-effort: the event itself succeeded; the
+        // failure is logged, never surfaced as a create failure.
+        JamService.logger.error(
+          `Could not write audit entry create_jam_event for ${created.id}: ${auditError.message}`,
+        );
+      }
+
+      return this.toPublicEvent(created);
+    } catch (err) {
+      // 5.E2 — atomically roll back the workspace project so a failed
+      // insert never leaves an orphan behind.
+      await this.deleteJamProjectQuietly(jamProject.id);
+      if (err instanceof HttpException) throw err;
+      JamService.logger.error(
+        `Could not create jam event "${dto.name}" for admin ${adminId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      throw new InternalServerErrorException('Could not create jam event');
+    }
+  }
+
+  /**
+   * 4.E3 — any `scheduled`/`active` event whose window intersects
+   * `[startMs, endMs)` raises `JAM_OVERLAP_CONFLICT` (HTTP 409). The
+   * frontend shows a confirm banner; the retry carries
+   * `confirmOverlap: true` and skips this check.
+   */
+  private async assertNoOverlap(
+    startMs: number,
+    endMs: number,
+    ignoreEventId?: string,
+  ): Promise<void> {
+    let rows: JamEventRow[] = [];
+    try {
+      const { data, error } = await this.supabase
+        .from('jam_events')
+        .select('*')
+        .in('status', ['scheduled', 'active']);
+      if (error) throw new Error(error.message);
+      rows = data ?? [];
+    } catch {
+      // Pre-migration/DB-down: fall back to the seeded demo rows so the
+      // guard still runs (matches the listEvents fallback pattern).
+      rows = SEEDED_JAM_EVENTS.filter(
+        (e) => e.status === 'scheduled' || e.status === 'active',
+      );
+    }
+
+    const overlapping = rows.find((e) => {
+      if (ignoreEventId && e.id === ignoreEventId) return false;
+      const aStart = new Date(e.scheduled_start_at ?? e.started_at ?? e.created_at).getTime();
+      const aEnd = new Date(e.scheduled_end_at ?? e.ended_at ?? e.updated_at).getTime();
+      return aStart < endMs && aEnd > startMs;
+    });
+    if (overlapping) {
+      throw new ConflictException({
+        code: 'JAM_OVERLAP_CONFLICT',
+        message: 'Event time window overlaps with another active Jam',
+      });
+    }
+  }
+
+  /**
+   * 5.E1 — validate the starting project and deep-copy its newest snapshot
+   * (head commit of the default branch, else the branch draft). Returns
+   * `null` ONLY when the project itself is unavailable (missing, private,
+   * archived or moderation-hidden) — the caller converts that into
+   * `BadRequestException('Starting project cannot be copied')` and creates
+   * nothing. A public project without any snapshot content yet is still
+   * copyable: it falls back to the default empty snapshot.
+   */
+  private async copyStartingSnapshot(
+    startingProjectId: string,
+  ): Promise<DraftSnapshot | null> {
+    const { data: project, error } = await this.supabase
+      .from('projects')
+      .select('*')
+      .eq('id', startingProjectId)
+      .maybeSingle<{
+        id: string;
+        visibility: string;
+        archived_at: string | null;
+        moderation_hidden_at: string | null;
+      }>();
+    if (error || !project) return null;
+    if (
+      project.visibility !== 'public' ||
+      project.archived_at != null ||
+      project.moderation_hidden_at != null
+    ) {
+      return null;
+    }
+
+    const snapshot = await this.latestProjectSnapshot(startingProjectId);
+    // Public but still empty (no commit, no draft): copy the default empty
+    // snapshot — the source project is available, so 5.E1 does not apply.
+    const copy = snapshot ?? buildDefaultDraftSnapshot();
+    // Structured clone: the copy must never alias the source row.
+    return structuredClone(copy);
+  }
+
+  /** Head commit of the default branch, else the newest draft on it. */
+  private async latestProjectSnapshot(
+    projectId: string,
+  ): Promise<DraftSnapshot | null> {
+    const { data: branch, error: branchError } = await this.supabase
+      .from('branches')
+      .select('id, head_commit_id')
+      .eq('project_id', projectId)
+      .eq('is_default', true)
+      .maybeSingle<{ id: string; head_commit_id: string | null }>();
+    if (branchError || !branch) return null;
+
+    if (branch.head_commit_id) {
+      const { data: commit, error: commitError } = await this.supabase
+        .from('commits')
+        .select('snapshot')
+        .eq('id', branch.head_commit_id)
+        .maybeSingle<{ snapshot: DraftSnapshot }>();
+      if (commitError) throw new Error(commitError.message);
+      if (commit?.snapshot) return commit.snapshot;
+    }
+
+    const { data: draft, error: draftError } = await this.supabase
+      .from('drafts')
+      .select('snapshot')
+      .eq('branch_id', branch.id)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (draftError) throw new Error(draftError.message);
+    const row0 = Array.isArray(draft) ? draft[0] : draft;
+    return (row0 as { snapshot?: DraftSnapshot } | null)?.snapshot ?? null;
+  }
+
+  /**
+   * BR-106 — the event's private workspace: `[Jam] <name>`, owned by the
+   * creating admin, hidden from Explore. Gets the default `main` branch
+   * and one `drafts` row seeded with the starting snapshot (or the
+   * default empty one). `created_by` doubles as the `user_id` key of the
+   * shared jam draft.
+   */
+  private async createJamProject(
+    adminId: string,
+    eventName: string,
+    startingSnapshot: DraftSnapshot | null,
+  ): Promise<{ id: string }> {
+    const { data: project, error: projectError } = await this.supabase
+      .from('projects')
+      .insert({
+        owner_id: adminId,
+        name: `[Jam] ${eventName}`,
+        description: `Không gian làm việc của sự kiện Community Jam "${eventName}" (tự động, không mở công khai).`,
+        visibility: 'private',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    if (projectError || !project) {
+      throw new InternalServerErrorException('Could not create jam event');
+    }
+
+    const { error: branchError } = await this.supabase
+      .from('branches')
+      .insert({
+        project_id: project.id,
+        name: 'main',
+        is_default: true,
+        created_by: adminId,
+      });
+    if (branchError) {
+      await this.deleteJamProjectQuietly(project.id);
+      throw new InternalServerErrorException('Could not create jam event');
+    }
+
+    // Seed the draft under the owner key so `loadInitialSnapshot`/the 5s
+    // sweep find it (drafts are scoped by `branch_id` + `user_id`).
+    const { data: branch, error: branchLookup } = await this.supabase
+      .from('branches')
+      .select('id')
+      .eq('project_id', project.id)
+      .eq('is_default', true)
+      .maybeSingle<{ id: string }>();
+    if (!branchLookup && branch) {
+      const snapshot =
+        startingSnapshot ??
+        this.ensureEditableSnapshot(buildDefaultDraftSnapshot());
+      const { error: draftError } = await this.supabase
+        .from('drafts')
+        .upsert(
+          {
+            branch_id: branch.id,
+            user_id: adminId,
+            snapshot,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'branch_id,user_id' },
+        );
+      if (draftError) {
+        await this.deleteJamProjectQuietly(project.id);
+        throw new InternalServerErrorException('Could not create jam event');
+      }
+    }
+
+    return project;
+  }
+
+  /** 5.E2 rollback — delete the orphan project + branch + draft rows. */
+  private async deleteJamProjectQuietly(projectId: string): Promise<void> {
+    try {
+      const { data: branches } = await this.supabase
+        .from('branches')
+        .select('id')
+        .eq('project_id', projectId);
+      for (const b of (branches ?? []) as Array<{ id: string }>) {
+        await this.supabase.from('drafts').delete().eq('branch_id', b.id);
+      }
+      const { error } = await this.supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+      if (error) {
+        JamService.logger.warn(
+          `Jam project ${projectId} rollback delete failed: ${error.message}`,
+        );
+      }
+    } catch (err) {
+      JamService.logger.warn(
+        `Jam project ${projectId} rollback skipped: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * `GET /admin/jam/available-projects` — every public, non-archived,
+   * non-hidden project (any owner): the dropdown's options on the
+   * creation form (BR-106).
+   */
+  async getAvailableStartingProjects(): Promise<AvailableJamProjectDto[]> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('id, name')
+      .eq('visibility', 'public')
+      .is('archived_at', null)
+      .is('moderation_hidden_at', null)
+      .order('created_at', { ascending: false });
+    if (error) {
+      throw new InternalServerErrorException(
+        'Could not list available starting projects',
+      );
+    }
+    return (data ?? []).map((p) => ({
+      id: p.id as string,
+      name: p.name as string,
+    }));
   }
 
   // ------------------------------------------------------------------
@@ -641,6 +1012,15 @@ export class JamService {
   }
 
   private async persistStatus(row: JamEventRow): Promise<void> {
+    const seeded = SEEDED_JAM_EVENTS.find((e) => e.id === row.id);
+    if (seeded) {
+      Object.assign(seeded, {
+        status: row.status,
+        started_at: row.started_at,
+        ended_at: row.ended_at,
+        updated_at: row.updated_at,
+      });
+    }
     try {
       const { error } = await this.supabase
         .from('jam_events')
@@ -864,6 +1244,17 @@ export class JamService {
     }) => void,
   ): void {
     this.sweepListener = listener;
+  }
+
+  /**
+   * UC-94 (BR-75) — attach the gateway so an admin's end-time extension can
+   * reach the live room as `jam:end_extended`. Called once at startup,
+   * next to `settleJamSweep`.
+   */
+  settleEndExtended(
+    listener: (eventId: string, payload: JamEndExtendedPayload) => void,
+  ): void {
+    this.endExtendedListener = listener;
   }
 
   /** Freeze a room read-only (BR-70): a final flush is forced by the sweep. */
@@ -1142,6 +1533,338 @@ export class JamService {
       op: activityOp,
       detail: `MIDI ${note.midi}`,
     });
+  }
+
+  // ------------------------------------------------------------------
+  // UC-94 — admin configure / cancel (PATCH + DELETE /admin/jam/events/:id)
+  // ------------------------------------------------------------------
+
+  /**
+   * UC-94 (`PATCH /admin/jam/events/:id`) — configure a jam event.
+   *
+   * Status windows (duc.md UC-94):
+   *  - `scheduled` : every field is editable (or the event is cancelled instead).
+   *  - `active`    : ONLY the end time may be EXTENDED (BR-75) plus the per-event
+   *                  cooldown (3.1). Name / description / start / starting project
+   *                  are locked (2.E1) — supplying any of them throws.
+   *  - `ended`/`cancelled` : nothing can be reconfigured (2.E2).
+   *
+   * A persisted `scheduled_end_at` on a running room is picked up by the 5s
+   * sweep (which re-fetches the row) and by every `handleEditNote`, so the
+   * extension is durable with no in-RAM override. The live room additionally
+   * gets a `jam:end_extended` broadcast + an in-app notice (BR-75).
+   * Every write is audited (`admin_audit_log`, `action: 'jam.configure'`).
+   */
+  async configureEvent(
+    adminId: string,
+    eventId: string,
+    dto: ConfigureJamEventDto,
+  ): Promise<JamEvent> {
+    const row = await this.loadEvent(eventId); // 404 when unknown
+    await this.ensureStatus(row);
+
+    // 2.E2 — an ended/cancelled event is frozen; nothing can be reconfigured.
+    if (row.status === 'ended') {
+      throw new ConflictException('Cannot configure an ended jam event');
+    }
+    if (row.status !== 'scheduled' && row.status !== 'active') {
+      throw new ConflictException('Cannot configure an ended jam event');
+    }
+
+    const isActive = row.status === 'active';
+
+    // 2.E1 — a RUNNING event locks everything but the end extension + cooldown.
+    const locked = [
+      dto.name !== undefined && 'name',
+      dto.description !== undefined && 'description',
+      dto.scheduledStartAt !== undefined && 'start time',
+      dto.startingProjectId !== undefined && 'starting project',
+    ].filter(Boolean) as string[];
+    if (isActive && locked.length > 0) {
+      throw new BadRequestException(
+        'Cannot modify immutable fields while jam is active',
+      );
+    }
+
+    // 4.E2 — validate cooldown if provided
+    if (dto.editCooldownSec !== undefined) {
+      if (
+        !Number.isInteger(dto.editCooldownSec) ||
+        dto.editCooldownSec < 1 ||
+        dto.editCooldownSec > 3600
+      ) {
+        throw new BadRequestException(
+          'Thời gian chờ cooldown không hợp lệ. Giá trị phải từ 1 đến 3600 giây.',
+        );
+      }
+    }
+
+    // 4.E1 — validate end time and start time if provided
+    if (dto.scheduledEndAt !== undefined) {
+      const newEndMs = new Date(dto.scheduledEndAt).getTime();
+      const startIso = dto.scheduledStartAt ?? row.scheduled_start_at;
+      const startMs = startIso ? new Date(startIso).getTime() : Number.NaN;
+      if (
+        Number.isNaN(newEndMs) ||
+        newEndMs <= Date.now() ||
+        (!Number.isNaN(startMs) && newEndMs <= startMs)
+      ) {
+        throw new BadRequestException(
+          'Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.',
+        );
+      }
+    }
+    if (dto.scheduledStartAt !== undefined && !isActive) {
+      const newStartMs = new Date(dto.scheduledStartAt).getTime();
+      const endIso = dto.scheduledEndAt ?? row.scheduled_end_at;
+      const endMs = endIso ? new Date(endIso).getTime() : Number.NaN;
+      if (
+        Number.isNaN(newStartMs) ||
+        (!Number.isNaN(endMs) && newStartMs >= endMs)
+      ) {
+        throw new BadRequestException(
+          'Thời gian bắt đầu không hợp lệ. Thời gian bắt đầu phải trước thời gian kết thúc.',
+        );
+      }
+    }
+
+    const patch: Partial<JamEventRow> = {};
+    const previousEnd = row.scheduled_end_at;
+
+    if (isActive) {
+      // Only the end extension + cooldown survive the running lock above.
+      if (dto.scheduledEndAt !== undefined) {
+        patch.scheduled_end_at = dto.scheduledEndAt;
+      }
+      if (dto.editCooldownSec !== undefined) {
+        patch.edit_cooldown_sec = dto.editCooldownSec;
+      }
+    } else {
+      // `scheduled` — every field is open.
+      if (dto.name !== undefined) patch.name = dto.name;
+      if (dto.description !== undefined) patch.description = dto.description;
+      if (dto.scheduledStartAt !== undefined) {
+        patch.scheduled_start_at = dto.scheduledStartAt;
+      }
+      if (dto.scheduledEndAt !== undefined) {
+        patch.scheduled_end_at = dto.scheduledEndAt;
+      }
+      if (dto.startingProjectId !== undefined) {
+        await this.assertPublicStartingProject(dto.startingProjectId);
+        patch.starting_project_id = dto.startingProjectId;
+      }
+      if (dto.editCooldownSec !== undefined) {
+        patch.edit_cooldown_sec = dto.editCooldownSec;
+      }
+    }
+
+    // Nothing writable was supplied — return the event unchanged.
+    if (Object.keys(patch).length === 0) return this.toPublicEvent(row);
+
+    row.updated_at = new Date().toISOString();
+    Object.assign(row, patch);
+    await this.persistJamConfigure(row, patch);
+
+    // BR-75 / 3.1 — push the change into the live room.
+    if (isActive && patch.scheduled_end_at) {
+      const prevEndMs = previousEnd ? new Date(previousEnd).getTime() : Date.now();
+      const extendedMinutes = Math.max(
+        0,
+        Math.round(
+          (new Date(patch.scheduled_end_at).getTime() - prevEndMs) / 60000,
+        ),
+      );
+      const payload: JamEndExtendedPayload = {
+        eventId,
+        newEndAt: patch.scheduled_end_at,
+        extendedMinutes,
+      };
+      this.endExtendedListener?.(eventId, payload);
+
+      // In-app notice to every distinct participant currently in the room.
+      const room = this.rooms.get(eventId);
+      const present = new Set<string>();
+      if (room) for (const p of Object.values(room.participants)) present.add(p.userId);
+      for (const userId of present) {
+        void this.notifications?.notify(userId, 'jam.end_extended', {
+          eventName: row.name,
+          endsAt: patch.scheduled_end_at,
+        });
+      }
+    }
+
+    await this.writeJamAuditLog(
+      adminId,
+      'jam.configure',
+      eventId,
+      `Configured "${row.name}": ${Object.keys(patch).join(', ')}`,
+    );
+
+    return this.toPublicEvent(row);
+  }
+
+  /**
+   * UC-94 (`DELETE /admin/jam/events/:id`) — cancel a NOT-YET-STARTED event.
+   * An active or ended jam cannot be cancelled (use "end now" for a running
+   * one). The event is marked `cancelled` (status + `ended_at`), audited, and
+   * any registered participants get an in-app `jam.cancelled` notice.
+   */
+  async cancelEvent(adminId: string, eventId: string): Promise<void> {
+    const row = await this.loadEvent(eventId); // 404 when unknown
+    await this.ensureStatus(row);
+
+    // 5.E1 — only scheduled events can be cancelled
+    if (row.status !== 'scheduled') {
+      throw new BadRequestException('Only scheduled events can be cancelled');
+    }
+
+    const nowIso = new Date().toISOString();
+    row.status = 'cancelled';
+    row.ended_at = nowIso;
+    row.updated_at = nowIso;
+    await this.persistStatus(row);
+    this.freezeRoom(eventId); // defensive: a scheduled event has no live room
+
+    await this.writeJamAuditLog(
+      adminId,
+      'jam.cancel',
+      eventId,
+      `Cancelled "${row.name}" before it started`,
+    );
+
+    const { data: participants } = await this.supabase
+      .from('jam_participants')
+      .select('user_id')
+      .eq('event_id', eventId);
+    for (const p of (participants ?? []) as Array<{ user_id: string }>) {
+      void this.notifications?.notify(p.user_id, 'jam.cancelled', {
+        eventName: row.name,
+      });
+    }
+  }
+
+  /**
+   * UC-95 (`POST /admin/jam-events/:id/end`) — force-end a live jam event.
+   */
+  async endJamEvent(id: string, adminId: string): Promise<JamEndEventResponse> {
+    const row = await this.loadEvent(id);
+    await this.ensureStatus(row);
+    if (row.status !== 'active') {
+      throw new BadRequestException('Chỉ có thể kết thúc sự kiện đang diễn ra.');
+    }
+    const nowIso = new Date().toISOString();
+    row.status = 'ended';
+    row.ended_at = nowIso;
+    row.updated_at = nowIso;
+    this.freezeRoom(id);
+    await this.persistStatus(row);
+
+    await this.writeJamAuditLog(
+      adminId,
+      'jam.end',
+      id,
+      `Force-ended "${row.name}" by admin`,
+    );
+
+    const room = this.rooms.get(id);
+    const totalNotes = room?.snapshot?.notes?.length ?? 0;
+    const participantCount = this.participantCount(id);
+
+    return {
+      id: row.id,
+      title: row.name,
+      status: 'ended',
+      endedAt: nowIso,
+      projectId: row.resulting_project_id ?? row.jam_project_id,
+      totalNotes,
+      participantCount,
+      message: 'Sự kiện đã kết thúc thành công.',
+    };
+  }
+
+  /** 3.1/2.E1 — the starting project must exist and be public. */
+  private async assertPublicStartingProject(projectId: string): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('visibility, archived_at, moderation_hidden_at')
+      .eq('id', projectId)
+      .maybeSingle<{
+        visibility: string;
+        archived_at?: string | null;
+        moderation_hidden_at?: string | null;
+      }>();
+    if (error || !data) {
+      throw new BadRequestException({
+        code: 'JAM_INVALID_STARTING_PROJECT',
+        message: 'The starting project does not exist',
+      });
+    }
+    if (
+      data.visibility !== 'public' ||
+      data.archived_at != null ||
+      data.moderation_hidden_at != null
+    ) {
+      throw new BadRequestException({
+        code: 'JAM_INVALID_STARTING_PROJECT',
+        message: 'The starting project must be public, not archived, and not hidden',
+      });
+    }
+  }
+
+  /**
+   * Persist a `configureEvent` patch. Best-effort (like `persistStatus`): a
+   * pre-migration DB without these columns logs and swallows so the live
+   * room still honors the change in-process this sweep.
+   */
+  private async persistJamConfigure(
+    row: JamEventRow,
+    patch: Partial<JamEventRow>,
+  ): Promise<void> {
+    const seeded = SEEDED_JAM_EVENTS.find((e) => e.id === row.id);
+    if (seeded) {
+      Object.assign(seeded, patch, { updated_at: row.updated_at });
+    }
+    try {
+      const { error } = await this.supabase
+        .from('jam_events')
+        .update({ ...patch, updated_at: row.updated_at })
+        .eq('id', row.id);
+      if (error) {
+        JamService.logger.debug(
+          `Persist jam configure in DB skipped: ${error.message}`,
+        );
+      }
+    } catch {
+      // In-memory or pre-migration fallback.
+    }
+  }
+
+  /** One `admin_audit_log` row per admin action on a jam event. */
+  private async writeJamAuditLog(
+    adminId: string,
+    action: 'jam.configure' | 'jam.cancel' | 'jam.end' | string,
+    eventId: string,
+    reason: string,
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase.from('admin_audit_log').insert({
+        admin_id: adminId,
+        action,
+        target_type: 'jam_event',
+        target_id: eventId,
+        reason,
+      });
+      if (error) {
+        JamService.logger.warn(
+          `jam audit log ${action} for ${eventId} failed: ${error.message}`,
+        );
+      }
+    } catch (err) {
+      JamService.logger.warn(
+        `jam audit log ${action} for ${eventId} failed: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // ------------------------------------------------------------------

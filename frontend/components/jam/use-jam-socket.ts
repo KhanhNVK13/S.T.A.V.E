@@ -5,6 +5,7 @@ import { io, type Socket } from "socket.io-client";
 import type {
   JamActivityItem,
   JamCooldownActivePayload,
+  JamEndExtendedPayload,
   JamErrorPayload,
   JamNoteDto,
   JamNoteUpdatedPayload,
@@ -283,6 +284,17 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
         if (disposed) return;
         setIsReadonly(true);
         setCooldownRemainingMs(0);
+      });
+
+      // UC-94 (BR-75) — the admin extended a running event's end time. Push
+      // the new `endsAt` into our local payload so the countdown (the UI's
+      // `jam-session` clock) restarts toward the new deadline. Read-only is
+      // NOT set — the jam is still live, it just got longer.
+      nsp.on("jam:end_extended", (payload: JamEndExtendedPayload) => {
+        if (disposed) return;
+        setState((prev) =>
+          prev ? { ...prev, endsAt: payload.newEndAt } : prev,
+        );
       });
 
       // 12.E1 — the background flush kept failing (or recovered); the in-RAM

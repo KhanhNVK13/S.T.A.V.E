@@ -31,6 +31,8 @@ export interface JamEvent {
   jam_project_id: string | null;
   /** Dự án công khai được sao chép làm điểm khởi đầu (BR-106). */
   starting_project_id: string | null;
+  /** Dự án kết quả của sự kiện sau khi kết thúc (UC-68/UC-95). */
+  resulting_project_id?: string | null;
   /** Cooldown riêng của sự kiện (1..3600 giây); null = dùng platform_settings. */
   edit_cooldown_sec: number | null;
   /** UC-95 3.E1: kết thúc mà không ai đóng góp → không tạo commit. */
@@ -268,6 +270,35 @@ export interface ConfigureJamEventDto {
   editCooldownSec?: number;
 }
 
+/** DTO dự án công khai khả dụng để làm starting project (UC-93/94). */
+export interface AvailableJamProjectDto {
+  id: string;
+  name: string;
+}
+
+/**
+ * Body của `POST /admin/jam` (UC-93) — frontend giữ mirror plain-typed này
+ * (phía server là `CreateJamEventDto` có class-validator trong
+ * `backend/src/jam/dto/create-jam-event.dto.ts`). `confirmOverlap` chỉ gửi
+ * kèm khi admin đã xác nhận đè lên 409 `JAM_OVERLAP_CONFLICT` (4.E3).
+ */
+export interface CreateJamEventInput {
+  /** Tên sự kiện, 1..120 ký tự (4.E1: bắt buộc). */
+  name: string;
+  /** Mô tả tuỳ chọn, tối đa 2000 ký tự. */
+  description?: string;
+  /** ISO 8601 (4.E1: bắt buộc). */
+  scheduledStartAt: string;
+  /** ISO 8601 (4.E1: bắt buộc; 4.E2: phải sau giờ bắt đầu). */
+  scheduledEndAt: string;
+  /** Dự án công khai làm điểm khởi đầu (BR-106); bỏ = dự án trống. */
+  startingProjectId?: string;
+  /** Cooldown riêng 1..3600 giây; bỏ = mặc định của platform. */
+  editCooldownSec?: number;
+  /** 4.E3: đặt `true` khi admin xác nhận đè lên sự kiện trùng giờ. */
+  confirmOverlap?: boolean;
+}
+
 /**
  * Outbound `jam:end_extended` — UC-94 BR-75: admin kéo dài giờ kết thúc sự
  * kiện đang chạy, room nhận payload để chạy lại đồng hồ đếm ngược.
@@ -276,6 +307,31 @@ export interface JamEndExtendedPayload {
   eventId: string;
   newEndAt: string;
   extendedMinutes: number;
+}
+
+/**
+ * Outbound `jam:ended` — UC-95: admin (hoặc giờ kết thúc) đã đóng băng sự
+ * kiện; client khoá piano roll và dẫn về trang kết quả (UC-68).
+ */
+export interface JamEndedPayload {
+  eventId: string;
+  status: string;
+  endedAt: string;
+}
+
+/** Kết quả `POST /admin/jam-events/:id/end` (UC-95, admin-only). */
+export interface JamEndEventResponse {
+  id: string;
+  title: string;
+  status: 'ended';
+  endedAt: string;
+  /** Dự án Jam (đã archived, chỉ đọc) — hoặc null khi sự kiện chưa có. */
+  projectId: string | null;
+  /** Tổng số nốt đã đóng băng trong snapshot cuối. */
+  totalNotes: number;
+  /** 1.E1 (duc.md) — "đang có N người đang sửa". */
+  participantCount: number;
+  message: string;
 }
 
 // ── UC-68 — Xem kết quả Jam (GET /jam/events/:id/result) ────────────────────

@@ -279,6 +279,9 @@ export class JamGateway {
           .emit('jam:storage_warning', warning);
       }
     });
+    this.jamService.settleEndExtended((eventId, payload) => {
+      this.broadcastEndExtended(eventId, payload);
+    });
   }
 
   /**

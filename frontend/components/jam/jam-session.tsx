@@ -229,8 +229,15 @@ export function JamSession({ event }: { event: JamEvent }) {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* UC-94 (BR-75) — the LIVE end time: the socket's `endsAt` is the
+              source of truth (an admin's `jam:end_extended` rewrite lands
+              here); the HTTP `scheduled_end_at` is only the cold-start value. */}
           <JamCountdownTimer
-            endsAt={event.status === "active" ? event.scheduled_end_at : null}
+            endsAt={
+              event.status === "active"
+                ? socket.state?.endsAt ?? event.scheduled_end_at
+                : null
+            }
           />
           <JamParticipantsBar participants={socket.participants} myId={myId} />
         </div>

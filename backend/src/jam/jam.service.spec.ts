@@ -1119,3 +1119,305 @@ describe('JamService — UC-68 getJamResult', () => {
     );
   });
 });
+
+// ── UC-94 — configureEvent & cancelEvent (BR-75, BR-107) ─────────────────────
+
+describe('JamService — UC-94 configureEvent & cancelEvent', () => {
+  const ADMIN_ID = 'admin-user-1';
+
+  function setupAdminService(
+    overrides: {
+      events?: Row[];
+      projects?: Row[];
+      participants?: Row[];
+    } = {},
+  ) {
+    const notifyMock = jest.fn().mockResolvedValue(undefined);
+    const mockNotifications = { notify: notifyMock };
+    const tables: Record<string, Row[]> = {
+      jam_events: overrides.events ?? [],
+      projects: overrides.projects ?? [],
+      jam_participants: overrides.participants ?? [],
+      admin_audit_log: [],
+    };
+    const supabase = createInMemorySupabase(tables);
+    const service = new JamService(supabase, mockNotifications as any);
+    return {
+      service,
+      tables,
+      state: (supabase as any)._state as Record<string, Row[]>,
+      notifyMock,
+    };
+  }
+
+  describe('configureEvent', () => {
+    it('happy path (scheduled): updates name, description, start, end, cooldown, and startingProjectId', async () => {
+      const futureStart = new Date(Date.now() + 3600 * 1000).toISOString();
+      const futureEnd = new Date(Date.now() + 7200 * 1000).toISOString();
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-1',
+        status: 'scheduled',
+        name: 'Initial Name',
+        scheduled_start_at: futureStart,
+        scheduled_end_at: futureEnd,
+      });
+      const projectRow = {
+        id: 'proj-start-1',
+        visibility: 'public',
+        archived_at: null,
+        moderation_hidden_at: null,
+      };
+
+      const { service, state } = setupAdminService({
+        events: [schedEvent],
+        projects: [projectRow],
+      });
+
+      const updatedEnd = new Date(Date.now() + 10800 * 1000).toISOString();
+      const result = await service.configureEvent(ADMIN_ID, 'ev-sched-1', {
+        name: 'Updated Name',
+        description: 'New Description',
+        scheduledEndAt: updatedEnd,
+        editCooldownSec: 10,
+        startingProjectId: 'proj-start-1',
+      });
+
+      expect(result.name).toBe('Updated Name');
+      expect(result.description).toBe('New Description');
+      expect(result.scheduled_end_at).toBe(updatedEnd);
+      expect(result.edit_cooldown_sec).toBe(10);
+      expect(state.admin_audit_log.length).toBe(1);
+      expect(state.admin_audit_log[0]).toMatchObject({
+        admin_id: ADMIN_ID,
+        action: 'jam.configure',
+        target_type: 'jam_event',
+        target_id: 'ev-sched-1',
+      });
+    });
+
+    it('happy path (active): extends end time, updates cooldown in RAM, triggers WS listener & notices', async () => {
+      const activeEv = activeEventRow({
+        id: 'ev-active-1',
+        status: 'active',
+        scheduled_end_at: new Date(Date.now() + 1800 * 1000).toISOString(),
+      });
+      const { service, state } = setupAdminService({
+        events: [activeEv],
+      });
+
+      const wsMock = jest.fn();
+      service.settleEndExtended(wsMock);
+
+      const extendedEnd = new Date(Date.now() + 3600 * 1000).toISOString();
+      const result = await service.configureEvent(ADMIN_ID, 'ev-active-1', {
+        scheduledEndAt: extendedEnd,
+        editCooldownSec: 15,
+      });
+
+      expect(result.scheduled_end_at).toBe(extendedEnd);
+      expect(result.edit_cooldown_sec).toBe(15);
+      expect(wsMock).toHaveBeenCalledWith(
+        'ev-active-1',
+        expect.objectContaining({
+          eventId: 'ev-active-1',
+          newEndAt: extendedEnd,
+        }),
+      );
+      expect(state.admin_audit_log.length).toBe(1);
+      expect(state.admin_audit_log[0].action).toBe('jam.configure');
+    });
+
+    it('2.E1: active event rejects changes to immutable fields', async () => {
+      const activeEv = activeEventRow({
+        id: 'ev-active-2',
+        status: 'active',
+      });
+      const { service } = setupAdminService({ events: [activeEv] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-active-2', {
+          name: 'Forbidden Name Change',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-active-2', {
+          name: 'Forbidden Name Change',
+        }),
+      ).rejects.toThrow('Cannot modify immutable fields while jam is active');
+    });
+
+    it('2.E2: ended event rejects any configuration', async () => {
+      const endedEv = activeEventRow({
+        id: 'ev-ended-1',
+        status: 'ended',
+        ended_at: new Date().toISOString(),
+      });
+      const { service } = setupAdminService({ events: [endedEv] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-ended-1', {
+          scheduledEndAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+        }),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-ended-1', {
+          scheduledEndAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+        }),
+      ).rejects.toThrow('Cannot configure an ended jam event');
+    });
+
+    it('3.E1: non-existent event throws NotFoundException', async () => {
+      const { service } = setupAdminService();
+      await expect(
+        service.configureEvent(
+          ADMIN_ID,
+          '00000000-0000-0000-0000-000000000099',
+          {
+            name: 'Non existent',
+          },
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('4.E1: invalid end time in the past throws BadRequestException', async () => {
+      const futureStart = new Date(Date.now() + 3600 * 1000).toISOString();
+      const futureEnd = new Date(Date.now() + 7200 * 1000).toISOString();
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-bad-time',
+        status: 'scheduled',
+        scheduled_start_at: futureStart,
+        scheduled_end_at: futureEnd,
+      });
+      const { service } = setupAdminService({ events: [schedEvent] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-bad-time', {
+          scheduledEndAt: '2020-01-01T00:00:00Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('4.E2: invalid cooldown (< 1 or > 3600) throws BadRequestException', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-bad-cd',
+        status: 'scheduled',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const { service } = setupAdminService({ events: [schedEvent] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-bad-cd', {
+          editCooldownSec: 0,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-bad-cd', {
+          editCooldownSec: 5000,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('Pre-condition 4: private or non-existent starting project throws BadRequestException', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-proj',
+        status: 'scheduled',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const privateProj = {
+        id: 'proj-private',
+        visibility: 'private',
+        archived_at: null,
+      };
+      const { service } = setupAdminService({
+        events: [schedEvent],
+        projects: [privateProj],
+      });
+
+      // non-existent project
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-proj', {
+          startingProjectId: 'missing-proj',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // private project
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-proj', {
+          startingProjectId: 'proj-private',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cancelEvent', () => {
+    it('happy path: cancels a scheduled event, logs audit, and notifies participants', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-cancel',
+        status: 'scheduled',
+        name: 'To Be Cancelled',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const participants = [
+        { event_id: 'ev-sched-cancel', user_id: 'user-p1' },
+        { event_id: 'ev-sched-cancel', user_id: 'user-p2' },
+      ];
+      const { service, state, notifyMock } = setupAdminService({
+        events: [schedEvent],
+        participants,
+      });
+
+      await service.cancelEvent(ADMIN_ID, 'ev-sched-cancel');
+
+      expect(state.admin_audit_log.length).toBe(1);
+      expect(state.admin_audit_log[0]).toMatchObject({
+        admin_id: ADMIN_ID,
+        action: 'jam.cancel',
+        target_type: 'jam_event',
+        target_id: 'ev-sched-cancel',
+      });
+      expect(notifyMock).toHaveBeenCalledTimes(2);
+      expect(notifyMock).toHaveBeenCalledWith('user-p1', 'jam.cancelled', {
+        eventName: 'To Be Cancelled',
+      });
+    });
+
+    it('5.E1: rejects cancelling an active event', async () => {
+      const activeEv = activeEventRow({
+        id: 'ev-active-cancel',
+        status: 'active',
+      });
+      const { service } = setupAdminService({ events: [activeEv] });
+
+      await expect(
+        service.cancelEvent(ADMIN_ID, 'ev-active-cancel'),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.cancelEvent(ADMIN_ID, 'ev-active-cancel'),
+      ).rejects.toThrow('Only scheduled events can be cancelled');
+    });
+
+    it('5.E1: rejects cancelling an ended event', async () => {
+      const endedEv = activeEventRow({
+        id: 'ev-ended-cancel',
+        status: 'ended',
+        ended_at: new Date().toISOString(),
+      });
+      const { service } = setupAdminService({ events: [endedEv] });
+
+      await expect(
+        service.cancelEvent(ADMIN_ID, 'ev-ended-cancel'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('3.E1: non-existent event throws NotFoundException', async () => {
+      const { service } = setupAdminService();
+      await expect(
+        service.cancelEvent(ADMIN_ID, '00000000-0000-0000-0000-000000000099'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+});

@@ -1,5 +1,7 @@
 import { apiFetch } from "./api-client";
 import type {
+  AvailableJamProjectDto,
+  ConfigureJamEventDto,
   JamEvent,
   JamEventListItem,
   JamEventStatus,
@@ -52,4 +54,68 @@ export async function getJamResult(
   id: string,
 ): Promise<JamResultResponseDto> {
   return apiFetch<JamResultResponseDto>(`/jam/events/${id}/result`);
+}
+
+// ── UC-94 — admin: cấu hình / huỷ sự kiện Jam ─────────────────────────────
+// Chỉ Admin tới được (guard 3 lớp phía server). Dùng `apiFetch` trực tiếp
+// (không gọi lại các hàm public trên) vì prefix là `/admin/...`.
+
+/**
+ * GET /admin/jam/events — danh sách sự kiện cho màn hình admin (kèm status
+ * filter tuỳ chọn; `cancelled` hiển thị riêng trên tab "Đã huỷ").
+ */
+export async function adminListJamEvents(
+  status?: JamEventStatus,
+): Promise<JamEventListItem[]> {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<JamEventListItem[]>(`/admin/jam/events${qs}`);
+}
+
+/**
+ * GET /admin/jam/events/:id — chi tiết sự kiện (trường cấu hình đầy đủ).
+ */
+export async function adminGetJamEvent(id: string): Promise<JamEvent> {
+  return apiFetch<JamEvent>(`/admin/jam/events/${id}`);
+}
+
+/**
+ * PATCH /admin/jam/events/:id — cấu hình sự kiện.
+ *  - `scheduled`: sửa mọi trường (name / description / start / end /
+ *    starting project / cooldown).
+ *  - `active`: chỉ kéo dài `scheduledEndAt` (phải ở tương lai) + cooldown
+ *    (2.E1) — server broadcast `jam:end_extended` cho room đang chạy.
+ *  - `ended`/`cancelled`: từ chối mọi cấu hình (2.E2).
+ */
+export async function adminConfigureJamEvent(
+  id: string,
+  patch: ConfigureJamEventDto,
+): Promise<JamEvent> {
+  return apiFetch<JamEvent>(`/admin/jam/events/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+/**
+ * DELETE /admin/jam/events/:id — huỷ một sự kiện CHƯA BẮT ĐẦU (`scheduled`).
+ * Sự kiện `active` phải dùng "Kết thúc ngay" (UC-95); `ended` không huỷ được.
+ */
+export async function adminCancelJamEvent(id: string): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  return apiFetch<{ success: boolean; message: string }>(
+    `/admin/jam/events/${id}`,
+    { method: "DELETE" },
+  );
+}
+
+/**
+ * GET /admin/jam/available-projects — danh sách dự án công khai có thể làm điểm
+ * bắt đầu (BR-106).
+ */
+export async function adminGetAvailableJamProjects(): Promise<
+  AvailableJamProjectDto[]
+> {
+  return apiFetch<AvailableJamProjectDto[]>("/admin/jam/available-projects");
 }

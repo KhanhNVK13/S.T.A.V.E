@@ -138,6 +138,30 @@ const API_MESSAGES: Record<string, string> = {
     "Sự kiện Jam này vẫn đang diễn ra. Đang chuyển hướng bạn đến phòng Jam...",
   "Failed to load jam result":
     "Không thể tải kết quả sự kiện Jam. Vui lòng thử lại.",
+  // UC-94 (admin cấu hình / huỷ sự kiện Jam) — thêm cuối bảng, không sửa dòng cũ.
+  "This jam has ended and can no longer be configured":
+    "Sự kiện Jam đã kết thúc — không thể cấu hình lại. Hãy tạo sự kiện mới.",
+  "The new end time must be in the future":
+    "Thời gian kết thúc mới phải là thời điểm trong tương lai.",
+  "The end time is not a valid date": "Thời gian kết thúc không hợp lệ.",
+  "The starting project does not exist":
+    "Dự án khởi đầu không tồn tại. Hãy chọn một dự án khác.",
+  "The starting project must be public":
+    "Chỉ dự án công khai mới được dùng làm dự án khởi đầu.",
+  "A running jam cannot be cancelled; end it instead":
+    "Sự kiện đang diễn ra không thể huỷ — hãy dùng “Kết thúc ngay” (UC-95).",
+  "Only a scheduled jam can be cancelled":
+    "Chỉ sự kiện chưa bắt đầu mới huỷ được. Sự kiện đã kết thúc không huỷ được.",
+  "Cannot configure an ended jam event":
+    "Sự kiện đã kết thúc, không thể thay đổi cấu hình.",
+  "Cannot modify immutable fields while jam is active":
+    "Không thể chỉnh sửa thông tin cốt lõi khi sự kiện đang diễn ra.",
+  "Only scheduled events can be cancelled":
+    "Chỉ có thể hủy sự kiện chưa bắt đầu.",
+  "New end time must be in the future":
+    "Thời gian kết thúc mới phải là thời điểm trong tương lai.",
+  "New end time must be in the future and after start time":
+    "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
