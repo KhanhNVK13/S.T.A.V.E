@@ -338,6 +338,21 @@ export const GM_INSTRUMENT_NAMES: string[] = GM_INSTRUMENTS.map((i) => i.name);
 // Version Control Types (UC-42, UC-43, UC-44, UC-45, UC-46)
 // =============================================================================
 
+/**
+ * UC-101/102/103: report reasons, exposed to users and stored verbatim in
+ * `reports.reason`. Shared so the frontend report dialog and the admin
+ * backend always render the same set.
+ */
+export const REPORT_REASONS = [
+  { key: 'copyright', label: 'Vi phạm bản quyền' },
+  { key: 'inappropriate', label: 'Nội dung không phù hợp' },
+  { key: 'spam', label: 'Spam hoặc lừa đảo' },
+  { key: 'harassment', label: 'Quấy rối' },
+  { key: 'other', label: 'Khác' },
+] as const;
+
+export type ReportReason = (typeof REPORT_REASONS)[number]['key'];
+
 /** Minimal commit row returned by create/restore endpoints */
 export interface CommitRow {
   id: string;

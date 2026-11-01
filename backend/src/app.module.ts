@@ -14,6 +14,8 @@ import { CommitsModule } from './commits/commits.module';
 import { MergeModule } from './merge/merge.module';
 import { AudioSketchesModule } from './audio-sketches/audio-sketches.module';
 import { CustomSoundsModule } from './custom-sounds/custom-sounds.module';
+import { AiModule } from './ai/ai.module';
+import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { CustomSoundsModule } from './custom-sounds/custom-sounds.module';
     MergeModule,
     AudioSketchesModule,
     CustomSoundsModule,
+    AiModule,
+    PlatformSettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
