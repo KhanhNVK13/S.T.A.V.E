@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Explore · STAVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="pub">
+  <header id="pubtop" class="pub-top"></header>
+  <main id="main">
+    <div class="pub-head">
+      <h1 class="pub-h1">Explore</h1>
+      <p>Public music from the community. Open a project to listen, browse its commit history, or fork it to remix. <a href="help.html" style="text-decoration:underline;text-underline-offset:3px">What is a fork?</a></p>
+      <div class="search-big"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search by song title or author…" aria-label="Search projects"></div>
+    </div>
+
+    <nav class="gchips" id="genres" aria-label="Genre">
+      <a href="?genre=tat-ca" data-key="tat-ca" aria-current="true">All  <small>48</small></a>
+      <a href="?genre=lo-fi" data-key="lo-fi">Lo-fi <small>11</small></a>
+      <a href="?genre=jazz" data-key="jazz">Jazz <small>7</small></a>
+      <a href="?genre=dien-tu" data-key="dien-tu">Electronic  <small>12</small></a>
+      <a href="?genre=co-dien" data-key="co-dien">Classical  <small>6</small></a>
+      <a href="?genre=nhac-phim" data-key="nhac-phim">Film score  <small>5</small></a>
+      <a href="?genre=khac" data-key="khac">Other  <small>7</small></a>
+    </nav>
+
+    <section aria-labelledby="h-feat">
+      <h2 id="h-feat" class="sec-title" style="margin-top:0">Featured this week</h2>
+      <div class="feat3" id="feat3"></div>
+    </section>
+
+    <section aria-labelledby="h-all">
+      <h2 id="h-all" class="sec-title">Recently updated  <select name="sort" autocomplete="off" aria-label="Sort"><option>Recently updated</option><option>Most stars</option><option>Most forks</option></select></h2>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <a class="pub-cta" href="rankings.html">
+      <span><b>This week’s rankings</b><br>The most-starred projects in the past 7 days.</span>
+      <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>
+    </a>
+  </main>
+  <footer class="pub-foot"><span>© 2026 STAVE</span><span><a href="help.html">Help and glossary</a> · <a href="index.html">About</a></span></footer>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  S.mountPublicHeader("explore");
+  var g = new URLSearchParams(location.search).get("genre") || "tat-ca";
+  Array.prototype.forEach.call(document.querySelectorAll("#genres a"), function (a) { if (a.dataset.key === g) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
+  var data = S.PUBLIC_PROJECTS;
+  var star = '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>';
+  var feat = document.getElementById("feat3");
+  [3, 1, 0].forEach(function (i) {
+    var d = data[i];
+    var a = document.createElement("a");
+    a.className = "fcard";
+    a.href = "project.html";
+    a.innerHTML = '<div class="roll-big">' + S.staffThumb(d[9], d[10], i) + "</div><div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[2] + " · " + d[3] + '</p><div class="meta"><span>' + d[5] + " sao</span><span>" + d[6] + " fork</span><span>" + d[7] + " commit</span></div></div>";
+    feat.appendChild(a);
+  });
+  var cards = document.getElementById("cards");
+  data.forEach(function (d, i) {
+    var a = document.createElement("a");
+    a.className = "pcard";
+    a.href = "project.html";
+    a.innerHTML = '<div class="roll-big">' + S.staffThumb(d[9], d[10], i) + "</div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[2] + '</p><div class="stats"><span>' + star + " " + d[5] + "</span><span>" + d[6] + " fork</span><span>" + d[9] + " branch</span></div>";
+    cards.appendChild(a);
+  });
+})();
+</script>
+</body>
+</html>

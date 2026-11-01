@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Sign in · STAVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  body { background: var(--sand); }
+  .auth { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); min-height: 100vh; }
+  .auth-form { padding: clamp(24px, 4vw, 56px); display: flex; flex-direction: column; }
+  .auth-form .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 18px; }
+  .err { color: var(--del); font-size: 14px; }
+  .auth-box { margin: auto; width: min(100%, 400px); padding: 48px 0; }
+  .auth-box h1 { font-size: 28px; font-weight: 600; letter-spacing: -.02em; line-height: 1.3; }
+  .auth-box > p { color: var(--soft); margin: 10px 0 28px; font-size: 15px; }
+  .auth-box form { display: grid; gap: 16px; }
+  .auth-box .input { background: var(--paper); height: 44px; font-size: 16px; }
+  .auth-box .btn { height: 44px; font-size: 15px; }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--soft); font-size: 13px; margin: 6px 0; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line-strong); }
+  .auth-box .swap { margin-top: 22px; font-size: 14px; color: var(--soft); }
+  .auth-box .swap a { color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+  .auth-art { background: var(--lime); color: #000000; position: relative; padding: clamp(24px, 4vw, 56px); display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+  .auth-art p { font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem); line-height: 1.3; letter-spacing: -.02em; font-weight: 500; max-width: 18ch; }
+  .auth-art svg { width: 100%; height: auto; }
+  @media (max-width: 860px) { .auth { grid-template-columns: 1fr; } .auth-art { display: none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="auth">
+  <main class="auth-form" id="main">
+    <a class="brand" href="index.html"><span id="mk"></span>STAVE</a>
+    <div class="auth-box">
+      <h1 id="title">Welcome back</h1>
+      <p id="sub">Sign in to keep writing your unfinished song.</p>
+      <form id="form" novalidate>
+        <div class="field" id="name-f" hidden><label for="name">Display name</label><input class="input" id="name" name="name" autocomplete="nickname" placeholder="Khanh…"></div>
+        <div class="field"><label for="email">Email</label><input class="input" id="email" name="email" type="email" autocomplete="email" spellcheck="false" inputmode="email" placeholder="ban@example.com"></div>
+        <div class="field"><label for="pw">Password</label><input class="input" id="pw" name="password" type="password" autocomplete="current-password" aria-describedby="pw-hint"><small class="hint" id="pw-hint">At least 8 characters.</small></div>
+        <p class="err" id="err" role="alert" hidden></p>
+        <p class="hint" id="info" role="status" hidden></p>
+        <a class="forgot" href="#quen" id="forgot" style="font-size:14px;text-decoration:underline;text-underline-offset:3px;justify-self:start">Forgot password?</a>
+        <button class="btn btn-primary" type="button" id="go">Sign in</button>
+        <div class="or">or</div>
+        <button class="btn btn-quiet" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M21 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5a4.3 4.3 0 0 1-1.9 2.8v2.3h3.1c1.8-1.7 2.8-4.1 2.8-6.8zM12 21c2.6 0 4.7-.9 6.2-2.3l-3.1-2.3c-.9.6-2 .9-3.1.9a5.4 5.4 0 0 1-5.1-3.7H3.7v2.4A9 9 0 0 0 12 21zM6.9 13.6a5.4 5.4 0 0 1 0-3.2V8H3.7a9 9 0 0 0 0 8.1zM12 6.6c1.4 0 2.7.5 3.7 1.4l2.8-2.8A9 9 0 0 0 3.7 8l3.2 2.4A5.4 5.4 0 0 1 12 6.6z"/></svg>Continue with Google</button>
+      </form>
+      <p class="swap"><a href="help.html">Need help? See the glossary and guides</a></p>
+      <p class="swap" id="swap">No account yet?  <a href="#dang-ky" id="toggle">Sign up</a></p>
+    </div>
+  </main>
+  <aside class="auth-art" aria-hidden="true">
+    <p>Every song deserves a history.</p>
+    <div><div id="staff" style="background:rgba(255,255,255,.55);border-radius:20px;padding:24px"></div><p style="font-size:15px;font-weight:340;margin-top:16px;max-width:52ch"><b style="font-weight:540">Rainy Saigon Night</b> · 3 branches, 10 versions. Each note is a save, each staff is a branch.</p></div>
+      </aside>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  document.getElementById("mk").innerHTML = S.mark(26);
+  var host = document.getElementById("staff");
+  var W = 760, H = 150, svg = "";
+  for (var l = 0; l < 5; l++) svg += '<line x1="0" x2="' + W + '" y1="' + (40 + l * 14) + '" y2="' + (40 + l * 14) + '" stroke="#000000" stroke-opacity=".35" stroke-width="2"/>';
+  var pitches = [4, 3, 2, 3, 5, 4, 2, 1, 3, 4, 6, 5, 3, 2, 4];
+  pitches.forEach(function (p, i) {
+    var x = 40 + i * 48, y = 96 - p * 7;
+    svg += '<ellipse cx="' + x + '" cy="' + y + '" rx="11" ry="8" transform="rotate(-20 ' + x + " " + y + ')" fill="' + (i % 4 === 3 ? "none" : "#000000") + '" stroke="#000000" stroke-width="3"/><line x1="' + (x + 10) + '" x2="' + (x + 10) + '" y1="' + (y - 2) + '" y2="' + (y - 40) + '" stroke="#000000" stroke-width="3"/>';
+  });
+  S.staffGraph(host, { big: true });
+  var reg = false;
+  var t = {
+    title: document.getElementById("title"), sub: document.getElementById("sub"), go: document.getElementById("go"),
+    name: document.getElementById("name-f"), swap: document.getElementById("swap"), pw: document.getElementById("pw")
+  };
+  function paint() {
+    t.title.textContent = reg ? "Create a STAVE account" : "Welcome back";
+    t.sub.textContent = reg ? "It takes a minute. Your first project is right behind it." : "Sign in to keep writing your unfinished song.";
+    t.go.textContent = reg ? "Create account" : "Sign in";
+    t.name.hidden = !reg;
+    t.pw.autocomplete = reg ? "new-password" : "current-password";
+    t.swap.innerHTML = reg ? 'Already have an account?  <a href="#dang-nhap" id="toggle">Sign in</a>' : 'No account yet?  <a href="#dang-ky" id="toggle">Sign up</a>';
+    document.getElementById("toggle").addEventListener("click", flip);
+  }
+  function flip(e) { e.preventDefault(); reg = !reg; paint(); }
+  paint();
+  if (location.hash === "#dang-ky") { reg = true; paint(); }
+  document.getElementById("forgot").addEventListener("click", function (ev) {
+    ev.preventDefault();
+    var email = document.getElementById("email").value.trim();
+    var info = document.getElementById("info");
+    var err = document.getElementById("err");
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      err.hidden = false;
+      err.textContent = "Enter your email above, then click “Forgot password?” again.";
+      document.getElementById("email").focus();
+      return;
+    }
+    err.hidden = true;
+    info.hidden = false;
+    info.textContent = "A password reset link was sent to  " + email + " (sample, not actually sent).";
+  });
+  t.go.addEventListener("click", function () {
+    var email = document.getElementById("email").value.trim();
+    var pw = document.getElementById("pw").value;
+    var err = document.getElementById("err");
+    var msg = "";
+    if (!/^\S+@\S+\.\S+$/.test(email)) msg = "That email doesn’t look right. Example: you@example.com.";
+    else if (pw.length < 8) msg = "Password needs at least 8 characters.";
+    document.getElementById("email").setAttribute("aria-describedby", msg ? "err" : "");
+    document.getElementById("pw").setAttribute("aria-describedby", msg ? "err" : "");
+    document.getElementById("email").setAttribute("aria-invalid", String(!/^\S+@\S+\.\S+$/.test(email)));
+    document.getElementById("pw").setAttribute("aria-invalid", String(pw.length < 8));
+    var eBad = !/^\S+@\S+\.\S+$/.test(email), pBad = !eBad && pw.length < 8;
+    document.getElementById("email").setAttribute("aria-invalid", String(eBad));
+    document.getElementById("email").setAttribute("aria-describedby", eBad ? "err" : "");
+    document.getElementById("pw").setAttribute("aria-invalid", String(pBad));
+    document.getElementById("pw").setAttribute("aria-describedby", pBad ? "err pw-hint" : "pw-hint");
+    err.hidden = !msg;
+    err.textContent = msg;
+    if (msg) { document.getElementById(/@/.test(email) ? "pw" : "email").focus(); return; }
+    try { sessionStorage.setItem("stave-in", "1"); } catch (e) {}
+    location.href = "projects.html";
+  });
+})();
+</script>
+</body>
+</html>

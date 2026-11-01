@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Compare versions · STAVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .pick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .pick .select { width: auto; min-width: 260px; height: 38px; }
+  .pick svg { color: var(--faint); }
+  .diff-grid > * { min-width: 0; }
+  .diff-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+  .bars-list li { display: grid; grid-template-columns: 70px 1fr; gap: 6px 12px; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 14px; }
+  .bars-list li:first-child { border-top: 0; }
+  .bars-list b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .bars-list .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--soft); }
+  .toggle input { accent-color: var(--add); width: 16px; height: 16px; }
+  .summary { margin-bottom: 24px; }
+  .delta { color: var(--add-deep); } .delta.neg { color: var(--del); } .delta.mod { color: var(--mod); }
+  @media (max-width: 1100px) { .diff-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="app">
+  <aside id="shell"></aside>
+  <main class="main" id="main">
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+    <div class="page-head">
+      <div>
+        <p style="margin:0 0 6px"><a href="project.html" style="color:var(--soft)">Rainy Saigon Night</a> / compare</p>
+        <h1>Compare two versions</h1>
+        <p>See every note added, removed or changed between two commits, grouped by bar.</p>
+      </div>
+      <div class="actions"><a class="btn btn-quiet" href="project.html">Back to project</a><a class="btn btn-primary" href="merge.html">Merge branch…</a></div>
+    </div>
+
+    <div class="pick">
+      <select class="select" id="from" name="from" autocomplete="off" aria-label="From commit"></select>
+      <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+      <select class="select" id="to" name="to" autocomplete="off" aria-label="To commit"></select>
+    </div>
+
+    <dl class="stats summary">
+      <div><dt>Added notes</dt><dd class="num delta" id="s-a">0</dd></div>
+      <div><dt>Removed notes</dt><dd class="num delta neg" id="s-d">0</dd></div>
+      <div><dt>Velocity changed</dt><dd class="num delta mod" id="s-m">0</dd></div>
+      <div><dt>Affected bars</dt><dd class="num" id="s-b">0<small>/ 4</small></dd></div>
+      <div><dt>Affected tracks</dt><dd class="num" id="s-t">0<small>/ 3</small></dd></div>
+    </dl>
+
+    <div class="diff-grid">
+      <section aria-labelledby="h-roll">
+        <div class="section-head">
+          <h2 id="h-roll" class="section-title">Differences on the piano roll</h2>
+          <label class="toggle"><input type="checkbox" id="only" name="only"> Show changed notes only</label>
+        </div>
+        <div class="card card-pad"><div id="roll" class="scroll-x"></div>
+          <div class="legend" style="margin-top:14px"><span><i class="a"></i>New notes</span><span><i class="d"></i>Removed notes</span><span><i class="m"></i>Velocity changed</span><span><i class="k"></i>Unchanged</span></div>
+        </div>
+      </section>
+      <section aria-labelledby="h-bars">
+        <div class="section-head"><h2 id="h-bars" class="section-title">By bar</h2></div>
+        <ul class="card bars-list" id="bars"></ul>
+      </section>
+    </div>
+  </main>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  S.mountShell("projects");
+  var notes = S.buildSong();
+  var from = document.getElementById("from");
+  var to = document.getElementById("to");
+  var names = ["Piano pad", "Bass", "Melody"];
+  S.COMMITS.forEach(function (c, i) {
+    [from, to].forEach(function (sel) {
+      var o = document.createElement("option");
+      o.value = i;
+      o.textContent = c.msg.slice(0, 40) + (c.msg.length > 40 ? "…" : "") + " · " + c.when;
+      sel.appendChild(o);
+    });
+  });
+  from.value = 2;
+  to.value = 5;
+
+  function render() {
+    var f = Number(from.value), t = Number(to.value);
+    var a = 0, d = 0, m = 0, barSet = {}, trackSet = {}, per = {};
+    notes.forEach(function (n) {
+      var was = S.stateAt(n, f), is = S.stateAt(n, t), kind = null;
+      if (is && !was) { kind = "a"; a++; }
+      else if (was && !is) { kind = "d"; d++; }
+      else if (was && is && n.chg !== null && n.chg > f && n.chg <= t) { kind = "m"; m++; }
+      if (kind) {
+        var bar = Math.floor(n.s / 16);
+        barSet[bar] = 1; trackSet[n.t] = 1;
+        per[bar] = per[bar] || { a: 0, d: 0, m: 0, tr: {} };
+        per[bar][kind]++;
+        per[bar].tr[n.t] = 1;
+      }
+    });
+    document.getElementById("s-a").textContent = "+" + a;
+    document.getElementById("s-d").textContent = "−" + d;
+    document.getElementById("s-m").textContent = m;
+    document.getElementById("s-b").innerHTML = Object.keys(barSet).length + "<small>/ 4</small>";
+    document.getElementById("s-t").innerHTML = Object.keys(trackSet).length + "<small>/ 3</small>";
+    var shown = document.getElementById("only").checked
+      ? notes.filter(function (n) { return S.stateAt(n, f) !== S.stateAt(n, t) || (S.stateAt(n, f) && S.stateAt(n, t) && n.chg !== null && n.chg > f && n.chg <= t); })
+      : notes;
+    S.drawRoll(document.getElementById("roll"), { notes: shown, steps: 64, from: f, to: t, mode: "diff", label: "Differences between two commits" });
+    var list = document.getElementById("bars");
+    list.innerHTML = "";
+    var keys = Object.keys(per);
+    if (!keys.length) list.innerHTML = '<li style="grid-template-columns:1fr;color:var(--soft)">These two commits are identical.</li>';
+    keys.forEach(function (b) {
+      var p = per[b];
+      var li = document.createElement("li");
+      var tags = "";
+      if (p.a) tags += '<span class="pill pill-add">+' + p.a + " notes</span>";
+      if (p.d) tags += '<span class="pill pill-del">−' + p.d + " notes</span>";
+      if (p.m) tags += '<span class="pill pill-mod">' + p.m + " velocity</span>";
+      li.innerHTML = "<b>Bar  " + (Number(b) + 1) + '</b><div class="tags">' + tags + '</div><span></span><span style="color:var(--soft);font-size:13px">' + Object.keys(p.tr).map(function (k) { return names[k]; }).join(", ") + "</span>";
+      list.appendChild(li);
+    });
+  }
+  [from, to, document.getElementById("only")].forEach(function (e) { e.addEventListener("change", render); });
+  render();
+})();
+</script>
+</body>
+</html>

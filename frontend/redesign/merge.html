@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Merge branch · STAVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .flow { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; font-size: 15px; }
+  .flow .hash { font-size: 14px; background: var(--paper); padding: 4px 10px; border-radius: 6px; color: var(--ink); }
+  .conflict { margin-bottom: 20px; }
+  .conflict-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .conflict-head b { font-weight: 600; font-size: 16px; }
+  .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 16px 20px 20px; }
+  .side-opt { display: block; border: 2px solid var(--line); border-radius: 8px; padding: 12px; cursor: pointer; background: var(--raised); transition: border-color .15s, background-color .15s; }
+  .side-opt:hover { border-color: var(--line-strong); }
+  .side-opt:has(input:checked) { border-color: var(--ink); background: var(--paper); }
+  .side-opt:has(input:focus-visible) { outline: 2px solid var(--add); outline-offset: 2px; }
+  .side-opt header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: 500; font-size: 14px; }
+  .side-opt header span { color: var(--soft); font-weight: 400; margin-left: auto; font-size: 13px; }
+  .side-opt input { accent-color: var(--ink); width: 16px; height: 16px; margin: 0; }
+  .side-opt .roll { background: var(--paper); }
+  .cbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 20px; background: var(--paper); border: 1px solid var(--line-strong); border-radius: 10px; }
+  .cbar b { font-weight: 540; }
+  .cbar .cnt { font-weight: 540; color: var(--del); }
+  .cbar .cnt.ok { color: var(--ink); }
+  .cbar .nav { margin-left: auto; display: flex; gap: 8px; }
+  .st { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 11px; font-size: 13px; font-weight: 500; border: 1px solid var(--del); color: var(--del); background: #fff; margin-left: 8px; }
+  .st.done { border-color: var(--ink); color: #fff; background: var(--ink); }
+  .play { margin-left: auto; flex: none; }
+  .both .play { margin-left: auto; }
+  .both { display: flex; align-items: center; gap: 10px; margin: 0 20px 20px; padding: 12px 16px; border: 2px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .both:hover { border-color: var(--line-strong); }
+  .both:has(input:checked) { border-color: var(--ink); background: var(--paper); }
+  .both:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .conflict.is-done .sides, .conflict.is-done .both { display: none; }
+  .done-line { display: none; align-items: center; gap: 12px; padding: 12px 20px; font-size: 15px; flex-wrap: wrap; }
+  .conflict.is-done .done-line { display: flex; }
+  .done-line .btn { margin-left: auto; }
+  .success { display: none; text-align: left; background: var(--mint); border-radius: var(--block, 20px); padding: clamp(24px, 4vw, 48px); margin-bottom: 24px; }
+  .success.on { display: block; }
+  .success h2 { font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem); font-weight: 340; letter-spacing: -.03em; line-height: 1.1; margin-bottom: 12px; }
+  .success p { max-width: 56ch; margin-bottom: 20px; }
+  .success .tie { margin-bottom: 20px; }
+  .short { font-size: 13px; color: var(--soft); }
+  .both input { accent-color: var(--ink); width: 16px; height: 16px; margin: 0; }
+  .bulk { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  #result { margin-top: 8px; }
+  #result li { padding: 6px 0; font-size: 15px; }
+  .toast-u { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 14px 10px 20px; border-radius: 999px; font-size: 14px; z-index: 50; display: flex; gap: 14px; align-items: center; }
+  .toast-u button { background: #fff; color: var(--ink); border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 500; }
+  .main { padding-bottom: 150px; }
+  .foot-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; margin-top: 28px; background: var(--raised); border: 1px solid var(--line-strong); border-radius: 10px; flex-wrap: wrap; }
+  @media (max-width: 760px) { .sides { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="app">
+  <aside id="shell"></aside>
+  <main class="main" id="main">
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+    <div class="page-head">
+      <div>
+        <p style="margin:0 0 6px"><a href="project.html" style="color:var(--soft)">Rainy Saigon Night</a> / merge</p>
+        <h1>Resolve conflicts</h1>
+        <p>Both branches edited some of the same notes. Choose which version to keep for each bar. <a href="help.html" style="text-decoration:underline;text-underline-offset:3px">What is a conflict?</a></p>
+      </div>
+    </div>
+
+    <div class="flow"><span class="hash">bridge-alt</span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span class="hash">main</span><span style="color:var(--soft)">· 2 new commits, 2 conflicting bars</span></div>
+
+    <div class="cbar" role="group" aria-label="Conflict navigation"><b>bridge-alt → main</b><span class="cnt" id="cnt">2 conflicts unresolved</span><span class="nav"><button class="btn btn-quiet btn-sm" type="button" id="prev-c">▲ Previous</button><button class="btn btn-quiet btn-sm" type="button" id="next-c">Sau ▼</button></span></div>
+    <div class="legend" style="margin-bottom:16px"><span style="color:var(--ink);font-weight:500">Color shows the branch:</span><span><i class="sw-main"></i>main’s notes</span><span><i class="sw-bridge"></i>bridge-alt’s notes</span><span><i class="sw-gm"></i>Dashed: note exists only on the other branch</span><span><i class="k"></i>Unchanged</span></div>
+    <div class="bulk" role="group" aria-label="Quick choice for every bar"><button class="btn btn-quiet btn-sm" type="button" data-all="ours">Keep all of main</button><button class="btn btn-quiet btn-sm" type="button" data-all="theirs">Take all of bridge-alt</button><button class="btn btn-quiet btn-sm" type="button" data-all="both">Keep both in every bar</button></div>
+
+    <section class="conflict card" role="radiogroup" aria-labelledby="c1">
+      <div class="conflict-head"><b id="c1">Bar 2 · Bass</b><span style="display:flex;align-items:center"><span class="pill pill-del">3 notes differ</span><span class="st" data-st="c1">Unresolved</span></span></div>
+      <div class="done-line"><span id="sum-c1"></span><button class="btn btn-quiet btn-sm" type="button" data-edit="c1">Change choice</button></div>
+      <div class="sides">
+        <label class="side-opt"><header><input type="radio" name="c1" value="ours">Keep main’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="ours1" aria-label="Preview main’s version, bar 2">▶ Preview</button></header><div data-roll="ours1"></div></label>
+        <label class="side-opt"><header><input type="radio" name="c1" value="theirs">Take bridge-alt’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="theirs1" aria-label="Preview bridge-alt’s version, bar 2">▶ Preview</button></header><div data-roll="theirs1"></div></label>
+      </div>
+      <label class="both"><input type="radio" name="c1" value="both">Keep both: notes from both branches coexist in this bar<button class="btn btn-quiet btn-sm play" type="button" data-play="both1" aria-label="Preview both branches, bar 2">▶ Preview</button></label>
+    </section>
+
+    <section class="conflict card" role="radiogroup" aria-labelledby="c2">
+      <div class="conflict-head"><b id="c2">Bar 3 · Melody</b><span style="display:flex;align-items:center"><span class="pill pill-del">2 notes differ</span><span class="st" data-st="c2">Unresolved</span></span></div>
+      <div class="done-line"><span id="sum-c2"></span><button class="btn btn-quiet btn-sm" type="button" data-edit="c2">Change choice</button></div>
+      <div class="sides">
+        <label class="side-opt"><header><input type="radio" name="c2" value="ours">Keep main’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="ours2" aria-label="Preview main’s version, bar 3">▶ Preview</button></header><div data-roll="ours2"></div></label>
+        <label class="side-opt"><header><input type="radio" name="c2" value="theirs">Take bridge-alt’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="theirs2" aria-label="Preview bridge-alt’s version, bar 3">▶ Preview</button></header><div data-roll="theirs2"></div></label>
+      </div>
+      <label class="both"><input type="radio" name="c2" value="both">Keep both: notes from both branches coexist in this bar<button class="btn btn-quiet btn-sm play" type="button" data-play="both2" aria-label="Preview both branches, bar 3">▶ Preview</button></label>
+    </section>
+
+    <section class="success" id="success" role="status" aria-labelledby="h-ok" tabindex="-1">
+      <svg class="tie" width="220" height="48" viewBox="0 0 220 48" aria-hidden="true"><line x1="6" x2="214" y1="14" y2="14" stroke="#000" stroke-opacity=".25"/><line x1="6" x2="214" y1="34" y2="34" stroke="#000" stroke-opacity=".25"/><circle cx="30" cy="14" r="5" fill="#121212"/><circle cx="80" cy="14" r="5" fill="#121212"/><circle cx="130" cy="14" r="5" fill="#121212"/><circle cx="90" cy="34" r="5" fill="#0f7b6c"/><path d="M90 29C96 22 120 20 130 14" fill="none" stroke="#0f7b6c" stroke-width="2"/><circle cx="190" cy="14" r="6" fill="#fff" stroke="#121212" stroke-width="2.5"/><path d="M130 14H184" stroke="#121212" stroke-width="2"/></svg>
+      <h2 id="h-ok">Merged bridge-alt into main.</h2>
+      <p>The main branch gained one merge commit. You can review the result in the history or undo it right now.</p>
+      <div class="actions"><a class="btn btn-primary" href="project.html">Back to project</a><a class="btn btn-quiet" href="editor.html">Open the editor</a></div>
+    </section>
+    <section class="card card-pad" id="result" aria-labelledby="h-res"><h2 id="h-res" class="section-title" style="margin-bottom:8px">Result after merging</h2><ul id="res-list"></ul></section>
+
+    <dialog id="cf" aria-labelledby="cf-t"><form method="dialog" style="padding:24px;display:grid;gap:14px;max-width:520px"><h2 id="cf-t" style="font-size:20px;font-weight:540">Merge bridge-alt into main?</h2><p style="color:var(--soft)">Check the result before merging. You can undo right afterwards.</p><ul id="cf-list" style="display:grid;gap:8px;font-size:15px"></ul><div class="actions" style="justify-content:flex-end"><button class="btn btn-quiet" value="cancel">Go back</button><button class="btn btn-primary" value="ok">Merge</button></div></form></dialog>
+    <div class="foot-bar">
+      <span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span id="left" aria-live="polite" style="font-size:14px"><b>2 bars</b> not chosen yet</span><button class="btn btn-ghost btn-sm" type="button" id="jump">Jump to an unchosen bar</button><span class="short" id="short" aria-hidden="true"></span></span>
+      <div class="actions"><a class="btn btn-quiet" href="project.html">Cancel</a><button class="btn btn-primary" id="done" type="button" disabled>Complete merge</button></div>
+    </div>
+  </main>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  S.mountShell("projects");
+  function n(s, d, p) { return { s: s, d: d, p: p, born: 0, died: null, chg: null, t: 0 }; }
+  var sets = {
+    ours1: [n(0, 6, 41), n(8, 4, 41), n(12, 4, 48)],
+    theirs1: [n(2, 4, 41), n(6, 6, 43), n(12, 4, 48)],
+    ours2: [n(0, 4, 72), n(4, 2, 76), n(6, 2, 77), n(8, 6, 76)],
+    theirs2: [n(0, 2, 72), n(4, 4, 74), n(8, 8, 71)]
+  };
+  var range = { 1: [38, 52], 2: [68, 80] };
+  Array.prototype.forEach.call(document.querySelectorAll("[data-roll]"), function (h) {
+    var key = h.dataset.roll;
+    var r = range[key.slice(-1)];
+    var side = key.indexOf("ours") === 0 ? "ours" : "theirs";
+    var num = key.slice(-1);
+    var mine = sets[side + num], other = sets[(side === "ours" ? "theirs" : "ours") + num];
+    function kk(x) { return x.s + "," + x.d + "," + x.p; }
+    var mk = {}, ok = {};
+    mine.forEach(function (x) { mk[kk(x)] = 1; });
+    other.forEach(function (x) { ok[kk(x)] = 1; });
+    var all = mine.concat(other.filter(function (x) { return !mk[kk(x)]; }));
+    S.drawRoll(h, { notes: all, steps: 16, lo: r[0], hi: r[1], cell: 17, rowH: 9, gutter: 28, to: 0, mode: "plain", cls: function (x) { var a = mk[kk(x)], b = ok[kk(x)]; return a && b ? "n-dim" : a ? (side === "ours" ? "n-main" : "n-bridge") : (side === "ours" ? "n-ghost-bridge" : "n-ghost-main"); }, label: "Preview  " + key });
+  });
+  var COUNT = { c1: { ours: 3, theirs: 3, both: 5, what: "bass notes" }, c2: { ours: 4, theirs: 3, both: 7, what: "melody notes" } };
+  var DROP = { c1: { ours: ["bridge-alt", 2], theirs: ["main", 2], both: null }, c2: { ours: ["bridge-alt", 3], theirs: ["main", 4], both: null } };
+  var BAR = { c1: 2, c2: 3 };
+  var SIDE = { ours: "main’s version", theirs: "bridge-alt’s version", both: "both branches" };
+  function result() {
+    var ul = document.getElementById("res-list");
+    ul.innerHTML = "";
+    ["c1", "c2"].forEach(function (k) {
+      var c = document.querySelector('input[name="' + k + '"]:checked');
+      var li = document.createElement("li");
+      var dr = c && DROP[k][c.value];
+      li.textContent = c ? "Bar  " + BAR[k] + ": " + COUNT[k][c.value] + " " + COUNT[k].what + " (" + SIDE[c.value] + ")" + (dr ? ". Will drop  " + dr[1] + " notes of  " + dr[0] + "." : ". No notes will be dropped.") : "Bar  " + BAR[k] + ": not chosen yet";
+      if (!c) li.style.color = "var(--soft)";
+      ul.appendChild(li);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-all]"), function (b) {
+    b.addEventListener("click", function () {
+      ["c1", "c2"].forEach(function (k) { document.querySelector('input[name="' + k + '"][value="' + b.dataset.all + '"]').checked = true; });
+      check();
+    });
+  });
+  var actx = null;
+  var live = document.createElement("div");
+  live.className = "sr-only";
+  live.setAttribute("role", "status");
+  document.body.appendChild(live);
+  function playSet(key) {
+    var arr = key === "both1" ? sets.ours1.concat(sets.theirs1) : key === "both2" ? sets.ours2.concat(sets.theirs2) : sets[key];
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
+    if (actx.state === "suspended") actx.resume();
+    var t0 = actx.currentTime + 0.05, sp = 60 / 92 / 4;
+    arr.forEach(function (n) {
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = "triangle";
+      o.frequency.value = 440 * Math.pow(2, (n.p - 69) / 12);
+      var st = t0 + n.s * sp, en = st + Math.max(0.14, n.d * sp * 0.95);
+      g.gain.setValueAtTime(0.0001, st);
+      g.gain.exponentialRampToValueAtTime(0.16, st + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, en);
+      o.connect(g);
+      g.connect(actx.destination);
+      o.start(st);
+      o.stop(en + 0.05);
+    });
+    live.textContent = "Playing  " + arr.length + " notes";
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-play]"), function (b) {
+    b.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); playSet(b.dataset.play); });
+  });
+  var done = document.getElementById("done");
+  var left = document.getElementById("left");
+  function check() {
+    var pending = ["c1", "c2"].filter(function (k) { return !document.querySelector('input[name="' + k + '"]:checked'); }).length;
+    done.disabled = pending > 0;
+    result();
+    var open = 0;
+    ["c1", "c2"].forEach(function (k) {
+      var done2 = !!document.querySelector('input[name="' + k + '"]:checked');
+      var chip = document.querySelector('[data-st="' + k + '"]');
+      chip.textContent = done2 ? "Resolved" : "Unresolved";
+      chip.classList.toggle("done", done2);
+      if (!done2) open++;
+    });
+    ["c1", "c2"].forEach(function (k) {
+      var c = document.querySelector('input[name="' + k + '"]:checked');
+      var sec = document.querySelector('[data-st="' + k + '"]').closest(".conflict");
+      sec.classList.toggle("is-done", !!c && sec.dataset.hold !== "1");
+      if (c) document.getElementById("sum-" + k).textContent = "Selected  " + SIDE[c.value] + ". " + (DROP[k][c.value] ? "Drop  " + DROP[k][c.value][1] + " notes of  " + DROP[k][c.value][0] + "." : "No notes will be dropped.");
+    });
+    var cnt = document.getElementById("cnt");
+    cnt.textContent = open ? open + " conflicts unresolved" : "All conflicts resolved";
+    cnt.classList.toggle("ok", !open);
+    var sh = ["c1", "c2"].map(function (k) { var c = document.querySelector('input[name="' + k + '"]:checked'); return "Bar  " + BAR[k] + ": " + (c ? { ours: "main", theirs: "bridge-alt", both: "both" }[c.value] : "—"); }).join(" · ");
+    document.getElementById("short").textContent = sh;
+    done.title = pending ? "Choose a version to keep for both bars to finish" : "";
+    left.innerHTML = pending ? "<b>" + pending + " bars</b> not chosen yet" : "<b>All set</b> for both bars";
+  }
+  document.addEventListener("change", function (e) {
+    if (e.target.type === "radio") { var s = e.target.closest(".conflict"); if (s) s.dataset.hold = "1"; }
+    check();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".conflict"), function (sec) {
+    sec.addEventListener("focusout", function (e) {
+      if (sec.contains(e.relatedTarget) || !sec.dataset.hold) return;
+      sec.dataset.hold = "";
+      check();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-edit]"), function (b) {
+    b.addEventListener("click", function () {
+      var sec = document.getElementById(b.dataset.edit).closest(".conflict");
+      sec.dataset.hold = "1";
+      sec.classList.remove("is-done");
+      sec.querySelector("input[type=radio]:checked").focus();
+    });
+  });
+  function doMerge() {
+    var inputs = document.querySelectorAll("input[type=radio], [data-all], [data-edit]");
+    Array.prototype.forEach.call(inputs, function (i) { i.disabled = true; });
+    done.disabled = true;
+    done.textContent = "Merged";
+    left.innerHTML = "<b>Merged</b> bridge-alt into main";
+    var ok = document.getElementById("success");
+    ok.classList.add("on");
+    ok.scrollIntoView({ block: "start" });
+    var t = document.createElement("div");
+    t.className = "toast-u";
+    t.setAttribute("role", "status");
+    t.innerHTML = "<span>Merged bridge-alt into main.</span>";
+    var u = document.createElement("button");
+    u.type = "button";
+    u.textContent = "Undo";
+    u.addEventListener("click", function () {
+      t.remove();
+      Array.prototype.forEach.call(inputs, function (i) { i.disabled = false; });
+      document.getElementById("success").classList.remove("on");
+      done.textContent = "Complete merge";
+      check();
+      done.focus();
+      var n = document.createElement("div");
+      n.className = "toast-u";
+      n.setAttribute("role", "status");
+      n.innerHTML = "<span>Undone. The two branches have not been merged.</span>";
+      document.body.appendChild(n);
+      setTimeout(function () { n.remove(); }, 3000);
+    });
+    t.appendChild(u);
+    document.body.appendChild(t);
+    u.focus();
+    var x = document.createElement("button");
+    x.type = "button";
+    x.setAttribute("aria-label", "Dismiss notification");
+    x.textContent = "×";
+    x.addEventListener("click", function () { t.remove(); });
+    t.appendChild(x);
+  }
+  var cf = document.getElementById("cf");
+  done.addEventListener("click", function () {
+    var ul = document.getElementById("cf-list");
+    ul.innerHTML = "";
+    Array.prototype.forEach.call(document.getElementById("res-list").children, function (li) {
+      var c = document.createElement("li");
+      c.textContent = li.textContent;
+      ul.appendChild(c);
+    });
+    cf.showModal();
+  });
+  cf.addEventListener("close", function () { if (cf.returnValue === "ok") doMerge(); });
+  var ci = -1;
+  function goConflict(d) {
+    var secs = document.querySelectorAll(".conflict");
+    ci = (ci + d + secs.length) % secs.length;
+    secs[ci].dataset.hold = "1";
+    secs[ci].classList.remove("is-done");
+    var r = secs[ci].querySelector("input[type=radio]:checked") || secs[ci].querySelector("input[type=radio]");
+    secs[ci].scrollIntoView({ block: "center" });
+    r.focus();
+  }
+  document.getElementById("next-c").addEventListener("click", function () { goConflict(1); });
+  document.getElementById("prev-c").addEventListener("click", function () { goConflict(-1); });
+  document.getElementById("jump").addEventListener("click", function () {
+    var k = ["c1", "c2"].filter(function (n) { return !document.querySelector('input[name="' + n + '"]:checked'); })[0];
+    if (!k) return;
+    var r = document.querySelector('input[name="' + k + '"]');
+    r.scrollIntoView({ block: "center" });
+    r.focus();
+  });
+  check();
+})();
+</script>
+</body>
+</html>
