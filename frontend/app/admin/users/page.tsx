@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, ShieldAlert } from "lucide-react";
-import { RequireAuth } from "../../../components/require-auth";
-import { useAuth } from "../../../context/auth-context";
+import { Search } from "lucide-react";
 import { apiFetch } from "../../../lib/api-client";
 import { PageHeader } from "../../../components/ui/page-header";
 import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
@@ -11,7 +9,6 @@ import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
 import { INPUT_CLASS } from "../../../components/ui/form";
-import { EmptyState } from "../../../components/ui/empty-state";
 import { Dialog, DialogActions, DialogError } from "../../../components/ui/dialog";
 import { apiErrorMessage } from "../../../lib/error-message";
 
@@ -298,28 +295,17 @@ function AdminUsersTable() {
 }
 
 export default function AdminUsersPage() {
-  const { profile, loading } = useAuth();
-
+  // require-auth và kiểm quyền admin do layout /admin đảm nhiệm (cùng auth
+  // context — không thêm network, không nhấp nháy). Bố cục (menu + khung) do
+  // layout cung cấp, trang chỉ render nội dung bên phải.
   return (
-    <RequireAuth>
-      <div className="mx-auto max-w-page px-5 py-8">
-        <PageHeader
-          breadcrumbs={[{ label: "Quản trị" }]}
-          title="Quản lý người dùng"
-          description="Tìm, tạm khoá hoặc xoá tài khoản người dùng trên nền tảng."
-        />
-        {loading ? (
-          <p className="text-sm text-muted">Đang tải…</p>
-        ) : profile?.role !== "admin" ? (
-          <EmptyState
-            icon={ShieldAlert}
-            title="Không có quyền truy cập"
-            description="Bạn không có quyền truy cập trang này."
-          />
-        ) : (
-          <AdminUsersTable />
-        )}
-      </div>
-    </RequireAuth>
+    <div>
+      <PageHeader
+        breadcrumbs={[{ label: "Quản trị" }]}
+        title="Quản lý người dùng"
+        description="Tìm, tạm khoá hoặc xoá tài khoản người dùng trên nền tảng."
+      />
+      <AdminUsersTable />
+    </div>
   );
 }
