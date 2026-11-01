@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Help and glossary · STAVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .terms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .term { padding: 22px 24px; border-radius: var(--radius); background: var(--paper); }
+  .term h2 { font-size: 20px; font-weight: 540; }
+  .term p { margin-top: 8px; color: var(--ink); font-size: 15px; }
+  .term .like { margin-top: 12px; color: var(--soft); font-size: 14px; }
+  .keys { width: 100%; border-collapse: collapse; font-size: 15px; max-width: 640px; }
+  .keys td { padding: 10px 0; border-top: 1px solid var(--line); }
+  .keys td:first-child { width: 50%; }
+  @media (max-width: 960px) { .terms { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="app">
+  <aside id="shell"></aside>
+  <main class="main" id="main">
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+    <div class="page-head"><div><h1>Help and glossary</h1><p>STAVE borrows how software developers keep their history to keep your music’s history. These are the words you’ll meet, explained with musical examples.</p></div></div>
+    <section aria-labelledby="h-terms">
+      <h2 id="h-terms" class="sr-only">Glossary</h2>
+      <label class="search-big" style="margin:0 0 24px;max-width:480px"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" id="hq" name="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search the glossary…" aria-label="Search the glossary"></label>
+      <p id="hempty" role="status" hidden style="color:var(--soft);margin-bottom:16px">No terms match. Try “commit”, “branch” or “merge”.</p>
+      <div class="terms">
+        <article class="term"><h2>Draft</h2><p>The piece you’re still writing. STAVE saves it every time you change a note.</p><p class="like">Like a rough take in the studio, not yet named.</p></article>
+        <article class="term"><h2>Commit</h2><p>A point you save on purpose, with a message. Only commits enter the history.</p><p class="like">Like naming a mix:  "demo 1", "client mix".</p></article>
+        <article class="term"><h2>Branches</h2><p>An experiment that runs alongside the main version without touching the original.</p><p class="like">Like trying a bridge with different chords.</p></article>
+        <article class="term"><h2>Merge</h2><p>Combine what you changed on one branch into another, usually the main branch.</p><p class="like">Like picking the bridge you like and placing it into the main song.</p></article>
+        <article class="term"><h2>Conflict</h2><p>When both branches edit the same note, STAVE doesn’t decide for you; it asks which version to keep, bar by bar.</p><p class="like">Like two people changing the third note of the same phrase.</p></article>
+        <article class="term"><h2>Restore</h2><p>Go back to the contents of an older point by creating a new commit. The old history is not deleted.</p><p class="like">Like recreating an old mix as your newest one.</p></article>
+        <article class="term"><h2>Fork and Pull request</h2><p>A fork copies someone else’s project so you can remix it. A pull request proposes your changes back to the original project.</p><p class="like">Like copying a friend’s song to rework it, then sending your version back for them to see.</p></article>
+        <article class="term"><h2>Velocity and Quantize</h2><p>Velocity is how hard each note is played. Quantize snaps notes onto the grid’s beats.</p><p class="like">Like adjusting how hard keys are hit and fixing notes that fall off the beat.</p></article>
+      </div>
+    </section>
+    <section class="section" aria-labelledby="h-keys">
+      <div class="section-head"><h2 id="h-keys" class="section-title">Editor shortcuts</h2></div>
+      <table class="keys"><tbody>
+        <tr><td>Select, Draw, Erase</td><td><kbd>V</kbd> <kbd>B</kbd> <kbd>E</kbd></td></tr>
+        <tr><td>Play or pause</td><td><kbd>Space</kbd></td></tr>
+        <tr><td>Undo, Redo</td><td><kbd>Ctrl Z</kbd> <kbd>Ctrl Shift Z</kbd></td></tr>
+        <tr><td>Commit</td><td><kbd>Ctrl Enter</kbd></td></tr>
+        <tr><td>Move on the note grid</td><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td></tr>
+        <tr><td>Place or remove the note under the cursor</td><td><kbd>Enter</kbd></td></tr>
+        <tr><td>Quick find on every page</td><td><kbd>Ctrl K</kbd></td></tr>
+        <tr><td>Open the shortcut list in the editor</td><td><kbd>?</kbd></td></tr>
+      </tbody></table>
+    </section>
+  </main>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+window.STAVE.mountShell("help");
+(function () {
+  var q = document.getElementById("hq"), empty = document.getElementById("hempty");
+  var terms = Array.prototype.slice.call(document.querySelectorAll(".term"));
+  q.addEventListener("input", function () {
+    var v = q.value.trim().toLowerCase(), shown = 0;
+    terms.forEach(function (t) { var on = !v || t.textContent.toLowerCase().indexOf(v) > -1; t.hidden = !on; if (on) shown++; });
+    empty.hidden = shown > 0;
+  });
+})();
+</script>
+</body>
+</html>

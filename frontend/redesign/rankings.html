@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Rankings · STAVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 40px; }
+  .pod { border-radius: var(--block); padding: 28px; min-height: 260px; display: flex; flex-direction: column; justify-content: space-between; }
+  .pod:nth-child(1) { background: var(--lime); }
+  .pod:nth-child(2) { background: var(--cream); }
+  .pod:nth-child(3) { background: var(--mint); }
+  .pod .n { font-family: var(--display); font-weight: 800; font-size: 72px; line-height: 1; letter-spacing: -.04em; }
+  .pod h2 { font-size: 24px; font-weight: 540; letter-spacing: -.01em; margin-top: 20px; }
+  .pod h2 a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .pod p { color: var(--ink); margin-top: 6px; font-size: 15px; }
+  .pod .stat { margin-top: 18px; font-size: 15px; }
+  .pod .thumb { width: 100%; height: 56px; background: rgba(255,255,255,.6); border-color: transparent; }
+  .rk { font-size: 18px; font-weight: 600; width: 56px; }
+  @media (max-width: 960px) { .podium { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="pub">
+  <header id="pubtop" class="pub-top"></header>
+  <main id="main">
+    <div class="pub-head">
+      <h1 class="pub-h1">Rankings</h1>
+      <p>Most-starred projects. Updated daily at 06:00, counted by new stars in the period you choose.</p>
+    </div>
+
+    <div class="tabs" id="periods">
+      <a href="?p=tuan" data-key="tuan" aria-current="true">This week</a>
+      <a href="?p=thang" data-key="thang">This month</a>
+      <a href="?p=tat-ca" data-key="tat-ca">All time</a>
+    </div>
+
+    <section class="podium" aria-label="Top three projects" id="podium"></section>
+
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>Rank</th><th class="id">Projects</th><th class="hide-s">Genre</th><th class="r">New stars</th><th class="r hide-s">Total stars</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </main>
+  <footer class="pub-foot"><span>© 2026 STAVE</span><span><a href="explore.html">Explore</a> · <a href="help.html">Help and glossary</a></span></footer>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  S.mountPublicHeader("rankings");
+  var p = new URLSearchParams(location.search).get("p") || "tuan";
+  Array.prototype.forEach.call(document.querySelectorAll("#periods a"), function (a) { if (a.dataset.key === p) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
+  var data = S.PUBLIC_PROJECTS;
+  var mult = { tuan: 1, thang: 3.4, "tat-ca": 9 }[p] || 1;
+  var order = [[3, 38], [1, 31], [0, 27], [4, 22], [7, 19], [2, 15], [5, 12], [6, 9]];
+  var list = order.map(function (o) { return { d: data[o[0]], idx: o[0], gain: Math.round(o[1] * mult) }; });
+  var pod = document.getElementById("podium");
+  list.slice(0, 3).forEach(function (r, i) {
+    var a = document.createElement("article");
+    a.className = "pod";
+    a.innerHTML = '<div><span class="n">' + (i + 1) + '</span><h2><a href="project.html">' + r.d[0] + "</a></h2><p>" + r.d[4] + " · " + r.d[2] + '</p></div><div><div class="thumb">' + S.staffThumb(r.d[9], r.d[10], r.idx) + '</div><p class="stat"><b>+' + r.gain + "</b> stars · total  " + r.d[5] + "</p></div>";
+    pod.appendChild(a);
+  });
+  var rows = document.getElementById("rows");
+  list.slice(3).forEach(function (r, i) {
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td class="rk num">' + (i + 4) + '</td><td class="id"><div class="row-id"><div class="thumb">' + S.staffThumb(r.d[9], r.d[10], r.idx) + '</div><div><a href="project.html"><b>' + r.d[0] + "</b></a><span>" + r.d[4] + '</span></div></div></td><td class="hide-s"><span class="pill">' + r.d[2] + '</span></td><td class="r num"><b>+' + r.gain + '</b></td><td class="r num hide-s">' + r.d[5] + "</td>";
+    rows.appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>
