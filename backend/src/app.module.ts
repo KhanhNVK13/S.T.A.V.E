@@ -22,6 +22,7 @@ import { PullRequestsModule } from './pull-requests/pull-requests.module';
 import { ProjectAccessModule } from './project-access/project-access.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
 import { CommentsModule } from './comments/comments.module';
+import { JamModule } from './jam/jam.module';
 import { AiModule } from './ai/ai.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 
@@ -53,6 +54,7 @@ import { PlatformSettingsModule } from './platform-settings/platform-settings.mo
     ProjectAccessModule,
     CollaborationModule,
     CommentsModule,
+    JamModule,
     AiModule,
     PlatformSettingsModule,
   ],

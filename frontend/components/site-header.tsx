@@ -6,7 +6,16 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "./ui/confirm-dialog";
 import { hasUnsavedWork } from "../lib/unsaved-guard";
-import { ChevronDown, Shield, UserRound, LogOut, Plus, Menu, X } from "lucide-react";
+import {
+  ChevronDown,
+  Shield,
+  UserRound,
+  LogOut,
+  Plus,
+  Menu,
+  X,
+  Music4,
+} from "lucide-react";
 import { useAuth } from "../context/auth-context";
 import { Logo } from "./ui/logo";
 import { Avatar } from "./ui/avatar";
@@ -117,13 +126,22 @@ export function SiteHeader() {
                 {dropdownOpen && (
                   <div className="absolute right-0 top-full mt-1 w-52 rounded-card border border-border bg-surface py-1">
                     {profile?.role === "admin" && (
-                      <Link
-                        href="/admin/users"
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-surface-subtle"
-                      >
-                        <Shield className="h-4 w-4 text-muted" /> Quản trị
-                      </Link>
+                      <>
+                        <Link
+                          href="/admin/users"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-surface-subtle"
+                        >
+                          <Shield className="h-4 w-4 text-muted" /> Quản trị
+                        </Link>
+                        <Link
+                          href="/admin/jam"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-surface-subtle"
+                        >
+                          <Music4 className="h-4 w-4 text-muted" /> Sự kiện Jam
+                        </Link>
+                      </>
                     )}
                     <Link
                       href="/profile"

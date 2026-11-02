@@ -22,9 +22,7 @@ describe('BE-COM-04 IsSoundMap decorator', () => {
   const U2 = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
   const uuidFor = (n: number): string =>
-    `${n
-      .toString(16)
-      .padStart(8, '0')}-0000-4000-8000-${n
+    `${n.toString(16).padStart(8, '0')}-0000-4000-8000-${n
       .toString(16)
       .padStart(12, '0')}`;
 

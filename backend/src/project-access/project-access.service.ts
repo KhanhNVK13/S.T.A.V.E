@@ -68,7 +68,8 @@ export class ProjectAccessService {
       return { access: 'owner', project };
     }
 
-    const { data: collaborator, error } = await this.supabase
+    let collaborator: CollaboratorDbRow | null = null;
+    const { data, error } = await this.supabase
       .from('project_collaborators')
       .select('permission_level, status')
       .eq('project_id', projectId)
@@ -80,6 +81,7 @@ export class ProjectAccessService {
         `Failed to check collaborator status: ${error.message}`,
       );
     }
+    collaborator = data;
 
     // BR-65: pending collaborators have no access.
     if (collaborator?.status === 'accepted') {
