@@ -71,6 +71,8 @@ import { PresenceAvatars } from "../../collaboration/presence-avatars";
 import { useAuth } from "../../../context/auth-context";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
 import type { AudioSketchState } from "../../audio-sketch/audio-sketch-panel";
+import { InsightPanel } from "./insight-panel";
+import { barToTick } from "../../../lib/piano-roll-geometry";
 import { ConfirmDialog } from "../../ui/confirm-dialog";
 import { CustomSoundsPanel } from "../../custom-sound/custom-sounds-panel";
 import { TrackPanel } from "./track-panel";
@@ -261,6 +263,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
   const [historyPanelOpen, setHistoryPanelOpen] = useState(
     () => typeof window === "undefined" || window.innerWidth >= 1280,
   );
+  // UC-72: panel Insight (nhận tông / tiến trình hợp âm / kết).
+  const [insightPanelOpen, setInsightPanelOpen] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [bpmDraft, setBpmDraft] = useState<string | null>(null);
@@ -629,6 +633,20 @@ export function EditorRedesign(props: EditorRedesignProps) {
             style={styles.iconBtn}
           >
             {historyPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+          </button>
+          {/* UC-72: mở/đóng panel Insight (tông / tiến trình hợp âm / kết). */}
+          <button
+            onClick={() => setInsightPanelOpen((open) => !open)}
+            title={insightPanelOpen ? "Ẩn panel Insight" : "Hiện panel Insight"}
+            aria-label="Insight panel"
+            aria-pressed={insightPanelOpen}
+            style={{
+              ...styles.iconBtn,
+              background: insightPanelOpen ? DC.accentSoft : "transparent",
+              color: insightPanelOpen ? DC.accent : DC.text,
+            }}
+          >
+            <Lightbulb size={14} />
           </button>
           {/* Master volume — chỉnh âm lượng đồng bộ cho TẤT CẢ track cùng lúc,
               thay vì phải kéo thanh VOL từng track riêng ở panel Tracks. Chỉ
@@ -1029,6 +1047,18 @@ export function EditorRedesign(props: EditorRedesignProps) {
             onSetTrackPan={onSetTrackPan}
             canAddTrack={canAddTrack}
             maxTracks={maxTracks}
+          />
+        )}
+
+        {insightPanelOpen && (
+          <InsightPanel
+            projectId={projectId}
+            notes={notes}
+            tracks={tracks}
+            meta={{ tempo, timeSignature, ppq }}
+            onJumpToBar={(bar) =>
+              onSeek(barToTick(bar, ppq, timeSignature))
+            }
           />
         )}
 

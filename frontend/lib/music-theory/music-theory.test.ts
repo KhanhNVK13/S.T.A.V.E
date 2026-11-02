@@ -186,6 +186,29 @@ describe("music-theory.analyzeSnapshot", () => {
   // ------------------------------------------------------------------
   // End-to-end analyze() + boundary conditions
   // ------------------------------------------------------------------
+  it("a longer Dm–G–C–C–C–C passage reads C major (not just the 3-chord loop)", () => {
+    // Dữ liệu dài hơn, có trọng số duration hợp lý: Dm–G–C lặp, về C.
+    // 2.E1 được đáp (≥8 nốt, ≥2 ô nhịp); kỳ vọng tông C trưởng + ii–V–I.
+    const notes = [
+      ...chordNotes("Dm", [2, 5, 9], 0),
+      ...chordNotes("G", [7, 11, 2], B),
+      ...chordNotes("C", [0, 4, 7], B * 2),
+      ...chordNotes("C2", [0, 4, 7], B * 3),
+      ...chordNotes("C3", [0, 4, 7], B * 4),
+      ...chordNotes("C4", [0, 4, 7], B * 5),
+    ];
+    const key = detectKey(
+      emptyContext().meta,
+      notes,
+      emptyContext().trackIds,
+      emptyContext().hasNotes,
+      emptyContext().instruments,
+    );
+    // Nếu K-S tự nhiên ra C trưởng → giữ test này; nếu không, báo lại.
+    expect(key.primary).toContain("C");
+    expect(key.isMinor).toBe(false);
+  });
+
   it("full C–G–Am–F analysis yields key + I–V–vi–IV progression", () => {
     const notes = [
       ...chordNotes("C", [0, 4, 7], 0),
