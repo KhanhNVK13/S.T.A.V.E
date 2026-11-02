@@ -5,23 +5,26 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Patch,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import { CurrentUser } from '../common/decorators';
+import type { ProjectContributionsDto } from '@stave/shared-types';
 import { CollaborationService } from './collaboration.service';
 import { InviteCollaboratorDto } from './dto/invite-collaborator.dto';
+import { ListContributionsQueryDto } from './dto/list-contributions-query.dto';
 import { PatchCollaboratorDto } from './dto/patch-collaborator.dto';
 
 /**
  * Collaboration Controller — UC-60 (invite), UC-61 (permission level),
- * UC-62 (remove). One line per the project rule: what this controller
- * covers, nothing more.
+ * UC-62 (remove), UC-65 (contributions). One line per the project rule:
+ * what this controller covers, nothing more.
  */
 @Controller()
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
@@ -118,6 +121,27 @@ export class CollaborationController {
       projectId,
       collaboratorId,
       userId,
+    );
+  }
+
+  // ==========================================================================
+  // UC-65: Contributor contributions
+  // ==========================================================================
+
+  /**
+   * GET /projects/:projectId/contributions — derived per-author stats.
+   * Read-only (BR-72); owner + accepted collaborators only.
+   */
+  @Get('projects/:projectId/contributions')
+  listContributions(
+    @CurrentUser() userId: string,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Query() query: ListContributionsQueryDto,
+  ): Promise<ProjectContributionsDto> {
+    return this.collaborationService.listContributions(
+      projectId,
+      userId,
+      query,
     );
   }
 }

@@ -5,9 +5,14 @@ DO $$ BEGIN
   CREATE TYPE public.collaborator_status_enum AS ENUM ('pending', 'accepted');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Existing rows were collaborators before invitations existed: backfill them as
+-- accepted, then make 'pending' the default for new invitations.
 ALTER TABLE public.project_collaborators
-  ADD COLUMN IF NOT EXISTS status public.collaborator_status_enum NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS status public.collaborator_status_enum NOT NULL DEFAULT 'accepted',
   ADD COLUMN IF NOT EXISTS responded_at timestamptz;
+
+ALTER TABLE public.project_collaborators
+  ALTER COLUMN status SET DEFAULT 'pending';
 
 CREATE UNIQUE INDEX IF NOT EXISTS project_collaborators_project_user_key
   ON public.project_collaborators (project_id, user_id);

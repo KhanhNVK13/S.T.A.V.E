@@ -281,6 +281,12 @@ export default function ExplorePage() {
         breadcrumbs={[{ label: 'Thư viện công khai' }]}
         title="Khám phá"
         description="Tìm dự án MIDI công khai để nghe, học hỏi và fork."
+        action={
+          // UC-66: liên kết "Jam" nổi bật dẫn về trang sự kiện Community Jam.
+          <Link href="/jam">
+            <Button>Jam</Button>
+          </Link>
+        }
       />
 
       <Suspense fallback={<RowSkeleton />}>

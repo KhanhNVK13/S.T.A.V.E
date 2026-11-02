@@ -123,6 +123,59 @@ const API_MESSAGES: Record<string, string> = {
     "Chỉ được trả lời 1 cấp — không thể trả lời bình luận đã là trả lời.",
   "You are not allowed to delete this comment":
     "Bạn không thể xoá bình luận của người khác.",
+  // Community Jam (UC-66) — thêm cuối bảng, không sửa dòng cũ.
+  "Jam event not found":
+    "Không tìm thấy sự kiện Jam này — có thể vừa được huỷ. Hãy tải lại.",
+  "The jam has not started yet":
+    "Sự kiện Jam chưa bắt đầu. Hãy quay lại đúng giờ mở.",
+  "The jam has already ended":
+    "Sự kiện Jam đã kết thúc.",
+  "Your account is not active":
+    "Tài khoản của bạn không ở trạng thái hoạt động nên không tham gia được.",
+  "The jam room is full": "Phòng Jam hiện đã đầy. Hãy thử sự kiện khác.",
+  // UC-68 (xem kết quả Jam) — thêm cuối bảng, không sửa dòng cũ
+  // (key "Jam event not found" của UC-66 giữ nguyên phía trên).
+  "Jam event has not ended yet":
+    "Sự kiện Jam này vẫn đang diễn ra. Đang chuyển hướng bạn đến phòng Jam...",
+  "Failed to load jam result":
+    "Không thể tải kết quả sự kiện Jam. Vui lòng thử lại.",
+  // UC-94 (admin cấu hình / huỷ sự kiện Jam) — thêm cuối bảng, không sửa dòng cũ.
+  "This jam has ended and can no longer be configured":
+    "Sự kiện Jam đã kết thúc — không thể cấu hình lại. Hãy tạo sự kiện mới.",
+  "The new end time must be in the future":
+    "Thời gian kết thúc mới phải là thời điểm trong tương lai.",
+  "The end time is not a valid date": "Thời gian kết thúc không hợp lệ.",
+  "The starting project does not exist":
+    "Dự án khởi đầu không tồn tại. Hãy chọn một dự án khác.",
+  "The starting project must be public":
+    "Chỉ dự án công khai mới được dùng làm dự án khởi đầu.",
+  "A running jam cannot be cancelled; end it instead":
+    "Sự kiện đang diễn ra không thể huỷ — hãy dùng “Kết thúc ngay”.",
+  "Only a scheduled jam can be cancelled":
+    "Chỉ sự kiện chưa bắt đầu mới huỷ được. Sự kiện đã kết thúc không huỷ được.",
+  "Cannot configure an ended jam event":
+    "Sự kiện đã kết thúc, không thể thay đổi cấu hình.",
+  "Cannot modify immutable fields while jam is active":
+    "Không thể chỉnh sửa thông tin cốt lõi khi sự kiện đang diễn ra.",
+  "Only scheduled events can be cancelled":
+    "Chỉ có thể hủy sự kiện chưa bắt đầu.",
+  "New end time must be in the future":
+    "Thời gian kết thúc mới phải là thời điểm trong tương lai.",
+  "New end time must be in the future and after start time":
+    "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.",
+  // UC-95 (admin kết thúc sự kiện Jam) — thêm cuối bảng, không sửa dòng cũ.
+  "Mã định danh sự kiện Jam không hợp lệ.":
+    "Mã định danh sự kiện Jam không hợp lệ.",
+  "Không tìm thấy sự kiện Community Jam yêu cầu.":
+    "Không tìm thấy sự kiện Community Jam yêu cầu.",
+  "Sự kiện Jam này đã kết thúc trước đó.":
+    "Sự kiện Jam này đã kết thúc trước đó.",
+  "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.":
+    "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.",
+  "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.":
+    "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.",
+  "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.":
+    "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.",
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
