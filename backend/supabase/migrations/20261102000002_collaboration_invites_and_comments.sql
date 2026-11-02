@@ -1,5 +1,6 @@
--- UC-60..65 Collaboration: thêm cột cho project_collaborators + comments.
--- An toàn khi chạy lại (IF NOT EXISTS / EXCEPTION / DROP ... IF EXISTS).
+-- UC-60..65 Collaboration: invitation status for project_collaborators + comment anchors.
+-- project_collaborators already has UNIQUE (project_id, user_id) and
+-- user_id ON DELETE CASCADE / invited_by ON DELETE SET NULL; those are left untouched.
 
 DO $$ BEGIN
   CREATE TYPE public.collaborator_status_enum AS ENUM ('pending', 'accepted');
@@ -13,17 +14,6 @@ ALTER TABLE public.project_collaborators
 
 ALTER TABLE public.project_collaborators
   ALTER COLUMN status SET DEFAULT 'pending';
-
-CREATE UNIQUE INDEX IF NOT EXISTS project_collaborators_project_user_key
-  ON public.project_collaborators (project_id, user_id);
-
-ALTER TABLE public.project_collaborators
-  DROP CONSTRAINT IF EXISTS project_collaborators_user_id_fkey,
-  ADD CONSTRAINT project_collaborators_user_id_fkey
-    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
-  DROP CONSTRAINT IF EXISTS project_collaborators_invited_by_fkey,
-  ADD CONSTRAINT project_collaborators_invited_by_fkey
-    FOREIGN KEY (invited_by) REFERENCES public.users(id) ON DELETE CASCADE;
 
 ALTER TABLE public.comments
   ALTER COLUMN anchor_ref DROP NOT NULL,
