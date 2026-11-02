@@ -239,12 +239,10 @@ export class JamService {
    * reboot or a spec-driven build may not have one.
    */
   private endExtendedListener:
-    | ((eventId: string, payload: JamEndExtendedPayload) => void)
-    | null = null;
+    ((eventId: string, payload: JamEndExtendedPayload) => void) | null = null;
 
-  private endEventEndedListener:
-    | ((payload: JamEndedPayload) => void)
-    | null = null;
+  private endEventEndedListener: ((payload: JamEndedPayload) => void) | null =
+    null;
 
   /** Minimum scope cap (duc.md): ~50 simultaneous participants per room. */
   static readonly MAX_JAM_PARTICIPANTS = 50;
@@ -643,11 +641,18 @@ export class JamService {
    *  - BR-107: one immutable `admin_audit_log` row (`create_jam_event`) —
    *    the table has SELECT+INSERT policies only (CLAUDE.md §4.3).
    */
-  async createEvent(adminId: string, dto: CreateJamEventDto): Promise<JamEvent> {
+  async createEvent(
+    adminId: string,
+    dto: CreateJamEventDto,
+  ): Promise<JamEvent> {
     // 4.E2 — the window must have a positive length.
     const startMs = new Date(dto.scheduledStartAt).getTime();
     const endMs = new Date(dto.scheduledEndAt).getTime();
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    if (
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(endMs) ||
+      endMs <= startMs
+    ) {
       throw new BadRequestException('End time must be after start time');
     }
 
@@ -668,7 +673,11 @@ export class JamService {
     }
 
     // BR-106 — every event owns a private workspace project.
-    const jamProject = await this.createJamProject(adminId, dto.name, startingSnapshot);
+    const jamProject = await this.createJamProject(
+      adminId,
+      dto.name,
+      startingSnapshot,
+    );
 
     // BR-105 — a start time already reached opens the room immediately.
     const isStartNow = startMs <= Date.now();
@@ -770,8 +779,12 @@ export class JamService {
 
     const overlapping = rows.find((e) => {
       if (ignoreEventId && e.id === ignoreEventId) return false;
-      const aStart = new Date(e.scheduled_start_at ?? e.started_at ?? e.created_at).getTime();
-      const aEnd = new Date(e.scheduled_end_at ?? e.ended_at ?? e.updated_at).getTime();
+      const aStart = new Date(
+        e.scheduled_start_at ?? e.started_at ?? e.created_at,
+      ).getTime();
+      const aEnd = new Date(
+        e.scheduled_end_at ?? e.ended_at ?? e.updated_at,
+      ).getTime();
       return aStart < endMs && aEnd > startMs;
     });
     if (overlapping) {
@@ -880,14 +893,12 @@ export class JamService {
       throw new InternalServerErrorException('Could not create jam event');
     }
 
-    const { error: branchError } = await this.supabase
-      .from('branches')
-      .insert({
-        project_id: project.id,
-        name: 'main',
-        is_default: true,
-        created_by: adminId,
-      });
+    const { error: branchError } = await this.supabase.from('branches').insert({
+      project_id: project.id,
+      name: 'main',
+      is_default: true,
+      created_by: adminId,
+    });
     if (branchError) {
       await this.deleteJamProjectQuietly(project.id);
       throw new InternalServerErrorException('Could not create jam event');
@@ -905,17 +916,15 @@ export class JamService {
       const snapshot =
         startingSnapshot ??
         this.ensureEditableSnapshot(buildDefaultDraftSnapshot());
-      const { error: draftError } = await this.supabase
-        .from('drafts')
-        .upsert(
-          {
-            branch_id: branch.id,
-            user_id: adminId,
-            snapshot,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'branch_id,user_id' },
-        );
+      const { error: draftError } = await this.supabase.from('drafts').upsert(
+        {
+          branch_id: branch.id,
+          user_id: adminId,
+          snapshot,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'branch_id,user_id' },
+      );
       if (draftError) {
         await this.deleteJamProjectQuietly(project.id);
         throw new InternalServerErrorException('Could not create jam event');
@@ -1265,9 +1274,7 @@ export class JamService {
   /**
    * UC-95 — attach the gateway so a forced end event emits `jam:ended`.
    */
-  settleEndEventEnded(
-    listener: (payload: JamEndedPayload) => void,
-  ): void {
+  settleEndEventEnded(listener: (payload: JamEndedPayload) => void): void {
     this.endEventEndedListener = listener;
   }
 
@@ -1681,7 +1688,9 @@ export class JamService {
 
     // BR-75 / 3.1 — push the change into the live room.
     if (isActive && patch.scheduled_end_at) {
-      const prevEndMs = previousEnd ? new Date(previousEnd).getTime() : Date.now();
+      const prevEndMs = previousEnd
+        ? new Date(previousEnd).getTime()
+        : Date.now();
       const extendedMinutes = Math.max(
         0,
         Math.round(
@@ -1698,7 +1707,8 @@ export class JamService {
       // In-app notice to every distinct participant currently in the room.
       const room = this.rooms.get(eventId);
       const present = new Set<string>();
-      if (room) for (const p of Object.values(room.participants)) present.add(p.userId);
+      if (room)
+        for (const p of Object.values(room.participants)) present.add(p.userId);
       for (const userId of present) {
         void this.notifications?.notify(userId, 'jam.end_extended', {
           eventName: row.name,
@@ -1924,7 +1934,8 @@ export class JamService {
     ) {
       throw new BadRequestException({
         code: 'JAM_INVALID_STARTING_PROJECT',
-        message: 'The starting project must be public, not archived, and not hidden',
+        message:
+          'The starting project must be public, not archived, and not hidden',
       });
     }
   }
@@ -1960,7 +1971,7 @@ export class JamService {
   /** One `admin_audit_log` row per admin action on a jam event. */
   private async writeJamAuditLog(
     adminId: string,
-    action: 'jam.configure' | 'jam.cancel' | 'jam.end' | string,
+    action: 'jam.configure' | 'jam.cancel' | 'jam.end',
     eventId: string,
     reason: string,
   ): Promise<void> {
