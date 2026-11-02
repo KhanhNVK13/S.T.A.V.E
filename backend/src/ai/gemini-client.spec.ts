@@ -19,7 +19,9 @@ describe('GeminiClient', () => {
   beforeEach(() => generateContent.mockReset());
 
   it('returns null without an API key', async () => {
-    await expect(buildClient({ GEMINI_MODEL: 'm' }).generateText('x')).resolves.toBeNull();
+    await expect(
+      buildClient({ GEMINI_MODEL: 'm' }).generateText('x'),
+    ).resolves.toBeNull();
     expect(generateContent).not.toHaveBeenCalled();
   });
 

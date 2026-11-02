@@ -71,7 +71,9 @@ export class AdminJamController {
 
   /** Alias: GET /admin/jam-events */
   @Get('jam-events')
-  listEventsAlias(@Query() query: JamEventQueryDto): Promise<JamEventListItem[]> {
+  listEventsAlias(
+    @Query() query: JamEventQueryDto,
+  ): Promise<JamEventListItem[]> {
     return this.jamService.listEvents(query);
   }
 

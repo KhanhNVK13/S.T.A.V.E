@@ -1462,21 +1462,19 @@ describe('JamService — UC-95 endJamEvent', () => {
     } = {},
   ) {
     const tables: Record<string, Row[]> = {
-      jam_events:
-        overrides.events ??
-        [
-          activeEventRow({
-            id: 'ev-end-1',
-            jam_project_id: 'proj-end',
-          }),
-        ],
+      jam_events: overrides.events ?? [
+        activeEventRow({
+          id: 'ev-end-1',
+          jam_project_id: 'proj-end',
+        }),
+      ],
       users: overrides.events ? [] : [userRow(ALICE)],
       jam_participants: [],
       admin_audit_log: [],
       projects: [{ id: 'proj-end', owner_id: ADMIN_ID }],
-      branches:
-        overrides.branches ??
-        [{ id: 'br-end', project_id: 'proj-end', is_default: true }],
+      branches: overrides.branches ?? [
+        { id: 'br-end', project_id: 'proj-end', is_default: true },
+      ],
       drafts: [],
     };
     const supabase = createInMemorySupabase(tables, {
@@ -1579,9 +1577,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     await expect(
       service.endJamEvent('00000000-0000-0000-0000-000000000099', ADMIN_ID),
     ).rejects.toThrow(
-      new NotFoundException(
-        'Không tìm thấy sự kiện Community Jam yêu cầu.',
-      ),
+      new NotFoundException('Không tìm thấy sự kiện Community Jam yêu cầu.'),
     );
   });
 
@@ -1595,9 +1591,7 @@ describe('JamService — UC-95 endJamEvent', () => {
         }),
       ],
     });
-    await expect(
-      service.endJamEvent('ev-ended-95', ADMIN_ID),
-    ).rejects.toThrow(
+    await expect(service.endJamEvent('ev-ended-95', ADMIN_ID)).rejects.toThrow(
       new ConflictException('Sự kiện Jam này đã kết thúc trước đó.'),
     );
   });
@@ -1615,9 +1609,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     await expect(
       service.endJamEvent('ev-cancelled-95', ADMIN_ID),
     ).rejects.toThrow(
-      new BadRequestException(
-        'Không thể kết thúc sự kiện Jam đã bị hủy bỏ.',
-      ),
+      new BadRequestException('Không thể kết thúc sự kiện Jam đã bị hủy bỏ.'),
     );
   });
 
@@ -1625,9 +1617,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     const { service, state } = setupEndService({
       failUpsertTables: new Set(['drafts']),
     });
-    await expect(
-      service.endJamEvent('ev-end-1', ADMIN_ID),
-    ).rejects.toThrow(
+    await expect(service.endJamEvent('ev-end-1', ADMIN_ID)).rejects.toThrow(
       new InternalServerErrorException(
         'Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.',
       ),
@@ -1642,9 +1632,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     const { service } = setupEndService({
       failUpdateTables: new Set(['jam_events']),
     });
-    await expect(
-      service.endJamEvent('ev-end-1', ADMIN_ID),
-    ).rejects.toThrow(
+    await expect(service.endJamEvent('ev-end-1', ADMIN_ID)).rejects.toThrow(
       'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
     );
   });
@@ -1653,9 +1641,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     const { service, state } = setupEndService({
       failInsertTables: new Set(['admin_audit_log']),
     });
-    await expect(
-      service.endJamEvent('ev-end-1', ADMIN_ID),
-    ).rejects.toThrow(
+    await expect(service.endJamEvent('ev-end-1', ADMIN_ID)).rejects.toThrow(
       'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
     );
     // The event row did move to `ended` before the audit failed.

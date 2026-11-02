@@ -271,17 +271,12 @@ export class JamGateway {
    * old and new clients freeze identically: `jam:ended` carries the full
    * payload, the legacy event keeps the `{ jamId, endedAt }` shape.
    */
-  broadcastJamEnded(
-    eventId: string,
-    payload: JamEndedPayload,
-  ): void {
+  broadcastJamEnded(eventId: string, payload: JamEndedPayload): void {
     this.server?.to(`jam:${eventId}`).emit('jam:ended', payload);
-    this.server
-      ?.to(`jam:${eventId}`)
-      .emit('jam:event_ended', {
-        jamId: eventId,
-        endedAt: payload.endedAt,
-      });
+    this.server?.to(`jam:${eventId}`).emit('jam:event_ended', {
+      jamId: eventId,
+      endedAt: payload.endedAt,
+    });
   }
 
   /**

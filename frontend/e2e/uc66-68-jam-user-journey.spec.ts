@@ -4,6 +4,8 @@ import { mockUserSession } from "./support/mock-auth";
 const JAM_ACTIVE_ID = "00000000-0000-4000-c000-000000000001";
 const JAM_ENDED_ID = "00000000-0000-4000-c000-000000000002";
 
+type ReservedEmitter = { emitReserved: (event: string, payload?: unknown) => void };
+
 test.describe("UC-66..68 Community Jam User Journey", () => {
   test.beforeEach(async ({ page }) => {
     await mockUserSession(page, {
@@ -146,7 +148,7 @@ test.describe("UC-66..68 Community Jam User Journey", () => {
 
     // Auto-dispatch connect and jam:state into __jamSocket
     await page.addInitScript((payload) => {
-      let sock: any = null;
+      let sock: ReservedEmitter | null = null;
       Object.defineProperty(window, "__jamSocket", {
         configurable: true,
         enumerable: true,
@@ -198,7 +200,7 @@ test.describe("UC-66..68 Community Jam User Journey", () => {
 
     // Manually trigger in case setter ran before listeners were attached
     await page.evaluate((payload) => {
-      const s = (window as any).__jamSocket;
+      const s = (window as unknown as { __jamSocket?: ReservedEmitter }).__jamSocket;
       if (s) {
         s.emitReserved("connect");
         s.emitReserved("jam:state", payload);
