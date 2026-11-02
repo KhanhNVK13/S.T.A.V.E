@@ -56,8 +56,9 @@ export class ProjectsService {
     });
 
     if (branchError) {
+      await this.supabase.from('projects').delete().eq('id', project.id);
       throw new InternalServerErrorException(
-        'Project created but default branch could not be created',
+        'Project creation rolled back: default branch could not be created',
       );
     }
 
@@ -161,11 +162,7 @@ export class ProjectsService {
     dto: UpdateProjectDto,
   ): Promise<ProjectRow> {
     const project = await this.getOwned(projectId, ownerId);
-    if (project.archived_at) {
-      throw new ConflictException(
-        'Archived projects are read-only. Restore the project first',
-      );
-    }
+    this.assertNotArchived(project);
 
     const updates: Partial<{
       name: string;
@@ -191,6 +188,14 @@ export class ProjectsService {
       throw new InternalServerErrorException('Could not update project');
     }
     return data;
+  }
+
+  private assertNotArchived(project: ProjectRow): void {
+    if (project.archived_at) {
+      throw new ConflictException(
+        'Archived projects are read-only. Restore the project first',
+      );
+    }
   }
 
   /** UC-20: archive project — chỉ owner. */
@@ -224,6 +229,7 @@ export class ProjectsService {
       ownerId,
       { visibility },
       'Could not update project visibility',
+      { rejectArchived: true },
     );
   }
 
@@ -277,8 +283,10 @@ export class ProjectsService {
     ownerId: string,
     patch: Record<string, unknown>,
     errorMessage: string,
+    options: { rejectArchived?: boolean } = {},
   ): Promise<ProjectRow> {
-    await this.getOwned(projectId, ownerId);
+    const project = await this.getOwned(projectId, ownerId);
+    if (options.rejectArchived) this.assertNotArchived(project);
 
     const { data, error } = await this.supabase
       .from('projects')
