@@ -572,7 +572,7 @@ export default function ProfilePage() {
             </button>
           </nav>
 
-          <section className="min-h-[480px] rounded-card border border-border bg-surface p-6">
+          <section className="min-h-[480px] rounded-card border border-border bg-surface/80 p-6">
             {tab === "profile" ? (
               <ProfileTab />
             ) : tab === "personalization" ? (
