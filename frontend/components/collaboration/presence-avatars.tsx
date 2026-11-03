@@ -156,7 +156,7 @@ export function PresenceAvatars({
 
           {overflow > 0 && (
             <span
-              className="inline-flex items-center justify-center rounded-full border border-border bg-surface-muted text-[10px] font-semibold text-muted"
+              className="inline-flex items-center justify-center rounded-full border border-border bg-surface-muted text-xs font-semibold text-muted"
               title={`Và ${overflow} người khác đang cùng xem dự án`}
               aria-label={`Và ${overflow} người khác đang cùng xem dự án`}
               style={{ width: 20, height: 20, marginLeft: -8 }}

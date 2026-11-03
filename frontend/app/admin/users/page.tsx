@@ -292,6 +292,7 @@ function AdminUsersTable() {
           />
         </div>
         <select
+          name="status-filter"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           aria-label="Lọc theo trạng thái"

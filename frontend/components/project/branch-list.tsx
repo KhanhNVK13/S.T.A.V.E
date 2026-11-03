@@ -33,6 +33,7 @@ import { Toast } from "../ui/toast";
 import { formatRelativeTime } from "../../lib/format-date";
 import { MergeConflictDialog } from "./merge-conflict-dialog";
 import { BranchGraph } from "./branch-graph";
+import { SkyLoading } from "./sky-state";
 import { apiErrorMessage } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
 
@@ -281,22 +282,7 @@ export function BranchList({ projectId }: { projectId: string }) {
   }
 
   if (loading && branches.length === 0) {
-    return (
-      <RowList cols={COLS}>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0"
-          >
-            <div className="h-4 w-4 shrink-0 rounded bg-surface-subtle" />
-            <div className="flex-1">
-              <div className="mb-1.5 h-3 w-1/4 rounded bg-surface-subtle" />
-              <div className="h-2.5 w-1/5 rounded bg-surface-subtle" />
-            </div>
-          </div>
-        ))}
-      </RowList>
-    );
+    return <SkyLoading label="Đang tải các nhánh…" />;
   }
 
   return (
@@ -395,9 +381,7 @@ export function BranchList({ projectId }: { projectId: string }) {
       <section aria-label="Đồ thị nhánh" className="mb-4">
         <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">Đồ thị nhánh</h3>
         {graphState === "loading" ? (
-          <p className="rounded-card border border-border bg-surface-subtle px-4 py-3 text-xs text-muted">
-            Đang vẽ đồ thị…
-          </p>
+          <SkyLoading compact label="Đang vẽ đồ thị…" />
         ) : (
           <>
             {graphState === "error" && (
@@ -405,7 +389,7 @@ export function BranchList({ projectId }: { projectId: string }) {
                 Không tải được lịch sử của một số nhánh nên đồ thị có thể thiếu commit.
               </p>
             )}
-            <BranchGraph branches={branches} commits={commitsById} />
+            <BranchGraph projectId={projectId} branches={branches} commits={commitsById} />
           </>
         )}
       </section>

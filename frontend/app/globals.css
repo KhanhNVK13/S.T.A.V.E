@@ -9,8 +9,9 @@
  * toàn bộ UI đổi màu theo palette trích từ ảnh đó — chỉ đổi giá trị của các
  * biến này, không sửa 1 dòng component nào.
  *
- * Theme đổi bằng thuộc tính `data-theme` trên thẻ <html>. Mặc định (không có
- * data-theme) = preset "unleashed".
+ * Theme đổi bằng thuộc tính `data-theme` trên thẻ <html>. Layout gắn sẵn
+ * data-theme="space" (mặc định cho người dùng mới); không có data-theme thì rơi
+ * về preset "unleashed".
  *
  * Nguyên tắc dùng màu (rút từ bảng pha màu Gundam PG Unleashed RX-78-2):
  * - Diện tích lớn LUÔN dùng nhóm trung tính (background/surface/border).
@@ -108,6 +109,50 @@
   --metal-muted: oklch(0.94 0.016 72);
 }
 
+/*
+ * Preset "space" (Staff Universe) — nền tối, mặc định cho người dùng mới.
+ * Ghi đè CÙNG bộ token semantic. accent/success/warning/danger giữ sắc và ý
+ * nghĩa (xanh tím = hành động, xanh lá = ổn, vàng = đã sửa, đỏ = cảnh báo), chỉ
+ * nâng độ sáng để chữ đạt >= 4.5:1 trên nền tối; viền đạt >= 3:1.
+ * `--accent-foreground` là chữ TỐI đặt trên nền accent sáng.
+ * Bảng tương phản đo bằng công thức WCAG nằm trong mô tả PR.
+ */
+[data-theme="space"] {
+  color-scheme: dark;
+
+  --background: oklch(0.14 0.022 275);
+  --surface: oklch(0.19 0.03 275);
+  --surface-subtle: oklch(0.23 0.035 275);
+  --surface-muted: oklch(0.28 0.04 275);
+
+  --foreground: oklch(0.95 0.012 275);
+  --muted-foreground: oklch(0.77 0.03 275);
+
+  --border: oklch(0.34 0.04 275);
+  --border-strong: oklch(0.5 0.05 275);
+
+  --accent: oklch(0.74 0.14 270);
+  --accent-hover: oklch(0.8 0.13 270);
+  --accent-muted: oklch(0.3 0.08 270);
+  --accent-foreground: oklch(0.16 0.03 270);
+
+  --success: oklch(0.76 0.13 150);
+  --success-muted: oklch(0.28 0.06 150);
+  --success-foreground: oklch(0.82 0.13 150);
+  --warning: oklch(0.82 0.13 83);
+  --warning-muted: oklch(0.3 0.06 83);
+  --warning-foreground: oklch(0.86 0.12 83);
+  --danger: oklch(0.74 0.16 27);
+  --danger-muted: oklch(0.29 0.08 27);
+
+  --metal: oklch(0.82 0.07 82);
+  --metal-muted: oklch(0.29 0.035 82);
+  --metal-foreground: oklch(0.86 0.08 82);
+
+  --radius-card: 0.75rem;
+  --shadow-card: 0 10px 36px oklch(0 0 0 / 0.5);
+}
+
 @theme inline {
   --font-sans: var(--font-stave-sans);
   --font-mono: var(--font-stave-mono);
@@ -146,6 +191,11 @@
 
 body {
   background: var(--background);
+  color: var(--foreground);
+}
+
+[data-theme="space"] ::selection {
+  background: var(--accent-muted);
   color: var(--foreground);
 }
 

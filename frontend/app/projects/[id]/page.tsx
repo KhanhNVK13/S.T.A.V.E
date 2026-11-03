@@ -21,7 +21,8 @@ import { useAuth } from "../../../context/auth-context";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
-import { ProjectThumb } from "../../../components/ui/project-thumb";
+import { StarPrint } from "../../../components/project/star-print";
+import { SkyLoading } from "../../../components/project/sky-state";
 import { Toast } from "../../../components/ui/toast";
 import { CommitHistory } from "../../../components/project/commit-history";
 import { BranchList } from "../../../components/project/branch-list";
@@ -258,11 +259,7 @@ function ProjectOverview({ id }: { id: string }) {
   if (loading || authLoading) {
     return (
       <div className="mx-auto max-w-page px-5 py-8">
-        <div className="animate-pulse">
-          <div className="mb-2 h-7 w-2/5 rounded bg-surface-subtle" />
-          <div className="mb-6 h-3 w-1/4 rounded bg-surface-subtle" />
-          <div className="h-56 rounded-card bg-surface-subtle" />
-        </div>
+        <SkyLoading label="Đang tải dự án…" />
       </div>
     );
   }
@@ -473,11 +470,7 @@ function ProjectOverview({ id }: { id: string }) {
                   Ảnh đại diện tất định theo id — KHÔNG vẽ nốt/waveform giả cho
                   dự án có thật (CLAUDE.md 4.7).
                 */}
-                <ProjectThumb
-                  id={data.id}
-                  size="lg"
-                  className="h-auto min-h-[240px] rounded-none border-t border-border"
-                />
+                <StarPrint id={data.id} size="lg" className="border-t border-border" />
               </section>
 
               {data.isOwner && <VersionSummary key={refreshKey} projectId={data.id} onOpenTab={switchTab} />}
@@ -569,7 +562,7 @@ export default function ProjectOverviewPage({ params }: Props) {
     <Suspense
       fallback={
         <div className="mx-auto max-w-page px-5 py-8">
-          <div className="h-7 w-2/5 animate-pulse rounded bg-surface-subtle" />
+          <SkyLoading label="Đang tải dự án…" />
         </div>
       }
     >

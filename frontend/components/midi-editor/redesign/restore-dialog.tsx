@@ -128,7 +128,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 7,
     marginTop: 7,
-    fontSize: 11.5,
+    fontSize: 12,
     color: DC.textMuted,
   },
   mono: { font: `600 11.5px ${DC.mono}`, color: DC.textMuted },

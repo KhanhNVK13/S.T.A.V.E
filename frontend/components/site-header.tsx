@@ -86,7 +86,11 @@ export function SiteHeader() {
 
   return (
     <>
-    <header className="sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur">
+    <header
+      className={`sticky top-0 z-50 border-b ${
+        pathname === "/" ? "border-transparent bg-transparent" : "border-border bg-surface/90"
+      }`}
+    >
       <div className={`mx-auto flex ${isEditor ? "h-11" : "h-14"} max-w-page items-center gap-5 px-5`}>
         <Logo />
 
@@ -124,7 +128,7 @@ export function SiteHeader() {
                 </button>
 
                 {dropdownOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-52 rounded-card border border-border bg-surface py-1">
+                  <div className="absolute right-0 top-full mt-1 w-52 rounded-card border border-border bg-surface py-1 shadow-card">
                     {profile?.role === "admin" && (
                       <>
                         <Link

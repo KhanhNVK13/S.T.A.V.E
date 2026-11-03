@@ -13,7 +13,7 @@ import { getMyTheme, setMyTheme } from "../lib/api-client";
 import type { PresetThemeKey } from "../lib/api-client";
 import { useAuth } from "./auth-context";
 
-export const DEFAULT_PRESET: PresetThemeKey = "unleashed";
+export const DEFAULT_PRESET: PresetThemeKey = "space";
 
 interface ThemeContextValue {
   /** Preset đã lưu trên tài khoản (nguồn sự thật). */
