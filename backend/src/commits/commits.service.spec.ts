@@ -325,19 +325,20 @@ describe('BE-CMT-01 CommitsService.createCommit', () => {
   it.failing(
     'BE-CMT-01 UTCID11 (N): allows a collaborator with edit permission to create a commit [DFID013]',
     async () => {
-    const { service } = buildService({
-      branches: [{ data: branchRow(OTHER) }],
-      rpc: [{ data: rpcCommit() }],
-    });
+      const { service } = buildService({
+        branches: [{ data: branchRow(OTHER) }],
+        rpc: [{ data: rpcCommit() }],
+      });
 
-    const result = await service.createCommit(USER, {
-      branch_id: BRANCH,
-      message: 'Add bass',
-      snapshot: snapshot(),
-    } as any);
+      const result = await service.createCommit(USER, {
+        branch_id: BRANCH,
+        message: 'Add bass',
+        snapshot: snapshot(),
+      } as any);
 
-    expect(result.id).toBe('new-commit-id');
-  });
+      expect(result.id).toBe('new-commit-id');
+    },
+  );
 });
 
 // =============================================================================
@@ -523,17 +524,21 @@ describe('BE-CMT-02 CommitsService.getCommitHistory', () => {
   it.failing(
     'BE-CMT-02 UTCID11 (N): allows a collaborator to read the commit history of the project [DFID014]',
     async () => {
-    const { service } = buildService({
-      branches: [{ data: branchRow(OTHER) }],
-      commits: [{ data: [commitRow('c1')], count: 1 }],
-      commit_tags: [{ data: [] }],
-      users: [{ data: [{ id: USER, username: 'alice' }] }],
-    });
+      const { service } = buildService({
+        branches: [{ data: branchRow(OTHER) }],
+        commits: [{ data: [commitRow('c1')], count: 1 }],
+        commit_tags: [{ data: [] }],
+        users: [{ data: [{ id: USER, username: 'alice' }] }],
+      });
 
-    const result = await service.getCommitHistory({ branch_id: BRANCH }, USER);
+      const result = await service.getCommitHistory(
+        { branch_id: BRANCH },
+        USER,
+      );
 
-    expect(result.items).toHaveLength(1);
-  });
+      expect(result.items).toHaveLength(1);
+    },
+  );
 });
 
 // =============================================================================
@@ -693,21 +698,22 @@ describe('BE-CMT-03 CommitsService.getCommitById', () => {
   it.failing(
     'BE-CMT-03 UTCID08 (N): allows a collaborator to read a commit of the project [DFID015]',
     async () => {
-    const { service } = buildService({
-      commits: [
-        {
-          data: commitRow('c1', { branch: { project_id: PROJECT } }),
-        },
-      ],
-      projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
-      commit_tags: [{ data: [] }],
-      users: [{ data: [{ id: USER, username: 'alice' }] }],
-    });
+      const { service } = buildService({
+        commits: [
+          {
+            data: commitRow('c1', { branch: { project_id: PROJECT } }),
+          },
+        ],
+        projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
+        commit_tags: [{ data: [] }],
+        users: [{ data: [{ id: USER, username: 'alice' }] }],
+      });
 
-    const result = await service.getCommitById('c1', USER);
+      const result = await service.getCommitById('c1', USER);
 
-    expect(result.id).toBe('c1');
-  });
+      expect(result.id).toBe('c1');
+    },
+  );
 });
 
 // =============================================================================
@@ -902,26 +908,27 @@ describe('BE-CMT-04 CommitsService.tagCommit', () => {
   it.failing(
     'BE-CMT-04 UTCID11 (N): allows a collaborator to tag a commit of the project [DFID016]',
     async () => {
-    const { service } = buildService({
-      commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
-      projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
-      commit_tags: [
-        {
-          data: {
-            id: 'tag-1',
-            commit_id: 'c1',
-            name: 'v1-0',
-            created_by: USER,
-            created_at: '2026-01-01T00:00:00.000Z',
+      const { service } = buildService({
+        commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
+        projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
+        commit_tags: [
+          {
+            data: {
+              id: 'tag-1',
+              commit_id: 'c1',
+              name: 'v1-0',
+              created_by: USER,
+              created_at: '2026-01-01T00:00:00.000Z',
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
 
-    const result = await service.tagCommit('c1', USER, tagDto('v1-0'));
+      const result = await service.tagCommit('c1', USER, tagDto('v1-0'));
 
-    expect(result.name).toBe('v1-0');
-  });
+      expect(result.name).toBe('v1-0');
+    },
+  );
 });
 
 // =============================================================================
@@ -1033,28 +1040,29 @@ describe('BE-CMT-05 CommitsService.getTagsForCommit', () => {
   it.failing(
     'BE-CMT-05 UTCID07 (N): allows a collaborator to list the tags of a commit [DFID017]',
     async () => {
-    const { service } = buildService({
-      commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
-      projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
-      commit_tags: [
-        {
-          data: [
-            {
-              id: 'tag-1',
-              commit_id: 'c1',
-              name: 'v1-0',
-              created_by: USER,
-              created_at: '2026-01-01T00:00:00.000Z',
-            },
-          ],
-        },
-      ],
-    });
+      const { service } = buildService({
+        commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
+        projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
+        commit_tags: [
+          {
+            data: [
+              {
+                id: 'tag-1',
+                commit_id: 'c1',
+                name: 'v1-0',
+                created_by: USER,
+                created_at: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        ],
+      });
 
-    const result = await service.getTagsForCommit('c1', USER);
+      const result = await service.getTagsForCommit('c1', USER);
 
-    expect(result).toHaveLength(1);
-  });
+      expect(result).toHaveLength(1);
+    },
+  );
 });
 
 // =============================================================================
@@ -1138,16 +1146,17 @@ describe('BE-CMT-06 CommitsService.deleteTag', () => {
   it.failing(
     'BE-CMT-06 UTCID06 (N): allows a collaborator to delete a tag of the project [DFID018]',
     async () => {
-    const { service } = buildService({
-      commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
-      projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
-      commit_tags: [{ data: null, error: null }],
-    });
+      const { service } = buildService({
+        commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
+        projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
+        commit_tags: [{ data: null, error: null }],
+      });
 
-    await expect(
-      service.deleteTag('c1', 'v1-0', USER),
-    ).resolves.toBeUndefined();
-  });
+      await expect(
+        service.deleteTag('c1', 'v1-0', USER),
+      ).resolves.toBeUndefined();
+    },
+  );
 });
 
 // =============================================================================
@@ -1327,47 +1336,48 @@ describe('BE-CMT-07 CommitsService.compareCommits', () => {
   it.failing(
     'BE-CMT-07 UTCID09 (N): allows a collaborator to compare commits of the project [DFID019]',
     async () => {
-    const { service } = buildService({
-      commits: [
-        { data: { id: 'c1', branch_id: BRANCH, snapshot: snapshot() } },
-        {
-          data: {
-            id: 'c2',
-            branch_id: BRANCH,
-            snapshot: snapshot({
-              notes: [
-                {
-                  id: 'n1',
-                  trackId: 't1',
-                  pitch: 60,
-                  start: 0,
-                  duration: 480,
-                  velocity: 100,
-                },
-                {
-                  id: 'n2',
-                  trackId: 't1',
-                  pitch: 62,
-                  start: 0,
-                  duration: 480,
-                  velocity: 100,
-                },
-              ],
-            }),
+      const { service } = buildService({
+        commits: [
+          { data: { id: 'c1', branch_id: BRANCH, snapshot: snapshot() } },
+          {
+            data: {
+              id: 'c2',
+              branch_id: BRANCH,
+              snapshot: snapshot({
+                notes: [
+                  {
+                    id: 'n1',
+                    trackId: 't1',
+                    pitch: 60,
+                    start: 0,
+                    duration: 480,
+                    velocity: 100,
+                  },
+                  {
+                    id: 'n2',
+                    trackId: 't1',
+                    pitch: 62,
+                    start: 0,
+                    duration: 480,
+                    velocity: 100,
+                  },
+                ],
+              }),
+            },
           },
-        },
-      ],
-      branches: [
-        { data: { id: BRANCH, project_id: PROJECT } },
-        { data: { id: BRANCH, project_id: PROJECT } },
-      ],
-      projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
-    });
+        ],
+        branches: [
+          { data: { id: BRANCH, project_id: PROJECT } },
+          { data: { id: BRANCH, project_id: PROJECT } },
+        ],
+        projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
+      });
 
-    const result = await service.compareCommits('c1', 'c2', USER);
+      const result = await service.compareCommits('c1', 'c2', USER);
 
-    expect(result.areIdentical).toBe(false);
-  });
+      expect(result.areIdentical).toBe(false);
+    },
+  );
 });
 
 // =============================================================================
@@ -1592,22 +1602,23 @@ describe('BE-CMT-08 CommitsService.restoreCommit', () => {
   it.failing(
     'BE-CMT-08 UTCID11 (N): allows a collaborator with edit permission to restore a commit [DFID020]',
     async () => {
-    const { service } = buildService({
-      branches: [{ data: branchRow(OTHER, 'head-9999') }],
-      commits: [
-        {
-          data: commitRow('abcdef123456', {
-            branch: { project_id: PROJECT },
-          }),
-        },
-      ],
-      rpc: [{ data: rpcCommit({ id: 'restored-1' }) }],
-    });
+      const { service } = buildService({
+        branches: [{ data: branchRow(OTHER, 'head-9999') }],
+        commits: [
+          {
+            data: commitRow('abcdef123456', {
+              branch: { project_id: PROJECT },
+            }),
+          },
+        ],
+        rpc: [{ data: rpcCommit({ id: 'restored-1' }) }],
+      });
 
-    const result = await service.restoreCommit('abcdef123456', USER, {
-      branch_id: BRANCH,
-    });
+      const result = await service.restoreCommit('abcdef123456', USER, {
+        branch_id: BRANCH,
+      });
 
-    expect(result.id).toBe('restored-1');
-  });
+      expect(result.id).toBe('restored-1');
+    },
+  );
 });

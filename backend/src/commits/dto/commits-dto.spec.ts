@@ -203,22 +203,23 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
   it.failing(
     'BE-CMT-21 UTCID10 (A): rejects a note velocity of 0 (must not be less than 1)',
     async () => {
-    const messages = await validationMessages(
-      validate(
-        CreateCommitDto,
-        validDto({
-          snapshot: {
-            ...validSnapshot(),
-            notes: [{ ...validSnapshot().notes[0], velocity: 0 }],
-          },
-        }),
-      ),
-    );
+      const messages = await validationMessages(
+        validate(
+          CreateCommitDto,
+          validDto({
+            snapshot: {
+              ...validSnapshot(),
+              notes: [{ ...validSnapshot().notes[0], velocity: 0 }],
+            },
+          }),
+        ),
+      );
 
-    expect(messages).toContain(
-      'snapshot.notes.0.velocity must not be less than 1',
-    );
-  });
+      expect(messages).toContain(
+        'snapshot.notes.0.velocity must not be less than 1',
+      );
+    },
+  );
 
   it('BE-CMT-21 UTCID11 (B): accepts a note velocity of 1', async () => {
     await expectNoValidationError(
@@ -351,41 +352,43 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
   it.failing(
     'BE-CMT-21 UTCID19 (A): rejects a snapshot with 0 tracks (must contain at least 1 elements) [DFID027]',
     async () => {
-    const messages = await validationMessages(
-      validate(
-        CreateCommitDto,
-        validDto({
-          snapshot: { ...validSnapshot(), tracks: [] },
-        }),
-      ),
-    );
+      const messages = await validationMessages(
+        validate(
+          CreateCommitDto,
+          validDto({
+            snapshot: { ...validSnapshot(), tracks: [] },
+          }),
+        ),
+      );
 
-    expect(messages).toContain(
-      'snapshot.tracks must contain at least 1 elements',
-    );
-  });
+      expect(messages).toContain(
+        'snapshot.tracks must contain at least 1 elements',
+      );
+    },
+  );
 
   it.failing(
     'BE-CMT-21 UTCID20 (A): rejects a snapshot with 33 tracks (no more than 32 elements) [DFID028]',
     async () => {
-    const tracks = Array.from({ length: 33 }, (_, i) => ({
-      ...validSnapshot().tracks[0],
-      id: `track-${i + 1}`,
-    }));
+      const tracks = Array.from({ length: 33 }, (_, i) => ({
+        ...validSnapshot().tracks[0],
+        id: `track-${i + 1}`,
+      }));
 
-    const messages = await validationMessages(
-      validate(
-        CreateCommitDto,
-        validDto({
-          snapshot: { ...validSnapshot(), tracks },
-        }),
-      ),
-    );
+      const messages = await validationMessages(
+        validate(
+          CreateCommitDto,
+          validDto({
+            snapshot: { ...validSnapshot(), tracks },
+          }),
+        ),
+      );
 
-    expect(messages).toContain(
-      'snapshot.tracks must contain no more than 32 elements',
-    );
-  });
+      expect(messages).toContain(
+        'snapshot.tracks must contain no more than 32 elements',
+      );
+    },
+  );
 });
 
 // =============================================================================
@@ -483,12 +486,13 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
   it.failing(
     'BE-CMT-23 UTCID03 (A): rejects an empty message (must be at least 1 character) [DFID029]',
     async () => {
-    const messages = await validationMessages(
-      validate(RestoreCommitDto, { branch_id: UUID_V4, message: '' }),
-    );
+      const messages = await validationMessages(
+        validate(RestoreCommitDto, { branch_id: UUID_V4, message: '' }),
+      );
 
-    expect(messages).toContain('Message must be at least 1 character');
-  });
+      expect(messages).toContain('Message must be at least 1 character');
+    },
+  );
 
   it('BE-CMT-23 UTCID04 (B): accepts a 200-character message', async () => {
     await expectNoValidationError(

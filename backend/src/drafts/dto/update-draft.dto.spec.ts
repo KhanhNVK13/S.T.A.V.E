@@ -386,14 +386,17 @@ describe('BE-DRF-05 UpdateDraftDto.validate(dto)', () => {
   it.failing(
     'UTCID12 (A) rejects a note with velocity 128 [DFID011]',
     async () => {
-    // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn velocity > 127.
-    const messages = await validationMessages(
-      validate(UpdateDraftDto, {
-        ...validDraftDto(),
-        notes: [{ ...validNote(), velocity: 128 }],
-      }),
-    );
+      // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn velocity > 127.
+      const messages = await validationMessages(
+        validate(UpdateDraftDto, {
+          ...validDraftDto(),
+          notes: [{ ...validNote(), velocity: 128 }],
+        }),
+      );
 
-    expect(messages).toContain('notes.0.velocity must not be greater than 127');
-  });
+      expect(messages).toContain(
+        'notes.0.velocity must not be greater than 127',
+      );
+    },
+  );
 });

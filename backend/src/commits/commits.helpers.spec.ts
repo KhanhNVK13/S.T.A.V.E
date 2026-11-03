@@ -127,15 +127,16 @@ describe('BE-CMT-09 CommitsService.verifyCommitOwnership', () => {
   it.failing(
     'BE-CMT-09 UTCID07 (N): allows a collaborator to pass the ownership check [DFID021]',
     async () => {
-    const { service } = buildService({
-      commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
-      projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
-    });
+      const { service } = buildService({
+        commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
+        projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
+      });
 
-    const result = await priv(service, 'verifyCommitOwnership')('c1', USER);
+      const result = await priv(service, 'verifyCommitOwnership')('c1', USER);
 
-    expect(result).toBe(PROJECT);
-  });
+      expect(result).toBe(PROJECT);
+    },
+  );
 });
 
 // =============================================================================
@@ -248,28 +249,32 @@ describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
   it.failing(
     'BE-CMT-10 UTCID06 (N): allows an edit collaborator to pass the access check [DFID022]',
     async () => {
-    const { service } = buildService({
-      branches: [
-        {
-          data: {
-            id: 'branch-1',
-            project_id: PROJECT,
-            name: 'main',
-            is_default: true,
-            created_by: OTHER,
-            created_at: '2026-01-01T00:00:00.000Z',
-            base_commit_id: null,
-            head_commit_id: 'head-1',
-            project: { id: PROJECT, owner_id: OTHER },
+      const { service } = buildService({
+        branches: [
+          {
+            data: {
+              id: 'branch-1',
+              project_id: PROJECT,
+              name: 'main',
+              is_default: true,
+              created_by: OTHER,
+              created_at: '2026-01-01T00:00:00.000Z',
+              base_commit_id: null,
+              head_commit_id: 'head-1',
+              project: { id: PROJECT, owner_id: OTHER },
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
 
-    const result = await priv(service, 'verifyBranchAccess')('branch-1', USER);
+      const result = await priv(service, 'verifyBranchAccess')(
+        'branch-1',
+        USER,
+      );
 
-    expect(result.head_commit_id).toBe('head-1');
-  });
+      expect(result.head_commit_id).toBe('head-1');
+    },
+  );
 });
 
 // =============================================================================
@@ -796,12 +801,13 @@ describe('BE-CMT-15 CommitsService.verifyProjectOwnership', () => {
   it.failing(
     'BE-CMT-15 UTCID05 (N): allows an edit collaborator to pass the ownership check [DFID023]',
     async () => {
-    const { service } = buildService({
-      projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
-    });
+      const { service } = buildService({
+        projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
+      });
 
-    await expect(
-      priv(service, 'verifyProjectOwnership')(PROJECT, USER),
-    ).resolves.toBeUndefined();
-  });
+      await expect(
+        priv(service, 'verifyProjectOwnership')(PROJECT, USER),
+      ).resolves.toBeUndefined();
+    },
+  );
 });
