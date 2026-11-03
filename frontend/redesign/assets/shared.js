@@ -17,6 +17,12 @@
     notifications: "Notifications",
     help: "Help",
     signIn: "Sign in",
+    signOut: "Sign out",
+    startFree: "Start free",
+    home: "Home",
+    openHome: "Open Home",
+    takeTour: "Take the tour",
+    accountLabel: function (n) { return "Settings, signed in as " + n; },
     brandHome: "STAVE, home",
     mainNav: "Main",
     palPlaceholder: "Find a page, project or action…",
@@ -61,7 +67,11 @@
     panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
     music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5M12 17h.01"/>',
-    arrow: '<path d="M7 17 17 7M8 7h9v9"/>'
+    arrow: '<path d="M7 17 17 7M8 7h9v9"/>',
+    home: '<path d="M3 11 12 4l9 7M5 10v10h14V10M10 20v-6h4v6"/>',
+    out: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
+    users: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M17 5a3 3 0 0 1 0 6M21 20v-1a5 5 0 0 0-3-4.6"/>',
+    import: '<path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/>'
   };
 
   function ic(name, cls) {
@@ -75,15 +85,23 @@
     return '<svg class="mark" width="' + s + '" height="' + s + '" viewBox="0 0 28 28" aria-hidden="true"><rect x=".5" y=".5" width="27" height="27" rx="6.5" fill="#0b0d1a" stroke="#eef0ff" stroke-opacity=".4"/>' + lines + '<ellipse cx="14" cy="13.8" rx="4.2" ry="3.1" transform="rotate(-20 14 13.8)" fill="#dceeb1"/><path d="M17.7 12.6V5.2" stroke="#dceeb1" stroke-width="1.5" fill="none"/></svg>';
   }
 
+  function signedIn() {
+    return window.STAVE_SESSION ? window.STAVE_SESSION.isIn() : loggedIn();
+  }
+
   function mountShell(active) {
     var host = document.getElementById("shell");
     if (!host) return;
-    try { sessionStorage.setItem("stave-in", "1"); } catch { }
-    var items = [
+    var inn = signedIn();
+    var items = inn ? [
+      ["home", "home", TEXT.home, "home.html", ""],
       ["projects", "folder", TEXT.myProjects, "projects.html", "4"],
       ["explore", "compass", TEXT.explore, "explore.html", ""],
       ["rankings", "trophy", TEXT.rankings, "rankings.html", ""],
-      ["notifications", "bell", TEXT.notifications, "projects.html#notifications", "3"]
+      ["notifications", "bell", TEXT.notifications, "home.html#notifications", "3"]
+    ] : [
+      ["explore", "compass", TEXT.explore, "explore.html", ""],
+      ["rankings", "trophy", TEXT.rankings, "rankings.html", ""]
     ];
     var recent = [
       ["Rainy Saigon Night", "project.html"],
@@ -93,17 +111,24 @@
     var nav = items.map(function (it) {
       return '<a href="' + it[3] + '"' + (it[0] === active ? ' aria-current="page"' : "") + ">" + ic(it[1]) + it[2] + (it[4] ? '<span class="count">' + it[4] + "</span>" : "") + "</a>";
     }).join("");
-    var rec = recent.map(function (r) {
+    var rec = inn ? '<div class="nav-label">' + TEXT.recentProjects + "</div>" + recent.map(function (r) {
       return '<a href="' + r[1] + '">' + ic("music") + r[0] + "</a>";
-    }).join("");
+    }).join("") : "";
+    var foot = inn ?
+      '<a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + TEXT.helpGlossary + '</a><a href="settings.html"' + (active === "settings" ? ' aria-current="page"' : "") + '>' + ic("sliders") + TEXT.settings + '</a>' +
+      '<a href="index.html" data-signout>' + ic("out") + TEXT.signOut + '</a>' +
+      '<a class="user" href="settings.html"><span class="avatar">' + TEXT.userName.charAt(0) + '</span><span>' + TEXT.userName + '<br><small style="color:var(--soft)">' + TEXT.userEmail + '</small></span></a>' :
+      '<a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + TEXT.helpGlossary + '</a><a href="login.html">' + ic("out") + TEXT.signIn + '</a>' +
+      '<a class="btn btn-primary btn-sm" href="login.html#dang-ky" style="margin:8px 10px 0;justify-content:center;color:var(--ground)">' + TEXT.startFree + '</a>';
     host.className = "side";
     host.setAttribute("aria-label", TEXT.navMain);
     host.innerHTML =
-      '<a class="switcher" href="index.html">' + mark() + '<span translate="no">STAVE<small>' + TEXT.workspace + '</small></span></a>' +
+      '<a class="switcher" href="index.html" aria-label="' + TEXT.brandHome + '">' + mark() + '<span translate="no">STAVE<small>' + (inn ? TEXT.workspace : "") + '</small></span></a>' +
       '<button class="pal-btn" id="pal-open" type="button" aria-keyshortcuts="Control+K Meta+K">' + ic("search") + TEXT.quickFind + '<kbd>' + TEXT.quickFindKeys + '</kbd></button>' +
-      '<nav class="nav">' + nav + '<div class="nav-label">' + TEXT.recentProjects + '</div>' + rec + "</nav>" +
-      '<div class="side-foot nav"><a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + TEXT.helpGlossary + '</a><a href="settings.html">' + ic("sliders") + TEXT.settings + '</a>' +
-      '<a class="user" href="settings.html"><span class="avatar">' + TEXT.userName.charAt(0) + '</span><span>' + TEXT.userName + '<br><small style="color:var(--soft)">' + TEXT.userEmail + '</small></span></a></div>';
+      '<nav class="nav" aria-label="' + TEXT.mainNav + '">' + nav + rec + "</nav>" +
+      '<div class="side-foot nav">' + foot + '</div>';
+    var so = host.querySelector("[data-signout]");
+    if (so) so.addEventListener("click", function (e) { e.preventDefault(); window.STAVE_SESSION.signOut(); });
     mountPalette();
     var btn = document.getElementById("menu-btn");
     if (btn) {
@@ -360,19 +385,24 @@
 
   function mountPalette() {
     if (document.getElementById("palette")) return;
-    var items = [
-      [TEXT.myProjects, "projects.html", TEXT.palPages],
-      [TEXT.explore, "explore.html", TEXT.palPages],
-      [TEXT.rankings, "rankings.html", TEXT.palPages],
-      ["Rainy Saigon Night", "project.html", TEXT.palProjects],
-      ["Morning bossa", "project.html", TEXT.palProjects],
-      ["Intro for the November EP", "project.html", TEXT.palProjects],
-      [TEXT.openEditor, "editor.html", TEXT.palActions],
-      [TEXT.compareVersions, "compare.html", TEXT.palActions],
-      [TEXT.mergeBranch, "merge.html", TEXT.palActions],
-      [TEXT.helpGlossary, "help.html", TEXT.palPages],
-      [TEXT.settings, "settings.html", TEXT.palPages]
-    ];
+    var inn = signedIn();
+    var items = (inn ? [[TEXT.home, "home.html", TEXT.palPages]] : []).concat(
+      inn ? [[TEXT.myProjects, "projects.html", TEXT.palPages]] : [],
+      [[TEXT.explore, "explore.html", TEXT.palPages], [TEXT.rankings, "rankings.html", TEXT.palPages]],
+      inn ? [
+        ["Rainy Saigon Night", "project.html", TEXT.palProjects],
+        ["Morning bossa", "project.html", TEXT.palProjects],
+        ["Intro for the November EP", "project.html", TEXT.palProjects],
+        [TEXT.openEditor, "editor.html", TEXT.palActions],
+        [TEXT.compareVersions, "compare.html", TEXT.palActions],
+        [TEXT.mergeBranch, "merge.html", TEXT.palActions]
+      ] : [],
+      [[TEXT.helpGlossary, "help.html", TEXT.palPages]],
+      inn ? [[TEXT.settings, "settings.html", TEXT.palPages]] : [],
+      [[TEXT.takeTour, "welcome.html", TEXT.palPages]],
+      inn ? [[TEXT.signOut, "index.html", TEXT.palActions, function () { window.STAVE_SESSION.signOut(); }]] : [[TEXT.signIn, "login.html", TEXT.palActions]]
+    );
+    function go(i) { if (i[3]) i[3](); else location.href = i[1]; }
     var d = document.createElement("dialog");
     d.id = "palette";
     d.className = "palette";
@@ -391,7 +421,7 @@
         li.id = "pal-o" + n;
         li.setAttribute("aria-selected", String(n === cur));
         li.innerHTML = "<span>" + i[0] + "</span><small>" + i[2] + "</small>";
-        li.addEventListener("click", function () { location.href = i[1]; });
+        li.addEventListener("click", function () { go(i); });
         ul.appendChild(li);
       });
       inp.setAttribute("aria-activedescendant", shown.length ? "pal-o" + cur : "");
@@ -401,7 +431,7 @@
     inp.addEventListener("keydown", function (e) {
       if (e.key === "ArrowDown") { e.preventDefault(); cur = Math.min(shown.length - 1, cur + 1); draw(); }
       else if (e.key === "ArrowUp") { e.preventDefault(); cur = Math.max(0, cur - 1); draw(); }
-      else if (e.key === "Enter" && shown[cur]) { location.href = shown[cur][1]; }
+      else if (e.key === "Enter" && shown[cur]) { go(shown[cur]); }
     });
     var prevFocus = null;
     function open() { prevFocus = document.activeElement; inp.value = ""; cur = 0; draw(); if (!d.open) d.showModal(); inp.focus(); }
@@ -426,7 +456,8 @@
   ];
 
   function loggedIn() {
-    try { return sessionStorage.getItem("stave-in") === "1"; } catch { return false; }
+    if (window.STAVE_SESSION) return window.STAVE_SESSION.isIn();
+    try { return sessionStorage.getItem("stave-in") === "1"; } catch (e) { return false; }
   }
 
   function mountPublicHeader(active) {
@@ -436,7 +467,9 @@
     host.setAttribute("role", "banner");
     host.innerHTML = '<a class="pub-brand" href="index.html" translate="no" aria-label="' + TEXT.brandHome + '">' + mark(28) + 'STAVE</a><nav class="pub-links" aria-label="' + TEXT.mainNav + '">' +
       links.map(function (l) { return '<a href="' + l[2] + '"' + (l[0] === active ? ' aria-current="page"' : "") + ">" + l[1] + "</a>"; }).join("") +
-      (loggedIn() ? '<a class="btn btn-primary btn-sm" href="projects.html">' + TEXT.myProjects + "</a>" : '<a class="btn btn-quiet btn-sm" href="login.html">' + TEXT.signIn + "</a>") + "</nav>";
+      (loggedIn() ?
+        '<a class="btn btn-primary btn-sm" href="home.html">' + TEXT.openHome + '</a><a class="avatar" href="settings.html" aria-label="' + TEXT.accountLabel(TEXT.userName) + '">' + TEXT.userName.charAt(0) + "</a>" :
+        '<a class="btn btn-quiet btn-sm" href="login.html">' + TEXT.signIn + '</a><a class="btn btn-primary btn-sm" href="login.html#dang-ky">' + TEXT.startFree + "</a>") + "</nav>";
     mountPalette();
   }
 
