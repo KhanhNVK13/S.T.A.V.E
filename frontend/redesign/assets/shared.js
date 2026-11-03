@@ -49,7 +49,11 @@
     panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
     music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5M12 17h.01"/>',
-    arrow: '<path d="M7 17 17 7M8 7h9v9"/>'
+    arrow: '<path d="M7 17 17 7M8 7h9v9"/>',
+    home: '<path d="M3 11 12 4l9 7M5 10v10h14V10M10 20v-6h4v6"/>',
+    out: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
+    users: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M17 5a3 3 0 0 1 0 6M21 20v-1a5 5 0 0 0-3-4.6"/>',
+    import: '<path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/>'
   };
 
   function ic(name, cls) {
@@ -63,15 +67,23 @@
     return '<svg class="mark" width="' + s + '" height="' + s + '" viewBox="0 0 28 28" aria-hidden="true"><rect x=".5" y=".5" width="27" height="27" rx="6.5" fill="#0b0d1a" stroke="#eef0ff" stroke-opacity=".4"/>' + lines + '<ellipse cx="14" cy="13.8" rx="4.2" ry="3.1" transform="rotate(-20 14 13.8)" fill="#dceeb1"/><path d="M17.7 12.6V5.2" stroke="#dceeb1" stroke-width="1.5" fill="none"/></svg>';
   }
 
+  function signedIn() {
+    return window.STAVE_SESSION ? window.STAVE_SESSION.isIn() : loggedIn();
+  }
+
   function mountShell(active) {
     var host = document.getElementById("shell");
     if (!host) return;
-    try { sessionStorage.setItem("stave-in", "1"); } catch { }
-    var items = [
+    var inn = signedIn();
+    var items = inn ? [
+      ["home", "home", "shell.home", "home.html", ""],
       ["projects", "folder", "shell.myProjects", "projects.html", "4"],
       ["explore", "compass", "shell.explore", "explore.html", ""],
       ["rankings", "trophy", "shell.rankings", "rankings.html", ""],
-      ["notifications", "bell", "shell.notifications", "projects.html#notifications", "3"]
+      ["notifications", "bell", "shell.notifications", "home.html#notifications", "3"]
+    ] : [
+      ["explore", "compass", "shell.explore", "explore.html", ""],
+      ["rankings", "trophy", "shell.rankings", "rankings.html", ""]
     ];
     var recent = [
       ["Rainy Saigon Night", "project.html"],
@@ -81,19 +93,27 @@
     var nav = items.map(function (it) {
       return '<a href="' + it[3] + '"' + (it[0] === active ? ' aria-current="page"' : "") + ">" + ic(it[1]) + tx(it[2]) + (it[4] ? '<span class="count">' + it[4] + "</span>" : "") + "</a>";
     }).join("");
-    var rec = recent.map(function (r) {
+    var rec = inn ? '<div class="nav-label" data-i18n="shell.recentProjects">' + L("shell.recentProjects") + "</div>" + recent.map(function (r) {
       return '<a href="' + r[1] + '">' + ic("music") + r[0] + "</a>";
-    }).join("");
+    }).join("") : "";
+    var helpLink = '<a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + tx("shell.helpGlossary") + '</a>';
+    var foot = inn ?
+      helpLink + '<a href="settings.html"' + (active === "settings" ? ' aria-current="page"' : "") + '>' + ic("sliders") + tx("shell.settings") + '</a>' +
+      '<a href="index.html" data-signout>' + ic("out") + tx("shell.signOut") + '</a>' +
+      '<a class="user" href="settings.html"><span class="avatar">' + USER.name.charAt(0) + '</span><span>' + USER.name + '<br><small style="color:var(--soft)">' + USER.email + '</small></span></a>' :
+      helpLink + '<a href="login.html">' + ic("out") + tx("shell.signIn") + '</a>' +
+      '<a class="btn btn-primary btn-sm" href="login.html#dang-ky" style="margin:8px 10px 0;justify-content:center;color:var(--ground)" data-i18n="shell.startFree">' + L("shell.startFree") + '</a>';
     host.className = "side";
     host.setAttribute("aria-label", L("shell.navMain"));
     host.setAttribute("data-i18n-attr", "aria-label:shell.navMain");
     host.innerHTML =
-      '<a class="switcher" href="index.html">' + mark() + '<span translate="no">STAVE<small data-i18n="shell.workspace">' + L("shell.workspace") + '</small></span></a>' +
+      '<a class="switcher" href="index.html" aria-label="' + L("shell.brandHome") + '" data-i18n-attr="aria-label:shell.brandHome">' + mark() + '<span translate="no">STAVE<small' + (inn ? ' data-i18n="shell.workspace">' + L("shell.workspace") : ">") + '</small></span></a>' +
       '<button class="pal-btn" id="pal-open" type="button" aria-keyshortcuts="Control+K Meta+K">' + ic("search") + tx("shell.quickFind") + '<kbd>' + L("shell.quickFindKeys") + '</kbd></button>' +
-      '<nav class="nav">' + nav + '<div class="nav-label" data-i18n="shell.recentProjects">' + L("shell.recentProjects") + '</div>' + rec + "</nav>" +
-      '<div class="side-foot nav"><div class="lang-row" data-lang-switch></div><a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + tx("shell.helpGlossary") + '</a><a href="settings.html">' + ic("sliders") + tx("shell.settings") + '</a>' +
-      '<a class="user" href="settings.html"><span class="avatar">' + USER.name.charAt(0) + '</span><span>' + USER.name + '<br><small style="color:var(--soft)">' + USER.email + '</small></span></a></div>';
+      '<nav class="nav" aria-label="' + L("shell.mainNav") + '" data-i18n-attr="aria-label:shell.mainNav">' + nav + rec + "</nav>" +
+      '<div class="side-foot nav"><div class="lang-row" data-lang-switch></div>' + foot + '</div>';
     window.STAVE.mountLangSwitches(host);
+    var so = host.querySelector("[data-signout]");
+    if (so) so.addEventListener("click", function (e) { e.preventDefault(); window.STAVE_SESSION.signOut(); });
     mountPalette();
     var btn = document.getElementById("menu-btn");
     if (btn) {
@@ -351,19 +371,25 @@
 
   function mountPalette() {
     if (document.getElementById("palette")) return;
-    var items = [
-      ["shell.myProjects", "projects.html", "pal.pages"],
-      ["shell.explore", "explore.html", "pal.pages"],
-      ["shell.rankings", "rankings.html", "pal.pages"],
-      [null, "project.html", "pal.projects", "Rainy Saigon Night"],
-      [null, "project.html", "pal.projects", "Morning bossa"],
-      [null, "project.html", "pal.projects", "Intro for the November EP"],
-      ["pal.openEditor", "editor.html", "pal.actions"],
-      ["pal.compareVersions", "compare.html", "pal.actions"],
-      ["pal.mergeBranch", "merge.html", "pal.actions"],
-      ["shell.helpGlossary", "help.html", "pal.pages"],
-      ["shell.settings", "settings.html", "pal.pages"]
-    ].map(function (i) { return { key: i[0], href: i[1], group: i[2], name: i[3] }; });
+    var inn = signedIn();
+    function it(key, href, group, name, run) { return { key: key, href: href, group: group, name: name, run: run }; }
+    var items = (inn ? [it("shell.home", "home.html", "pal.pages")] : []).concat(
+      inn ? [it("shell.myProjects", "projects.html", "pal.pages")] : [],
+      [it("shell.explore", "explore.html", "pal.pages"), it("shell.rankings", "rankings.html", "pal.pages")],
+      inn ? [
+        it(null, "project.html", "pal.projects", "Rainy Saigon Night"),
+        it(null, "project.html", "pal.projects", "Morning bossa"),
+        it(null, "project.html", "pal.projects", "Intro for the November EP"),
+        it("pal.openEditor", "editor.html", "pal.actions"),
+        it("pal.compareVersions", "compare.html", "pal.actions"),
+        it("pal.mergeBranch", "merge.html", "pal.actions")
+      ] : [],
+      [it("shell.helpGlossary", "help.html", "pal.pages")],
+      inn ? [it("shell.settings", "settings.html", "pal.pages")] : [],
+      [it("shell.takeTour", "welcome.html", "pal.pages")],
+      inn ? [it("shell.signOut", "index.html", "pal.actions", null, function () { window.STAVE_SESSION.signOut(); })] : [it("shell.signIn", "login.html", "pal.actions")]
+    );
+    function go(i) { if (i.run) i.run(); else location.href = i.href; }
     function label(i) { return i.key ? L(i.key) : i.name; }
     var d = document.createElement("dialog");
     d.id = "palette";
@@ -395,7 +421,7 @@
         grp.textContent = L(i.group);
         li.appendChild(name);
         li.appendChild(grp);
-        li.addEventListener("click", function () { location.href = i.href; });
+        li.addEventListener("click", function () { go(i); });
         ul.appendChild(li);
       });
       inp.setAttribute("aria-activedescendant", shown.length ? "pal-o" + cur : "");
@@ -405,7 +431,7 @@
     inp.addEventListener("keydown", function (e) {
       if (e.key === "ArrowDown") { e.preventDefault(); cur = Math.min(shown.length - 1, cur + 1); draw(); }
       else if (e.key === "ArrowUp") { e.preventDefault(); cur = Math.max(0, cur - 1); draw(); }
-      else if (e.key === "Enter" && shown[cur]) { location.href = shown[cur].href; }
+      else if (e.key === "Enter" && shown[cur]) { go(shown[cur]); }
     });
     var prevFocus = null;
     function open() { prevFocus = document.activeElement; inp.value = ""; cur = 0; draw(); if (!d.open) d.showModal(); inp.focus(); }
@@ -431,7 +457,8 @@
   ];
 
   function loggedIn() {
-    try { return sessionStorage.getItem("stave-in") === "1"; } catch { return false; }
+    if (window.STAVE_SESSION) return window.STAVE_SESSION.isIn();
+    try { return sessionStorage.getItem("stave-in") === "1"; } catch (e) { return false; }
   }
 
   function mountPublicHeader(active) {
@@ -442,7 +469,9 @@
     host.innerHTML = '<a class="pub-brand" href="index.html" translate="no" aria-label="' + L("shell.brandHome") + '" data-i18n-attr="aria-label:shell.brandHome">' + mark(28) + 'STAVE</a><nav class="pub-links" aria-label="' + L("shell.mainNav") + '" data-i18n-attr="aria-label:shell.mainNav">' +
       links.map(function (l) { return '<a href="' + l[2] + '"' + (l[0] === active ? ' aria-current="page"' : "") + ' data-i18n="' + l[1] + '">' + L(l[1]) + "</a>"; }).join("") +
       '<span data-lang-switch></span>' +
-      (loggedIn() ? '<a class="btn btn-primary btn-sm" href="projects.html" data-i18n="shell.myProjects">' + L("shell.myProjects") + "</a>" : '<a class="btn btn-quiet btn-sm" href="login.html" data-i18n="shell.signIn">' + L("shell.signIn") + "</a>") + "</nav>";
+      (loggedIn() ?
+        '<a class="btn btn-primary btn-sm" href="home.html" data-i18n="shell.openHome">' + L("shell.openHome") + '</a><a class="avatar" href="settings.html" aria-label="' + L("shell.accountLabel", { name: USER.name }) + '" data-i18n-attr="aria-label:shell.accountLabel" data-i18n-vars=\'{"name":"' + USER.name + '"}\'>' + USER.name.charAt(0) + "</a>" :
+        '<a class="btn btn-quiet btn-sm" href="login.html" data-i18n="shell.signIn">' + L("shell.signIn") + '</a><a class="btn btn-primary btn-sm" href="login.html#dang-ky" data-i18n="shell.startFree">' + L("shell.startFree") + "</a>") + "</nav>";
     window.STAVE.mountLangSwitches(host);
     mountPalette();
   }

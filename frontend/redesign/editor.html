@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
 <title data-i18n="editor.title">Editor · STAVE</title>
+<script src="assets/session.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -19,7 +20,8 @@
   .ed-top .sep { width: 1px; height: 24px; background: var(--line-strong); flex: none; }
   .title { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
   .title b { font-size: 15px; font-weight: 600; white-space: nowrap; }
-  .title span { font-size: 12.5px; color: var(--soft); white-space: nowrap; }
+  .title .crumb { font-size: 12.5px; color: var(--soft); white-space: nowrap; }
+  .title .crumb a:hover { color: var(--ink); text-decoration: underline; }
   .chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--raised); font-size: 13.5px; font-weight: 500; white-space: nowrap; }
   .saved { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--soft); white-space: nowrap; }
   .saved .dot { color: var(--add); }
@@ -148,7 +150,8 @@
 <div class="ed">
   <header class="ed-top" role="toolbar" aria-label="Toolbar" data-i18n-attr="aria-label:editor.toolbar">
     <a class="tbtn" href="project.html" aria-label="Back to the project page" data-i18n-attr="aria-label:editor.backToProject"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6"/></svg></a>
-    <div class="title"><b>Rainy Saigon Night</b><span>dem-sai-gon-mua.mid</span></div>
+    <a class="tbtn" href="index.html" translate="no" aria-label="STAVE, home" data-i18n-attr="aria-label:shell.brandHome" style="font-family:var(--display);font-weight:800">STAVE</a>
+    <div class="title"><b title="dem-sai-gon-mua.mid">Rainy Saigon Night</b><nav class="crumb" aria-label="Breadcrumb" data-i18n-attr="aria-label:common.breadcrumb"><a href="home.html" data-i18n="shell.home">Home</a> / <a href="projects.html" data-i18n="shell.myProjects">My projects</a> / <a href="project.html">Rainy Saigon Night</a> / <span aria-current="page" data-i18n="editor.crumb">Editor</span></nav></div>
     <span class="chip"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 5-8 3-12 7"/></svg>main</span>
     <span class="saved" role="status"><i class="dot" style="display:inline-block"></i><span id="saved" title="Draft saved at 14:02" data-i18n-attr="title:editor.savedAt" data-i18n-vars='{"time":"14:02"}'>Saved</span></span>
     <span class="sep"></span>

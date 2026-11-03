@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04050d">
+<title>Home · STAVE</title>
+<script src="assets/session.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/universe.css">
+<style>
+  :root { color-scheme: dark; }
+  .app { position: relative; z-index: 1; }
+  .greet p.status { color: var(--soft); margin-top: 8px; font-size: 15px; max-width: 64ch; }
+
+  .quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .quick a { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 10px 16px; border-radius: 14px; border: 1px solid var(--line-strong); background: rgba(12,14,32,.78); font-size: 15px; font-weight: 480; transition: border-color .3s var(--ease-out), background-color .3s var(--ease-out); }
+  .quick a:hover { border-color: var(--ink); background: rgba(238,240,255,.08); }
+  .quick .icon { width: 20px; height: 20px; color: var(--lime); }
+
+  .home { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; align-items: start; }
+  .home > div { display: grid; gap: 32px; min-width: 0; }
+  .home h2 { font-size: 18px; font-weight: 500; letter-spacing: -.005em; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+  .head a, .text-link { color: var(--soft); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+  .head a:hover, .text-link:hover { color: var(--ink); }
+
+  .cont { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 22px; align-items: center; }
+  .cont .thumb { width: 168px; height: 92px; }
+  .cont h3 { font-size: 22px; font-weight: 450; letter-spacing: -.02em; }
+  .cont .when { color: var(--soft); font-size: 14px; margin-top: 2px; }
+  .cont .chg { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .cont .big { font-size: 15px; margin-top: 10px; }
+
+  .rows li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .rows li:first-child { border-top: 0; padding-top: 0; }
+  .rows li:last-child { padding-bottom: 0; }
+  .rows .nm { display: block; font-weight: 600; font-size: 15px; letter-spacing: -.005em; }
+  .rows .nm:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .rows .sub { display: block; color: var(--soft); font-size: 13px; }
+
+  .first { text-align: center; padding: clamp(28px, 4vw, 52px) 24px; }
+  .first-art { position: relative; width: min(100%, 340px); margin: 0 auto 24px; }
+  .first-art .u-star { position: absolute; left: 62%; top: calc(50% - 6px); }
+  .first h2 { font-size: 26px; font-weight: 400; letter-spacing: -.03em; }
+  .first p { color: var(--soft); margin: 10px auto 22px; max-width: 46ch; font-size: 15px; }
+  .first .actions { justify-content: center; }
+
+  .notes li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .notes li:first-child { border-top: 0; padding-top: 0; }
+  .notes .u-star { width: 8px; height: 8px; margin-top: 7px; }
+  .notes .u-star.read { background: transparent; border: 1.5px solid var(--faint); box-shadow: none; }
+  .notes a { font-size: 14.5px; line-height: 1.4; }
+  .notes a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .notes small { grid-column: 2; color: var(--soft); font-size: 13px; }
+  .badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px; margin-left: 8px; border-radius: 11px; background: var(--lime); color: #0b0d1a; font-size: 12.5px; font-weight: 600; vertical-align: 2px; }
+  .badge[data-n="0"] { background: rgba(238,240,255,.1); color: var(--soft); }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--soft); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+  .linkbtn:hover { color: var(--ink); }
+  .none { color: var(--soft); font-size: 14px; }
+
+  .jam { position: relative; overflow: hidden; }
+  .jam h2 { font-size: 22px; font-weight: 450; letter-spacing: -.02em; margin-top: 6px; }
+  .jam p { color: var(--soft); font-size: 14px; margin-top: 8px; }
+  .jam .u-staff { --u-gap: 8px; margin: 16px 0; }
+  .jam .count { font-size: 20px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .jam .actions { margin-top: 16px; }
+
+  .mini { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mini > div { background: var(--raised); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .mini dt { font-size: 13px; color: var(--soft); }
+  .mini dd { margin: 4px 0 0; font-size: 24px; letter-spacing: -.01em; }
+  .mini dd small { font-size: 14px; color: var(--soft); margin-left: 3px; }
+
+  .comm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .comm { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: rgba(12,14,32,.78); }
+  .comm .thumb { width: 100%; height: 96px; margin-bottom: 8px; }
+  .comm h3 { font-size: 17px; font-weight: 540; letter-spacing: -.01em; }
+  .comm h3 a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .comm .by, .comm .tally { color: var(--soft); font-size: 13.5px; }
+  .comm .pv { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+
+  .home-foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--soft); }
+  .home-foot nav { display: flex; gap: 20px; flex-wrap: wrap; }
+  .home-foot a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
+  .rise { animation: rise .9s ease-out both; animation-delay: calc(var(--i, 0) * 70ms); }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+
+  @media (max-width: 1180px) { .home { grid-template-columns: 1fr; } .comm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 720px) {
+    .quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cont { grid-template-columns: 1fr; }
+    .comm-grid { grid-template-columns: 1fr; }
+    .rows li { grid-template-columns: auto minmax(0, 1fr); }
+    .rows li .pill, .rows li .btn { grid-column: 2; justify-self: start; }
+  }
+  @media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
+</style>
+</head>
+<body>
+<canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="app">
+  <aside id="shell"></aside>
+  <main class="main" id="main">
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+
+    <div class="page-head greet rise">
+      <div>
+        <h1 id="hello">Welcome back, Khanh</h1>
+        <p class="status" id="status"></p>
+      </div>
+      <div class="actions"><a class="btn btn-primary" href="projects.html?new=1"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New project</a></div>
+    </div>
+
+    <nav class="quick rise" style="--i:1" aria-label="Shortcuts">
+      <a href="projects.html?new=1"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New project</a>
+      <a href="editor.html"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/></svg>Import MIDI</a>
+      <a href="project.html"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M17 5a3 3 0 0 1 0 6M21 20v-1a5 5 0 0 0-3-4.6"/></svg>Invite a collaborator</a>
+      <a href="help.html"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5M12 17h.01"/></svg>Open help</a>
+    </nav>
+
+    <div class="home">
+      <div>
+        <section class="u-glass cont rise" style="--i:2" id="cont" aria-labelledby="h-cont">
+          <div class="thumb" id="cont-thumb"></div>
+          <div>
+            <h2 id="h-cont" class="u-eyebrow" style="margin:0 0 6px">Continue where you left off</h2>
+            <h3><a href="project.html">Rainy Saigon Night</a></h3>
+            <p class="when">Draft on <span class="hash">main</span> · edited 12 minutes ago</p>
+            <p class="big"><b class="num">14 notes</b> not committed yet</p>
+            <p class="chg"><span class="pill pill-add"><i class="dot"></i>9 added</span><span class="pill pill-del"><i class="dot"></i>3 removed</span><span class="pill pill-mod"><i class="dot"></i>2 re-voiced</span></p>
+          </div>
+          <a class="btn btn-primary" href="editor.html" aria-label="Open editor for Rainy Saigon Night">Open editor</a>
+        </section>
+
+        <section class="u-glass first rise" style="--i:2" id="first" aria-labelledby="h-first" hidden>
+          <div class="first-art" aria-hidden="true"><div class="u-staff"></div><i class="u-star u-star-lg"></i></div>
+          <h2 id="h-first">Start your first song</h2>
+          <p>A project holds every version of a track. Begin with a blank page or import a MIDI file, and your first commit is one click away.</p>
+          <div class="actions"><a class="btn btn-primary" href="projects.html?new=1">Create your first project</a><a class="btn btn-quiet" href="editor.html">Import MIDI</a></div>
+        </section>
+
+        <section class="u-glass rise" style="--i:3" id="recent" aria-labelledby="h-recent">
+          <div class="head"><h2 id="h-recent">Recent projects</h2><a href="projects.html">View all<span class="sr-only"> projects</span></a></div>
+          <ul class="rows" id="rows"></ul>
+        </section>
+
+        <section class="rise" style="--i:4" aria-labelledby="h-comm">
+          <div class="head"><h2 id="h-comm">From the community</h2><a href="explore.html">Browse Explore<span class="sr-only"> for more public projects</span></a></div>
+          <div class="comm-grid" id="comm"></div>
+          <p class="hint" id="pv-status" role="status" style="margin-top:12px"></p>
+        </section>
+      </div>
+
+      <div>
+        <section class="u-glass rise" style="--i:3" id="notifications" aria-labelledby="h-notes">
+          <div class="head"><h2 id="h-notes">Notifications<span class="badge" id="unread" data-n="3" aria-live="polite">3<span class="sr-only"> unread</span></span></h2><button class="linkbtn" type="button" id="readall">Mark all as read</button></div>
+          <ul class="notes" id="notes"></ul>
+          <p class="none" id="no-notes" hidden>No notifications yet. Invites, pull requests and stars will show up here.</p>
+        </section>
+
+        <section class="u-glass jam rise" style="--i:4" aria-labelledby="h-jam">
+          <p class="u-eyebrow" style="margin:0">Community Jam <span class="pill" style="margin-left:6px;text-transform:none;letter-spacing:0">Sample</span></p>
+          <h2 id="h-jam">Sixteen bars of rain</h2>
+          <p>Write a 16-bar sketch about rain and share it with everyone. Placeholder event for this prototype.</p>
+          <div class="u-staff" aria-hidden="true"></div>
+          <p class="count" id="jam-left"></p>
+          <div class="actions"><a class="btn btn-quiet btn-sm" href="explore.html">See entries</a></div>
+        </section>
+
+        <section class="rise" style="--i:5" aria-labelledby="h-week">
+          <h2 id="h-week" class="sr-only">This week</h2>
+          <dl class="mini">
+            <div><dt>Commits this week</dt><dd class="num" id="st-commits">9</dd></div>
+            <div><dt>Audio storage</dt><dd class="num"><span id="st-mb">12</span><small>/ 50 MB</small></dd></div>
+          </dl>
+        </section>
+      </div>
+    </div>
+
+    <footer class="home-foot">
+      <span>© 2026 STAVE</span>
+      <nav aria-label="Footer"><a href="welcome.html">Take the tour</a><a href="help.html">Help and glossary</a><a href="explore.html">Explore</a><a href="rankings.html">Rankings</a></nav>
+    </footer>
+  </main>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  var T = {
+    hello: function (n) { return "Welcome back, " + n; },
+    helloNew: function (n) { return "Welcome to STAVE, " + n; },
+    status: "You have 1 draft to finish, 1 branch waiting to merge and 3 unread notifications.",
+    statusNew: "No projects yet. Make one and your first song will start its history here.",
+    openEditor: function (n) { return "Open editor for " + n; },
+    resolve: function (n) { return "Resolve conflicts for " + n; },
+    previewLabel: function (n) { return "Preview " + n + " (sample, no audio)"; },
+    previewNote: "Sample preview only: this prototype has no audio.",
+    stars: " stars", forks: " forks",
+    unreadSr: " unread", allRead: "All notifications marked as read.",
+    jamLeft: function (d, h, m) { return d + " days " + h + " h " + m + " min left"; }
+  };
+  var empty = new URLSearchParams(location.search).get("empty") === "1";
+  var $ = function (id) { return document.getElementById(id); };
+  S.mountShell("home");
+
+  $("hello").textContent = empty ? T.helloNew("Khanh") : T.hello("Khanh");
+  $("status").textContent = empty ? T.statusNew : T.status;
+
+  var PROJECTS = [
+    ["Rainy Saigon Night", "dem-sai-gon-mua.mid", "main", "pill-mod", "Has draft", "yesterday", 2, false, 3, "editor.html", "Open editor"],
+    ["Morning bossa", "bossa-sang.mid", "main", "pill-neutral", "Committed", "3 days ago", 1, false, 5, "editor.html", "Open editor"],
+    ["Intro for the November EP", "intro-ep.mid", "bridge-alt", "pill-ink", "Awaiting merge", "5 days ago", 3, false, 7, "merge.html", "Resolve conflicts"],
+    ["Harmony exercise", "hoa-am.mid", "main", "pill-neutral", "Committed", "2 weeks ago", 1, true, 4, "editor.html", "Open editor"]
+  ];
+
+  if (empty) {
+    $("cont").hidden = true;
+    $("recent").hidden = true;
+    $("first").hidden = false;
+    $("st-commits").textContent = "0";
+    $("st-mb").textContent = "0";
+  } else {
+    $("cont-thumb").innerHTML = S.staffThumb(2, false, 3);
+    var rows = $("rows");
+    PROJECTS.forEach(function (p) {
+      var li = document.createElement("li");
+      var primary = p[9] === "merge.html";
+      li.innerHTML = '<div class="thumb">' + S.staffThumb(p[6], p[7], p[8]) + '</div>' +
+        '<div><a class="nm" href="project.html">' + p[0] + '</a><span class="sub"><span class="hash">' + p[1] + '</span> · ' + p[2] + ' · ' + p[5] + '</span></div>' +
+        '<span class="pill ' + p[3] + '"><i class="dot"></i>' + p[4] + '</span>' +
+        '<a class="btn ' + (primary ? "btn-primary" : "btn-quiet") + ' btn-sm" href="' + p[9] + '" aria-label="' + (primary ? T.resolve(p[0]) : T.openEditor(p[0])) + '">' + p[10] + '</a>';
+      rows.appendChild(li);
+    });
+  }
+
+  var NOTES = [
+    ["Minh Anh invited you to collaborate on “Rainy Saigon Night”", "project.html", "2 hours ago"],
+    ["Hoang Vu opened a pull request on “Morning bossa”: Add nylon guitar intro", "merge.html", "Yesterday"],
+    ["thanhtri starred “Rainy Saigon Night”", "project.html", "2 days ago"]
+  ];
+  var unread = empty ? 0 : NOTES.length;
+  var ul = $("notes");
+  function paintUnread() {
+    var b = $("unread");
+    b.setAttribute("data-n", String(unread));
+    b.innerHTML = unread + '<span class="sr-only">' + T.unreadSr + "</span>";
+    var side = document.querySelector('#shell a[href="home.html#notifications"] .count');
+    if (side) side.textContent = unread ? String(unread) : "";
+  }
+  if (empty) {
+    $("no-notes").hidden = false;
+    $("readall").hidden = true;
+  } else {
+    NOTES.forEach(function (n) {
+      var li = document.createElement("li");
+      li.innerHTML = '<i class="u-star" aria-hidden="true"></i><a href="' + n[1] + '">' + n[0] + '</a><small>' + n[2] + '</small>';
+      ul.appendChild(li);
+    });
+  }
+  paintUnread();
+  $("readall").addEventListener("click", function () {
+    unread = 0;
+    Array.prototype.forEach.call(ul.querySelectorAll(".u-star"), function (s) { s.className = "u-star read"; });
+    paintUnread();
+    $("readall").hidden = true;
+    $("pv-status").textContent = T.allRead;
+  });
+
+  var comm = $("comm");
+  [3, 1, 0].forEach(function (i) {
+    var d = S.PUBLIC_PROJECTS[i];
+    var a = document.createElement("article");
+    a.className = "comm";
+    a.innerHTML = '<div class="thumb">' + S.staffThumb(d[9], d[10], i) + '</div>' +
+      '<h3><a href="project.html">' + d[0] + '</a></h3><p class="by">' + d[4] + ' · ' + d[2] + ' · ' + d[3] + '</p>' +
+      '<p class="tally"><span class="num">' + d[5] + '</span>' + T.stars + ' · <span class="num">' + d[6] + '</span>' + T.forks + '</p>' +
+      '<div class="pv"><button class="btn btn-quiet btn-sm" type="button" aria-label="' + T.previewLabel(d[0]) + '">Preview</button><span class="pill">Sample</span></div>';
+    a.querySelector("button").addEventListener("click", function () { $("pv-status").textContent = T.previewNote; });
+    comm.appendChild(a);
+  });
+
+  var end = Date.now() + ((3 * 24 + 14) * 60 + 20) * 60000;
+  function tick() {
+    var m = Math.max(0, Math.floor((end - Date.now()) / 60000));
+    $("jam-left").textContent = T.jamLeft(Math.floor(m / 1440), Math.floor((m % 1440) / 60), m % 60);
+  }
+  tick();
+  setInterval(tick, 30000);
+})();
+</script>
+<script src="assets/sky.js" defer></script>
+</body>
+</html>
