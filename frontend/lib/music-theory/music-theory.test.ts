@@ -78,7 +78,7 @@ describe("music-theory.analyzeSnapshot", () => {
       emptyContext().hasNotes,
       emptyContext().instruments,
     );
-    expect(key.primary).toContain("C");
+    expect(key.primary).toBe("C trưởng");
     expect(key.isMinor).toBe(false);
   });
 
@@ -196,6 +196,15 @@ describe("music-theory.analyzeSnapshot", () => {
       ...chordNotes("C2", [0, 4, 7], B * 3),
       ...chordNotes("C3", [0, 4, 7], B * 4),
       ...chordNotes("C4", [0, 4, 7], B * 5),
+      // Held tonic in the bass, as in real passages that settle on C.
+      ...[2, 3, 4, 5].map((bar) => ({
+        id: `bass-${bar}`,
+        trackId: "t1",
+        pitch: 48,
+        start: B * bar,
+        duration: B,
+        velocity: 80,
+      })),
     ];
     const key = detectKey(
       emptyContext().meta,
@@ -205,7 +214,7 @@ describe("music-theory.analyzeSnapshot", () => {
       emptyContext().instruments,
     );
     // Nếu K-S tự nhiên ra C trưởng → giữ test này; nếu không, báo lại.
-    expect(key.primary).toContain("C");
+    expect(key.primary).toBe("C trưởng");
     expect(key.isMinor).toBe(false);
   });
 
@@ -278,5 +287,60 @@ describe("music-theory.analyzeSnapshot", () => {
     };
     const result = analyze(snap);
     expect(result.insufficient).toBe(true);
+  });
+});
+
+describe("music-theory regressions", () => {
+  const C = [0, 4, 7];
+  const G = [7, 11, 2];
+  const Am = [9, 0, 4];
+  const F = [5, 9, 0];
+  const bar = (n: number) => B * (n - 1);
+
+  it("names the key by its real root (D major, not E)", () => {
+    const notes = [
+      ...chordNotes("D", [2, 6, 9], bar(1)),
+      ...chordNotes("A", [9, 1, 4], bar(2)),
+      ...chordNotes("Bm", [11, 2, 6], bar(3)),
+      ...chordNotes("G", [7, 11, 2], bar(4)),
+    ];
+    const result = analyze(snapshot(notes));
+    expect(result.insights.find((i) => i.kind === "key")?.title).toBe("Tông: D trưởng");
+    expect(result.insights.some((i) => i.id === "progression-i-v-vi-iv")).toBe(true);
+  });
+
+  it("does not stitch a progression across empty bars", () => {
+    const notes = [
+      ...chordNotes("C", C, bar(1)),
+      ...chordNotes("G", G, bar(2)),
+      ...chordNotes("Am", Am, bar(5)),
+      ...chordNotes("F", F, bar(6)),
+    ];
+    const result = analyze(snapshot(notes));
+    expect(result.insights.some((i) => i.id === "progression-i-v-vi-iv")).toBe(false);
+  });
+
+  it("reports a cadence that ends a phrase before a rest", () => {
+    const notes = [
+      ...chordNotes("C1", C, bar(1)),
+      ...chordNotes("G", G, bar(2)),
+      ...chordNotes("C2", C, bar(3)),
+      ...chordNotes("Am", Am, bar(6)),
+      ...chordNotes("F", F, bar(7)),
+    ];
+    const cadence = analyze(snapshot(notes)).insights.find((i) => i.kind === "cadence");
+    expect(cadence?.title).toBe("Kết trọn");
+    expect([cadence?.fromBar, cadence?.toBar]).toEqual([2, 3]);
+  });
+
+  it("does not report a cadence between non-adjacent bars", () => {
+    const notes = [
+      ...chordNotes("C1", C, bar(1)),
+      ...chordNotes("C2", C, bar(2)),
+      ...chordNotes("G", G, bar(4)),
+      ...chordNotes("C3", C, bar(6)),
+    ];
+    const result = analyze(snapshot(notes));
+    expect(result.insights.some((i) => i.kind === "cadence")).toBe(false);
   });
 });

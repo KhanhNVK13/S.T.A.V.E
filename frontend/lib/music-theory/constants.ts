@@ -26,7 +26,7 @@ export const KS_MINOR_PROFILE = [
 
 /** Tên 12 lớp cao độ, chỉ số = semitone (0 = C). */
 export const PITCH_CLASS_NAMES = [
-  "C", "D", "E", "F", "G", "A", "B", "C#", "D#", "F#", "G#", "A#",
+  "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 ];
 
 export type ChordType =

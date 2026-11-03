@@ -117,7 +117,16 @@ function InsightRow({
   );
 }
 
-export function InsightPanel({ projectId, notes, tracks, meta, onJumpToBar }: InsightPanelProps) {
+export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpToBar }: InsightPanelProps) {
+  // Editor tạo object meta mới ở mỗi lần render (kể cả khi đang phát nhạc);
+  // khoá theo giá trị để debounce 500 ms không bị reset liên tục.
+  const { tempo, ppq } = metaProp;
+  const [numerator, denominator] = metaProp.timeSignature;
+  const meta = useMemo<DraftMeta>(
+    () => ({ tempo, ppq, timeSignature: [numerator, denominator] }),
+    [tempo, ppq, numerator, denominator],
+  );
+
   // 4.1: bỏ insight — lưu theo dự án (khoá stave_insight_dismissed_<projectId>).
   // Component được render với key=projectId nên initializer chạy lại khi đổi project.
   const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissed(projectId));

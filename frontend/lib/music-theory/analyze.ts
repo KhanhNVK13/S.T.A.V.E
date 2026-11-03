@@ -85,26 +85,21 @@ function progressionMatches(
   const out = new Map<string, { fromBar: number; toBar: number }>();
   for (const p of PROGRESSION_PATTERNS) {
     let found: { fromBar: number; toBar: number } | null = null;
-    if (p.numerals.length === 12) {
-      if (
-        numerals.length === 12 &&
-        numerals.every((n, i) => n === p.numerals[i])
-      ) {
-        found = { fromBar: bars[0], toBar: bars[11] };
-      }
-    } else {
-      for (let i = 0; i + p.numerals.length <= numerals.length; i++) {
-        let hit = true;
-        for (let j = 0; j < p.numerals.length; j++) {
-          if (numerals[i + j] !== p.numerals[j]) {
-            hit = false;
-            break;
-          }
-        }
-        if (hit) {
-          found = { fromBar: bars[i], toBar: bars[i + p.numerals.length - 1] };
+    const len = p.numerals.length;
+    for (let i = 0; i + len <= numerals.length; i++) {
+      // Hợp âm của các ô nhịp trống/không nhận ra bị bỏ khỏi chuỗi, nên cửa sổ
+      // chỉ hợp lệ khi các ô nhịp đó liền nhau.
+      if (bars[i + len - 1] - bars[i] !== len - 1) continue;
+      let hit = true;
+      for (let j = 0; j < len; j++) {
+        if (numerals[i + j] !== p.numerals[j]) {
+          hit = false;
           break;
         }
+      }
+      if (hit) {
+        found = { fromBar: bars[i], toBar: bars[i + len - 1] };
+        break;
       }
     }
     if (found) out.set(p.id, found);
@@ -172,20 +167,23 @@ export function analyze(snapshot: DraftSnapshot): InsightAnalysis {
     });
   }
 
-  // 6: kết (cadence) ở 2 hợp âm có bậc cuối cùng.
+  // 6: kết (cadence) ở cuối mỗi đoạn liền nhau (ô nhịp cuối hoặc trước khoảng nghỉ).
   const defined = [...numeralsByBar.entries()].sort((a, b) => a[0] - b[0]);
-  if (defined.length >= 2) {
-    const fromNumeral = defined[defined.length - 2][1];
-    const toNumeral = defined[defined.length - 1][1];
+  for (let i = 1; i < defined.length; i++) {
+    const [fromBarNo, fromNumeral] = defined[i - 1];
+    const [toBarNo, toNumeral] = defined[i];
+    if (toBarNo - fromBarNo !== 1) continue;
+    const endsPhrase = i === defined.length - 1 || defined[i + 1][0] - toBarNo !== 1;
+    if (!endsPhrase) continue;
     const cadence = CADENCE_SPECS.find((c) => c.from === fromNumeral && c.to === toNumeral);
     if (cadence) {
       insights.push({
-        id: `cadence-${cadence.id}`,
+        id: `cadence-${cadence.id}-${fromBarNo}`,
         kind: "cadence",
         title: cadence.title,
         description: cadence.description,
-        fromBar: defined[defined.length - 2][0],
-        toBar: defined[defined.length - 1][0],
+        fromBar: fromBarNo,
+        toBar: toBarNo,
       });
     }
   }
