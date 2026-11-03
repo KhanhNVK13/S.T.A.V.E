@@ -320,3 +320,178 @@ export function createSupabaseMock(
     pushResult: (result: QueryResult) => queue.push(result),
   };
 }
+
+/**
+ * Shape of a mocked Supabase response, mirroring what `supabase-js` returns.
+ */
+export interface MockResponse {
+  data?: any;
+  error?: any;
+  count?: number;
+}
+
+/**
+ * Mocked call record, so a test can assert WHAT was written to the DB
+ * (payload of `upsert`/`insert`/`update`) instead of only the return value.
+ */
+export interface MockCall {
+  table: string;
+  op: 'select' | 'insert' | 'update' | 'delete' | 'upsert';
+  payload?: any;
+  filters: Record<string, unknown>;
+  columns?: string;
+  order?: { column: string; ascending: boolean };
+  range?: [number, number];
+  inFilter?: { column: string; values: unknown[] };
+}
+
+/** A recorded `rpc(fnName, params)` call. */
+export interface MockRpcCall {
+  fnName: string;
+  params?: any;
+}
+
+export type MockResponseMap = Record<string, MockResponse[]>;
+
+const matchesFilters = (
+  row: any,
+  filters: Record<string, unknown>,
+): boolean => {
+  if (!row || typeof row !== 'object') return false;
+  return Object.entries(filters).every(([col, val]) => row[col] === val);
+};
+
+const toSingle = (response: MockResponse): MockResponse => {
+  if (!response || !Array.isArray(response.data)) return response;
+  return { ...response, data: response.data[0] ?? null };
+};
+
+export const createMockSupabaseClient = (
+  mockResponses: MockResponse[] | MockResponseMap = [],
+) => {
+  let globalIndex = 0;
+  const calls: MockCall[] = [];
+  const rpcCalls: MockRpcCall[] = [];
+
+  const isPerTable = !Array.isArray(mockResponses);
+  const queues = isPerTable ? mockResponses : ({} as MockResponseMap);
+
+  const nextResponse = (table: string): MockResponse => {
+    if (isPerTable) {
+      const queue = queues[table];
+      if (!queue || queue.length === 0) return { data: null, error: null };
+      return queue.shift()!;
+    }
+    const list = mockResponses;
+    if (globalIndex >= list.length) return { data: null, error: null };
+    return list[globalIndex++];
+  };
+
+  const makeBuilder = (table: string) => {
+    const filters: Record<string, unknown> = {};
+    const inFilters: { column: string; values: unknown[] }[] = [];
+    let lastOrder: { column: string; ascending: boolean } | undefined;
+    let lastRange: [number, number] | undefined;
+    let selectCall: MockCall | undefined;
+
+    const resolve = (): MockResponse => {
+      const response = nextResponse(table);
+      if (!response || response.data == null) return response;
+      if (Array.isArray(response.data)) {
+        return {
+          ...response,
+          data: response.data.filter(
+            (row) =>
+              matchesFilters(row, filters) &&
+              inFilters.every((f) => f.values.includes(row[f.column])),
+          ),
+        };
+      }
+      return matchesFilters(response.data, filters)
+        ? response
+        : { ...response, data: null };
+    };
+
+    const patchLastSelect = () => {
+      if (!selectCall) return;
+      selectCall.order = lastOrder;
+      selectCall.range = lastRange;
+      selectCall.inFilter =
+        inFilters.length > 0
+          ? { column: inFilters[0].column, values: inFilters[0].values }
+          : undefined;
+    };
+
+    const builder: any = {
+      select: (columns?: string) => {
+        const call: MockCall = {
+          table,
+          op: 'select',
+          filters,
+          columns,
+        };
+        selectCall = call;
+        calls.push(call);
+        return builder;
+      },
+      insert: (payload: any) => {
+        calls.push({ table, op: 'insert', payload, filters });
+        return builder;
+      },
+      update: (payload: any) => {
+        calls.push({ table, op: 'update', payload, filters });
+        return builder;
+      },
+      delete: () => {
+        calls.push({ table, op: 'delete', filters });
+        return builder;
+      },
+      upsert: (payload: any) => {
+        calls.push({ table, op: 'upsert', payload, filters });
+        return builder;
+      },
+      eq: (col: string, val: unknown) => {
+        filters[col] = val;
+        return builder;
+      },
+      in: (col: string, values: unknown[]) => {
+        inFilters.push({ column: col, values });
+        patchLastSelect();
+        return builder;
+      },
+      order: (column: string, opts?: { ascending?: boolean }) => {
+        lastOrder = { column, ascending: opts?.ascending ?? true };
+        patchLastSelect();
+        return builder;
+      },
+      range: (from: number, to: number) => {
+        lastRange = [from, to];
+        patchLastSelect();
+        return builder;
+      },
+      single: () => Promise.resolve(toSingle(resolve())),
+      maybeSingle: () => Promise.resolve(toSingle(resolve())),
+      then: (
+        onFulfilled?: (value: MockResponse) => unknown,
+        onRejected?: (reason: unknown) => unknown,
+      ) => Promise.resolve(resolve()).then(onFulfilled, onRejected),
+    };
+
+    return builder;
+  };
+
+  const client = {
+    from: (table: string) => makeBuilder(table),
+    rpc: (fnName: string, params?: any) => {
+      rpcCalls.push({ fnName, params });
+      return Promise.resolve(nextResponse('rpc'));
+    },
+  };
+
+  return {
+    client: client as unknown as SupabaseClient,
+    builder: client,
+    calls,
+    rpcCalls,
+  };
+};
