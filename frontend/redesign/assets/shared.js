@@ -9,7 +9,7 @@
   }
 
   function ago(s) {
-    var m = /^(\d+) (day|week)s? ago$/.exec(s);
+    var m = /^(\d+) (day|week|hour)s? ago$/.exec(s);
     if (m) return L("time." + m[2], { n: Number(m[1]) });
     if (s === "yesterday") return L("time.yesterday");
     if (s === "just now") return L("time.justNow");
