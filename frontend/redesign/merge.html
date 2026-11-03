@@ -3,13 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#04050d">
 <title>Merge branch · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
 <style>
+  .sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .app { position: relative; z-index: 1; }
+  .btn-primary { color: var(--ground); }
+  .btn-primary:hover { background: color-mix(in srgb, var(--ink) 85%, var(--ground)); }
+  .btn-quiet { background: var(--raised); color: var(--ink); }
+  .btn-quiet:hover { background: var(--paper); }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+  .roll .row-b { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .roll .row-c { fill: color-mix(in srgb, var(--ink) 12%, transparent); }
+  .roll .bar { stroke: color-mix(in srgb, var(--ink) 38%, transparent); }
+  .roll .beat { stroke: color-mix(in srgb, var(--ink) 14%, transparent); }
+  .n-dim { fill: color-mix(in srgb, var(--ink) 40%, transparent); }
+  .n-main { fill: var(--ink); }
+  .n-ghost-main { stroke: var(--ink); }
+  .legend .sw-main { background: var(--ink); }
+  .legend .sw-gm { border-color: var(--ink); }
+  .legend .k { background: color-mix(in srgb, var(--ink) 40%, transparent); }
   .flow { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; font-size: 15px; }
   .flow .hash { font-size: 14px; background: var(--paper); padding: 4px 10px; border-radius: 6px; color: var(--ink); }
   .conflict { margin-bottom: 20px; }
@@ -29,8 +46,8 @@
   .cbar .cnt { font-weight: 540; color: var(--del); }
   .cbar .cnt.ok { color: var(--ink); }
   .cbar .nav { margin-left: auto; display: flex; gap: 8px; }
-  .st { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 11px; font-size: 13px; font-weight: 500; border: 1px solid var(--del); color: var(--del); background: #fff; margin-left: 8px; }
-  .st.done { border-color: var(--ink); color: #fff; background: var(--ink); }
+  .st { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 11px; font-size: 13px; font-weight: 500; border: 1px solid var(--del); color: var(--del); background: var(--raised); margin-left: 8px; }
+  .st.done { border-color: var(--ink); color: var(--ground); background: var(--ink); }
   .play { margin-left: auto; flex: none; }
   .both .play { margin-left: auto; }
   .both { display: flex; align-items: center; gap: 10px; margin: 0 20px 20px; padding: 12px 16px; border: 2px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--ink); cursor: pointer; }
@@ -41,7 +58,7 @@
   .done-line { display: none; align-items: center; gap: 12px; padding: 12px 20px; font-size: 15px; flex-wrap: wrap; }
   .conflict.is-done .done-line { display: flex; }
   .done-line .btn { margin-left: auto; }
-  .success { display: none; text-align: left; background: var(--mint); border-radius: var(--block, 20px); padding: clamp(24px, 4vw, 48px); margin-bottom: 24px; }
+  .success { display: none; text-align: left; background: var(--raised); border: 1px solid var(--add); border-radius: var(--block, 20px); padding: clamp(24px, 4vw, 48px); margin-bottom: 24px; }
   .success.on { display: block; }
   .success h2 { font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem); font-weight: 340; letter-spacing: -.03em; line-height: 1.1; margin-bottom: 12px; }
   .success p { max-width: 56ch; margin-bottom: 20px; }
@@ -51,14 +68,15 @@
   .bulk { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
   #result { margin-top: 8px; }
   #result li { padding: 6px 0; font-size: 15px; }
-  .toast-u { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 14px 10px 20px; border-radius: 999px; font-size: 14px; z-index: 50; display: flex; gap: 14px; align-items: center; }
-  .toast-u button { background: #fff; color: var(--ink); border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 500; }
+  .toast-u { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); background: var(--ink); color: var(--ground); padding: 10px 14px 10px 20px; border-radius: 999px; font-size: 14px; z-index: 50; display: flex; gap: 14px; align-items: center; }
+  .toast-u button { background: var(--ground); color: var(--ink); border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 500; }
   .main { padding-bottom: 150px; }
   .foot-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; margin-top: 28px; background: var(--raised); border: 1px solid var(--line-strong); border-radius: 10px; flex-wrap: wrap; }
   @media (max-width: 760px) { .sides { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
+<canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
 <a class="skip" href="#main">Skip to main content</a>
 <div class="app">
   <aside id="shell"></aside>
@@ -74,7 +92,7 @@
 
     <div class="flow"><span class="hash">bridge-alt</span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span class="hash">main</span><span style="color:var(--soft)">· 2 new commits, 2 conflicting bars</span></div>
 
-    <div class="cbar" role="group" aria-label="Conflict navigation"><b>bridge-alt → main</b><span class="cnt" id="cnt">2 conflicts unresolved</span><span class="nav"><button class="btn btn-quiet btn-sm" type="button" id="prev-c">▲ Previous</button><button class="btn btn-quiet btn-sm" type="button" id="next-c">Sau ▼</button></span></div>
+    <div class="cbar" role="group" aria-label="Conflict navigation"><b>bridge-alt → main</b><span class="cnt" id="cnt">2 conflicts unresolved</span><span class="nav"><button class="btn btn-quiet btn-sm" type="button" id="prev-c">▲ Previous</button><button class="btn btn-quiet btn-sm" type="button" id="next-c">Next ▼</button></span></div>
     <div class="legend" style="margin-bottom:16px"><span style="color:var(--ink);font-weight:500">Color shows the branch:</span><span><i class="sw-main"></i>main’s notes</span><span><i class="sw-bridge"></i>bridge-alt’s notes</span><span><i class="sw-gm"></i>Dashed: note exists only on the other branch</span><span><i class="k"></i>Unchanged</span></div>
     <div class="bulk" role="group" aria-label="Quick choice for every bar"><button class="btn btn-quiet btn-sm" type="button" data-all="ours">Keep all of main</button><button class="btn btn-quiet btn-sm" type="button" data-all="theirs">Take all of bridge-alt</button><button class="btn btn-quiet btn-sm" type="button" data-all="both">Keep both in every bar</button></div>
 
@@ -99,7 +117,7 @@
     </section>
 
     <section class="success" id="success" role="status" aria-labelledby="h-ok" tabindex="-1">
-      <svg class="tie" width="220" height="48" viewBox="0 0 220 48" aria-hidden="true"><line x1="6" x2="214" y1="14" y2="14" stroke="#000" stroke-opacity=".25"/><line x1="6" x2="214" y1="34" y2="34" stroke="#000" stroke-opacity=".25"/><circle cx="30" cy="14" r="5" fill="#121212"/><circle cx="80" cy="14" r="5" fill="#121212"/><circle cx="130" cy="14" r="5" fill="#121212"/><circle cx="90" cy="34" r="5" fill="#0f7b6c"/><path d="M90 29C96 22 120 20 130 14" fill="none" stroke="#0f7b6c" stroke-width="2"/><circle cx="190" cy="14" r="6" fill="#fff" stroke="#121212" stroke-width="2.5"/><path d="M130 14H184" stroke="#121212" stroke-width="2"/></svg>
+      <svg class="tie" width="220" height="48" viewBox="0 0 220 48" aria-hidden="true"><line x1="6" x2="214" y1="14" y2="14" stroke="var(--ink)" stroke-opacity=".35"/><line x1="6" x2="214" y1="34" y2="34" stroke="var(--ink)" stroke-opacity=".35"/><circle cx="30" cy="14" r="5" style="fill:var(--ink)"/><circle cx="80" cy="14" r="5" style="fill:var(--ink)"/><circle cx="130" cy="14" r="5" style="fill:var(--ink)"/><circle cx="90" cy="34" r="5" fill="#0f7b6c"/><path d="M90 29C96 22 120 20 130 14" fill="none" stroke="#0f7b6c" stroke-width="2"/><circle cx="190" cy="14" r="6" style="fill:var(--raised);stroke:var(--ink)" stroke-width="2.5"/><path d="M130 14H184" style="stroke:var(--ink)" stroke-width="2"/></svg>
       <h2 id="h-ok">Merged bridge-alt into main.</h2>
       <p>The main branch gained one merge commit. You can review the result in the history or undo it right now.</p>
       <div class="actions"><a class="btn btn-primary" href="project.html">Back to project</a><a class="btn btn-quiet" href="editor.html">Open the editor</a></div>
@@ -117,6 +135,25 @@
 <script>
 (function () {
   var S = window.STAVE;
+  var STR = {
+    side: { ours: "main’s version", theirs: "bridge-alt’s version", both: "both branches" },
+    short: { ours: "main", theirs: "bridge-alt", both: "both" },
+    unresolved: "Unresolved", resolved: "Resolved", allResolved: "All conflicts resolved",
+    conflictsOpen: function (n) { return n + " conflicts unresolved"; },
+    barLine: function (bar, c, what, count, dr) { return "Bar " + bar + ": " + count + " " + what + " (" + c + ")" + (dr ? ". Will drop " + dr[1] + " notes of " + dr[0] + "." : ". No notes will be dropped."); },
+    barNone: function (bar) { return "Bar " + bar + ": not chosen yet"; },
+    selected: function (side, dr) { return "Selected " + side + ". " + (dr ? "Drop " + dr[1] + " notes of " + dr[0] + "." : "No notes will be dropped."); },
+    shortBar: function (bar, v) { return "Bar " + bar + ": " + v; },
+    pendingTitle: "Choose a version to keep for both bars to finish",
+    leftSome: function (n) { return "<b>" + n + " bars</b> not chosen yet"; },
+    leftNone: "<b>All set</b> for both bars",
+    playing: function (n) { return "Playing " + n + " notes"; },
+    preview: function (key) { return "Preview " + key; },
+    merged: "Merged", mergedLeft: "<b>Merged</b> bridge-alt into main",
+    mergedToast: "Merged bridge-alt into main.", undo: "Undo", dismiss: "Dismiss notification",
+    complete: "Complete merge",
+    undone: "Undone. The two branches have not been merged."
+  };
   S.mountShell("projects");
   function n(s, d, p) { return { s: s, d: d, p: p, born: 0, died: null, chg: null, t: 0 }; }
   var sets = {
@@ -137,12 +174,12 @@
     mine.forEach(function (x) { mk[kk(x)] = 1; });
     other.forEach(function (x) { ok[kk(x)] = 1; });
     var all = mine.concat(other.filter(function (x) { return !mk[kk(x)]; }));
-    S.drawRoll(h, { notes: all, steps: 16, lo: r[0], hi: r[1], cell: 17, rowH: 9, gutter: 28, to: 0, mode: "plain", cls: function (x) { var a = mk[kk(x)], b = ok[kk(x)]; return a && b ? "n-dim" : a ? (side === "ours" ? "n-main" : "n-bridge") : (side === "ours" ? "n-ghost-bridge" : "n-ghost-main"); }, label: "Preview  " + key });
+    S.drawRoll(h, { notes: all, steps: 16, lo: r[0], hi: r[1], cell: 17, rowH: 9, gutter: 28, to: 0, mode: "plain", cls: function (x) { var a = mk[kk(x)], b = ok[kk(x)]; return a && b ? "n-dim" : a ? (side === "ours" ? "n-main" : "n-bridge") : (side === "ours" ? "n-ghost-bridge" : "n-ghost-main"); }, label: STR.preview(key) });
   });
   var COUNT = { c1: { ours: 3, theirs: 3, both: 5, what: "bass notes" }, c2: { ours: 4, theirs: 3, both: 7, what: "melody notes" } };
   var DROP = { c1: { ours: ["bridge-alt", 2], theirs: ["main", 2], both: null }, c2: { ours: ["bridge-alt", 3], theirs: ["main", 4], both: null } };
   var BAR = { c1: 2, c2: 3 };
-  var SIDE = { ours: "main’s version", theirs: "bridge-alt’s version", both: "both branches" };
+  var SIDE = STR.side;
   function result() {
     var ul = document.getElementById("res-list");
     ul.innerHTML = "";
@@ -150,7 +187,7 @@
       var c = document.querySelector('input[name="' + k + '"]:checked');
       var li = document.createElement("li");
       var dr = c && DROP[k][c.value];
-      li.textContent = c ? "Bar  " + BAR[k] + ": " + COUNT[k][c.value] + " " + COUNT[k].what + " (" + SIDE[c.value] + ")" + (dr ? ". Will drop  " + dr[1] + " notes of  " + dr[0] + "." : ". No notes will be dropped.") : "Bar  " + BAR[k] + ": not chosen yet";
+      li.textContent = c ? STR.barLine(BAR[k], SIDE[c.value], COUNT[k].what, COUNT[k][c.value], dr) : STR.barNone(BAR[k]);
       if (!c) li.style.color = "var(--soft)";
       ul.appendChild(li);
     });
@@ -184,7 +221,7 @@
       o.start(st);
       o.stop(en + 0.05);
     });
-    live.textContent = "Playing  " + arr.length + " notes";
+    live.textContent = STR.playing(arr.length);
   }
   Array.prototype.forEach.call(document.querySelectorAll("[data-play]"), function (b) {
     b.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); playSet(b.dataset.play); });
@@ -199,7 +236,7 @@
     ["c1", "c2"].forEach(function (k) {
       var done2 = !!document.querySelector('input[name="' + k + '"]:checked');
       var chip = document.querySelector('[data-st="' + k + '"]');
-      chip.textContent = done2 ? "Resolved" : "Unresolved";
+      chip.textContent = done2 ? STR.resolved : STR.unresolved;
       chip.classList.toggle("done", done2);
       if (!done2) open++;
     });
@@ -207,15 +244,15 @@
       var c = document.querySelector('input[name="' + k + '"]:checked');
       var sec = document.querySelector('[data-st="' + k + '"]').closest(".conflict");
       sec.classList.toggle("is-done", !!c && sec.dataset.hold !== "1");
-      if (c) document.getElementById("sum-" + k).textContent = "Selected  " + SIDE[c.value] + ". " + (DROP[k][c.value] ? "Drop  " + DROP[k][c.value][1] + " notes of  " + DROP[k][c.value][0] + "." : "No notes will be dropped.");
+      if (c) document.getElementById("sum-" + k).textContent = STR.selected(SIDE[c.value], DROP[k][c.value]);
     });
     var cnt = document.getElementById("cnt");
-    cnt.textContent = open ? open + " conflicts unresolved" : "All conflicts resolved";
+    cnt.textContent = open ? STR.conflictsOpen(open) : STR.allResolved;
     cnt.classList.toggle("ok", !open);
-    var sh = ["c1", "c2"].map(function (k) { var c = document.querySelector('input[name="' + k + '"]:checked'); return "Bar  " + BAR[k] + ": " + (c ? { ours: "main", theirs: "bridge-alt", both: "both" }[c.value] : "—"); }).join(" · ");
+    var sh = ["c1", "c2"].map(function (k) { var c = document.querySelector('input[name="' + k + '"]:checked'); return STR.shortBar(BAR[k], c ? STR.short[c.value] : "—"); }).join(" · ");
     document.getElementById("short").textContent = sh;
-    done.title = pending ? "Choose a version to keep for both bars to finish" : "";
-    left.innerHTML = pending ? "<b>" + pending + " bars</b> not chosen yet" : "<b>All set</b> for both bars";
+    done.title = pending ? STR.pendingTitle : "";
+    left.innerHTML = pending ? STR.leftSome(pending) : STR.leftNone;
   }
   document.addEventListener("change", function (e) {
     if (e.target.type === "radio") { var s = e.target.closest(".conflict"); if (s) s.dataset.hold = "1"; }
@@ -240,29 +277,29 @@
     var inputs = document.querySelectorAll("input[type=radio], [data-all], [data-edit]");
     Array.prototype.forEach.call(inputs, function (i) { i.disabled = true; });
     done.disabled = true;
-    done.textContent = "Merged";
-    left.innerHTML = "<b>Merged</b> bridge-alt into main";
+    done.textContent = STR.merged;
+    left.innerHTML = STR.mergedLeft;
     var ok = document.getElementById("success");
     ok.classList.add("on");
     ok.scrollIntoView({ block: "start" });
     var t = document.createElement("div");
     t.className = "toast-u";
     t.setAttribute("role", "status");
-    t.innerHTML = "<span>Merged bridge-alt into main.</span>";
+    t.innerHTML = "<span>" + STR.mergedToast + "</span>";
     var u = document.createElement("button");
     u.type = "button";
-    u.textContent = "Undo";
+    u.textContent = STR.undo;
     u.addEventListener("click", function () {
       t.remove();
       Array.prototype.forEach.call(inputs, function (i) { i.disabled = false; });
       document.getElementById("success").classList.remove("on");
-      done.textContent = "Complete merge";
+      done.textContent = STR.complete;
       check();
       done.focus();
       var n = document.createElement("div");
       n.className = "toast-u";
       n.setAttribute("role", "status");
-      n.innerHTML = "<span>Undone. The two branches have not been merged.</span>";
+      n.innerHTML = "<span>" + STR.undone + "</span>";
       document.body.appendChild(n);
       setTimeout(function () { n.remove(); }, 3000);
     });
@@ -271,7 +308,7 @@
     u.focus();
     var x = document.createElement("button");
     x.type = "button";
-    x.setAttribute("aria-label", "Dismiss notification");
+    x.setAttribute("aria-label", STR.dismiss);
     x.textContent = "×";
     x.addEventListener("click", function () { t.remove(); });
     t.appendChild(x);
@@ -310,5 +347,6 @@
   check();
 })();
 </script>
+<script src="assets/sky.js" defer></script>
 </body>
 </html>
