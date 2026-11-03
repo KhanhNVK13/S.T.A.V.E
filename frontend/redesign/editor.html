@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
 <title data-i18n="editor.title">Editor · STAVE</title>
+<script src="assets/session.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -12,14 +13,17 @@
 <style>
   html, body { height: 100%; overflow: hidden; }
   .sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
-  .ed { display: grid; grid-template-rows: 52px minmax(0, 1fr); height: 100vh; position: relative; z-index: 1; background: transparent; }
+  .ed { display: grid; grid-template-rows: 52px 30px minmax(0, 1fr); height: 100vh; position: relative; z-index: 1; background: transparent; }
   .ed-top { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line-strong); background: color-mix(in srgb, var(--ground) 90%, transparent); overflow-x: auto; }
   .ed-top > * { flex: none; }
   .ed-top .spacer { flex: 1 0 8px; }
   .ed-top .sep { width: 1px; height: 24px; background: var(--line-strong); flex: none; }
   .title { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
   .title b { font-size: 15px; font-weight: 600; white-space: nowrap; }
-  .title span { font-size: 12.5px; color: var(--soft); white-space: nowrap; }
+  .crumbbar { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ground) 90%, transparent); font-size: 12.5px; color: var(--soft); white-space: nowrap; overflow-x: auto; }
+  .crumbbar > * { flex: none; }
+  .crumbbar .brand { font-family: var(--display); font-weight: 800; font-size: 13px; color: var(--ink); letter-spacing: -.02em; }
+  .crumbbar a:hover { color: var(--ink); text-decoration: underline; }
   .chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--raised); font-size: 13.5px; font-weight: 500; white-space: nowrap; }
   .saved { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--soft); white-space: nowrap; }
   .saved .dot { color: var(--add); }
@@ -172,6 +176,7 @@
     <button class="tbtn" type="button" id="toggle-hist" aria-pressed="true" aria-label="Toggle history" data-i18n-attr="aria-label:editor.toggleHistory"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
     <button class="btn btn-primary" id="commit-btn" translate="no" type="button" title="Commit (Ctrl Enter)"><span class="cbadge" id="cbadge" hidden></span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 12h6M15 12h6"/></svg>Commit</button>
   </header>
+  <nav class="crumbbar" aria-label="Breadcrumb" data-i18n-attr="aria-label:common.breadcrumb"><a class="brand" href="index.html" translate="no" aria-label="STAVE, home" data-i18n-attr="aria-label:shell.brandHome">STAVE</a><span aria-hidden="true">·</span><a href="home.html" data-i18n="shell.home">Home</a> / <a href="projects.html" data-i18n="shell.myProjects">My projects</a> / <a href="project.html">Rainy Saigon Night</a> / <span aria-current="page" data-i18n="editor.crumb">Editor</span></nav>
 
   <main class="ed-body" id="body" data-hist="true"><h1 class="sr-only" data-i18n="editor.heading">Editor: Rainy Saigon Night</h1>
     <aside class="tracks" aria-label="Track" data-i18n-attr="aria-label:editor.trackAside">
