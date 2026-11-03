@@ -33,6 +33,9 @@ export const DC = {
   accent: "var(--accent)",
   accentSoft: "var(--accent-muted)",
   accentDeep: "var(--accent-hover)",
+  onAccent: "var(--accent-foreground)",
+  scrim: "rgba(0, 0, 0, .6)",
+  shadowPop: "0 18px 40px rgba(0, 0, 0, .45)",
 
   // Trạng thái
   danger: "var(--danger)",
@@ -42,8 +45,8 @@ export const DC = {
   success: "var(--success)",
 
   // Lưới piano roll (phần vẽ bằng DOM; phần canvas xem `piano-roll.tsx`)
-  gridBar: "color-mix(in oklab, var(--border) 70%, var(--surface))",
-  gridRow: "color-mix(in oklab, var(--border) 40%, var(--surface))",
+  gridBar: "color-mix(in oklab, var(--foreground) 28%, var(--surface))",
+  gridRow: "color-mix(in oklab, var(--foreground) 10%, var(--surface))",
 
   mono: "var(--font-stave-mono)",
 } as const;

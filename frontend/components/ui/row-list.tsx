@@ -24,7 +24,7 @@ export function RowList({
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-card border border-border bg-surface md:grid md:gap-x-3 md:[&>*]:col-span-full ${cols} ${className}`}
+      className={`overflow-hidden rounded-card border border-border bg-surface/85 md:grid md:gap-x-3 md:[&>*]:col-span-full ${cols} ${className}`}
     >
       {children}
     </div>

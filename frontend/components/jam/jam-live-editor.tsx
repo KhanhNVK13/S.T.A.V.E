@@ -174,6 +174,7 @@ export function JamLiveEditor({
         </div>
 
         <select
+          name="jam-track"
           className="rounded border border-border bg-surface px-2 py-1.5 text-xs"
           value={effectiveTrack ?? ""}
           onChange={(e) => setSelectedTrackId(e.target.value || null)}
