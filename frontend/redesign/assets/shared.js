@@ -1,6 +1,37 @@
 (function () {
   var NS = "http://www.w3.org/2000/svg";
 
+  var TEXT = {
+    workspace: "Khanh’s workspace",
+    navMain: "Main navigation",
+    quickFind: "Quick find",
+    quickFindKeys: "Ctrl K",
+    recentProjects: "Recent projects",
+    helpGlossary: "Help and glossary",
+    settings: "Settings",
+    userName: "Khanh",
+    userEmail: "khanh@stave.app",
+    myProjects: "My projects",
+    explore: "Explore",
+    rankings: "Rankings",
+    notifications: "Notifications",
+    help: "Help",
+    signIn: "Sign in",
+    brandHome: "STAVE, home",
+    mainNav: "Main",
+    palPlaceholder: "Find a page, project or action…",
+    palHint: "↑ ↓ to choose · Enter to open · Esc to close",
+    palEmpty: function (q) { return "No results for “" + q + "”. Try a project name or “compare”."; },
+    palPages: "Pages",
+    palProjects: "Projects",
+    palActions: "Actions",
+    openEditor: "Open the editor",
+    compareVersions: "Compare two versions",
+    mergeBranch: "Merge branch",
+    pianoRoll: "Piano roll",
+    branchGraph: "Branch graph: main, bridge-alt, drums-swing"
+  };
+
   var ICONS = {
     folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     compass: '<circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6z"/>',
@@ -41,7 +72,7 @@
     var s = size || 28;
     var lines = "";
     for (var i = 0; i < 5; i++) lines += '<rect x="4" y="' + (6.4 + i * 3.7) + '" width="20" height="1.3" fill="#ffffff" opacity=".55"/>';
-    return '<svg class="mark" width="' + s + '" height="' + s + '" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="7" fill="#000000"/>' + lines + '<ellipse cx="14" cy="13.8" rx="4.2" ry="3.1" transform="rotate(-20 14 13.8)" fill="#dceeb1"/><path d="M17.7 12.6V5.2" stroke="#dceeb1" stroke-width="1.5" fill="none"/></svg>';
+    return '<svg class="mark" width="' + s + '" height="' + s + '" viewBox="0 0 28 28" aria-hidden="true"><rect x=".5" y=".5" width="27" height="27" rx="6.5" fill="#0b0d1a" stroke="#eef0ff" stroke-opacity=".4"/>' + lines + '<ellipse cx="14" cy="13.8" rx="4.2" ry="3.1" transform="rotate(-20 14 13.8)" fill="#dceeb1"/><path d="M17.7 12.6V5.2" stroke="#dceeb1" stroke-width="1.5" fill="none"/></svg>';
   }
 
   function mountShell(active) {
@@ -49,10 +80,10 @@
     if (!host) return;
     try { sessionStorage.setItem("stave-in", "1"); } catch { }
     var items = [
-      ["projects", "folder", "My projects", "projects.html", "4"],
-      ["explore", "compass", "Explore", "explore.html", ""],
-      ["rankings", "trophy", "Rankings", "rankings.html", ""],
-      ["notifications", "bell", "Notifications", "projects.html#notifications", "3"]
+      ["projects", "folder", TEXT.myProjects, "projects.html", "4"],
+      ["explore", "compass", TEXT.explore, "explore.html", ""],
+      ["rankings", "trophy", TEXT.rankings, "rankings.html", ""],
+      ["notifications", "bell", TEXT.notifications, "projects.html#notifications", "3"]
     ];
     var recent = [
       ["Rainy Saigon Night", "project.html"],
@@ -66,13 +97,13 @@
       return '<a href="' + r[1] + '">' + ic("music") + r[0] + "</a>";
     }).join("");
     host.className = "side";
-    host.setAttribute("aria-label", "Main navigation");
+    host.setAttribute("aria-label", TEXT.navMain);
     host.innerHTML =
-      '<a class="switcher" href="index.html">' + mark() + '<span translate="no">STAVE<small>Khanh’s workspace</small></span></a>' +
-      '<button class="pal-btn" id="pal-open" type="button" aria-keyshortcuts="Control+K Meta+K">' + ic("search") + 'Quick find<kbd>Ctrl K</kbd></button>' +
-      '<nav class="nav">' + nav + '<div class="nav-label">Recent projects</div>' + rec + "</nav>" +
-      '<div class="side-foot nav"><a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + 'Help and glossary</a><a href="settings.html">' + ic("sliders") + 'Settings</a>' +
-      '<a class="user" href="settings.html"><span class="avatar">K</span><span>Khanh<br><small style="color:var(--soft)">khanh@stave.app</small></span></a></div>';
+      '<a class="switcher" href="index.html">' + mark() + '<span translate="no">STAVE<small>' + TEXT.workspace + '</small></span></a>' +
+      '<button class="pal-btn" id="pal-open" type="button" aria-keyshortcuts="Control+K Meta+K">' + ic("search") + TEXT.quickFind + '<kbd>' + TEXT.quickFindKeys + '</kbd></button>' +
+      '<nav class="nav">' + nav + '<div class="nav-label">' + TEXT.recentProjects + '</div>' + rec + "</nav>" +
+      '<div class="side-foot nav"><a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + TEXT.helpGlossary + '</a><a href="settings.html">' + ic("sliders") + TEXT.settings + '</a>' +
+      '<a class="user" href="settings.html"><span class="avatar">' + TEXT.userName.charAt(0) + '</span><span>' + TEXT.userName + '<br><small style="color:var(--soft)">' + TEXT.userEmail + '</small></span></a></div>';
     mountPalette();
     var btn = document.getElementById("menu-btn");
     if (btn) {
@@ -171,7 +202,7 @@
     var gutter = o.gutter === undefined ? 34 : o.gutter;
     var W = gutter + steps * cell;
     var H = (hi - lo + 1) * rowH + 18;
-    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "roll", role: "img", "aria-label": o.label || "Piano roll" });
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "roll", role: "img", "aria-label": o.label || TEXT.pianoRoll });
     var black = { 1: 1, 3: 1, 6: 1, 8: 1, 10: 1 };
     for (var p = hi; p >= lo; p--) {
       var y = 18 + (hi - p) * rowH;
@@ -231,16 +262,16 @@
       var w = 2 + Math.floor(r() * 7);
       var y = 5 + Math.floor(r() * 32);
       if (x + w > 80) break;
-      out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="3" rx="1" fill="#121212" opacity="' + (0.35 + r() * 0.65).toFixed(2) + '"/>';
+      out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="3" rx="1" fill="#eef0ff" opacity="' + (0.35 + r() * 0.65).toFixed(2) + '"/>';
       x += w + 1 + Math.floor(r() * 3);
     }
-    for (var b = 1; b < bars; b++) out += '<line x1="' + (b * 84 / bars).toFixed(1) + '" x2="' + (b * 84 / bars).toFixed(1) + '" y1="0" y2="46" stroke="#000000" opacity=".1"/>';
+    for (var b = 1; b < bars; b++) out += '<line x1="' + (b * 84 / bars).toFixed(1) + '" x2="' + (b * 84 / bars).toFixed(1) + '" y1="0" y2="46" stroke="#eef0ff" opacity=".12"/>';
     return out + "</svg>";
   }
 
   function staffThumb(branches, merged, seed) {
     var sd = seed || 0, lanes = Math.max(1, Math.min(3, branches));
-    var cols = ["#121212", "#0f7b6c", "#7b3f7a"];
+    var cols = ["#eef0ff", "#4fd6c4", "#c58bd6"];
     var main = 4 + (sd % 3);
     var step = 68 / (main - 1);
     var fork = 1 + (sd % (main - 2));
@@ -248,7 +279,7 @@
     var out = '<svg viewBox="0 0 84 46" aria-hidden="true">';
     for (var l = 0; l < lanes; l++) {
       var y = lanes === 1 ? 23 : 10 + l * (26 / (lanes - 1));
-      out += '<line x1="4" x2="80" y1="' + y + '" y2="' + y + '" stroke="#000" stroke-opacity=".18"/>';
+      out += '<line x1="4" x2="80" y1="' + y + '" y2="' + y + '" stroke="#eef0ff" stroke-opacity=".22"/>';
       var xs = [];
       if (l === 0) { for (var i = 0; i < main; i++) xs.push(8 + i * step); }
       else {
@@ -257,7 +288,7 @@
       }
       xs.forEach(function (x, idx) {
         var hollow = merged && l === 0 && idx === xs.length - 1;
-        out += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="3.2" fill="' + (hollow ? "#fff" : cols[l]) + '" stroke="' + cols[l] + '" stroke-width="1.5"/>';
+        out += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="3.2" fill="' + (hollow ? "#060814" : cols[l]) + '" stroke="' + cols[l] + '" stroke-width="1.5"/>';
       });
       if (l > 0) {
         var fx = 8 + fork * step, bx = xs[0];
@@ -271,19 +302,19 @@
     var o = opts || {};
     var laneH = 66;
     var lanes = [
-      { name: "main", color: "#000000" },
-      { name: "bridge-alt", color: "#0f7b6c" },
-      { name: "drums-swing", color: "#7b3f7a" }
+      { name: "main", color: "#eef0ff" },
+      { name: "bridge-alt", color: "#4fd6c4" },
+      { name: "drums-swing", color: "#c58bd6" }
     ];
     var left = o.big ? 150 : 118;
     var step = 112;
     var W = left + 7 * step + 40;
     var H = lanes.length * laneH + 14;
-    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "graph", role: "img", "aria-label": "Branch graph: main, bridge-alt, drums-swing" });
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "graph", role: "img", "aria-label": TEXT.branchGraph });
     lanes.forEach(function (ln, i) {
       var y0 = 12 + i * laneH + 14;
       for (var l = 0; l < 5; l++) {
-        el("line", { x1: left - 14, x2: W - 10, y1: y0 + l * 6, y2: y0 + l * 6, stroke: "#000000", "stroke-opacity": ".16", "stroke-width": 1 }, svg);
+        el("line", { x1: left - 14, x2: W - 10, y1: y0 + l * 6, y2: y0 + l * 6, stroke: "#eef0ff", "stroke-opacity": ".2", "stroke-width": 1 }, svg);
       }
       var t = el("text", { x: 0, y: y0 + 16, "font-size": o.big ? 17 : 13, "font-weight": 600, fill: ln.color, "font-family": "Onest, system-ui, sans-serif" }, svg);
       t.textContent = ln.name;
@@ -303,24 +334,24 @@
     }
     for (var i = 0; i < 5; i++) {
       var a = pos(0, i), b = pos(0, i + 1);
-      el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "#000000", "stroke-width": 2.2 }, svg);
+      el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "#eef0ff", "stroke-width": 2.2 }, svg);
     }
-    el("line", { x1: pos(0, 5).x, y1: pos(0, 5).y, x2: pos(0, 6.4).x, y2: pos(0, 6.4).y, stroke: "#000000", "stroke-width": 2.2 }, svg);
-    curve(pos(0, 3), pos(1, 3.7), "#0f7b6c");
-    el("line", { x1: pos(1, 3.7).x, y1: pos(1, 3.7).y, x2: pos(1, 4.9).x, y2: pos(1, 4.9).y, stroke: "#0f7b6c", "stroke-width": 2.2 }, svg);
-    curve(pos(1, 4.9), pos(0, 6.4), "#0f7b6c", "5 4");
-    curve(pos(0, 2), pos(2, 2.8), "#7b3f7a");
+    el("line", { x1: pos(0, 5).x, y1: pos(0, 5).y, x2: pos(0, 6.4).x, y2: pos(0, 6.4).y, stroke: "#eef0ff", "stroke-width": 2.2 }, svg);
+    curve(pos(0, 3), pos(1, 3.7), "#4fd6c4");
+    el("line", { x1: pos(1, 3.7).x, y1: pos(1, 3.7).y, x2: pos(1, 4.9).x, y2: pos(1, 4.9).y, stroke: "#4fd6c4", "stroke-width": 2.2 }, svg);
+    curve(pos(1, 4.9), pos(0, 6.4), "#4fd6c4", "5 4");
+    curve(pos(0, 2), pos(2, 2.8), "#c58bd6");
     commits.forEach(function (c) {
       var p = pos(c.lane, c.col);
       var col = lanes[c.lane].color;
       var g = el("g", { transform: "translate(" + p.x + " " + p.y + ")", role: "img", "aria-label": c.h }, svg);
       el("title", {}, g).textContent = c.h;
       el("line", { x1: 6, y1: -2, x2: 6, y2: -26, stroke: col, "stroke-width": 1.8 }, g);
-      el("ellipse", { rx: 7, ry: 5, transform: "rotate(-20)", fill: c.merge ? "#ffffff" : col, stroke: col, "stroke-width": 2 }, g);
-      if (o.showHash) var ht = el("text", { x: 0, y: 24, "text-anchor": "middle", "font-size": 12.5, fill: "#4d4d4a", "font-family": "ui-monospace, Consolas, monospace" }, g);
+      el("ellipse", { rx: 7, ry: 5, transform: "rotate(-20)", fill: c.merge ? "#060814" : col, stroke: col, "stroke-width": 2 }, g);
+      if (o.showHash) var ht = el("text", { x: 0, y: 24, "text-anchor": "middle", "font-size": 12.5, fill: "#b4b9d6", "font-family": "ui-monospace, Consolas, monospace" }, g);
       if (ht) ht.textContent = c.h;
       if (o.current && c.h === o.current) {
-        el("circle", { r: 13, fill: "none", stroke: "#0f7b6c", "stroke-width": 2 }, g);
+        el("circle", { r: 13, fill: "none", stroke: "#dceeb1", "stroke-width": 2 }, g);
       }
     });
     host.innerHTML = "";
@@ -330,30 +361,30 @@
   function mountPalette() {
     if (document.getElementById("palette")) return;
     var items = [
-      ["My projects", "projects.html", "Trang"],
-      ["Explore", "explore.html", "Trang"],
-      ["Rankings", "rankings.html", "Trang"],
-      ["Rainy Saigon Night", "project.html", "Projects"],
-      ["Morning bossa", "project.html", "Projects"],
-      ["Intro for the November EP", "project.html", "Projects"],
-      ["Open the editor", "editor.html", "Actions"],
-      ["Compare two versions", "compare.html", "Actions"],
-      ["Merge branch", "merge.html", "Actions"],
-      ["Help and glossary", "help.html", "Trang"],
-      ["Settings", "settings.html", "Trang"]
+      [TEXT.myProjects, "projects.html", TEXT.palPages],
+      [TEXT.explore, "explore.html", TEXT.palPages],
+      [TEXT.rankings, "rankings.html", TEXT.palPages],
+      ["Rainy Saigon Night", "project.html", TEXT.palProjects],
+      ["Morning bossa", "project.html", TEXT.palProjects],
+      ["Intro for the November EP", "project.html", TEXT.palProjects],
+      [TEXT.openEditor, "editor.html", TEXT.palActions],
+      [TEXT.compareVersions, "compare.html", TEXT.palActions],
+      [TEXT.mergeBranch, "merge.html", TEXT.palActions],
+      [TEXT.helpGlossary, "help.html", TEXT.palPages],
+      [TEXT.settings, "settings.html", TEXT.palPages]
     ];
     var d = document.createElement("dialog");
     d.id = "palette";
     d.className = "palette";
-    d.setAttribute("aria-label", "Quick find");
-    d.innerHTML = '<input id="pal-in" class="pal-in" name="q" type="search" autocomplete="off" spellcheck="false" role="combobox" aria-controls="pal-list" aria-expanded="false" placeholder="Find a page, project or action…" aria-label="Quick find"><ul id="pal-list" class="pal-list" role="listbox"></ul><p class="pal-hint">↑ ↓ to choose · Enter to open · Esc to close</p>';
+    d.setAttribute("aria-label", TEXT.quickFind);
+    d.innerHTML = '<input id="pal-in" class="pal-in" name="q" type="search" autocomplete="off" spellcheck="false" role="combobox" aria-controls="pal-list" aria-expanded="false" placeholder="' + TEXT.palPlaceholder + '" aria-label="' + TEXT.quickFind + '"><ul id="pal-list" class="pal-list" role="listbox"></ul><p class="pal-hint">' + TEXT.palHint + '</p>';
     document.body.appendChild(d);
     var inp = d.querySelector("#pal-in"), ul = d.querySelector("#pal-list"), cur = 0, shown = [];
     function draw() {
       var q = inp.value.trim().toLowerCase();
       shown = items.filter(function (i) { return !q || i[0].toLowerCase().indexOf(q) > -1; });
       cur = Math.min(cur, Math.max(0, shown.length - 1));
-      ul.innerHTML = shown.length ? "" : '<li class="pal-empty">No results for “' + inp.value.replace(/</g, "&lt;") + '”. Try a project name or “compare”.</li>';
+      ul.innerHTML = shown.length ? "" : '<li class="pal-empty">' + TEXT.palEmpty(inp.value.replace(/</g, "&lt;")) + "</li>";
       shown.forEach(function (i, n) {
         var li = document.createElement("li");
         li.setAttribute("role", "option");
@@ -401,11 +432,11 @@
   function mountPublicHeader(active) {
     var host = document.getElementById("pubtop");
     if (!host) return;
-    var links = [["explore", "Explore", "explore.html"], ["rankings", "Rankings", "rankings.html"], ["help", "Help", "help.html"]];
+    var links = [["explore", TEXT.explore, "explore.html"], ["rankings", TEXT.rankings, "rankings.html"], ["help", TEXT.help, "help.html"]];
     host.setAttribute("role", "banner");
-    host.innerHTML = '<a class="pub-brand" href="index.html" translate="no" aria-label="STAVE, home">' + mark(28) + 'STAVE</a><nav class="pub-links" aria-label="Main">' +
+    host.innerHTML = '<a class="pub-brand" href="index.html" translate="no" aria-label="' + TEXT.brandHome + '">' + mark(28) + 'STAVE</a><nav class="pub-links" aria-label="' + TEXT.mainNav + '">' +
       links.map(function (l) { return '<a href="' + l[2] + '"' + (l[0] === active ? ' aria-current="page"' : "") + ">" + l[1] + "</a>"; }).join("") +
-      (loggedIn() ? '<a class="btn btn-primary btn-sm" href="projects.html">My projects</a>' : '<a class="btn btn-quiet btn-sm" href="login.html">Sign in</a>') + "</nav>";
+      (loggedIn() ? '<a class="btn btn-primary btn-sm" href="projects.html">' + TEXT.myProjects + "</a>" : '<a class="btn btn-quiet btn-sm" href="login.html">' + TEXT.signIn + "</a>") + "</nav>";
     mountPalette();
   }
 
