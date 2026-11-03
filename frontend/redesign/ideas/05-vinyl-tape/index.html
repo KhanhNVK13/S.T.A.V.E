@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STAVE — Vinyl and Tape (landing demo)</title>
+<meta name="description" content="Landing page demo: turntable, vinyl and cassette tape as a metaphor for music version control.">
+<script>
+/* Motion gate: only big screens without reduced-motion get the animated path.
+   Everything else gets the finished state straight away (no hidden content). */
+(function () {
+  var d = document.documentElement;
+  var rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var small = window.matchMedia("(max-width: 899px)").matches;
+  d.className += " js" + (rm ? " rm" : "") + (small ? " lite" : "") + (!rm && !small ? " anim" : "");
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="css/vinyl.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="top">
+  <a class="brand" href="#s01" aria-label="STAVE, back to the top">
+    <span class="brand-dot" aria-hidden="true"></span><span translate="no">STAVE</span>
+  </a>
+  <nav class="top-nav" aria-label="Site">
+    <a href="#s03">History</a>
+    <a href="#s05">How it works</a>
+    <a href="#s06">Tools</a>
+    <a href="../../explore.html">Explore</a>
+    <a href="../../login.html">Sign in</a>
+    <a class="btn btn-pri btn-sm" href="../../login.html">Start free</a>
+  </nav>
+</header>
+
+<nav class="rail" aria-label="Page sections">
+  <div class="rail-fill" aria-hidden="true"></div>
+  <ol class="rail-list">
+    <li><a href="#s01" aria-label="01 Introduction" aria-current="true">01</a></li>
+    <li><a href="#s02" aria-label="02 The name">02</a></li>
+    <li><a href="#s03" aria-label="03 History">03</a></li>
+    <li><a href="#s04" aria-label="04 Why save every version">04</a></li>
+    <li><a href="#s05" aria-label="05 How it works">05</a></li>
+    <li><a href="#s06" aria-label="06 Tools">06</a></li>
+    <li><a href="#s07" aria-label="07 Get started">07</a></li>
+  </ol>
+  <div class="mini" aria-hidden="true">
+    <div class="platter"><div class="spin" data-spin="55" data-rec='{"c":"#d7ec9a","text":false}'></div><div class="sheen"></div></div>
+    <div class="arm" data-arm="rail"></div>
+  </div>
+</nav>
+
+<main id="main">
+
+<!-- 01 · INTRO -->
+<section class="sec s-hero" id="s01" aria-labelledby="h-hero">
+  <div class="hero-copy">
+    <p class="kicker" data-rv>Version control for music</p>
+    <h1 id="h-hero" data-rv>Every take of your song, kept on the shelf.</h1>
+    <p class="lead" data-rv>STAVE saves each draft of your MIDI project like a pressing you can replay, compare and branch. Nothing gets recorded over.</p>
+    <div class="actions" data-rv>
+      <a class="btn btn-pri" href="../../login.html">Create your first project</a>
+      <a class="btn btn-ghost" href="#s05">See how it works</a>
+    </div>
+  </div>
+  <div class="hero-deck" aria-hidden="true" data-rv>
+    <div class="platter"><div class="spin" data-spin="42" data-rec='{"c":"#bfe3c9","a":"STAVE · SIDE A · STAVE","b":"DRAFT 01 · 33⅓ RPM"}'></div><div class="sheen"></div></div>
+    <div class="arm" data-arm="hero"></div>
+  </div>
+</section>
+
+<!-- 02 · THE NAME -->
+<section class="sec s-name" id="s02" aria-labelledby="h-name">
+  <div class="name-left">
+    <p class="kicker" data-rv>The name</p>
+    <h2 id="h-name" data-rv>A name you can read off the record.</h2>
+    <p class="lead" data-rv>Five letters, pressed into one label. Watch them come apart.</p>
+    <div class="eng" data-rv aria-hidden="true">
+      <div class="eng-label"><span class="eng-l">S</span><span class="eng-l">T</span><span class="eng-l">A</span><span class="eng-l">V</span><span class="eng-l">E</span></div>
+    </div>
+  </div>
+  <p class="sr-only">STAVE stands for Source Tracking and Version Control Environment.</p>
+  <ol class="nm-list">
+    <li class="nm" aria-label="Source"><span class="nm-disc" aria-hidden="true"><span class="nm-rec" data-rec='{"c":"#bfe3c9","text":false}'></span><span class="nm-letter">S</span></span><span class="nm-word" aria-hidden="true">ource</span></li>
+    <li class="nm" aria-label="Tracking"><span class="nm-disc" aria-hidden="true"><span class="nm-rec" data-rec='{"c":"#d7ec9a","text":false}'></span><span class="nm-letter">T</span></span><span class="nm-word" aria-hidden="true">racking</span></li>
+    <li class="nm" aria-label="And"><span class="nm-disc" aria-hidden="true"><span class="nm-rec" data-rec='{"c":"#f3ecdc","text":false}'></span><span class="nm-letter">A</span></span><span class="nm-word" aria-hidden="true">nd</span></li>
+    <li class="nm" aria-label="Version"><span class="nm-disc" aria-hidden="true"><span class="nm-rec" data-rec='{"c":"#bfe3c9","text":false}'></span><span class="nm-letter">V</span></span><span class="nm-word" aria-hidden="true">ersion</span></li>
+    <li class="nm nm-quiet" aria-label="Control"><span class="nm-disc" aria-hidden="true"><span class="nm-rec" data-rec='{"c":"#3a3028","text":false}'></span></span><span class="nm-word" aria-hidden="true">Control</span></li>
+    <li class="nm" aria-label="Environment"><span class="nm-disc" aria-hidden="true"><span class="nm-rec" data-rec='{"c":"#d7ec9a","text":false}'></span><span class="nm-letter">E</span></span><span class="nm-word" aria-hidden="true">nvironment</span></li>
+  </ol>
+</section>
+
+<!-- 03 · HISTORY -->
+<section class="sec s-hist" id="s03" aria-labelledby="h-hist">
+  <div class="hist-left">
+    <p class="kicker" data-rv>History</p>
+    <h2 id="h-hist" data-rv>Each commit is a record in your crate.</h2>
+    <p class="lead" data-rv>Flip through the sleeves. Pull one out to hear (well, see) exactly what changed.</p>
+    <div class="crate" data-rv role="group" aria-label="Commits, oldest to newest"></div>
+  </div>
+  <div class="now" data-rv>
+    <div class="now-head">
+      <div>
+        <p class="kicker" id="now-kicker">Now playing</p>
+        <p class="now-msg" id="now-msg" aria-live="polite"></p>
+        <p class="now-meta" id="now-meta"></p>
+      </div>
+      <div class="now-rec" aria-hidden="true"><div class="spin" data-spin="60" data-rec='{"c":"#d7ec9a","text":false}'></div></div>
+    </div>
+    <div class="roll-host" id="roll-host"></div>
+    <div class="now-foot">
+      <ul class="legend" aria-label="Legend">
+        <li><span class="sw sw-add" aria-hidden="true"></span>Note added <b id="t-add">0</b></li>
+        <li><span class="sw sw-del" aria-hidden="true"></span>Note removed <b id="t-del">0</b></li>
+        <li><span class="sw sw-mod" aria-hidden="true"></span>Velocity changed <b id="t-mod">0</b></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 04 · WHY -->
+<section class="sec s-why" id="s04" aria-labelledby="h-why">
+  <div class="why-head">
+    <p class="kicker" data-rv>Why keep every version</p>
+    <h2 id="h-why" data-rv>The best take is rarely the last one.</h2>
+  </div>
+  <ul class="why-grid">
+    <li class="why-card" data-rv>
+      <svg viewBox="0 0 120 70" class="why-art" aria-hidden="true"><g class="reel-s" data-spin="-70" style="transform-origin:34px 35px"><circle cx="34" cy="35" r="24" fill="none" stroke="#f4ede0" stroke-width="2"/><circle cx="34" cy="35" r="5" fill="#f4ede0"/><path d="M34 11v16M34 43v16M10 35h16M42 35h16" stroke="#f4ede0" stroke-width="2"/></g><path d="M64 20c14-14 40-6 42 14M106 34l-7-8M106 34l8-6" fill="none" stroke="#d7ec9a" stroke-width="3" stroke-linecap="round"/></svg>
+      <p class="side">A1</p><h3>Nothing is ever lost</h3><p>Rewind to any earlier take with one click. Your old ideas stay exactly as you left them.</p>
+    </li>
+    <li class="why-card" data-rv>
+      <svg viewBox="0 0 120 70" class="why-art" aria-hidden="true"><path d="M8 20h104" stroke="#f4ede0" stroke-width="3" stroke-linecap="round"/><path d="M40 20c14 0 14 32 30 32h42" fill="none" stroke="#bfe3c9" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 7"/><circle cx="14" cy="20" r="5" fill="#f4ede0"/><circle cx="40" cy="20" r="5" fill="#f4ede0"/><circle cx="70" cy="52" r="5" fill="#bfe3c9"/><circle cx="104" cy="52" r="5" fill="#bfe3c9"/></svg>
+      <p class="side">A2</p><h3>Try bold ideas safely</h3><p>Split off a branch, go wild, and keep the main take untouched until you are sure.</p>
+    </li>
+    <li class="why-card" data-rv>
+      <svg viewBox="0 0 120 70" class="why-art" aria-hidden="true"><rect x="10" y="14" width="36" height="9" rx="3" fill="#f4ede0" opacity=".3"/><rect x="52" y="14" width="30" height="9" rx="3" fill="#7ba4ff" stroke="#7ba4ff" stroke-width="2"/><rect x="18" y="32" width="40" height="9" rx="3" fill="none" stroke="#ff8aa3" stroke-width="2" stroke-dasharray="4 3"/><rect x="64" y="32" width="38" height="9" rx="3" fill="none" stroke="#f2bc57" stroke-width="2.5"/><rect x="30" y="50" width="52" height="9" rx="3" fill="#f4ede0" opacity=".3"/></svg>
+      <p class="side">B1</p><h3>See exactly what changed</h3><p>Blue for added notes, dashed pink for removed, amber for new velocity. No guessing.</p>
+    </li>
+    <li class="why-card" data-rv>
+      <svg viewBox="0 0 120 70" class="why-art" aria-hidden="true"><circle cx="46" cy="35" r="26" fill="none" stroke="#f4ede0" stroke-width="2.5"/><circle cx="74" cy="35" r="26" fill="none" stroke="#bfe3c9" stroke-width="2.5"/><circle cx="46" cy="35" r="4" fill="#f4ede0"/><circle cx="74" cy="35" r="4" fill="#bfe3c9"/></svg>
+      <p class="side">B2</p><h3>Make music together</h3><p>Everyone works on their own copy. Merge when ready, and nobody records over anybody.</p>
+    </li>
+  </ul>
+</section>
+
+<!-- 05 · GUIDE -->
+<section class="sec s-guide" id="s05" aria-labelledby="h-guide">
+  <div class="guide-left">
+    <p class="kicker" data-rv>How it works</p>
+    <h2 id="h-guide" data-rv>From rough draft to finished mix, in four moves.</h2>
+    <ol class="steps" data-rv id="steps">
+      <li><button type="button" data-step="1"><span class="n">1</span><span><b>Draft</b><small>Sketch freely. Nothing is filed until you say so.</small></span></button></li>
+      <li><button type="button" data-step="2"><span class="n">2</span><span><b>Commit</b><small>Save with a short note. That moment becomes a record.</small></span></button></li>
+      <li><button type="button" data-step="3"><span class="n">3</span><span><b>Branch</b><small>Try an idea on a copy of the tape. The main take stays safe.</small></span></button></li>
+      <li><button type="button" data-step="4"><span class="n">4</span><span><b>Merge</b><small>Like it? Splice it back. Differences are shown first.</small></span></button></li>
+    </ol>
+  </div>
+  <div class="guide-right" data-rv>
+    <svg class="cassette" viewBox="0 0 320 170" role="img" aria-label="A cassette tape whose reels turn as you scroll">
+      <rect x="4" y="4" width="312" height="162" rx="14" fill="#241d17" stroke="#6b5c49" stroke-width="2"/>
+      <rect x="26" y="16" width="268" height="64" rx="8" fill="#f3ecdc"/>
+      <text x="40" y="42" font-family="Unbounded, sans-serif" font-size="14" font-weight="700" fill="#171310">STAVE · DRAFTS</text>
+      <text x="40" y="64" font-family="Onest, sans-serif" font-size="12" fill="#4a4034">Side A · Rainy Saigon Night</text>
+      <path d="M232 30h46M232 44h46M232 58h46" stroke="#171310" stroke-opacity=".35" stroke-width="2"/>
+      <rect x="60" y="92" width="200" height="52" rx="26" fill="#0f0c0a" stroke="#6b5c49"/>
+      <g class="reel" data-spin="90" style="transform-origin:96px 118px"><circle cx="96" cy="118" r="19" fill="#d7c9ae"/><circle cx="96" cy="118" r="7" fill="#0f0c0a"/><path d="M96 101v9M96 126v9M79 118h9M104 118h9" stroke="#0f0c0a" stroke-width="3"/></g>
+      <g class="reel" data-spin="90" style="transform-origin:224px 118px"><circle cx="224" cy="118" r="19" fill="#d7c9ae"/><circle cx="224" cy="118" r="7" fill="#0f0c0a"/><path d="M224 101v9M224 126v9M207 118h9M232 118h9" stroke="#0f0c0a" stroke-width="3"/></g>
+      <path d="M30 166l24-22h212l24 22" fill="none" stroke="#6b5c49" stroke-width="2"/>
+    </svg>
+    <svg class="tape" id="tape" viewBox="0 0 640 230" role="img" aria-label="Tape diagram: drafts become commits, a branch is cut and spliced back into the main tape" data-step="4">
+      <text class="lane" x="8" y="26">main</text>
+      <text class="lane" x="8" y="148">bridge-alt</text>
+      <line x1="8" y1="62" x2="632" y2="62" class="rail-l"/>
+      <line x1="8" y1="176" x2="632" y2="176" class="rail-l"/>
+      <g class="blk"><rect x="30" y="40" width="96" height="44" rx="6"/><text x="78" y="67">e41b9a0</text></g>
+      <g class="blk"><rect x="136" y="40" width="96" height="44" rx="6"/><text x="184" y="67">7c03d5e</text></g>
+      <g class="blk"><rect x="242" y="40" width="96" height="44" rx="6"/><text x="290" y="67">b92af61</text></g>
+      <g class="st s1"><rect class="draft" x="348" y="40" width="96" height="44" rx="6"/><text class="t-draft" x="396" y="67">draft…</text></g>
+      <g class="st s2"><g class="blk"><rect x="348" y="40" width="96" height="44" rx="6"/><text x="396" y="67">3fd81c7</text></g></g>
+      <g class="st s3"><path class="splice" d="M338 84c0 38 8 92 40 92"/><g class="blk br"><rect x="378" y="154" width="96" height="44" rx="6"/><text x="426" y="181">9ab20de</text></g><g class="blk br"><rect x="484" y="154" width="96" height="44" rx="6"/><text x="532" y="181">c61f3a8</text></g></g>
+      <g class="st s4"><path class="splice mrg" d="M580 176c24 0 24-92 -8-92"/><g class="blk mg"><rect x="454" y="40" width="118" height="44" rx="6"/><text x="513" y="67">merge · d70c9b3</text></g></g>
+    </svg>
+  </div>
+</section>
+
+<!-- 06 · TOOLS -->
+<section class="sec s-tools" id="s06" aria-labelledby="h-tools">
+  <div class="tools-head">
+    <p class="kicker" data-rv>Tools</p>
+    <h2 id="h-tools" data-rv>A full studio rack behind the history.</h2>
+  </div>
+  <ul class="tool-grid">
+    <li class="tool" data-rv>
+      <div class="tool-art"><div class="gm" id="gm" aria-hidden="true"></div></div>
+      <h3><span class="big">128</span> instruments</h3>
+      <p>The full General MIDI palette, from pianos and strings to synths and effects.</p>
+    </li>
+    <li class="tool" data-rv>
+      <div class="tool-art">
+        <svg class="drums" viewBox="0 0 224 84" aria-hidden="true" id="drums"></svg>
+      </div>
+      <h3>Drums on their own lane</h3>
+      <p>Kick, snare and hats get a dedicated pad grid instead of a pitch ladder.</p>
+    </li>
+    <li class="tool" data-rv>
+      <div class="tool-art">
+        <svg class="wave" viewBox="0 0 224 84" aria-hidden="true" id="wave"></svg>
+      </div>
+      <h3>Your own sounds</h3>
+      <p>Bring a sample and map it to a key. It travels with the project history.</p>
+    </li>
+    <li class="tool" data-rv>
+      <div class="tool-art exp" aria-hidden="true"></div>
+      <h3>Take it anywhere</h3>
+      <p>Export <b>.mid</b> for your DAW, or bounce <b>WAV</b> and <b>MP3</b> to share.</p>
+    </li>
+  </ul>
+</section>
+
+<!-- 07 · CTA + FOOTER on the sleeve -->
+<section class="sec s-cta" id="s07" aria-labelledby="h-cta">
+  <div class="sleeve" data-rv>
+    <div class="sleeve-body">
+      <div class="sleeve-copy">
+        <p class="kicker dark">Side B · Your turn</p>
+        <h2 id="h-cta">Create your first project</h2>
+        <p class="lead dark">Start with one rough idea. STAVE will keep every version of it safe.</p>
+        <div class="actions">
+          <a class="btn btn-dark" href="../../login.html">Create your first project</a>
+          <a class="btn btn-line" href="../../explore.html">Browse public projects</a>
+        </div>
+      </div>
+      <div class="sleeve-rec" aria-hidden="true"><div class="spin" data-spin="30" data-rec='{"c":"#d7ec9a","a":"CREATE YOUR FIRST PROJECT","b":"STAVE · SIDE B"}'></div><div class="sheen"></div></div>
+    </div>
+    <footer class="foot">
+      <div class="foot-brand"><span class="brand-dot" aria-hidden="true"></span><span translate="no">STAVE</span></div>
+      <nav class="foot-nav" aria-label="Footer">
+        <a href="../../explore.html">Explore</a>
+        <a href="../../rankings.html">Rankings</a>
+        <a href="../../help.html">Help</a>
+        <a href="../../login.html">Sign in</a>
+      </nav>
+      <p class="foot-legal">© 2026 STAVE. Placeholder content for a design demo.</p>
+    </footer>
+  </div>
+</section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="../../assets/shared.js"></script>
+<script src="js/vinyl.js"></script>
+</body>
+</html>
