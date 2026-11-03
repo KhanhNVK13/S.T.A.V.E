@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04050d">
+<title>STAVE · Staff Universe</title>
+<meta name="description" content="Every commit is a star. Version control for MIDI music, told as a flight through a universe of constellations.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/universe.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<div id="sky" aria-hidden="true"></div>
+
+<header class="top">
+  <a class="brand" href="#s1" translate="no" aria-label="STAVE, back to the start">STAVE</a>
+  <nav class="top-links" aria-label="Site">
+    <a href="../../explore.html">Explore</a>
+    <a href="../../rankings.html">Rankings</a>
+    <a href="../../help.html">Help</a>
+    <a class="btn btn-ghost btn-sm" href="../../login.html">Sign in</a>
+  </nav>
+</header>
+
+<nav class="dots" aria-label="Sections">
+  <a href="#s1" aria-label="Section 1 of 7: Introduction" aria-current="true"><i></i></a>
+  <a href="#s2" aria-label="Section 2 of 7: The name"><i></i></a>
+  <a href="#s3" aria-label="Section 3 of 7: History"><i></i></a>
+  <a href="#s4" aria-label="Section 4 of 7: Why save versions"><i></i></a>
+  <a href="#s5" aria-label="Section 5 of 7: How it works"><i></i></a>
+  <a href="#s6" aria-label="Section 6 of 7: Tools"><i></i></a>
+  <a href="#s7" aria-label="Section 7 of 7: Get started"><i></i></a>
+</nav>
+
+<main id="main">
+
+  <!-- 01 · Intro -->
+  <section class="scene s-hero" id="s1" aria-labelledby="h1">
+    <div class="copy">
+      <p class="eyebrow" data-rv>Version control for MIDI music</p>
+      <h1 id="h1" data-rv>Every song<br>has a history.</h1>
+      <p class="lead" data-rv>Save each version of your track, branch off to try another arrangement, then merge the best ideas back together. Source control, tuned for music.</p>
+      <div class="actions" data-rv>
+        <a class="btn btn-primary" href="../../login.html">Start for free</a>
+        <a class="btn btn-line" href="../../project.html">View a sample project</a>
+      </div>
+    </div>
+    <p class="cue" data-rv aria-hidden="true"><span class="cue-line"></span>Scroll to fly</p>
+  </section>
+
+  <!-- 02 · The name -->
+  <section class="scene s-name" id="s2" aria-labelledby="h2">
+    <h2 class="sr-only" id="h2">STAVE: Source Tracking and Version Control Environment</h2>
+    <div class="name" aria-hidden="true">
+      <svg class="name-staff" viewBox="0 0 1000 60" preserveAspectRatio="none"><g id="name-staff-lines"></g></svg>
+      <div class="name-row">
+        <div class="col"><span class="dot"></span><span class="ltr">S</span><span class="word"><b>S</b>ource</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">T</span><span class="word"><b>T</b>racking</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">A</span><span class="word"><b>a</b>nd</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">V</span><span class="word"><b>V</b>ersion Control</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">E</span><span class="word"><b>E</b>nvironment</span></div>
+      </div>
+    </div>
+    <p class="tagline">Five stars. One workspace for the whole life of a song.</p>
+  </section>
+
+  <!-- 03 · History -->
+  <section class="scene s-hist" id="s3" aria-labelledby="h3">
+    <div class="hist">
+      <div class="copy">
+        <p class="eyebrow" data-rv>History</p>
+        <h2 id="h3" data-rv>Every commit is a star.</h2>
+        <p class="lead" data-rv>Pick a star to see exactly what changed in that version. Notes added, removed or re-voiced are marked on the roll.</p>
+        <div class="detail panel" data-rv aria-live="polite">
+          <p class="d-top"><span class="hash" id="d-hash">3fd81c7</span><span class="d-meta" id="d-meta"></span></p>
+          <p class="d-msg" id="d-msg"></p>
+          <p class="tally"><span class="a"><b id="t-add">0</b> added</span><span class="d"><b id="t-del">0</b> removed</span><span class="m"><b id="t-mod">0</b> re-voiced</span></p>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="panel graph-wrap" data-rv>
+          <div id="graph" class="graph-host"></div>
+        </div>
+        <div class="panel roll-wrap" data-rv>
+          <div id="roll" class="roll-host"></div>
+          <p class="legend" aria-label="Legend">
+            <span><i class="a"></i>Note added</span>
+            <span><i class="d"></i>Note removed</span>
+            <span><i class="m"></i>Velocity changed</span>
+            <span><i class="k"></i>Unchanged</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · Why -->
+  <section class="scene s-why" id="s4" aria-labelledby="h4">
+    <div class="why">
+      <div class="copy">
+        <p class="eyebrow" data-rv>Why keep every version</p>
+        <h2 id="h4" data-rv>Never lose a good idea again.</h2>
+        <ul class="points">
+          <li data-rv><b>Go back to any moment.</b> That first chorus you deleted at 2 a.m. is one click away.</li>
+          <li data-rv><b>Try bold ideas safely.</b> Experiment on a branch. The original never moves.</li>
+          <li data-rv><b>See who changed what.</b> Every note edit is credited to the person who made it.</li>
+        </ul>
+      </div>
+      <div class="compare">
+        <div class="panel chaos" data-rv>
+          <h3>Without versions</h3>
+          <ul class="files" aria-label="Example of messy file names">
+            <li>rainy_final.mid</li>
+            <li>rainy_final2.mid</li>
+            <li>rainy_final_REAL.mid</li>
+            <li>rainy_final_REAL (copy).mid</li>
+            <li>rainy_ok_THIS_ONE.mid</li>
+          </ul>
+          <p class="note">Which one has the bass line you liked?</p>
+        </div>
+        <div class="panel order" data-rv>
+          <h3>With STAVE</h3>
+          <ol class="chain" id="chain" aria-label="Example of a clean version history"></ol>
+          <p class="note">Every step has a name, a date and an author.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 · How it works -->
+  <section class="scene s-how" id="s5" aria-labelledby="h5">
+    <div class="how">
+      <div class="copy">
+        <p class="eyebrow" data-rv>How it works</p>
+        <h2 id="h5" data-rv>From first sketch to finished song in four moves.</h2>
+      </div>
+      <div class="rail" aria-hidden="true"><span class="rail-line"></span></div>
+      <ol class="steps">
+        <li class="step panel">
+          <span class="num">01</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><circle cx="40" cy="20" r="7" class="st-draft"/></svg>
+          <h3>Draft</h3>
+          <p>Write freely in the editor. Nothing is permanent yet, so nothing can go wrong.</p>
+        </li>
+        <li class="step panel">
+          <span class="num">02</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><line x1="6" y1="20" x2="74" y2="20" class="st-line"/><circle cx="24" cy="20" r="6" class="st-star"/><circle cx="56" cy="20" r="6" class="st-star lit"/></svg>
+          <h3>Commit</h3>
+          <p>Save a named snapshot of the whole project whenever it sounds right.</p>
+        </li>
+        <li class="step panel">
+          <span class="num">03</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><path d="M6 12H74" class="st-line"/><path d="M30 12C42 12 40 30 52 30H74" class="st-line teal"/><circle cx="30" cy="12" r="5" class="st-star"/><circle cx="52" cy="30" r="5" class="st-star teal"/></svg>
+          <h3>Branch</h3>
+          <p>Try a new bridge or drum feel on a separate line, without touching the original.</p>
+        </li>
+        <li class="step panel">
+          <span class="num">04</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><path d="M6 12H74" class="st-line"/><path d="M6 30H40C54 30 52 12 66 12" class="st-line teal"/><circle cx="66" cy="12" r="6" class="st-star hollow"/></svg>
+          <h3>Merge</h3>
+          <p>Bring the best branch home. STAVE shows every difference before it lands.</p>
+        </li>
+      </ol>
+      <p class="more" data-rv><a href="../../help.html">Read the full guide<span class="sr-only"> and glossary</span> →</a></p>
+    </div>
+  </section>
+
+  <!-- 06 · Tools -->
+  <section class="scene s-tools" id="s6" aria-labelledby="h6">
+    <div class="tools">
+      <div class="copy">
+        <p class="eyebrow" data-rv>The toolbox</p>
+        <h2 id="h6" data-rv>Everything a MIDI project needs.</h2>
+      </div>
+      <div class="bento">
+        <article class="tile panel t-gm">
+          <h3><span class="big">128</span> General MIDI instruments</h3>
+          <p>From Acoustic Grand Piano to Gunshot. Assign any sound to any track.</p>
+          <div class="gm" id="gm" aria-hidden="true"></div>
+        </article>
+        <article class="tile panel t-drum">
+          <h3>Drum kits</h3>
+          <p>A full percussion channel with its own pads.</p>
+          <div class="pads" aria-hidden="true">
+            <span>Kick</span><span>Snare</span><span>Hat</span><span>Clap</span><span>Tom</span><span>Ride</span><span>Crash</span><span>Perc</span>
+          </div>
+        </article>
+        <article class="tile panel t-own">
+          <h3>Your own sounds</h3>
+          <p>Record a sample or upload one, then map it to a key.</p>
+          <div class="wave" aria-hidden="true" id="wave"></div>
+        </article>
+        <article class="tile panel t-out">
+          <h3>Export anywhere</h3>
+          <p>Take the finished song out of STAVE in the format you need.</p>
+          <ul class="chips" aria-label="Export formats">
+            <li>.mid</li><li>WAV</li><li>MP3</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 · Call to action + footer -->
+  <section class="scene s-cta" id="s7" aria-labelledby="h7">
+    <div class="cta copy">
+      <h2 id="h7" data-rv>Create your first project</h2>
+      <p class="lead" data-rv>Import a MIDI file or start from a blank page. Your first commit is one click away.</p>
+      <div class="actions" data-rv>
+        <a class="btn btn-primary btn-lg" href="../../login.html">Create your first project</a>
+        <a class="btn btn-line btn-lg" href="../../explore.html">Browse public projects</a>
+      </div>
+    </div>
+    <footer class="foot" data-rv>
+      <a class="brand" href="#s1" translate="no" aria-label="STAVE, back to the start">STAVE</a>
+      <nav aria-label="Footer">
+        <a href="../../explore.html">Explore</a>
+        <a href="../../rankings.html">Rankings</a>
+        <a href="../../help.html">Help and glossary</a>
+        <a href="../../settings.html">Settings</a>
+        <a href="../../login.html">Sign in</a>
+      </nav>
+      <p>© 2026 STAVE. Placeholder content for a design prototype.</p>
+    </footer>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" crossorigin="anonymous"></script>
+<script src="../../assets/shared.js"></script>
+<script src="js/universe3d.js"></script>
+<script src="js/sky2d.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
