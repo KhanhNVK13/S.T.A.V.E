@@ -75,11 +75,15 @@ describe('PlatformSettingsService', () => {
     const svc = new PlatformSettingsService(mock.client);
 
     await expect(svc.get('a', '')).resolves.toBe('A');
+    jest.advanceTimersByTime(20_000);
     await expect(svc.get('b', '')).resolves.toBe('B');
-    jest.advanceTimersByTime(30_000);
-    // 'a' expired, 'b' was written after the first tick and not yet...
-    // both were written before the advance, so both miss here.
+    jest.advanceTimersByTime(10_000);
+    // t=30s: 'a' (cached at t=0) has expired, 'b' (cached at t=20s) has not.
     await expect(svc.get('a', '')).resolves.toBe('A2');
+    await expect(svc.get('b', '')).resolves.toBe('B');
+    expect(mock.builders.platform_settings.maybeSingle).toHaveBeenCalledTimes(
+      3,
+    );
   });
 
   it('returns the fallback when no row exists for the key', async () => {
