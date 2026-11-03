@@ -3,496 +3,238 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#060814">
 <title>STAVE · Version control for MIDI music</title>
-<meta name="description" content="Commit, branch, compare and merge MIDI music right in your browser.">
+<meta name="description" content="Every commit is a star. Version control for MIDI music, told as a flight through a universe of constellations.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/universe.css">
 <link rel="stylesheet" href="assets/landing.css">
-<script>document.documentElement.classList.add("js");</script>
-<script>
-(function () {
-  var PAL = {
-    c: ["0b3548", "116a72", "5a9291", "93b070", "eee2cc", "edaf93", "df6a72"],
-    b: ["322421", "654a41", "976c60", "c99383", "e5c8c0", "f2e3df", "fcb7a5"],
-    a: ["ffffff", "8c8c8c", "b1a984", "f1e8d6", "f0c1b0", "7a8059", "4e5239"],
-    g: ["001f54", "265f8f", "4b9fd1", "88bca5", "c4d977", "ffcd50", "ffb74a"]
-  };
-  function lum(h) {
-    var v = [0, 2, 4].map(function (i) { var c = parseInt(h.substr(i, 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
-    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
-  }
-  var key = (new URLSearchParams(location.search).get("palette") || "c").toLowerCase();
-  var colors = (PAL[key] || PAL.c).slice().sort(function (a, b) { return lum(b) - lum(a); });
-  var order = [0, 1, 2, 5, 3, 4, 6];
-  var map = [colors[0], colors[1], colors[2], colors[5], colors[3], colors[4], colors[6]];
-  var r = document.documentElement.style;
-  map.forEach(function (c, i) { r.setProperty("--l" + i, "#" + c); });
-  r.setProperty("--l-accent", "#" + colors[2]);
-})();
-</script>
-
 </head>
 <body class="landing">
+<canvas class="sky" data-sky="full" aria-hidden="true"></canvas>
 <a class="skip" href="#main">Skip to main content</a>
 
-<header class="hero screen" id="s1"><div class="screen-in">
-  <div class="hero-top">
-    <a class="brand" href="index.html" translate="no" aria-label="STAVE, home">STAVE</a>
-    <nav class="hero-links" aria-label="Main">
-      <a href="explore.html">Explore</a>
-      <a href="rankings.html">Rankings</a>
-      <a href="help.html">Help</a>
-      <a class="btn btn-quiet btn-sm" href="login.html">Sign in</a>
-    </nav>
-  </div>
-  <div class="hero-main">
-    <div class="hero-copy">
-      <h1>Every song has a history.</h1>
-      <p>Save every version, branch to try another arrangement, then combine them when you’re happy. The way programmers keep source code, built for MIDI music.</p>
-      <p class="tour-hint">Scroll for a one-minute tour: the idea, then a quick guide, then your first project.</p>
-      <div class="hero-actions">
-        <a class="btn btn-primary" href="login.html">Start for free</a>
-        <a class="btn btn-quiet" href="project.html">View a sample project</a>
-      </div>
-    </div>
-    <figure class="frame reveal" role="img" aria-label="STAVE editor: track list, piano roll and commit history">
-    <div class="f-top"><b>Rainy Saigon Night</b><span class="pill">main</span><span class="f-sp"></span><span class="f-saved">Saved</span><span class="f-btn">Commit</span></div>
-    <div class="f-body">
-      <div class="f-tracks"><div><i style="background:#4b5d73"></i>Piano pad</div><div class="on"><i style="background:#5c7a2f"></i>Melody</div><div><i style="background:#9a5b2e"></i>Bass</div></div>
-      <div class="f-roll" id="f-roll"></div>
-      <div class="f-hist"><p>History</p><div>Normalize velocity<small>yesterday</small></div><div>Shift bass back half a beat<small>4 days ago</small></div><div>Melody bars 3–4<small>9 days ago</small></div></div>
-    </div>
-  </figure>
-  </div>
-
-    <ul class="stats" aria-label="Highlights">
-      <li><b>Full snapshot</b><span>Each commit stores the whole song, not a patch</span></li>
-      <li><b>128</b><span>General MIDI instruments plus a drum kit</span></li>
-      <li><b>.mid · WAV · MP3</b><span>Export files right from the browser</span></li>
-      <li><b>$0</b><span>to get started, nothing to install</span></li>
-    </ul>
-  </div>
+<header class="top">
+  <a class="brand" href="index.html#s1" translate="no" aria-label="STAVE, home">STAVE</a>
+  <nav class="top-links" aria-label="Site">
+    <a href="explore.html">Explore</a>
+    <a href="rankings.html">Rankings</a>
+    <a href="help.html">Help</a>
+    <a class="btn btn-ghost btn-sm" href="login.html">Sign in</a>
+  </nav>
 </header>
 
-<nav class="rail" id="rail" aria-label="Page sections"><a href="#s1" aria-label="Introduction" title="Introduction"><i></i></a><a href="#s2" aria-label="The idea: the name" title="The idea: the name"><i></i></a><a href="#s3" aria-label="The idea: history" title="The idea: history"><i></i></a><a href="#s4" aria-label="The idea: why" title="The idea: why"><i></i></a><a href="#s5" aria-label="The guide: how it works" title="The guide: how it works"><i></i></a><a href="#s6" aria-label="The guide: tools" title="The guide: tools"><i></i></a><a href="#s7" aria-label="Start your first project" title="Start your first project"><i></i></a></nav>
+<nav class="dots" aria-label="Sections">
+  <a href="#s1" aria-label="Section 1 of 7: Introduction" aria-current="true"><i></i></a>
+  <a href="#s2" aria-label="Section 2 of 7: The name"><i></i></a>
+  <a href="#s3" aria-label="Section 3 of 7: History"><i></i></a>
+  <a href="#s4" aria-label="Section 4 of 7: Why save versions"><i></i></a>
+  <a href="#s5" aria-label="Section 5 of 7: How it works"><i></i></a>
+  <a href="#s6" aria-label="Section 6 of 7: Tools"><i></i></a>
+  <a href="#s7" aria-label="Section 7 of 7: Get started"><i></i></a>
+</nav>
+
 <main id="main">
-  <section class="blk name screen" id="s2" aria-labelledby="h-name"><div class="screen-in"><div class="eyebrow"><span><b>02</b> · The idea · The name</span><span aria-hidden="true">STAVE</span></div><div class="screen-body">
-    <h2 id="h-name" class="sr-only">STAVE stands for Source Tracking and Version Control Environment</h2>
-    <div class="stave" id="stave" role="group" aria-label="STAVE stands for Source Tracking and Version Control Environment">
-      <div class="stave-row" style="--i:0"><span class="ltr" aria-hidden="true">S</span><span class="rest"><span>ource</span></span><span class="stave-note" aria-hidden="true">Your music is the source code</span><span class="sr-only">Source</span></div>
-      <div class="stave-row" style="--i:1"><span class="ltr" aria-hidden="true">T</span><span class="rest"><span>racking</span></span><span class="stave-note" aria-hidden="true">Every change is tracked</span><span class="sr-only">Tracking</span></div>
-      <div class="stave-row" style="--i:2"><span class="ltr" aria-hidden="true">A</span><span class="rest"><span>nd</span></span><span class="stave-note" aria-hidden="true">Two jobs, done together</span><span class="sr-only">and</span></div>
-      <div class="stave-row" style="--i:3"><span class="ltr" aria-hidden="true">V</span><span class="rest"><span>ersion <b>Control</b></span></span><span class="stave-note" aria-hidden="true">Commit, branch, compare, merge</span><span class="sr-only">Version Control</span></div>
-      <div class="stave-row" style="--i:4"><span class="ltr" aria-hidden="true">E</span><span class="rest"><span>nvironment</span></span><span class="stave-note" aria-hidden="true">Complete in a single browser tab</span><span class="sr-only">Environment</span></div>
-    </div>
-    <div class="stave-tail" id="stave-tail">
-      <small>for Development and Management of MIDI Music Projects</small>
-    </div>
-    <button class="btn btn-quiet btn-sm stave-replay" type="button" id="stave-replay">Replay</button>
-  </div></div></section>
 
-  <section class="blk lime screen" id="s3" aria-labelledby="h-hist"><div class="screen-in"><div class="eyebrow"><span><b>03</b> · The idea · History</span><span aria-hidden="true">STAVE</span></div><div class="screen-body">
+  <!-- 01 · Intro -->
+  <section class="scene s-hero" id="s1" aria-labelledby="h1">
+    <div class="copy">
+      <p class="eyebrow" data-rv>Version control for MIDI music</p>
+      <h1 id="h1" data-rv>Every song<br>has a history.</h1>
+      <p class="lead" data-rv>Save each version of your track, branch off to try another arrangement, then merge the best ideas back together. Source control, tuned for music.</p>
+      <div class="actions" data-rv>
+        <a class="btn btn-primary" href="login.html">Start for free</a>
+        <a class="btn btn-line" href="project.html">View a sample project</a>
+      </div>
+    </div>
+    <p class="cue" data-rv aria-hidden="true"><span class="cue-line"></span>Scroll to fly</p>
+  </section>
+
+  <!-- 02 · The name -->
+  <section class="scene s-name" id="s2" aria-labelledby="h2">
+    <h2 class="sr-only" id="h2">STAVE: Source Tracking and Version Control Environment</h2>
+    <div class="name" aria-hidden="true">
+      <svg class="name-staff" viewBox="0 0 1000 60" preserveAspectRatio="none"><g id="name-staff-lines"></g></svg>
+      <div class="name-row">
+        <div class="col"><span class="dot"></span><span class="ltr">S</span><span class="word"><b>S</b>ource</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">T</span><span class="word"><b>T</b>racking</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">A</span><span class="word"><b>a</b>nd</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">V</span><span class="word"><b>V</b>ersion Control</span></div>
+        <div class="col"><span class="dot"></span><span class="ltr">E</span><span class="word"><b>E</b>nvironment</span></div>
+      </div>
+    </div>
+    <p class="tagline">Five stars. One workspace for the whole life of a song.</p>
+  </section>
+
+  <!-- 03 · History -->
+  <section class="scene s-hist" id="s3" aria-labelledby="h3">
     <div class="hist">
-      <div class="hist-copy reveal">
-        <h2 id="h-hist">Scrub through a song’s history</h2>
-        <p>Each commit is a note on the staff. Pick a point to see exactly which notes were added, removed or changed compared with the one before.</p>
-        <ol class="commit-list" id="commit-list"></ol>
-      </div>
-      <div class="stage reveal" style="--d:90ms">
-        <div class="stage-bar">
-          <strong id="stage-title"></strong>
-          <span class="tally" id="stage-tally" aria-live="polite"></span>
-        </div>
-        <div id="stage-roll" class="scroll-x"></div>
-        <div class="legend" aria-hidden="true">
-          <span><i class="a"></i>New notes</span>
-          <span><i class="d"></i>Removed notes</span>
-          <span><i class="m"></i>Velocity changed</span>
-          <span><i class="k"></i>Unchanged</span>
-        </div>
-        <div class="scrub">
-          <button class="btn btn-quiet" id="prev" type="button" aria-label="Previous commit"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
-          <input id="range" name="commit" type="range" min="0" max="5" step="1" value="0" aria-label="Choose commit">
-          <button class="btn btn-quiet" id="next" type="button" aria-label="Commit sau"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>
+      <div class="copy">
+        <p class="eyebrow" data-rv>History</p>
+        <h2 id="h3" data-rv>Every commit is a star.</h2>
+        <p class="lead" data-rv>Pick a star to see exactly what changed in that version. Notes added, removed or re-voiced are marked on the roll.</p>
+        <div class="detail u-glass" data-rv aria-live="polite">
+          <p class="d-top"><span class="hash" id="d-hash">3fd81c7</span><span class="d-meta" id="d-meta"></span></p>
+          <p class="d-msg" id="d-msg"></p>
+          <p class="tally"><span class="a"><b id="t-add">0</b> added</span><span class="d"><b id="t-del">0</b> removed</span><span class="m"><b id="t-mod">0</b> re-voiced</span></p>
         </div>
       </div>
-    </div>
-  </div></div></section>
-
-  <section class="blk navy screen" id="s4" aria-labelledby="h-feat"><div class="screen-in"><div class="eyebrow"><span><b>04</b> · The idea · Why</span><span aria-hidden="true">STAVE</span></div><div class="screen-body">
-    <h2 id="h-feat" class="reveal">Three reasons to save every version</h2>
-    <div class="outcomes">
-      <article class="outcome reveal"><div class="o-thumb" data-th="3,1"></div><h3>Experiment without fear</h3><p>Branch to try a different arrangement. The original stays untouched on the main branch.</p></article>
-      <article class="outcome reveal" style="--d:70ms"><div class="o-thumb" data-th="2,0"></div><h3>Know exactly what changed</h3><p>Compare two versions note by note, grouped by bar, with color for added, removed and changed notes.</p></article>
-      <article class="outcome reveal" style="--d:140ms"><div class="o-thumb" data-th="1,1"></div><h3>Go back at any time</h3><p>Restoring creates a new commit, so old history is never lost.</p></article>
-    </div>
-    <button class="btn btn-quiet all-btn" type="button" id="all-btn">See all features</button>
-  </div></div></section>
-
-  <section class="blk cream how screen" id="s5" aria-labelledby="h-how"><div class="screen-in"><div class="eyebrow"><span><b>05</b> · The guide · How it works</span><span aria-hidden="true">STAVE</span></div><div class="screen-body">
-    <h2 id="h-how" class="reveal">From draft to final</h2>
-    <div class="how-grid">
-
-    <div class="stage-p reveal"><span class="step-n" aria-hidden="true">01</span>
-      <p><b>At the start,</b> you just write. Your draft autosaves on every change, so closing a tab by mistake or losing connection never costs you a note.</p>
-      <div class="frag frag-row"><span><span class="dot" style="color:var(--add);display:inline-block;margin-right:8px"></span>Draft saved at 14:02</span><span class="num" style="color:var(--soft)">38 uncommitted notes</span></div>
-    </div>
-
-    <div class="stage-p reveal"><span class="step-n" aria-hidden="true">02</span>
-      <p><b>When a section feels right,</b> you commit and name that moment. Only commits enter the history, so it stays tidy instead of a pile of autosaves.</p>
-      <div class="frag frag-row"><input class="input" name="message" autocomplete="off" style="flex:1;min-width:160px" value="Verse melody, bars 1–2" aria-label="Commit message" readonly><span class="btn btn-primary">Commit</span></div>
-    </div>
-
-    <div class="stage-p reveal"><span class="step-n" aria-hidden="true">03</span>
-      <p><b>To try another direction,</b> you branch. The original stays untouched on the main branch; scrap it if it fails, keep it if it works.</p>
-      <div class="frag">
-        <div class="frag-lane"><b>main</b><span>6 commit</span></div>
-        <div class="frag-lane"><b style="color:#0f7b6c">bridge-alt</b><span>2 commits · 2 ahead, 1 behind</span></div>
+      <div class="stage">
+        <div class="u-glass graph-wrap" data-rv>
+          <div id="graph" class="graph-host"></div>
+        </div>
+        <div class="u-glass roll-wrap" data-rv>
+          <div id="roll" class="roll-host"></div>
+          <p class="legend" aria-label="Legend">
+            <span><i class="a"></i>Note added</span>
+            <span><i class="d"></i>Note removed</span>
+            <span><i class="m"></i>Velocity changed</span>
+            <span><i class="k"></i>Unchanged</span>
+          </p>
+        </div>
       </div>
     </div>
+  </section>
 
-    <div class="stage-p reveal"><span class="step-n" aria-hidden="true">04</span>
-      <p><b>When you’ve chosen,</b> you merge. If both branches edited the same note, STAVE groups the conflicts by bar so you can choose each one.</p>
-      <div class="frag frag-row"><span><b>2 conflicts</b> in bars 5 and 6</span><a class="btn btn-quiet btn-sm" href="merge.html">Open the resolver</a></div>
-    </div>
-  </div></div></div></section>
-
-  
-  <section class="blk pink screen proof" id="s6" aria-labelledby="h-proof"><div class="screen-in"><div class="eyebrow"><span><b>06</b> · The guide · Tools</span><span aria-hidden="true">STAVE</span></div><div class="screen-body">
-    <div class="reveal">
-      <p><strong id="h-proof">Plays every General MIDI instrument:</strong> <span id="inst"></span></p>
-    </div>
-  <ul class="stats proof-stats"><li><b>128</b><span>General MIDI instruments</span></li><li><b>1 drum kit</b><span>has its own channel, played like pads</span></li><li><b>Custom sounds</b><span>assign your own samples to individual notes</span></li></ul></div></div></section>
-
-  <section class="cta-band screen navy" id="s7" aria-labelledby="h-cta"><div class="screen-in"><div class="eyebrow"><span><b>07</b> · Start</span><span aria-hidden="true">STAVE</span></div>
-    <div class="cta-body">
-      <div class="cta-copy">
-      <h2 class="cta-line" id="h-cta">Create your first project, then make your first commit.</h2>
-      <a class="cta-pill" href="login.html">Start for free <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
-      <p class="cta-sub">Free to start. Nothing to install. Your history is saved from the first note.</p>
+  <!-- 04 · Why -->
+  <section class="scene s-why" id="s4" aria-labelledby="h4">
+    <div class="why">
+      <div class="copy">
+        <p class="eyebrow" data-rv>Why keep every version</p>
+        <h2 id="h4" data-rv>Never lose a good idea again.</h2>
+        <ul class="points">
+          <li data-rv><b>Go back to any moment.</b> That first chorus you deleted at 2 a.m. is one click away.</li>
+          <li data-rv><b>Try bold ideas safely.</b> Experiment on a branch. The original never moves.</li>
+          <li data-rv><b>See who changed what.</b> Every note edit is credited to the person who made it.</li>
+        </ul>
       </div>
-      <figure class="cta-art" aria-label="Branch graph of a sample project"><div class="scroll-x" id="cta-graph"></div><figcaption>Rainy Saigon Night · 3 branches, 10 versions</figcaption></figure>
+      <div class="compare">
+        <div class="u-glass chaos" data-rv>
+          <h3>Without versions</h3>
+          <ul class="files" aria-label="Example of messy file names">
+            <li>rainy_final.mid</li>
+            <li>rainy_final2.mid</li>
+            <li>rainy_final_REAL.mid</li>
+            <li>rainy_final_REAL (copy).mid</li>
+            <li>rainy_ok_THIS_ONE.mid</li>
+          </ul>
+          <p class="note">Which one has the bass line you liked?</p>
+        </div>
+        <div class="u-glass order" data-rv>
+          <h3>With STAVE</h3>
+          <ol class="chain" id="chain" aria-label="Example of a clean version history"></ol>
+          <p class="note">Every step has a name, a date and an author.</p>
+        </div>
+      </div>
     </div>
-  </div>
-    <footer class="foot">
-  <div class="foot-top">
-    <div class="foot-brand">
-      <a class="foot-logo" href="index.html" translate="no" aria-label="STAVE, home">STAVE</a>
-      <p>Version control for MIDI music.</p>
-      <p class="foot-full">Source Tracking and Version Control Environment for Development and Management of MIDI Music Projects</p>
+  </section>
+
+  <!-- 05 · How it works -->
+  <section class="scene s-how" id="s5" aria-labelledby="h5">
+    <div class="how">
+      <div class="copy">
+        <p class="eyebrow" data-rv>How it works</p>
+        <h2 id="h5" data-rv>From first sketch to finished song in four moves.</h2>
+      </div>
+      <div class="rail" aria-hidden="true"><span class="rail-line"></span></div>
+      <ol class="steps">
+        <li class="step u-glass">
+          <span class="num">01</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><circle cx="40" cy="20" r="7" class="st-draft"/></svg>
+          <h3>Draft</h3>
+          <p>Write freely in the editor. Nothing is permanent yet, so nothing can go wrong.</p>
+        </li>
+        <li class="step u-glass">
+          <span class="num">02</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><line x1="6" y1="20" x2="74" y2="20" class="st-line"/><circle cx="24" cy="20" r="6" class="st-star"/><circle cx="56" cy="20" r="6" class="st-star lit"/></svg>
+          <h3>Commit</h3>
+          <p>Save a named snapshot of the whole project whenever it sounds right.</p>
+        </li>
+        <li class="step u-glass">
+          <span class="num">03</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><path d="M6 12H74" class="st-line"/><path d="M30 12C42 12 40 30 52 30H74" class="st-line teal"/><circle cx="30" cy="12" r="5" class="st-star"/><circle cx="52" cy="30" r="5" class="st-star teal"/></svg>
+          <h3>Branch</h3>
+          <p>Try a new bridge or drum feel on a separate line, without touching the original.</p>
+        </li>
+        <li class="step u-glass">
+          <span class="num">04</span>
+          <svg viewBox="0 0 80 40" aria-hidden="true"><path d="M6 12H74" class="st-line"/><path d="M6 30H40C54 30 52 12 66 12" class="st-line teal"/><circle cx="66" cy="12" r="6" class="st-star hollow"/></svg>
+          <h3>Merge</h3>
+          <p>Bring the best branch home. STAVE shows every difference before it lands.</p>
+        </li>
+      </ol>
+      <p class="more" data-rv><a href="help.html">Read the full guide<span class="sr-only"> and glossary</span> →</a></p>
     </div>
-    <nav class="foot-cols" aria-label="Footer">
-      <ul><li>Product</li><li><a href="project.html">Projects</a></li><li><a href="compare.html">Compare versions</a></li><li><a href="editor.html">Editor</a></li></ul>
-      <ul><li>Community</li><li><a href="explore.html">Explore</a></li><li><a href="rankings.html">Rankings</a></li><li><a href="projects.html">My projects</a></li></ul>
-      <ul><li>Account</li><li><a href="login.html">Sign in</a></li><li><a href="login.html#dang-ky">Sign up</a></li><li><a href="help.html">Help and glossary</a></li><li><a href="settings.html">Settings</a></li></ul>
-    </nav>
-  </div>
-  <div class="legal"><span>© 2026 STAVE · Capstone project</span><a href="#s1">Back to top ↑</a></div>
-</footer>
-  </div></section>
+  </section>
+
+  <!-- 06 · Tools -->
+  <section class="scene s-tools" id="s6" aria-labelledby="h6">
+    <div class="tools">
+      <div class="copy">
+        <p class="eyebrow" data-rv>The toolbox</p>
+        <h2 id="h6" data-rv>Everything a MIDI project needs.</h2>
+      </div>
+      <div class="bento">
+        <article class="tile u-glass t-gm">
+          <h3><span class="big">128</span> General MIDI instruments</h3>
+          <p>From Acoustic Grand Piano to Gunshot. Assign any sound to any track.</p>
+          <div class="gm" id="gm" aria-hidden="true"></div>
+        </article>
+        <article class="tile u-glass t-drum">
+          <h3>Drum kits</h3>
+          <p>A full percussion channel with its own pads.</p>
+          <div class="pads" aria-hidden="true">
+            <span>Kick</span><span>Snare</span><span>Hat</span><span>Clap</span><span>Tom</span><span>Ride</span><span>Crash</span><span>Perc</span>
+          </div>
+        </article>
+        <article class="tile u-glass t-own">
+          <h3>Your own sounds</h3>
+          <p>Record a sample or upload one, then map it to a key.</p>
+          <div class="wave" aria-hidden="true" id="wave"></div>
+        </article>
+        <article class="tile u-glass t-out">
+          <h3>Export anywhere</h3>
+          <p>Take the finished song out of STAVE in the format you need.</p>
+          <ul class="chips" aria-label="Export formats">
+            <li>.mid</li><li>WAV</li><li>MP3</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 · Call to action + footer -->
+  <section class="scene s-cta" id="s7" aria-labelledby="h7">
+    <div class="cta copy">
+      <h2 id="h7" data-rv>Create your first project</h2>
+      <p class="lead" data-rv>Import a MIDI file or start from a blank page. Your first commit is one click away.</p>
+      <div class="actions" data-rv>
+        <a class="btn btn-primary btn-lg" href="login.html">Create your first project</a>
+        <a class="btn btn-line btn-lg" href="explore.html">Browse public projects</a>
+      </div>
+    </div>
+    <footer class="foot" data-rv>
+      <a class="brand" href="index.html#s1" translate="no" aria-label="STAVE, home">STAVE</a>
+      <nav aria-label="Footer">
+        <a href="explore.html">Explore</a>
+        <a href="rankings.html">Rankings</a>
+        <a href="help.html">Help and glossary</a>
+        <a href="settings.html">Settings</a>
+        <a href="login.html">Sign in</a>
+      </nav>
+      <p>© 2026 STAVE. Placeholder content for a design prototype.</p>
+    </footer>
+  </section>
+
 </main>
 
-<dialog class="feat-dlg" id="all-dlg" aria-labelledby="all-t"><div class="dlg-in"><div class="dlg-head"><h2 id="all-t">All features</h2><form method="dialog"><button class="btn btn-quiet btn-sm" data-autofocus>Close</button></form></div><div class="feat">
-      <div class="feat-col reveal">
-        <h3>Versions</h3>
-        <ul>
-          <li tabindex="0" data-d="Each commit stores the complete song at that moment.">Commit</li>
-          <li tabindex="0" data-d="Try an arrangement without touching the original.">Branches</li>
-          <li tabindex="0" data-d="See every note added, removed or changed between two points.">Compare</li>
-          <li tabindex="0" data-d="Combine two branches, resolving conflicts bar by bar.">Merge</li>
-          <li tabindex="0" data-d="Return to an old point with a new commit; history is never lost.">Restore</li>
-          <li tabindex="0" data-d="Mark important versions, like the demo you send to a client.">Tags</li>
-          <li tabindex="0" data-d="See who changed what, and when.">History</li>
-          <li tabindex="0" data-d="Propose bringing your branch into someone else’s project.">Pull request</li>
-        </ul>
-      </div>
-      <div class="feat-col reveal" style="--d:70ms">
-        <h3>Compose</h3>
-        <ul>
-          <li tabindex="0" data-d="Draw, select, move and erase notes on the grid.">Piano roll</li>
-          <li tabindex="0" data-d="Multiple tracks, each with its own instrument.">Multiple tracks</li>
-          <li tabindex="0" data-d="Snap notes to the beat in one click.">Quantize</li>
-          <li tabindex="0" data-d="Adjust each note’s strength in the lane below.">Velocity</li>
-          <li tabindex="0" data-d="Copy a stretch of melody to another bar.">Copy and paste</li>
-          <li tabindex="0" data-d="Unlimited undo and redo within a session.">Undo</li>
-          <li tabindex="0" data-d="128 General MIDI instruments and a drum kit.">Instruments</li>
-          <li tabindex="0" data-d="Import an existing .mid file to keep working.">Import MIDI</li>
-        </ul>
-      </div>
-      <div class="feat-col reveal" style="--d:140ms">
-        <h3>Share</h3>
-        <ul>
-          <li tabindex="0" data-d="Open a project so everyone can listen and learn.">Public projects</li>
-          <li tabindex="0" data-d="Take a copy to rework your own way.">Fork</li>
-          <li tabindex="0" data-d="Invite others to edit with view or edit access.">Collaborators</li>
-          <li tabindex="0" data-d="Export .mid, WAV or MP3.">Export</li>
-          <li tabindex="0" data-d="Sketch ideas quickly by voice or instrument.">Audio sketch</li>
-          <li tabindex="0" data-d="Assign your own sounds to individual notes.">Custom sounds</li>
-          <li tabindex="0" data-d="Change the interface colors your way.">Appearance</li>
-        </ul>
-      </div>
-      <p class="feat-desc" id="feat-desc" aria-live="polite"></p>
-    </div></div></dialog>
-
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous"></script>
 <script src="assets/shared.js"></script>
-<script>
-(function () {
-  var S = window.STAVE;
-  var notes = S.buildSong();
-  var k = 0;
-  var list = document.getElementById("commit-list");
-  var range = document.getElementById("range");
-  var roll = document.getElementById("stage-roll");
-  var title = document.getElementById("stage-title");
-  var tally = document.getElementById("stage-tally");
-
-  S.COMMITS.forEach(function (c, i) {
-    var li = document.createElement("li");
-    var b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute("aria-pressed", "false");
-    b.dataset.k = i;
-    b.innerHTML = '<svg class="note" viewBox="0 0 14 14" aria-hidden="true"><ellipse cx="6" cy="9" rx="4.4" ry="3.2" transform="rotate(-20 6 9)" fill="currentColor"/><path d="M10 7.5V1.5" stroke="currentColor" stroke-width="1.5"/></svg><span>' + c.msg + '<span class="h">' + c.author + " · " + c.when + "</span></span>";
-    b.addEventListener("click", function () { set(i); });
-    li.appendChild(b);
-    list.appendChild(li);
-  });
-
-  function counts(from, to) {
-    var a = 0, d = 0, m = 0;
-    notes.forEach(function (n) {
-      var was = S.stateAt(n, from), is = S.stateAt(n, to);
-      if (is && !was) a++;
-      else if (was && !is) d++;
-      else if (was && is && n.chg !== null && n.chg > from && n.chg <= to) m++;
-    });
-    return { a: a, d: d, m: m };
-  }
-
-  function set(i) {
-    k = Math.max(0, Math.min(5, i));
-    range.value = k;
-    S.drawRoll(roll, { notes: notes, steps: 64, from: Math.max(0, k - 1), to: k, mode: "plain", label: "Piano roll at commit  " + S.COMMITS[k].hash });
-    title.textContent = S.COMMITS[k].msg;
-    var c = counts(k === 0 ? -1 : k - 1, k);
-    tally.innerHTML = '<span class="a"><b>+' + c.a + "</b> notes</span> · <span class=\"d\"><b>−" + c.d + "</b> removed</span> · <span class=\"m\"><b>" + c.m + "</b> velocity changes</span>";
-    Array.prototype.forEach.call(list.querySelectorAll("button"), function (b) {
-      b.setAttribute("aria-pressed", String(Number(b.dataset.k) === k));
-    });
-  }
-  range.addEventListener("input", function () { set(Number(range.value)); });
-  document.getElementById("prev").addEventListener("click", function () { set(k - 1); });
-  document.getElementById("next").addEventListener("click", function () { set(k + 1); });
-  set(2);
-  (function () {
-    var ns = notes.filter(function (n) { return S.stateAt(n, 5); });
-    S.drawRoll(document.getElementById("f-roll"), { notes: ns, steps: 64, lo: 47, hi: 79, cell: 13, rowH: 14, gutter: 30, to: 5, mode: "plain", cls: function (n) { return n.t === 2 ? "n-keep" : "n-dim"; }, label: "Sample piano roll" });
-  })();
-
-  var inst = ["Piano", "organ", "guitar", "bass", "violin", "cello", "harp", "trumpet", "saxophone", "flute", "synth", "marimba", "drum kit"];
-  var holder = document.getElementById("inst");
-  inst.forEach(function (n, i) {
-    var s = document.createElement("span");
-    s.textContent = n + (i < inst.length - 1 ? ", " : ".");
-    holder.appendChild(s);
-    holder.appendChild(document.createTextNode(" "));
-  });
-  var lit = 0;
-  var spans = holder.querySelectorAll("span");
-  function cycle() {
-    spans.forEach(function (s, i) { s.classList.toggle("lit", i === lit); });
-    lit = (lit + 1) % spans.length;
-  }
-  cycle();
-  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setInterval(cycle, 1400);
-
-  Array.prototype.forEach.call(document.querySelectorAll("[data-th]"), function (h) { var a = h.dataset.th.split(","); h.innerHTML = S.staffThumb(Number(a[0]), a[1] === "1"); });
-  var desc = document.getElementById("feat-desc");
-  Array.prototype.forEach.call(document.querySelectorAll(".feat-col li"), function (li) {
-    function show() { desc.textContent = li.dataset.d; }
-    li.addEventListener("mouseenter", show);
-    li.addEventListener("focus", show);
-  });
-
-
-
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
-  }, { threshold: 0.12 });
-  document.querySelectorAll(".reveal").forEach(function (n) { io.observe(n); });
-
-})();
-
-window.STAVE.staffGraph(document.getElementById("cta-graph"), { current: "d70c9b3", big: true });
-(function () {
-  var screens = Array.prototype.slice.call(document.querySelectorAll(".screen"));
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var wide = window.matchMedia("(min-width: 901px)").matches;
-  var stack = wide && !reduced;
-  var root = document.documentElement;
-  var links = Array.prototype.slice.call(document.querySelectorAll("#rail a"));
-  var rail = document.getElementById("rail");
-  var cur = -1;
-  function clamp(x) { return Math.max(0, Math.min(1, x)); }
-  function smooth(t) { return t * t * (3 - 2 * t); }
-
-  /* ---- the STAVE name, driven by scroll ---- */
-  var nameSec = document.getElementById("s2");
-  var rows = Array.prototype.slice.call(nameSec.querySelectorAll(".stave-row"));
-  var ltrs = rows.map(function (r) { return r.querySelector(".ltr"); });
-  var spans = rows.map(function (r) { return r.querySelector(".rest > span"); });
-  var sides = rows.map(function (r) { return r.querySelector(".stave-note"); });
-  var tail = document.getElementById("stave-tail");
-  var geo = [];
-  function measure() {
-    var inn = nameSec.firstElementChild, keep = inn.style.transform;
-    inn.style.transform = "none";
-    ltrs.forEach(function (l) { l.style.transform = "none"; });
-    var r = ltrs.map(function (l) { return l.getBoundingClientRect(); });
-    var box = document.getElementById("stave").getBoundingClientRect();
-    var total = r.reduce(function (t, q) { return t + q.width; }, 0);
-    var k = Math.max(1, Math.min(box.width / total * 0.98, 6));
-    var base = box.top + box.height / 2 + r[0].height * 0.78 * k / 2;
-    var x = 0;
-    geo = r.map(function (q, i) { var g = { dx: x * k, dy: base - q.bottom, k: k }; x += q.width; return g; });
-    inn.style.transform = keep;
-    lastName = -1;
-  }
-  var lastName = -1;
-  function renderName(t) {
-    var key = Math.round(t * 2000);
-    if (key === lastName) return;
-    lastName = key;
-    rows.forEach(function (row, i) {
-      var e = smooth(clamp((t - 0.14 - i * 0.05) / 0.3));
-      var g = geo[i];
-      ltrs[i].style.transform = "translate3d(" + (g.dx * (1 - e)).toFixed(1) + "px," + (g.dy * (1 - e)).toFixed(1) + "px,0) scale(" + (1 + (g.k - 1) * (1 - e)).toFixed(3) + ")";
-      row.style.setProperty("--ln", smooth(clamp((t - 0.22 - i * 0.05) / 0.25)).toFixed(3));
-      var w = smooth(clamp((t - 0.44 - i * 0.06) / 0.22));
-      spans[i].style.clipPath = "inset(-10% " + ((1 - w) * 100).toFixed(1) + "% -25% 0)";
-      sides[i].style.opacity = smooth(clamp((t - 0.62 - i * 0.05) / 0.2)).toFixed(3);
-    });
-    tail.style.opacity = smooth(clamp((t - 0.9) / 0.1)).toFixed(3);
-  }
-
-  /* ---- stacking: each block stays put, the next one covers it ---- */
-  var howCards = Array.prototype.slice.call(document.querySelectorAll("#s5 .how-grid .stage-p"));
-  var outs = Array.prototype.slice.call(document.querySelectorAll("#s4 .outcome"));
-  var range = document.getElementById("range");
-  var EXTRA = { s2: 1.2, s3: 1.5, s4: 1, s5: 1.2 };
-  var spacers = {};
-  var last = {};
-  var BG_TOP = ["", "62%", "16%", "70%", "22%", "58%", "28%"];
-  if (stack) {
-    root.classList.add("stack");
-    nameSec.classList.add("scrub");
-    screens.forEach(function (n, i) {
-      var id = n.id;
-      if (EXTRA[id]) {
-        n.classList.add("pinned");
-        var sp = document.createElement("div");
-        sp.className = "spacer";
-        sp.setAttribute("aria-hidden", "true");
-        n.parentNode.insertBefore(sp, n.nextSibling);
-        spacers[id] = sp;
-      }
-      if (i) {
-        var bg = document.createElement("div");
-        bg.className = "bg-staff";
-        bg.setAttribute("aria-hidden", "true");
-        bg.style.top = BG_TOP[i];
-        n.appendChild(bg);
-      }
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".frame, #s3 .stage, .cta-art, #s4 .outcomes"), function (z) { z.setAttribute("data-zoom", ""); });
-  }
-  function layout() {
-    var vh = window.innerHeight;
-    screens.forEach(function (n) {
-      n.style.top = stack ? Math.min(0, vh - n.offsetHeight) + "px" : "";
-      if (spacers[n.id]) spacers[n.id].style.height = (EXTRA[n.id] * vh) + "px";
-    });
-    measure();
-    if (!stack) renderName(1);
-  }
-  function step(t, count) { return Math.min(count - 1, Math.floor(t * count)); }
-  var cache = [];
-  function frame() {
-    var vh = window.innerHeight, best = 0;
-    var tops = screens.map(function (n) { return n.getBoundingClientRect().top; });
-    var sp = {};
-    Object.keys(spacers).forEach(function (id) { var r = spacers[id].getBoundingClientRect(); sp[id] = [r.top, r.height]; });
-    tops.forEach(function (t, i) { if (t <= vh * 0.5) best = i; });
-    if (stack) {
-      screens.forEach(function (n, i) {
-        var nx = tops[i + 1];
-        var p = nx === undefined ? 0 : smooth(clamp(1 - nx / vh));
-        var e = i ? clamp(1 - tops[i] / vh) : 1;
-        var key = p.toFixed(3) + "|" + e.toFixed(3);
-        if (cache[i] !== key) {
-          cache[i] = key;
-          var inn = n.firstElementChild;
-          var enter = i ? smooth(clamp((e - 0.25) / 0.65)) : 1;
-          inn.style.transform = "translate3d(0," + ((1 - enter) * 56).toFixed(1) + "px,0) scale(" + (1 - p * 0.045).toFixed(4) + ")";
-          inn.style.opacity = p >= 0.999 ? "0" : (i ? 0.12 + 0.88 * enter : 1).toFixed(3);
-          n.style.setProperty("--p", p.toFixed(3));
-          n.style.setProperty("--zoom", (1 + 0.06 * (1 - smooth(e))).toFixed(4));
-          var bg = n.querySelector(".bg-staff");
-          if (bg) bg.style.transform = "translate3d(0," + (((1 - e) * 170) - p * 100).toFixed(1) + "px,0)";
-        }
-        var s2 = sp[n.id];
-        if (s2) {
-          var t = clamp((vh - s2[0]) / s2[1]);
-          if (n.id === "s2") { renderName(t); return; }
-          var k = n.id === "s3" ? step(t, 6) : n.id === "s5" ? step(t, 4) : step(t, 3);
-          if (k === last[n.id]) return;
-          last[n.id] = k;
-          if (n.id === "s3") { range.value = k; range.dispatchEvent(new Event("input")); }
-          if (n.id === "s5") howCards.forEach(function (c, ci) { c.classList.toggle("on", ci === k); });
-          if (n.id === "s4") outs.forEach(function (c, ci) { c.classList.toggle("on", ci === k); });
-        }
-      });
-    }
-    if (best !== cur) {
-      cur = best;
-      links.forEach(function (a, i) { if (i === best) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
-      rail.classList.toggle("on-dark", screens[best].classList.contains("navy"));
-    }
-  }
-  document.fonts.ready.then(function () { layout(); frame(); });
-  layout();
-  frame();
-  var tick = false;
-  window.addEventListener("scroll", function () { if (!tick) { tick = true; requestAnimationFrame(function () { tick = false; frame(); }); } }, { passive: true });
-  window.addEventListener("resize", function () { layout(); frame(); });
-  document.getElementById("stave-replay").hidden = true;
-  var dlg = document.getElementById("all-dlg");
-  document.getElementById("all-btn").addEventListener("click", function () { dlg.showModal(); });
-  dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
-})();
-
-(function () {
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  Array.prototype.forEach.call(document.querySelectorAll(".stats li, .commit-list li, .cta-copy > *, .cta-art"), function (el) { el.classList.add("reveal"); });
-  Array.prototype.forEach.call(document.querySelectorAll(".screen, .hero"), function (scr) {
-    var groups = new Map();
-    Array.prototype.forEach.call(scr.querySelectorAll(".reveal"), function (el) {
-      var key = el.parentElement;
-      var n = groups.get(key) || 0;
-      groups.set(key, n + 1);
-      el.style.setProperty("--d", Math.min(n, 8) * 85 + "ms");
-    });
-  });
-  if (reduced) { Array.prototype.forEach.call(document.querySelectorAll(".reveal"), function (el) { el.classList.add("in"); }); return; }
-  var io = new IntersectionObserver(function (es) {
-    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
-  }, { threshold: 0.12 });
-  Array.prototype.forEach.call(document.querySelectorAll(".reveal:not(.in)"), function (el) { io.observe(el); });
-})();
-</script>
+<script src="assets/sky.js" defer></script>
+<script src="assets/landing.js" defer></script>
 </body>
 </html>
