@@ -3,14 +3,87 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#04050d">
 <title>Explore · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<style>
+  :root { color-scheme: dark; }
+  .pub { position: relative; z-index: 1; }
+
+  .finder { position: relative; display: block; max-width: 560px; margin-top: 28px; }
+  .finder .input { height: 56px; border-radius: 999px; padding-left: 52px; font-size: 17px; background: rgba(255,255,255,.06); border: 1px solid var(--line-strong); color: var(--ink); }
+  .finder .icon { position: absolute; left: 20px; top: 18px; width: 20px; height: 20px; color: var(--faint); }
+
+  .regions { display: flex; gap: 8px; flex-wrap: wrap; margin: 32px 0 8px; }
+  .regions a { height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 15px; font-weight: 480; color: var(--soft); }
+  .regions a:hover { border-color: var(--ink); color: var(--ink); }
+  .regions a[aria-current="true"] { background: var(--lime, #dceeb1); color: #0b0d1a; border-color: transparent; }
+  .regions small { font-size: 13px; opacity: .85; }
+
+  .sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 56px 0 20px; }
+  .sec-head h2 { font-size: 28px; font-weight: 400; letter-spacing: -.03em; }
+  .sort { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--soft); }
+  .sort select { font-size: 14px; height: 36px; border: 1px solid var(--line-strong); border-radius: 999px; padding: 0 14px; background: rgba(255,255,255,.06); color: var(--ink); }
+  .none { color: var(--soft); margin-bottom: 16px; }
+
+  .win { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid var(--line);
+    background: radial-gradient(circle at 1px 1px, rgba(238,240,255,.16) 1px, transparent 1.6px) 0 0 / 22px 22px, rgba(255,255,255,.03); }
+  .reg { position: absolute; left: 10px; top: 10px; z-index: 1; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--soft); background: rgba(4,5,13,.72); border: 1px solid var(--line); }
+
+  .hero-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .hero-card { display: flex; flex-direction: column; gap: 20px; padding: 18px 18px 24px; border-radius: 24px; border: 1px solid var(--line); background: rgba(8,10,26,.62); transition: transform .5s ease-in; }
+  .hero-card:is(:hover, :focus-visible) { transform: translateY(-4px); border-color: var(--line-strong); transition-timing-function: ease-out; }
+  .hero-card .win { height: 170px; }
+  .hero-card h3 { font-size: 28px; font-weight: 400; letter-spacing: -.03em; line-height: 1.1; }
+  .hero-card .by { margin-top: 8px; font-size: 15px; color: var(--soft); }
+  .hero-card .meta { display: flex; gap: 18px; margin-top: 14px; font-size: 14px; flex-wrap: wrap; color: var(--ink); }
+
+  .sys-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 16px; }
+  .sys-card { display: block; transition: transform .5s ease-in; }
+  .sys-card:is(:hover, :focus-visible) { transform: translateY(-3px); transition-timing-function: ease-out; }
+  .sys-card .win { height: 120px; }
+  .sys-card h3 { font-size: 17px; font-weight: 540; margin-top: 12px; letter-spacing: -.01em; }
+  .sys-card .by { font-size: 14px; color: var(--soft); margin-top: 2px; }
+  .sys-card .tally { display: flex; gap: 14px; margin-top: 8px; font-size: 13px; color: var(--soft); align-items: center; flex-wrap: wrap; }
+  .sys-card .tally span:first-child { display: inline-flex; align-items: center; gap: 4px; }
+
+  .win .con { position: absolute; left: 0; right: 0; top: 30px; bottom: 0; width: 100%; height: calc(100% - 30px); }
+  .con .l0 { --c: var(--ink); }
+  .con .l1 { --c: #4fd6c4; }
+  .con .l2 { --c: #c58bd6; }
+  .con .sl { stroke: var(--ink); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .con .ed { fill: none; stroke: var(--c); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+  .con .st { fill: var(--c); transform-box: fill-box; transform-origin: center; }
+  .con .st.hollow { fill: none; stroke: var(--c); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .con .ha { fill: var(--c); opacity: 0; transform-box: fill-box; transform-origin: center; }
+  .con .gl { opacity: .22; }
+  .con .eg { opacity: .5; }
+  .con .sg { opacity: .78; }
+  .con :is(.gl, .eg, .sg, .st, .ha) { transition: opacity .5s ease-in, transform .5s ease-in; }
+  .lit:is(:hover, :focus-visible) .con :is(.gl, .eg, .sg, .st, .ha) { transition-timing-function: ease-out; }
+  .lit:is(:hover, :focus-visible) .con .gl { opacity: .5; }
+  .lit:is(:hover, :focus-visible) .con :is(.eg, .sg) { opacity: 1; }
+  .lit:is(:hover, :focus-visible) .con .st { transform: scale(1.3); }
+  .lit:is(:hover, :focus-visible) .con .ha { opacity: .3; }
+
+  .cta { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-top: 56px; padding: 32px 36px; border-radius: 24px; border: 1px solid var(--line-strong); background: rgba(8,10,26,.62); font-size: 18px; line-height: 1.4; }
+  .cta:hover { border-color: var(--lime, #dceeb1); }
+  .cta .icon { width: 40px; height: 40px; stroke-width: 1.6; color: var(--lime, #dceeb1); transition: transform .5s ease-in; }
+  .cta:hover .icon { transform: translate(4px, -4px); transition-timing-function: ease-out; }
+
+  .rise { animation: rise .9s ease-out both; animation-delay: calc(var(--i, 0) * 70ms); }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+
+  @media (max-width: 1100px) { .sys-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .sys-grid { grid-template-columns: 1fr; } .cta { padding: 24px; } }
+  @media (prefers-reduced-motion: reduce) { .rise { animation: none; } .hero-card, .sys-card, .con *, .cta .icon { transition: none !important; } }
+</style>
 </head>
 <body>
+<canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
 <a class="skip" href="#main">Skip to main content</a>
 <div class="pub">
   <header id="pubtop" class="pub-top"></header>
@@ -18,30 +91,37 @@
     <div class="pub-head">
       <h1 class="pub-h1">Explore</h1>
       <p>Public music from the community. Open a project to listen, browse its commit history, or fork it to remix. <a href="help.html" style="text-decoration:underline;text-underline-offset:3px">What is a fork?</a></p>
-      <div class="search-big"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search by song title or author…" aria-label="Search projects"></div>
+      <div class="finder"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" id="q" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search by song title or author…" aria-label="Search projects"></div>
     </div>
 
-    <nav class="gchips" id="genres" aria-label="Genre">
-      <a href="?genre=tat-ca" data-key="tat-ca" aria-current="true">All  <small>48</small></a>
+    <nav class="regions" id="genres" aria-label="Genre">
+      <a href="?genre=tat-ca" data-key="tat-ca" aria-current="true">All <small>48</small></a>
       <a href="?genre=lo-fi" data-key="lo-fi">Lo-fi <small>11</small></a>
       <a href="?genre=jazz" data-key="jazz">Jazz <small>7</small></a>
-      <a href="?genre=dien-tu" data-key="dien-tu">Electronic  <small>12</small></a>
-      <a href="?genre=co-dien" data-key="co-dien">Classical  <small>6</small></a>
-      <a href="?genre=nhac-phim" data-key="nhac-phim">Film score  <small>5</small></a>
-      <a href="?genre=khac" data-key="khac">Other  <small>7</small></a>
+      <a href="?genre=dien-tu" data-key="dien-tu">Electronic <small>12</small></a>
+      <a href="?genre=co-dien" data-key="co-dien">Classical <small>6</small></a>
+      <a href="?genre=nhac-phim" data-key="nhac-phim">Film score <small>5</small></a>
+      <a href="?genre=khac" data-key="khac">Other <small>7</small></a>
     </nav>
 
     <section aria-labelledby="h-feat">
-      <h2 id="h-feat" class="sec-title" style="margin-top:0">Featured this week</h2>
-      <div class="feat3" id="feat3"></div>
+      <div class="sec-head" style="margin-top:40px"><h2 id="h-feat">Featured this week</h2></div>
+      <div class="hero-grid" id="feat3"></div>
     </section>
 
     <section aria-labelledby="h-all">
-      <h2 id="h-all" class="sec-title">Recently updated  <select name="sort" autocomplete="off" aria-label="Sort"><option>Recently updated</option><option>Most stars</option><option>Most forks</option></select></h2>
-      <div class="cards" id="cards"></div>
+      <div class="sec-head">
+        <h2 id="h-all">All projects</h2>
+        <label class="sort">Sort by
+          <select id="sort" name="sort" autocomplete="off"><option value="recent">Recently updated</option><option value="stars">Most stars</option><option value="forks">Most forks</option></select>
+        </label>
+      </div>
+      <p class="sr-only" id="count" role="status"></p>
+      <p class="none" id="none" role="status" hidden>No projects match. Try another genre or a shorter search.</p>
+      <div class="sys-grid" id="cards"></div>
     </section>
 
-    <a class="pub-cta" href="rankings.html">
+    <a class="cta" href="rankings.html">
       <span><b>This week’s rankings</b><br>The most-starred projects in the past 7 days.</span>
       <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>
     </a>
@@ -52,29 +132,102 @@
 <script>
 (function () {
   var S = window.STAVE;
+  var T = {
+    stars: "stars", forks: "forks", commits: "commits", branches: "branches",
+    count: function (n) { return n + (n === 1 ? " project" : " projects"); }
+  };
+  var REGIONS = { "lo-fi": "Lo-fi", jazz: "Jazz", "dien-tu": "Electronic", "co-dien": "Classical", "nhac-phim": "Film score" };
+  var STAR_ICON = '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>';
+
+  function constellation(branches, merged, seed, W, H) {
+    var lanes = Math.max(1, Math.min(3, branches));
+    var main = 4 + (seed % 3);
+    var x0 = W * 0.095, step = W * 0.81 / (main - 1);
+    var fork = 1 + (seed % (main - 2));
+    var r = Math.max(2.6, H * 0.05);
+    var sp = Math.min(H * 0.075, H / (lanes + 1) / 3) / 2;
+    var staff = "", edges = "", halos = "", stars = "", pos = [];
+    for (var l = 0; l < lanes; l++) {
+      var cy = H * (l + 1) / (lanes + 1), xs = [], p = [];
+      for (var k = 0; k < 5; k++) { var ly = (cy + (k - 2) * sp).toFixed(1); staff += '<line class="sl" x1="' + (W * 0.04).toFixed(1) + '" x2="' + (W * 0.96).toFixed(1) + '" y1="' + ly + '" y2="' + ly + '"/>'; }
+      if (l === 0) { for (var i = 0; i < main; i++) xs.push(x0 + i * step); }
+      else { var n = 1 + ((seed + l) % 3); for (var j = 0; j < n; j++) xs.push(x0 + (fork + j + l - 1) * step + W * 0.048); var over = xs[n - 1] - W * 0.905; if (over > 0) xs = xs.map(function (x) { return x - over; }); }
+      xs.forEach(function (x, idx) { p.push([x, cy + (((seed + idx * 3 + l) % 5) - 2) * sp]); });
+      pos.push(p);
+      edges += '<path class="ed l' + l + '" d="M' + p.map(function (q) { return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join(" L") + '"/>';
+      if (l > 0) {
+        var a = pos[0][fork], b = p[0], mx = ((a[0] + b[0]) / 2).toFixed(1);
+        edges += '<path class="ed l' + l + '" d="M' + a[0].toFixed(1) + " " + a[1].toFixed(1) + " C " + mx + " " + a[1].toFixed(1) + ", " + mx + " " + b[1].toFixed(1) + ", " + b[0].toFixed(1) + " " + b[1].toFixed(1) + '"/>';
+      }
+      p.forEach(function (q, idx) {
+        var hollow = merged && l === 0 && idx === p.length - 1;
+        halos += '<circle class="ha l' + l + '" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (r * 3).toFixed(1) + '"/>';
+        stars += '<circle class="st l' + l + (hollow ? " hollow" : "") + '" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + r.toFixed(1) + '"/>';
+      });
+    }
+    return '<svg class="con" viewBox="0 0 ' + W + " " + H + '" aria-hidden="true" focusable="false"><g class="gl">' + staff + '</g><g class="eg">' + edges + "</g>" + halos + '<g class="sg">' + stars + "</g></svg>";
+  }
+
   S.mountPublicHeader("explore");
-  var g = new URLSearchParams(location.search).get("genre") || "tat-ca";
-  Array.prototype.forEach.call(document.querySelectorAll("#genres a"), function (a) { if (a.dataset.key === g) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
   var data = S.PUBLIC_PROJECTS;
-  var star = '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>';
+
   var feat = document.getElementById("feat3");
-  [3, 1, 0].forEach(function (i) {
+  [3, 1, 0].forEach(function (i, n) {
     var d = data[i];
     var a = document.createElement("a");
-    a.className = "fcard";
+    a.className = "hero-card lit rise";
+    a.style.setProperty("--i", n);
     a.href = "project.html";
-    a.innerHTML = '<div class="roll-big">' + S.staffThumb(d[9], d[10], i) + "</div><div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[2] + " · " + d[3] + '</p><div class="meta"><span>' + d[5] + " sao</span><span>" + d[6] + " fork</span><span>" + d[7] + " commit</span></div></div>";
+    a.innerHTML = '<div class="win"><span class="reg">' + d[2] + "</span>" + constellation(d[9], d[10], i, 300, 120) + "</div><div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[3] + '</p><div class="meta"><span>' + d[5] + " " + T.stars + "</span><span>" + d[6] + " " + T.forks + "</span><span>" + d[7] + " " + T.commits + "</span></div></div>";
     feat.appendChild(a);
   });
-  var cards = document.getElementById("cards");
-  data.forEach(function (d, i) {
-    var a = document.createElement("a");
-    a.className = "pcard";
-    a.href = "project.html";
-    a.innerHTML = '<div class="roll-big">' + S.staffThumb(d[9], d[10], i) + "</div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[2] + '</p><div class="stats"><span>' + star + " " + d[5] + "</span><span>" + d[6] + " fork</span><span>" + d[9] + " branch</span></div>";
-    cards.appendChild(a);
+
+  var state = { genre: new URLSearchParams(location.search).get("genre") || "tat-ca", q: "", sort: "recent" };
+  var grid = document.getElementById("cards"), none = document.getElementById("none"), count = document.getElementById("count");
+  var chips = document.querySelectorAll("#genres a");
+  var first = true;
+
+  function inGenre(d) {
+    if (state.genre === "tat-ca") return true;
+    if (state.genre === "khac") return Object.keys(REGIONS).every(function (k) { return REGIONS[k] !== d[2]; });
+    return REGIONS[state.genre] === d[2];
+  }
+
+  function render() {
+    Array.prototype.forEach.call(chips, function (c) { if (c.dataset.key === state.genre) c.setAttribute("aria-current", "true"); else c.removeAttribute("aria-current"); });
+    var q = state.q.toLowerCase();
+    var list = data.map(function (d, i) { return { d: d, i: i }; }).filter(function (o) {
+      return inGenre(o.d) && (!q || (o.d[0] + " " + o.d[4]).toLowerCase().indexOf(q) > -1);
+    });
+    if (state.sort === "stars") list.sort(function (a, b) { return b.d[5] - a.d[5]; });
+    if (state.sort === "forks") list.sort(function (a, b) { return b.d[6] - a.d[6]; });
+    grid.textContent = "";
+    list.forEach(function (o, n) {
+      var d = o.d, a = document.createElement("a");
+      a.className = "sys-card lit" + (first ? " rise" : "");
+      a.style.setProperty("--i", n);
+      a.href = "project.html";
+      a.innerHTML = '<div class="win"><span class="reg">' + d[2] + "</span>" + constellation(d[9], d[10], o.i, 240, 90) + "</div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[8] + '</p><div class="tally"><span>' + STAR_ICON + " " + d[5] + '<span class="sr-only"> ' + T.stars + "</span></span><span>" + d[6] + " " + T.forks + "</span><span>" + d[9] + " " + T.branches + "</span></div>";
+      grid.appendChild(a);
+    });
+    none.hidden = list.length > 0;
+    count.textContent = T.count(list.length);
+    first = false;
+  }
+
+  Array.prototype.forEach.call(chips, function (c) {
+    c.addEventListener("click", function (e) {
+      e.preventDefault();
+      state.genre = c.dataset.key;
+      history.replaceState(null, "", "?genre=" + state.genre);
+      render();
+    });
   });
+  document.getElementById("q").addEventListener("input", function (e) { state.q = e.target.value.trim(); render(); });
+  document.getElementById("sort").addEventListener("change", function (e) { state.sort = e.target.value; render(); });
+  render();
 })();
 </script>
+<script src="assets/sky.js" defer></script>
 </body>
 </html>

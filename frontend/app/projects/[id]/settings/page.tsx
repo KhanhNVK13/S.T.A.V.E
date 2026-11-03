@@ -26,6 +26,7 @@ import { ConfirmDialog } from "../../../../components/ui/confirm-dialog";
 import { apiErrorMessage } from "../../../../lib/error-message";
 import { APP_LOCALE } from "../../../../lib/format-date";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../../lib/validation";
+import { SkyLoading } from "../../../../components/project/sky-state";
 
 const NAME_MAX = 100;
 const NAME_REQUIRED = "Vui lòng nhập tên dự án.";
@@ -328,7 +329,7 @@ export default function ProjectSettingsPage() {
         </Link>
         <PageHeader title="Cài đặt dự án" description={project?.name} />
 
-        {loading && <p className="text-center text-sm text-muted">Đang tải thông tin dự án…</p>}
+        {loading && <SkyLoading label="Đang tải thông tin dự án…" />}
 
         {error && !loading && (
           <div

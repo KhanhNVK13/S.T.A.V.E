@@ -77,7 +77,11 @@ function EventCard({ event }: { event: JamEventListItem }) {
   })();
 
   return (
-    <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+    <div className="flex flex-col gap-3 overflow-hidden rounded-card border border-border bg-surface p-4">
+      <div
+        aria-hidden="true"
+        className="-mx-4 -mt-4 h-[21px] bg-[repeating-linear-gradient(to_bottom,transparent_0_4px,var(--border)_4px_5px)]"
+      />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-base font-semibold">

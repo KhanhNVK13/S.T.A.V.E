@@ -517,7 +517,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
             style={{
               ...styles.transportBtn,
               background: isPlaying ? DC.accent : "transparent",
-              color: isPlaying ? "#fff" : DC.text,
+              color: isPlaying ? DC.onAccent : DC.text,
               cursor: isPlaying ? "default" : "pointer",
             }}
           >
@@ -554,7 +554,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
             style={{
               ...styles.transportBtn,
               background: loopOn ? DC.accent : "transparent",
-              color: loopOn ? "#fff" : DC.text,
+              color: loopOn ? DC.onAccent : DC.text,
             }}
           >
             <Repeat size={15} />
@@ -565,7 +565,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
             style={{
               ...styles.transportBtn,
               background: metronomeOn ? DC.accent : "transparent",
-              color: metronomeOn ? "#fff" : DC.text,
+              color: metronomeOn ? DC.onAccent : DC.text,
             }}
           >
             <Timer size={15} />
@@ -758,7 +758,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 ...styles.segmentBtn,
                 background: tool === id ? DC.surface : "transparent",
                 color: tool === id ? DC.accent : DC.textMuted,
-                boxShadow: tool === id ? "0 1px 2px rgba(0,0,0,.08)" : "none",
+                boxShadow: tool === id ? "0 1px 2px rgba(0,0,0,.35)" : "none",
               }}
             >
               <Icon size={14} />
@@ -780,7 +780,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 fontFamily: DC.mono,
                 background: gridDivision === g.value ? DC.surface : "transparent",
                 color: gridDivision === g.value ? DC.accent : DC.textMuted,
-                boxShadow: gridDivision === g.value ? "0 1px 2px rgba(0,0,0,.08)" : "none",
+                boxShadow: gridDivision === g.value ? "0 1px 2px rgba(0,0,0,.35)" : "none",
               }}
             >
               {g.label}
@@ -1344,7 +1344,7 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
   branchMenuTag: {
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 0.3,
     textTransform: "uppercase",
     color: DC.textMuted,
@@ -1397,7 +1397,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 8,
     background: DC.accent,
-    color: "#fff",
+    color: DC.onAccent,
     border: "none",
     borderRadius: 8,
     padding: "10px 15px",
@@ -1440,7 +1440,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: DC.surface,
     border: `1px solid ${DC.border}`,
     borderRadius: 10,
-    boxShadow: "0 12px 28px rgba(15, 42, 92, .14)",
+    boxShadow: DC.shadowPop,
   },
   menuShortcut: {
     marginLeft: "auto",

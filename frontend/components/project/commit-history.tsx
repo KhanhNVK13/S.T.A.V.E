@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   GitBranch,
-  GitCommitVertical,
   GitCompareArrows,
   GitBranchPlus,
   RotateCcw,
@@ -21,7 +20,6 @@ import {
 import type { Branch, BranchHistoryCommit } from "../../lib/api-client";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { EmptyState } from "../ui/empty-state";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Dialog, DialogActions } from "../ui/dialog";
 import { FieldError, INPUT_CLASS } from "../ui/form";
@@ -31,6 +29,7 @@ import { RowList, RowHeader, RowItem, RowTime } from "../ui/row-list";
 import { Toast } from "../ui/toast";
 import { CommitCompare } from "./commit-compare";
 import { VersionPickerDialog } from "./version-picker-dialog";
+import { SkyEmpty, SkyLoading } from "./sky-state";
 import type { CompareSide } from "./commit-compare";
 import { apiErrorMessage } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
@@ -327,22 +326,7 @@ export function CommitHistory({
   const canCompare = commits.length >= 2; // UC-45 PRE-3
 
   if (loading && commits.length === 0 && !error) {
-    return (
-      <RowList cols={COLS}>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0"
-          >
-            <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-surface-subtle" />
-            <div className="flex-1">
-              <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
-              <div className="h-2.5 w-1/4 rounded bg-surface-subtle" />
-            </div>
-          </div>
-        ))}
-      </RowList>
-    );
+    return <SkyLoading label="Đang tải lịch sử commit…" />;
   }
 
   return (
@@ -439,8 +423,7 @@ export function CommitHistory({
       )}
 
       {commits.length === 0 && !error ? (
-        <EmptyState
-          icon={GitCommitVertical}
+        <SkyEmpty
           title="Chưa có commit nào."
           description="Commit là một phiên bản có tên của bản nhạc, có thể quay lại bất cứ lúc nào. Mở trình soạn nhạc, thay đổi bản nhạc rồi bấm Commit Changes để tạo commit đầu tiên."
         />

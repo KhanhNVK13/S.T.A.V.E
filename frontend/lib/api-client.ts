@@ -682,7 +682,7 @@ export async function deleteCommitTag(commitId: string, tagName: string): Promis
  * Khoá preset phải khớp đúng các khối `[data-theme="…"]` trong `app/globals.css`
  * VÀ danh sách `PRESET_THEME_KEYS` phía backend (`users/dto/set-theme.dto.ts`).
  */
-export type PresetThemeKey = "unleashed" | "moss" | "claret";
+export type PresetThemeKey = "space" | "unleashed" | "moss" | "claret";
 
 export interface ActiveTheme {
   type: "preset" | "custom";

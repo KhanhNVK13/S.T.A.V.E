@@ -7,6 +7,7 @@ import type { BranchHistoryCommit } from "../../lib/api-client";
 import { apiErrorMessage } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { formatAuthorName } from "../../lib/format-name";
+import { SkyLoading } from "./sky-state";
 
 interface Summary {
   defaultBranchName: string;
@@ -80,7 +81,7 @@ export function VersionSummary({
             {error}
           </p>
         ) : !summary ? (
-          <div className="h-10 animate-pulse rounded-md bg-surface-subtle" />
+          <SkyLoading compact label="Đang tải phiên bản…" />
         ) : summary.latest ? (
           <div className="flex items-start gap-2.5">
             <GitCommitHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
