@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>Explore · STAVE</title>
+<title data-i18n="explore.title">Explore · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -81,60 +81,66 @@
   @media (max-width: 560px) { .sys-grid { grid-template-columns: 1fr; } .cta { padding: 24px; } }
   @media (prefers-reduced-motion: reduce) { .rise { animation: none; } .hero-card, .sys-card, .con *, .cta .icon { transition: none !important; } }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="pub">
   <header id="pubtop" class="pub-top"></header>
   <main id="main">
     <div class="pub-head">
-      <h1 class="pub-h1">Explore</h1>
-      <p>Public music from the community. Open a project to listen, browse its commit history, or fork it to remix. <a href="help.html" style="text-decoration:underline;text-underline-offset:3px">What is a fork?</a></p>
-      <div class="finder"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" id="q" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search by song title or author…" aria-label="Search projects"></div>
+      <h1 class="pub-h1" data-i18n="shell.explore">Explore</h1>
+      <p><span data-i18n="explore.intro">Public music from the community. Open a project to listen, browse its commit history, or fork it to remix.</span> <a href="help.html" style="text-decoration:underline;text-underline-offset:3px" data-i18n="explore.whatFork">What is a fork?</a></p>
+      <div class="finder"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" id="q" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search by song title or author…" aria-label="Search projects" data-i18n-attr="placeholder:explore.searchPlaceholder,aria-label:common.searchProjects"></div>
     </div>
 
-    <nav class="regions" id="genres" aria-label="Genre">
-      <a href="?genre=tat-ca" data-key="tat-ca" aria-current="true">All <small>48</small></a>
-      <a href="?genre=lo-fi" data-key="lo-fi">Lo-fi <small>11</small></a>
-      <a href="?genre=jazz" data-key="jazz">Jazz <small>7</small></a>
-      <a href="?genre=dien-tu" data-key="dien-tu">Electronic <small>12</small></a>
-      <a href="?genre=co-dien" data-key="co-dien">Classical <small>6</small></a>
-      <a href="?genre=nhac-phim" data-key="nhac-phim">Film score <small>5</small></a>
-      <a href="?genre=khac" data-key="khac">Other <small>7</small></a>
+    <nav class="regions" id="genres" aria-label="Genre" data-i18n-attr="aria-label:explore.genreNav">
+      <a href="?genre=tat-ca" data-key="tat-ca" aria-current="true"><span data-i18n="explore.all">All</span> <small>48</small></a>
+      <a href="?genre=lo-fi" data-key="lo-fi"><span data-i18n="genre.lofi">Lo-fi</span> <small>11</small></a>
+      <a href="?genre=jazz" data-key="jazz"><span data-i18n="genre.jazz">Jazz</span> <small>7</small></a>
+      <a href="?genre=dien-tu" data-key="dien-tu"><span data-i18n="genre.electronic">Electronic</span> <small>12</small></a>
+      <a href="?genre=co-dien" data-key="co-dien"><span data-i18n="genre.classical">Classical</span> <small>6</small></a>
+      <a href="?genre=nhac-phim" data-key="nhac-phim"><span data-i18n="genre.film">Film score</span> <small>5</small></a>
+      <a href="?genre=khac" data-key="khac"><span data-i18n="genre.other">Other</span> <small>7</small></a>
     </nav>
 
     <section aria-labelledby="h-feat">
-      <div class="sec-head" style="margin-top:40px"><h2 id="h-feat">Featured this week</h2></div>
+      <div class="sec-head" style="margin-top:40px"><h2 id="h-feat" data-i18n="explore.featured">Featured this week</h2></div>
       <div class="hero-grid" id="feat3"></div>
     </section>
 
     <section aria-labelledby="h-all">
       <div class="sec-head">
-        <h2 id="h-all">All projects</h2>
-        <label class="sort">Sort by
-          <select id="sort" name="sort" autocomplete="off"><option value="recent">Recently updated</option><option value="stars">Most stars</option><option value="forks">Most forks</option></select>
+        <h2 id="h-all" data-i18n="explore.allProjects">All projects</h2>
+        <label class="sort"><span data-i18n="explore.sortBy">Sort by</span>
+          <select id="sort" name="sort" autocomplete="off"><option value="recent" data-i18n="explore.sortRecent">Recently updated</option><option value="stars" data-i18n="explore.sortStars">Most stars</option><option value="forks" data-i18n="explore.sortForks">Most forks</option></select>
         </label>
       </div>
       <p class="sr-only" id="count" role="status"></p>
-      <p class="none" id="none" role="status" hidden>No projects match. Try another genre or a shorter search.</p>
+      <p class="none" id="none" role="status" hidden data-i18n="explore.none">No projects match. Try another genre or a shorter search.</p>
       <div class="sys-grid" id="cards"></div>
     </section>
 
     <a class="cta" href="rankings.html">
-      <span><b>This week’s rankings</b><br>The most-starred projects in the past 7 days.</span>
+      <span data-i18n-html="explore.cta"><b>This week’s rankings</b><br>The most-starred projects in the past 7 days.</span>
       <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>
     </a>
   </main>
-  <footer class="pub-foot"><span>© 2026 STAVE</span><span><a href="help.html">Help and glossary</a> · <a href="index.html">About</a></span></footer>
+  <footer class="pub-foot"><span data-i18n="shell.copyright">© 2026 STAVE</span><span><a href="help.html" data-i18n="shell.helpGlossary">Help and glossary</a> · <a href="index.html" data-i18n="shell.about">About</a></span></footer>
 </div>
 <script src="assets/shared.js"></script>
 <script>
 (function () {
   var S = window.STAVE;
   var T = {
-    stars: "stars", forks: "forks", commits: "commits", branches: "branches",
-    count: function (n) { return n + (n === 1 ? " project" : " projects"); }
+    get stars() { return S.t("explore.stars"); },
+    get forks() { return S.t("explore.forks"); },
+    get commits() { return S.t("explore.commits"); },
+    get branches() { return S.t("explore.branches"); },
+    count: function (n) { return S.t("explore.count", { n: n }); }
   };
   var REGIONS = { "lo-fi": "Lo-fi", jazz: "Jazz", "dien-tu": "Electronic", "co-dien": "Classical", "nhac-phim": "Film score" };
   var STAR_ICON = '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>';
@@ -172,15 +178,21 @@
   var data = S.PUBLIC_PROJECTS;
 
   var feat = document.getElementById("feat3");
+  var featFirst = true;
+  function buildFeat() {
+  feat.textContent = "";
   [3, 1, 0].forEach(function (i, n) {
     var d = data[i];
     var a = document.createElement("a");
-    a.className = "hero-card lit rise";
+    a.className = "hero-card lit" + (featFirst ? " rise" : "");
     a.style.setProperty("--i", n);
     a.href = "project.html";
-    a.innerHTML = '<div class="win"><span class="reg">' + d[2] + "</span>" + constellation(d[9], d[10], i, 300, 120) + "</div><div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[3] + '</p><div class="meta"><span>' + d[5] + " " + T.stars + "</span><span>" + d[6] + " " + T.forks + "</span><span>" + d[7] + " " + T.commits + "</span></div></div>";
+    a.innerHTML = '<div class="win"><span class="reg">' + S.genre(d[2]) + "</span>" + constellation(d[9], d[10], i, 300, 120) + "</div><div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[3] + '</p><div class="meta"><span>' + d[5] + " " + T.stars + "</span><span>" + d[6] + " " + T.forks + "</span><span>" + d[7] + " " + T.commits + "</span></div></div>";
     feat.appendChild(a);
   });
+  featFirst = false;
+  }
+  buildFeat();
 
   var state = { genre: new URLSearchParams(location.search).get("genre") || "tat-ca", q: "", sort: "recent" };
   var grid = document.getElementById("cards"), none = document.getElementById("none"), count = document.getElementById("count");
@@ -207,7 +219,7 @@
       a.className = "sys-card lit" + (first ? " rise" : "");
       a.style.setProperty("--i", n);
       a.href = "project.html";
-      a.innerHTML = '<div class="win"><span class="reg">' + d[2] + "</span>" + constellation(d[9], d[10], o.i, 240, 90) + "</div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + d[8] + '</p><div class="tally"><span>' + STAR_ICON + " " + d[5] + '<span class="sr-only"> ' + T.stars + "</span></span><span>" + d[6] + " " + T.forks + "</span><span>" + d[9] + " " + T.branches + "</span></div>";
+      a.innerHTML = '<div class="win"><span class="reg">' + S.genre(d[2]) + "</span>" + constellation(d[9], d[10], o.i, 240, 90) + "</div><h3>" + d[0] + '</h3><p class="by">' + d[4] + " · " + S.ago(d[8]) + '</p><div class="tally"><span>' + STAR_ICON + " " + d[5] + '<span class="sr-only"> ' + T.stars + "</span></span><span>" + d[6] + " " + T.forks + "</span><span>" + d[9] + " " + T.branches + "</span></div>";
       grid.appendChild(a);
     });
     none.hidden = list.length > 0;
@@ -225,6 +237,7 @@
   });
   document.getElementById("q").addEventListener("input", function (e) { state.q = e.target.value.trim(); render(); });
   document.getElementById("sort").addEventListener("change", function (e) { state.sort = e.target.value; render(); });
+  document.addEventListener("stave:lang", function () { buildFeat(); render(); });
   render();
 })();
 </script>

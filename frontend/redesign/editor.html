@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>Editor · STAVE</title>
+<title data-i18n="editor.title">Editor · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
   html, body { height: 100%; overflow: hidden; }
   .sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
   .ed { display: grid; grid-template-rows: 52px minmax(0, 1fr); height: 100vh; position: relative; z-index: 1; background: transparent; }
-  .ed-top { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line-strong); background: color-mix(in srgb, var(--ground) 90%, transparent); overflow-x: auto; }
+  .ed-top { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line-strong); background: color-mix(in srgb, var(--ground) 90%, transparent); overflow-x: auto; }
   .ed-top > * { flex: none; }
   .ed-top .spacer { flex: 1 0 8px; }
   .ed-top .sep { width: 1px; height: 24px; background: var(--line-strong); flex: none; }
@@ -138,78 +138,82 @@
     .tracks { display: none; }
   }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#body">Skip to main content</a>
+<a class="skip" href="#body" data-i18n="common.skip">Skip to main content</a>
 <div class="ed">
-  <header class="ed-top" role="toolbar" aria-label="Toolbar">
-    <a class="tbtn" href="project.html" aria-label="Back to the project page"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6"/></svg></a>
+  <header class="ed-top" role="toolbar" aria-label="Toolbar" data-i18n-attr="aria-label:editor.toolbar">
+    <a class="tbtn" href="project.html" aria-label="Back to the project page" data-i18n-attr="aria-label:editor.backToProject"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6"/></svg></a>
     <div class="title"><b>Rainy Saigon Night</b><span>dem-sai-gon-mua.mid</span></div>
     <span class="chip"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 5-8 3-12 7"/></svg>main</span>
-    <span class="saved" role="status"><i class="dot" style="display:inline-block"></i><span id="saved" title="Draft saved at 14:02">Saved</span></span>
+    <span class="saved" role="status"><i class="dot" style="display:inline-block"></i><span id="saved" title="Draft saved at 14:02" data-i18n-attr="title:editor.savedAt" data-i18n-vars='{"time":"14:02"}'>Saved</span></span>
     <span class="sep"></span>
-    <div class="group" role="group" aria-label="Tools">
-      <button class="tbtn" type="button" data-tool="select" aria-pressed="false" title="Select (V)" aria-keyshortcuts="V"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m5 3 14 8-6 2-2 6z"/></svg>Select</button>
-      <button class="tbtn" type="button" data-tool="draw" aria-pressed="true" title="Draw (B)" aria-keyshortcuts="B"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>Draw</button>
-      <button class="tbtn" type="button" data-tool="erase" aria-pressed="false" title="Erase (E)" aria-keyshortcuts="E"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 21-4-4 11-11 7 7-7 8zM11 21h10"/></svg>Erase</button>
+    <div class="group" role="group" translate="no" aria-label="Tools" data-i18n-attr="aria-label:editor.tools">
+      <button class="tbtn" type="button" data-tool="select" aria-pressed="false" title="Select (V)" aria-keyshortcuts="V" data-i18n-attr="title:editor.toolSelect"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m5 3 14 8-6 2-2 6z"/></svg>Select</button>
+      <button class="tbtn" type="button" data-tool="draw" aria-pressed="true" title="Draw (B)" aria-keyshortcuts="B" data-i18n-attr="title:editor.toolDraw"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>Draw</button>
+      <button class="tbtn" type="button" data-tool="erase" aria-pressed="false" title="Erase (E)" aria-keyshortcuts="E" data-i18n-attr="title:editor.toolErase"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 21-4-4 11-11 7 7-7 8zM11 21h10"/></svg>Erase</button>
     </div>
     <span class="sep"></span>
-    <div class="group">
-      <button class="tbtn" type="button" id="undo" aria-label="Undo" title="Undo (Ctrl Z)"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
-      <button class="tbtn" type="button" id="redo" aria-label="Redo" title="Redo (Ctrl Shift Z)"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+    <div class="group" translate="no">
+      <button class="tbtn" type="button" id="undo" aria-label="Undo" title="Undo (Ctrl Z)" data-i18n-attr="title:editor.undoTitle,aria-label:editor.undo"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button class="tbtn" type="button" id="redo" aria-label="Redo" title="Redo (Ctrl Shift Z)" data-i18n-attr="title:editor.redoTitle,aria-label:editor.redo"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
       <button class="tbtn" type="button" id="m-file" aria-haspopup="menu" aria-expanded="false">File<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
       <button class="tbtn" type="button" id="m-edit" aria-haspopup="menu" aria-expanded="false">Edit<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
     </div>
     <span class="spacer"></span>
-    <button class="play" id="play" type="button" aria-label="Play" title="Play / pause (Space)"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" id="play-ic"><path d="M7 5v14l12-7z"/></svg></button>
-    <span class="read"><b>92</b> BPM · <b>Am</b> · 4/4</span>
+    <button class="play" id="play" type="button" aria-label="Play" title="Play / pause (Space)" data-i18n-attr="title:editor.playTitle"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" id="play-ic"><path d="M7 5v14l12-7z"/></svg></button>
+    <span class="read" translate="no"><b>92</b> BPM · <b>Am</b> · 4/4</span>
     <span class="sep"></span>
-    <button class="tbtn" type="button" id="toggle-hist" aria-pressed="true" aria-label="Toggle history"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
-    <button class="btn btn-primary" id="commit-btn" type="button" title="Commit (Ctrl Enter)"><span class="cbadge" id="cbadge" hidden></span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 12h6M15 12h6"/></svg>Commit</button>
+    <span data-lang-switch></span>
+    <button class="tbtn" type="button" id="toggle-hist" aria-pressed="true" aria-label="Toggle history" data-i18n-attr="aria-label:editor.toggleHistory"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+    <button class="btn btn-primary" id="commit-btn" translate="no" type="button" title="Commit (Ctrl Enter)"><span class="cbadge" id="cbadge" hidden></span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 12h6M15 12h6"/></svg>Commit</button>
   </header>
 
-  <main class="ed-body" id="body" data-hist="true"><h1 class="sr-only">Editor: Rainy Saigon Night</h1>
-    <aside class="tracks" aria-label="Track">
-      <h2>Track</h2>
+  <main class="ed-body" id="body" data-hist="true"><h1 class="sr-only" data-i18n="editor.heading">Editor: Rainy Saigon Night</h1>
+    <aside class="tracks" aria-label="Track" data-i18n-attr="aria-label:editor.trackAside">
+      <h2 data-i18n="editor.trackHeading">Track</h2>
       <div id="tracks"></div>
-      <button class="tbtn add-track" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add track</button>
+      <button class="tbtn add-track" translate="no" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add track</button>
     </aside>
 
     <section class="stage" aria-label="Piano roll">
       <div style="display:flex;flex-direction:column;min-height:0;min-width:0">
-        <div class="tip" id="tip"><span>Drafts save automatically. Press  <b>Commit</b> to save it as a version you can return to. <button class="btn btn-ghost btn-sm" type="button" id="tip-keys" style="text-decoration:underline">View shortcuts</button></span><button class="btn btn-quiet btn-sm" type="button" id="tip-x">Hide</button></div>
-        <div class="net" id="net" role="alert" hidden><span>Connection lost. Changes are kept on this device and will save automatically when you’re back online.</span><button class="btn btn-quiet btn-sm" type="button" id="net-retry">Try again</button></div>
+        <div class="tip" id="tip"><span><span data-i18n-html="editor.tipText">Drafts save automatically. Press <b>Commit</b> to save it as a version you can return to.</span> <button class="btn btn-ghost btn-sm" type="button" id="tip-keys" style="text-decoration:underline" data-i18n="editor.viewShortcuts">View shortcuts</button></span><button class="btn btn-quiet btn-sm" type="button" id="tip-x" data-i18n="editor.hide">Hide</button></div>
+        <div class="net" id="net" role="alert" hidden><span data-i18n="editor.netLost">Connection lost. Changes are kept on this device and will save automatically when you’re back online.</span><button class="btn btn-quiet btn-sm" type="button" id="net-retry" data-i18n="editor.tryAgain">Try again</button></div>
         <div id="live" class="sr-only" role="status" aria-live="polite"></div>
         <div class="roll-wrap" id="wrap" style="flex:1"></div>
-        <div class="strip" role="group" aria-label="Grid and zoom"><span id="selcount" class="num" aria-live="polite" style="min-width:84px"></span><label for="snap">Snap</label><select id="snap" name="snap" autocomplete="off"><option value="1">1/16</option><option value="2">1/8</option><option value="4">1/4</option></select><span>Zoom</span><button class="tbtn" type="button" id="zout" aria-label="Zoom out">−</button><span id="zlab" class="num">100%</span><button class="tbtn" type="button" id="zin" aria-label="Zoom in">+</button><button class="tbtn" type="button" id="keys-btn" aria-haspopup="dialog">Shortcuts</button><a class="tbtn" href="help.html" target="_blank" rel="noopener">Glossary</a></div>
+        <div class="strip" role="group" aria-label="Grid and zoom" data-i18n-attr="aria-label:editor.gridZoom"><span id="selcount" class="num" aria-live="polite" style="min-width:84px"></span><label for="snap" data-i18n="editor.snap">Snap</label><select id="snap" name="snap" autocomplete="off"><option value="1">1/16</option><option value="2">1/8</option><option value="4">1/4</option></select><span data-i18n="editor.zoom">Zoom</span><button class="tbtn" type="button" id="zout" aria-label="Zoom out" data-i18n-attr="aria-label:editor.zoomOut">−</button><span id="zlab" class="num">100%</span><button class="tbtn" type="button" id="zin" aria-label="Zoom in" data-i18n-attr="aria-label:editor.zoomIn">+</button><button class="tbtn" type="button" id="keys-btn" aria-haspopup="dialog" data-i18n="editor.shortcuts">Shortcuts</button><a class="tbtn" href="help.html" target="_blank" rel="noopener" data-i18n="editor.glossary">Glossary</a></div>
       </div>
-      <div class="vel"><div class="lab" id="vlab" title="Velocity of track Melody">Velocity<br><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#5c7a2f"></i></div><div class="vel-scroll" id="vel"></div></div>
+      <div class="vel"><div class="lab" id="vlab" translate="no" title="Velocity of track Melody">Velocity<br><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#5c7a2f"></i></div><div class="vel-scroll" id="vel"></div></div>
     </section>
 
-    <aside class="hist" aria-label="History">
-      <div class="ptabs" role="tablist" aria-label="Right panel"><button type="button" role="tab" id="tb-hist" aria-selected="true" aria-controls="pn-hist">History</button><button type="button" role="tab" id="tb-br" aria-selected="false" aria-controls="pn-br">Branches</button></div>
+    <aside class="hist" aria-label="History" data-i18n-attr="aria-label:editor.tabHistory">
+      <div class="ptabs" role="tablist" aria-label="Right panel" data-i18n-attr="aria-label:editor.rightPanel"><button type="button" role="tab" id="tb-hist" aria-selected="true" aria-controls="pn-hist" data-i18n="editor.tabHistory">History</button><button type="button" role="tab" id="tb-br" aria-selected="false" aria-controls="pn-br" data-i18n="editor.tabBranches">Branches</button></div>
       <div id="pn-hist" role="tabpanel" aria-labelledby="tb-hist">
-      <div class="h-item h-draft"><svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse class="nh-d" cx="8" cy="21" rx="5" ry="3.6" transform="rotate(-20 8 21)"/><path class="nh-d" d="M13 19V4" fill="none" stroke-dasharray="3 2"/></svg><div><b id="draft-title" style="font-weight:600">Draft</b><small id="draft-sub">3 uncommitted changes</small></div></div>
+      <div class="h-item h-draft"><svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse class="nh-d" cx="8" cy="21" rx="5" ry="3.6" transform="rotate(-20 8 21)"/><path class="nh-d" d="M13 19V4" fill="none" stroke-dasharray="3 2"/></svg><div><b id="draft-title" style="font-weight:600" data-i18n="common.draft">Draft</b><small id="draft-sub">3 uncommitted changes</small></div></div>
       <div id="hist-list"></div>
       </div>
       <div id="pn-br" role="tabpanel" aria-labelledby="tb-br" hidden>
-        <div class="br-row"><span><b style="font-weight:600">main</b></span><small>Main branch · 6 commits</small><span class="pill">open</span></div>
-        <div class="br-row"><span><b class="br-bridge">bridge-alt</b></span><small>2 ahead, 1 behind</small><button class="btn btn-quiet btn-sm" type="button" data-br="bridge-alt">Switch</button></div>
-        <div class="br-row"><span><b class="br-drums">drums-swing</b></span><small>1 ahead</small><button class="btn btn-quiet btn-sm" type="button" data-br="drums-swing">Switch</button></div>
+        <div class="br-row"><span><b style="font-weight:600">main</b></span><small data-i18n="editor.mainBranch">Main branch · 6 commits</small><span class="pill" data-i18n="editor.open">open</span></div>
+        <div class="br-row"><span><b class="br-bridge">bridge-alt</b></span><small data-i18n="editor.ahead21">2 ahead, 1 behind</small><button class="btn btn-quiet btn-sm" type="button" data-br="bridge-alt" data-i18n="editor.switch">Switch</button></div>
+        <div class="br-row"><span><b class="br-drums">drums-swing</b></span><small data-i18n="editor.ahead1">1 ahead</small><button class="btn btn-quiet btn-sm" type="button" data-br="drums-swing" data-i18n="editor.switch">Switch</button></div>
       </div>
     </aside>
   </main>
 </div>
 
-<dialog id="keys" aria-labelledby="keys-t"><form method="dialog" class="dlg"><h2 id="keys-t">Shortcuts</h2><table class="keys-t"><tbody><tr><td>Select / Draw / Erase</td><td><kbd>V</kbd> <kbd>B</kbd> <kbd>E</kbd></td></tr><tr><td>Play or pause</td><td><kbd>Space</kbd></td></tr><tr><td>Undo / Redo</td><td><kbd>Ctrl Z</kbd> <kbd>Ctrl Shift Z</kbd></td></tr><tr><td>Commit</td><td><kbd>Ctrl Enter</kbd></td></tr><tr><td>Move on the grid</td><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td></tr><tr><td>Jump 4 steps / 1 octave</td><td><kbd>Ctrl</kbd> + arrow keys</td></tr><tr><td>Place or remove a note</td><td><kbd>Enter</kbd></td></tr><tr><td>Delete note (or the selected notes)</td><td><kbd>Delete</kbd></td></tr><tr><td>Select multiple notes</td><td>Select tool, drag a frame, or  <kbd>Ctrl A</kbd></td></tr><tr><td>Quick find</td><td><kbd>Ctrl K</kbd></td></tr></tbody></table><div class="row"><button class="btn btn-primary" value="ok">Close</button></div></form></dialog>
+<dialog id="keys" aria-labelledby="keys-t"><form method="dialog" class="dlg"><h2 id="keys-t" data-i18n="editor.keysTitle">Shortcuts</h2><table class="keys-t"><tbody><tr><td data-i18n="editor.kSelectDrawErase">Select / Draw / Erase</td><td><kbd>V</kbd> <kbd>B</kbd> <kbd>E</kbd></td></tr><tr><td data-i18n="editor.kPlay">Play or pause</td><td><kbd>Space</kbd></td></tr><tr><td data-i18n="editor.kUndoRedo">Undo / Redo</td><td><kbd>Ctrl Z</kbd> <kbd>Ctrl Shift Z</kbd></td></tr><tr><td>Commit</td><td><kbd>Ctrl Enter</kbd></td></tr><tr><td data-i18n="editor.kMove">Move on the grid</td><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td></tr><tr><td data-i18n="editor.kJump">Jump 4 steps / 1 octave</td><td><kbd>Ctrl</kbd> <span data-i18n="editor.kArrows">+ arrow keys</span></td></tr><tr><td data-i18n="editor.kPlace">Place or remove a note</td><td><kbd>Enter</kbd></td></tr><tr><td data-i18n="editor.kDelete">Delete note (or the selected notes)</td><td><kbd>Delete</kbd></td></tr><tr><td data-i18n="editor.kMulti">Select multiple notes</td><td><span data-i18n="editor.kMultiHow">Select tool, drag a frame, or</span>  <kbd>Ctrl A</kbd></td></tr><tr><td data-i18n="editor.kFind">Quick find</td><td><kbd>Ctrl K</kbd></td></tr></tbody></table><div class="row"><button class="btn btn-primary" value="ok" data-i18n="common.close">Close</button></div></form></dialog>
 
 <dialog id="dlg" aria-labelledby="dlg-t">
   <form method="dialog" class="dlg">
     <h2 id="dlg-t">Commit</h2>
-    <div class="sum"><span id="dlg-sum">+3 notes · −0 notes</span><span>on branch  <b>main</b></span></div>
-    <div class="field"><label for="msg">Commit message</label><textarea class="input" id="msg" name="message" autocomplete="off" placeholder="What did you just change…"></textarea></div>
-    <div class="row"><button class="btn btn-quiet" value="cancel">Cancel</button><button class="btn btn-primary" value="ok" id="dlg-ok" disabled>Commit</button></div>
+    <div class="sum"><span id="dlg-sum">+3 notes · −0 notes</span><span><span data-i18n="editor.onBranch">on branch</span>  <b>main</b></span></div>
+    <div class="field"><label for="msg" data-i18n="editor.commitMessage">Commit message</label><textarea class="input" id="msg" name="message" autocomplete="off" placeholder="What did you just change…" data-i18n-attr="placeholder:editor.messagePlaceholder"></textarea></div>
+    <div class="row"><button class="btn btn-quiet" value="cancel" data-i18n="common.cancel">Cancel</button><button class="btn btn-primary" value="ok" id="dlg-ok" disabled>Commit</button></div>
   </form>
 </dialog>
 
@@ -217,36 +221,37 @@
 <script>
 (function () {
   var S = window.STAVE;
+  var T = S.t;
   var STR = {
-    saved: "Saved", saving: "Saving…", notSaved: "Not saved",
-    noChanges: "No changes yet", changes: function (n) { return n + " uncommitted changes"; },
-    summary: function (a, r) { return "+" + a + " notes · −" + r + " notes"; },
-    selected: function (n) { return "Selected " + n + " notes"; },
-    selectedIn: function (n, track) { return "Selected " + n + " notes in track " + track; },
-    deselected: "Deselected",
-    removedN: function (n) { return "Removed " + n + " notes"; },
-    removedNote: function (p) { return "Removed note " + p; },
-    placed: function (p, bar) { return "Placed note " + p + " in bar " + bar; },
-    where: function (name, bar, beat, step, has) { return name + ", bar " + bar + ", beat " + beat + ", step " + step + (has ? ", has a note" : ", empty"); },
-    commitNone: "Commit, no changes yet",
-    commitN: function (n) { return "Commit, " + n + " changes"; },
-    commitTitleNone: "Edit the music before committing", commitTitle: "Commit (Ctrl Enter)",
-    noCommit: "No changes to commit",
-    draft: function (t) { return "Draft: " + t; },
-    velTrack: function (name) { return "Velocity of track " + name; },
-    play: "Play", pause: "Pause",
-    sample: function (item) { return item + ": sample feature, not connected to a backend"; },
-    switched: function (b) { return "Switched to branch " + b; },
-    switchedSample: function (b) { return "Switched to branch " + b + " (sample)"; },
-    commitDone: "Commit created.", undo: "Undo",
-    commitUndone: "Commit undone. Your draft was restored.",
-    snap: function (t) { return "Snap " + t; },
-    zoom: function (t) { return "Zoom " + t; },
-    saveFailed: "Couldn’t save the draft to the server. Your changes are still on this device, so don’t close the tab until it saves.",
-    offlineMsg: "Connection lost. Changes are kept on this device and will save automatically when you’re back online.",
-    backOnline: "Back online, draft saved", savedAgain: "Draft saved again",
-    stillOffline: "Still offline. Changes are still kept on this device.",
-    justNow: "just now"
+    get saved() { return T("editor.saved"); },
+    get saving() { return T("editor.saving"); },
+    get notSaved() { return T("editor.notSaved"); },
+    get noChanges() { return T("editor.noChanges"); },
+    changes: function (n) { return T("editor.changes", { n: n }); },
+    summary: function (a, r) { return T("editor.summary", { added: a, removed: r }); },
+    selected: function (n) { return T("editor.selected", { n: n }); },
+    selectedIn: function (n, track) { return T("editor.selectedIn", { n: n, track: track }); },
+    get deselected() { return T("editor.deselected"); },
+    removedN: function (n) { return T("editor.removedN", { n: n }); },
+    removedNote: function (p) { return T("editor.removedNote", { pitch: p }); },
+    placed: function (p, bar) { return T("editor.placed", { pitch: p, bar: bar }); },
+    where: function (name, bar, beat, step, has) { return T(has ? "editor.whereNote" : "editor.whereEmpty", { name: name, bar: bar, beat: beat, step: step }); },
+    get commitNone() { return T("editor.commitNone"); },
+    commitN: function (n) { return T("editor.commitN", { n: n }); },
+    get commitTitleNone() { return T("editor.commitTitleNone"); },
+    get commitTitle() { return T("editor.commitTitle"); },
+    get noCommit() { return T("editor.noCommit"); },
+    draft: function (t) { return T("editor.draftSay", { text: t }); },
+    velTrack: function (name) { return T("editor.velTrack", { name: name }); },
+    get play() { return T("editor.play"); },
+    get pause() { return T("editor.pause"); },
+    switched: function (b) { return T("editor.switched", { branch: b }); },
+    get commitUndone() { return T("editor.commitUndone"); },
+    snap: function (t) { return T("editor.snapSay", { value: t }); },
+    zoom: function (t) { return T("editor.zoomSay", { value: t }); },
+    get backOnline() { return T("editor.backOnline"); },
+    get savedAgain() { return T("editor.savedAgain"); },
+    get stillOffline() { return T("editor.stillOffline"); }
   };
   var NS = "http://www.w3.org/2000/svg";
   var LO = 40, HI = 79, ROW = 16, CELL = 24, STEPS = 64, KEYW = 56;
@@ -292,7 +297,7 @@
     gridDiv.className = "grid";
     gridDiv.tabIndex = 0;
     gridDiv.setAttribute("role", "application");
-    gridDiv.setAttribute("aria-label", "Note grid. Arrow keys to move, Enter to place or remove a note, Delete to remove a note.");
+    gridDiv.setAttribute("aria-label", T("editor.gridLabel"));
     gridDiv.addEventListener("keydown", onKey);
     gridDiv.addEventListener("focus", function () { kb = true; drawCursor(); say(where()); });
     gridDiv.addEventListener("blur", function () { kb = false; drawCursor(); });
@@ -300,7 +305,7 @@
     gridDiv.style.height = H + "px";
     gridDiv.style.setProperty("--w", W + "px");
     gridDiv.style.setProperty("--dur", (STEPS / 16 * 60 / 92 * 4) + "s");
-    var svg = el("svg", { id: "gsvg", width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Note grid, 4 bars" });
+    var svg = el("svg", { id: "gsvg", width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": T("editor.gridSvg") });
     for (var q = HI; q >= LO; q--) {
       var yy = (HI - q) * ROW, c = q % 12;
       if (black[c]) el("rect", { class: "g-blk", x: 0, y: yy, width: W, height: ROW }, svg);
@@ -332,19 +337,39 @@
     });
     vel();
     drawCursor();
-    document.getElementById("selcount").textContent = selSet.size ? STR.selected(selSet.size) : "";
-    var net = notes.length - baseline;
-    document.getElementById("draft-sub").textContent = added + removed === 0 ? STR.noChanges : STR.changes(added + removed);
-    document.getElementById("saved").textContent = added + removed === 0 ? STR.saved : STR.saving;
-    document.getElementById("dlg-sum").textContent = STR.summary(added, removed);
     document.getElementById("commit-btn").disabled = added + removed === 0;
     var cbd = document.getElementById("cbadge");
     cbd.hidden = added + removed === 0;
     cbd.textContent = String(added + removed);
-    document.getElementById("commit-btn").setAttribute("aria-label", added + removed === 0 ? STR.commitNone : STR.commitN(added + removed));
-    document.getElementById("commit-btn").title = added + removed === 0 ? STR.commitTitleNone : STR.commitTitle;
     document.getElementById("commit-btn").setAttribute("aria-describedby", added + removed === 0 ? "saved" : "");
-    void net;
+    setSaved(added + removed === 0 ? "saved" : "saving");
+    labels();
+  }
+
+  var savedState = "saved";
+  function put(id, v) {
+    var e = document.getElementById(id);
+    if (e.textContent !== v) e.textContent = v;
+  }
+  function setSaved(k) {
+    savedState = k;
+    put("saved", STR[k]);
+  }
+
+  function labels() {
+    var n = added + removed;
+    put("selcount", selSet.size ? STR.selected(selSet.size) : "");
+    put("draft-sub", n === 0 ? STR.noChanges : STR.changes(n));
+    put("saved", STR[savedState]);
+    put("dlg-sum", STR.summary(added, removed));
+    document.getElementById("commit-btn").setAttribute("aria-label", n === 0 ? STR.commitNone : STR.commitN(n));
+    document.getElementById("commit-btn").title = n === 0 ? STR.commitTitleNone : STR.commitTitle;
+  }
+
+  function labelGrid() {
+    var g = document.querySelector(".grid"), sv = document.getElementById("gsvg");
+    if (g) g.setAttribute("aria-label", T("editor.gridLabel"));
+    if (sv) sv.setAttribute("aria-label", T("editor.gridSvg"));
   }
 
   function vel() {
@@ -528,6 +553,7 @@
     say(STR.draft(document.getElementById("draft-sub").textContent));
   });
 
+  function velTitle() { document.getElementById("vlab").title = STR.velTrack(TRACKS[sel].name); }
   var tr = document.getElementById("tracks");
   TRACKS.forEach(function (t, i) {
     var b = document.createElement("button");
@@ -539,7 +565,7 @@
       sel = i;
       Array.prototype.forEach.call(tr.children, function (x, j) { x.setAttribute("aria-pressed", String(j === i)); });
       document.getElementById("vlab").innerHTML = "Velocity<br><i style=\"display:inline-block;width:10px;height:10px;border-radius:3px;background:" + t.color + "\"></i>";
-      document.getElementById("vlab").title = STR.velTrack(t.name);
+      velTitle();
       paint();
     });
     tr.appendChild(b);
@@ -555,10 +581,11 @@
 
   var playing = false;
   var play = document.getElementById("play");
+  function playLabel() { play.setAttribute("aria-label", playing ? STR.pause : STR.play); }
   play.addEventListener("click", function () {
     playing = !playing;
     document.querySelector(".grid").classList.toggle("playing", playing);
-    play.setAttribute("aria-label", playing ? STR.pause : STR.play);
+    playLabel();
     document.getElementById("play-ic").innerHTML = playing ? '<path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="3"/>' : '<path d="M7 5v14l12-7z"/>';
   });
 
@@ -578,9 +605,17 @@
   });
 
   var MENUS = {
-    "m-file": [["Import MIDI…", ""], ["Export MIDI (.mid)", ""], ["Export WAV", ""], ["Export MP3", ""]],
-    "m-edit": [["Select all", "Ctrl A"], ["Copy", "Ctrl C"], ["Paste", "Ctrl V"], ["Quantize", ""]]
+    "m-file": [["editor.menuImport", ""], ["editor.menuExportMid", ""], ["editor.menuExportWav", ""], ["editor.menuExportMp3", ""]],
+    "m-edit": [["editor.menuSelectAll", "Ctrl A"], ["editor.menuCopy", "Ctrl C"], ["editor.menuPaste", "Ctrl V"], ["editor.menuQuantize", ""]]
   };
+  function toastM(key, vars) {
+    var t = document.createElement("div");
+    t.className = "toast-m";
+    t.setAttribute("role", "status");
+    S.bind(t, key, vars);
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 2400);
+  }
   var openMenu = null;
   function closeMenu() {
     if (!openMenu) return;
@@ -605,16 +640,14 @@
         var b = document.createElement("button");
         b.type = "button";
         b.setAttribute("role", "menuitem");
-        b.innerHTML = "<span>" + it[0] + "</span>" + (it[1] ? "<kbd>" + it[1] + "</kbd>" : "");
+        var lab = document.createElement("span");
+        lab.textContent = T(it[0]);
+        b.appendChild(lab);
+        if (it[1]) { var kd = document.createElement("kbd"); kd.textContent = it[1]; b.appendChild(kd); }
         b.addEventListener("click", function () {
           closeMenu();
-          if (it[0] === "Select all") { selectAll(); return; }
-          var t = document.createElement("div");
-          t.className = "toast-m";
-          t.setAttribute("role", "status");
-          t.textContent = STR.sample(it[0].replace("…", ""));
-          document.body.appendChild(t);
-          setTimeout(function () { t.remove(); }, 2400);
+          if (it[0] === "editor.menuSelectAll") { selectAll(); return; }
+          toastM("editor.sample", { item: T(it[0]).replace("…", "") });
         });
         m.appendChild(b);
       });
@@ -634,12 +667,20 @@
     else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
   });
   var list = document.getElementById("hist-list");
-  S.COMMITS.slice().reverse().forEach(function (c) {
+  var userCommits = [];
+  var NOTE_HEAD = '<svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5.5" ry="4" transform="rotate(-20 8 21)" class="nh-c"/><path d="M13 19V4" class="nh-c" fill="none"/></svg>';
+  function histItem(msg, ago) {
     var d = document.createElement("div");
     d.className = "h-item";
-    d.innerHTML = '<svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5.5" ry="4" transform="rotate(-20 8 21)" class="nh-c"/><path d="M13 19V4" class="nh-c" fill="none"/></svg><div>' + c.msg + "<small>" + c.ago + ' · <a class="h-cmp" href="compare.html">Compare</a></small></div>';
-    list.appendChild(d);
-  });
+    d.innerHTML = NOTE_HEAD + "<div>" + msg.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "<small>" + ago + ' · <a class="h-cmp" href="compare.html" data-i18n="common.compare">' + T("common.compare") + "</a></small></div>";
+    return d;
+  }
+  function renderHist() {
+    list.textContent = "";
+    userCommits.forEach(function (c) { list.appendChild(histItem(c.msg, T("time.justNow"))); });
+    S.COMMITS.slice().reverse().forEach(function (c) { list.appendChild(histItem(c.msg, S.ago(c.ago))); });
+  }
+  renderHist();
 
   var body = document.getElementById("body");
   var th = document.getElementById("toggle-hist");
@@ -656,11 +697,9 @@
   msg.addEventListener("input", function () { document.getElementById("dlg-ok").disabled = !msg.value.trim(); });
   dlg.addEventListener("close", function () {
     if (dlg.returnValue === "ok") {
-      var c = { hash: "9a1f" + Math.floor(Math.random() * 900 + 100), msg: msg.value.trim(), ago: STR.justNow };
-      var d = document.createElement("div");
-      d.className = "h-item";
-      d.innerHTML = '<svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5.5" ry="4" transform="rotate(-20 8 21)" class="nh-c"/><path d="M13 19V4" class="nh-c" fill="none"/></svg><div>' + c.msg.replace(/</g, "&lt;") + '<small>' + c.ago + ' · <a class="h-cmp" href="compare.html">Compare</a></small></div>';
-      list.insertBefore(d, list.firstChild);
+      var entry = { msg: msg.value.trim() };
+      userCommits.unshift(entry);
+      renderHist();
       var snap = { notes: notes, added: added, removed: removed, baseline: baseline, history: history, fresh: notes.map(function (n) { return !!n.fresh; }) };
       baseline = notes.length; added = 0; removed = 0; history = [];
       notes.forEach(function (n) { n.fresh = false; });
@@ -669,12 +708,15 @@
       var tu = document.createElement("div");
       tu.className = "toast-u";
       tu.setAttribute("role", "status");
-      tu.innerHTML = "<span>" + STR.commitDone + "</span>";
+      var tm = document.createElement("span");
+      S.bind(tm, "editor.commitDone");
+      tu.appendChild(tm);
       var ub = document.createElement("button");
       ub.type = "button";
-      ub.textContent = STR.undo;
+      S.bind(ub, "editor.undoBtn");
       ub.addEventListener("click", function () {
-        d.remove();
+        userCommits.splice(userCommits.indexOf(entry), 1);
+        renderHist();
         notes = snap.notes; added = snap.added; removed = snap.removed; baseline = snap.baseline; history = snap.history;
         notes.forEach(function (n, i) { n.fresh = snap.fresh[i]; });
         tu.remove();
@@ -700,16 +742,16 @@
   var netMsg = net.firstElementChild;
   var failing = /[?&]state=save-error/.test(location.search);
   function showFail() {
-    netMsg.textContent = STR.saveFailed;
+    S.bind(netMsg, "editor.saveFailed");
     net.hidden = false;
-    document.getElementById("saved").textContent = STR.notSaved;
+    setSaved("notSaved");
   }
   if (failing) setTimeout(showFail, 400);
-  window.addEventListener("offline", function () { net.hidden = false; document.getElementById("saved").textContent = STR.notSaved; });
-  window.addEventListener("online", function () { net.hidden = true; document.getElementById("saved").textContent = STR.saved; say(STR.backOnline); });
+  window.addEventListener("offline", function () { net.hidden = false; setSaved("notSaved"); });
+  window.addEventListener("online", function () { net.hidden = true; setSaved("saved"); say(STR.backOnline); });
   document.getElementById("net-retry").addEventListener("click", function () {
-    if (failing) { failing = false; net.hidden = true; netMsg.textContent = STR.offlineMsg; document.getElementById("saved").textContent = STR.saved; say(STR.savedAgain); return; }
-    if (navigator.onLine) { net.hidden = true; document.getElementById("saved").textContent = STR.saved; say(STR.savedAgain); }
+    if (failing) { failing = false; net.hidden = true; S.bind(netMsg, "editor.netLost"); setSaved("saved"); say(STR.savedAgain); return; }
+    if (navigator.onLine) { net.hidden = true; setSaved("saved"); say(STR.savedAgain); }
     else say(STR.stillOffline);
   });
   (function () {
@@ -726,16 +768,20 @@
     Array.prototype.forEach.call(document.querySelectorAll("[data-br]"), function (b) {
       b.addEventListener("click", function () {
         document.querySelector(".chip").lastChild.textContent = b.dataset.br;
-        var t = document.createElement("div");
-        t.className = "toast-m";
-        t.setAttribute("role", "status");
-        t.textContent = STR.switchedSample(b.dataset.br);
-        document.body.appendChild(t);
-        setTimeout(function () { t.remove(); }, 2400);
+        toastM("editor.switchedSample", { branch: b.dataset.br });
         say(STR.switched(b.dataset.br));
       });
     });
   })();
+  velTitle();
+  playLabel();
+  document.addEventListener("stave:lang", function () {
+    labels();
+    labelGrid();
+    velTitle();
+    playLabel();
+    renderHist();
+  });
   build();
 })();
 </script>

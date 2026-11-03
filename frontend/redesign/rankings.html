@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>Rankings · STAVE</title>
+<title data-i18n="rankings.title">Rankings · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -62,38 +62,45 @@
   @media (max-width: 960px) { .podium { grid-template-columns: 1fr; align-items: stretch; } .pod { flex-direction: row; align-items: flex-end; gap: 16px; } .bigstar { flex: none; } .ped { min-height: 0; } }
   @media (prefers-reduced-motion: reduce) { .rise, .bigstar::before { animation: none; } .con * { transition: none !important; } }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="pub">
   <header id="pubtop" class="pub-top"></header>
   <main id="main">
     <div class="pub-head">
-      <h1 class="pub-h1">Rankings</h1>
-      <p>Most-starred projects. Updated daily at 06:00, counted by new stars in the period you choose.</p>
+      <h1 class="pub-h1" data-i18n="shell.rankings">Rankings</h1>
+      <p data-i18n="rankings.intro">Most-starred projects. Updated daily at 06:00, counted by new stars in the period you choose.</p>
     </div>
 
     <div class="tabs" id="periods">
-      <a href="?p=tuan" data-key="tuan" aria-current="true">This week</a>
-      <a href="?p=thang" data-key="thang">This month</a>
-      <a href="?p=tat-ca" data-key="tat-ca">All time</a>
+      <a href="?p=tuan" data-key="tuan" aria-current="true" data-i18n="rankings.week">This week</a>
+      <a href="?p=thang" data-key="thang" data-i18n="rankings.month">This month</a>
+      <a href="?p=tat-ca" data-key="tat-ca" data-i18n="rankings.allTime">All time</a>
     </div>
 
-    <section class="podium" aria-label="Top three projects" id="podium"></section>
+    <section class="podium" aria-label="Top three projects" id="podium" data-i18n-attr="aria-label:rankings.top3"></section>
 
     <div class="table-wrap"><table class="table">
-      <thead><tr><th>Rank</th><th class="id">Projects</th><th class="hide-s">Genre</th><th class="r">New stars</th><th class="r hide-s">Total stars</th></tr></thead>
+      <thead><tr><th data-i18n="rankings.thRank">Rank</th><th class="id" data-i18n="common.projects">Projects</th><th class="hide-s" data-i18n="common.genre">Genre</th><th class="r" data-i18n="rankings.thNew">New stars</th><th class="r hide-s" data-i18n="rankings.thTotal">Total stars</th></tr></thead>
       <tbody id="rows"></tbody>
     </table></div>
   </main>
-  <footer class="pub-foot"><span>© 2026 STAVE</span><span><a href="explore.html">Explore</a> · <a href="help.html">Help and glossary</a></span></footer>
+  <footer class="pub-foot"><span data-i18n="shell.copyright">© 2026 STAVE</span><span><a href="explore.html" data-i18n="shell.explore">Explore</a> · <a href="help.html" data-i18n="shell.helpGlossary">Help and glossary</a></span></footer>
 </div>
 <script src="assets/shared.js"></script>
 <script>
 (function () {
   var S = window.STAVE;
-  var T = { rank: "Rank ", gain: "new stars", total: "total" };
+  var T = {
+    get rank() { return S.t("rankings.rank") + " "; },
+    get gain() { return S.t("rankings.gain"); },
+    get total() { return S.t("rankings.total"); }
+  };
   var BIG_STAR = '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false"><path d="M50 0C52 34 66 48 100 50C66 52 52 66 50 100C48 66 34 52 0 50C34 48 48 34 50 0Z"/></svg>';
 
   function constellation(branches, merged, seed, W, H) {
@@ -134,11 +141,15 @@
   var list = order.map(function (o) { return { d: data[o[0]], idx: o[0], gain: Math.round(o[1] * mult) }; });
 
   var pod = document.getElementById("podium");
+  var firstDraw = true;
+  function draw() {
+  pod.textContent = "";
+  document.getElementById("rows").textContent = "";
   list.slice(0, 3).forEach(function (r, i) {
     var a = document.createElement("article");
-    a.className = "pod r" + (i + 1) + " lit rise";
+    a.className = "pod r" + (i + 1) + " lit" + (firstDraw ? " rise" : "");
     a.style.setProperty("--i", i);
-    a.innerHTML = '<div class="bigstar" aria-hidden="true">' + BIG_STAR + '</div><div class="ped"><span class="n"><span class="sr-only">' + T.rank + "</span>" + (i + 1) + '</span><h2><a href="project.html">' + r.d[0] + '</a></h2><p class="by">' + r.d[4] + " · " + r.d[2] + '</p><div class="thumb">' + constellation(r.d[9], r.d[10], r.idx, 300, 56) + '</div><p class="stat"><b>+' + r.gain + "</b> " + T.gain + " · " + r.d[5] + " " + T.total + "</p></div>";
+    a.innerHTML = '<div class="bigstar" aria-hidden="true">' + BIG_STAR + '</div><div class="ped"><span class="n"><span class="sr-only">' + T.rank + "</span>" + (i + 1) + '</span><h2><a href="project.html">' + r.d[0] + '</a></h2><p class="by">' + r.d[4] + " · " + S.genre(r.d[2]) + '</p><div class="thumb">' + constellation(r.d[9], r.d[10], r.idx, 300, 56) + '</div><p class="stat"><b>+' + r.gain + "</b> " + T.gain + " · " + r.d[5] + " " + T.total + "</p></div>";
     pod.appendChild(a);
   });
 
@@ -146,9 +157,13 @@
   list.slice(3).forEach(function (r, i) {
     var tr = document.createElement("tr");
     tr.className = "lit";
-    tr.innerHTML = '<td class="rk num">' + (i + 4) + '</td><td class="id"><div class="row-id"><div class="thumb">' + constellation(r.d[9], r.d[10], r.idx, 84, 46) + '</div><div><a href="project.html"><b>' + r.d[0] + "</b></a><span>" + r.d[4] + '</span></div></div></td><td class="hide-s"><span class="pill">' + r.d[2] + '</span></td><td class="r num"><b>+' + r.gain + '</b></td><td class="r num hide-s">' + r.d[5] + "</td>";
+    tr.innerHTML = '<td class="rk num">' + (i + 4) + '</td><td class="id"><div class="row-id"><div class="thumb">' + constellation(r.d[9], r.d[10], r.idx, 84, 46) + '</div><div><a href="project.html"><b>' + r.d[0] + "</b></a><span>" + r.d[4] + '</span></div></div></td><td class="hide-s"><span class="pill">' + S.genre(r.d[2]) + '</span></td><td class="r num"><b>+' + r.gain + '</b></td><td class="r num hide-s">' + r.d[5] + "</td>";
     rows.appendChild(tr);
   });
+  firstDraw = false;
+  }
+  draw();
+  document.addEventListener("stave:lang", draw);
 })();
 </script>
 <script src="assets/sky.js" defer></script>

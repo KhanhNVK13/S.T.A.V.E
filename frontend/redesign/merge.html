@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>Merge branch · STAVE</title>
+<title data-i18n="merge.title">Merge branch · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -38,7 +38,7 @@
   .side-opt:has(input:checked) { border-color: var(--ink); background: var(--paper); }
   .side-opt:has(input:focus-visible) { outline: 2px solid var(--add); outline-offset: 2px; }
   .side-opt header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: 500; font-size: 14px; }
-  .side-opt header span { color: var(--soft); font-weight: 400; margin-left: auto; font-size: 13px; }
+  .side-opt header span:not([data-i18n]) { color: var(--soft); font-weight: 400; margin-left: auto; font-size: 13px; }
   .side-opt input { accent-color: var(--ink); width: 16px; height: 16px; margin: 0; }
   .side-opt .roll { background: var(--paper); }
   .cbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 20px; background: var(--paper); border: 1px solid var(--line-strong); border-radius: 10px; }
@@ -74,60 +74,63 @@
   .foot-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; margin-top: 28px; background: var(--raised); border: 1px solid var(--line-strong); border-radius: 10px; flex-wrap: wrap; }
   @media (max-width: 760px) { .sides { grid-template-columns: 1fr; } }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="app">
   <aside id="shell"></aside>
   <main class="main" id="main">
-    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
     <div class="page-head">
       <div>
-        <p style="margin:0 0 6px"><a href="project.html" style="color:var(--soft)">Rainy Saigon Night</a> / merge</p>
-        <h1>Resolve conflicts</h1>
-        <p>Both branches edited some of the same notes. Choose which version to keep for each bar. <a href="help.html" style="text-decoration:underline;text-underline-offset:3px">What is a conflict?</a></p>
+        <p style="margin:0 0 6px"><a href="project.html" style="color:var(--soft)">Rainy Saigon Night</a> <span data-i18n="merge.crumb">/ merge</span></p>
+        <h1 data-i18n="merge.heading">Resolve conflicts</h1>
+        <p><span data-i18n="merge.intro">Both branches edited some of the same notes. Choose which version to keep for each bar.</span> <a href="help.html" style="text-decoration:underline;text-underline-offset:3px" data-i18n="merge.whatConflict">What is a conflict?</a></p>
       </div>
     </div>
 
-    <div class="flow"><span class="hash">bridge-alt</span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span class="hash">main</span><span style="color:var(--soft)">· 2 new commits, 2 conflicting bars</span></div>
+    <div class="flow"><span class="hash">bridge-alt</span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span class="hash">main</span><span style="color:var(--soft)" data-i18n="merge.flow">· 2 new commits, 2 conflicting bars</span></div>
 
-    <div class="cbar" role="group" aria-label="Conflict navigation"><b>bridge-alt → main</b><span class="cnt" id="cnt">2 conflicts unresolved</span><span class="nav"><button class="btn btn-quiet btn-sm" type="button" id="prev-c">▲ Previous</button><button class="btn btn-quiet btn-sm" type="button" id="next-c">Next ▼</button></span></div>
-    <div class="legend" style="margin-bottom:16px"><span style="color:var(--ink);font-weight:500">Color shows the branch:</span><span><i class="sw-main"></i>main’s notes</span><span><i class="sw-bridge"></i>bridge-alt’s notes</span><span><i class="sw-gm"></i>Dashed: note exists only on the other branch</span><span><i class="k"></i>Unchanged</span></div>
-    <div class="bulk" role="group" aria-label="Quick choice for every bar"><button class="btn btn-quiet btn-sm" type="button" data-all="ours">Keep all of main</button><button class="btn btn-quiet btn-sm" type="button" data-all="theirs">Take all of bridge-alt</button><button class="btn btn-quiet btn-sm" type="button" data-all="both">Keep both in every bar</button></div>
+    <div class="cbar" role="group" aria-label="Conflict navigation" data-i18n-attr="aria-label:merge.navLabel"><b>bridge-alt → main</b><span class="cnt" id="cnt">2 conflicts unresolved</span><span class="nav"><button class="btn btn-quiet btn-sm" type="button" id="prev-c" data-i18n="merge.prev">▲ Previous</button><button class="btn btn-quiet btn-sm" type="button" id="next-c" data-i18n="merge.next">Next ▼</button></span></div>
+    <div class="legend" style="margin-bottom:16px"><span style="color:var(--ink);font-weight:500" data-i18n="merge.colorShows">Color shows the branch:</span><span><i class="sw-main"></i><span data-i18n="merge.mainNotes">main’s notes</span></span><span><i class="sw-bridge"></i><span data-i18n="merge.bridgeNotes">bridge-alt’s notes</span></span><span><i class="sw-gm"></i><span data-i18n="merge.dashed">Dashed: note exists only on the other branch</span></span><span><i class="k"></i><span data-i18n="common.unchanged">Unchanged</span></span></div>
+    <div class="bulk" role="group" aria-label="Quick choice for every bar" data-i18n-attr="aria-label:merge.bulkLabel"><button class="btn btn-quiet btn-sm" type="button" data-all="ours" data-i18n="merge.keepAllMain">Keep all of main</button><button class="btn btn-quiet btn-sm" type="button" data-all="theirs" data-i18n="merge.takeAllBridge">Take all of bridge-alt</button><button class="btn btn-quiet btn-sm" type="button" data-all="both" data-i18n="merge.keepBoth">Keep both in every bar</button></div>
 
     <section class="conflict card" role="radiogroup" aria-labelledby="c1">
-      <div class="conflict-head"><b id="c1">Bar 2 · Bass</b><span style="display:flex;align-items:center"><span class="pill pill-del">3 notes differ</span><span class="st" data-st="c1">Unresolved</span></span></div>
-      <div class="done-line"><span id="sum-c1"></span><button class="btn btn-quiet btn-sm" type="button" data-edit="c1">Change choice</button></div>
+      <div class="conflict-head"><b id="c1" data-i18n="merge.barHead" data-i18n-vars='{"bar":2,"track":"Bass"}'>Bar 2 · Bass</b><span style="display:flex;align-items:center"><span class="pill pill-del" data-i18n="merge.differ" data-i18n-vars='{"n":3}'>3 notes differ</span><span class="st" data-st="c1" data-i18n="merge.unresolved">Unresolved</span></span></div>
+      <div class="done-line"><span id="sum-c1"></span><button class="btn btn-quiet btn-sm" type="button" data-edit="c1" data-i18n="merge.changeChoice">Change choice</button></div>
       <div class="sides">
-        <label class="side-opt"><header><input type="radio" name="c1" value="ours">Keep main’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="ours1" aria-label="Preview main’s version, bar 2">▶ Preview</button></header><div data-roll="ours1"></div></label>
-        <label class="side-opt"><header><input type="radio" name="c1" value="theirs">Take bridge-alt’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="theirs1" aria-label="Preview bridge-alt’s version, bar 2">▶ Preview</button></header><div data-roll="theirs1"></div></label>
+        <label class="side-opt"><header><input type="radio" name="c1" value="ours"><span data-i18n="merge.keepMainVersion">Keep main’s version</span><button class="btn btn-quiet btn-sm play" type="button" data-play="ours1" aria-label="Preview main’s version, bar 2" data-i18n-attr="aria-label:merge.previewMain" data-i18n-vars='{"bar":2}' data-i18n="merge.previewBtn">▶ Preview</button></header><div data-roll="ours1"></div></label>
+        <label class="side-opt"><header><input type="radio" name="c1" value="theirs"><span data-i18n="merge.takeBridgeVersion">Take bridge-alt’s version</span><button class="btn btn-quiet btn-sm play" type="button" data-play="theirs1" aria-label="Preview bridge-alt’s version, bar 2" data-i18n-attr="aria-label:merge.previewBridge" data-i18n-vars='{"bar":2}' data-i18n="merge.previewBtn">▶ Preview</button></header><div data-roll="theirs1"></div></label>
       </div>
-      <label class="both"><input type="radio" name="c1" value="both">Keep both: notes from both branches coexist in this bar<button class="btn btn-quiet btn-sm play" type="button" data-play="both1" aria-label="Preview both branches, bar 2">▶ Preview</button></label>
+      <label class="both"><input type="radio" name="c1" value="both"><span data-i18n="merge.keepBothText">Keep both: notes from both branches coexist in this bar</span><button class="btn btn-quiet btn-sm play" type="button" data-play="both1" aria-label="Preview both branches, bar 2" data-i18n-attr="aria-label:merge.previewBoth" data-i18n-vars='{"bar":2}' data-i18n="merge.previewBtn">▶ Preview</button></label>
     </section>
 
     <section class="conflict card" role="radiogroup" aria-labelledby="c2">
-      <div class="conflict-head"><b id="c2">Bar 3 · Melody</b><span style="display:flex;align-items:center"><span class="pill pill-del">2 notes differ</span><span class="st" data-st="c2">Unresolved</span></span></div>
-      <div class="done-line"><span id="sum-c2"></span><button class="btn btn-quiet btn-sm" type="button" data-edit="c2">Change choice</button></div>
+      <div class="conflict-head"><b id="c2" data-i18n="merge.barHead" data-i18n-vars='{"bar":3,"track":"Melody"}'>Bar 3 · Melody</b><span style="display:flex;align-items:center"><span class="pill pill-del" data-i18n="merge.differ" data-i18n-vars='{"n":2}'>2 notes differ</span><span class="st" data-st="c2" data-i18n="merge.unresolved">Unresolved</span></span></div>
+      <div class="done-line"><span id="sum-c2"></span><button class="btn btn-quiet btn-sm" type="button" data-edit="c2" data-i18n="merge.changeChoice">Change choice</button></div>
       <div class="sides">
-        <label class="side-opt"><header><input type="radio" name="c2" value="ours">Keep main’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="ours2" aria-label="Preview main’s version, bar 3">▶ Preview</button></header><div data-roll="ours2"></div></label>
-        <label class="side-opt"><header><input type="radio" name="c2" value="theirs">Take bridge-alt’s version<button class="btn btn-quiet btn-sm play" type="button" data-play="theirs2" aria-label="Preview bridge-alt’s version, bar 3">▶ Preview</button></header><div data-roll="theirs2"></div></label>
+        <label class="side-opt"><header><input type="radio" name="c2" value="ours"><span data-i18n="merge.keepMainVersion">Keep main’s version</span><button class="btn btn-quiet btn-sm play" type="button" data-play="ours2" aria-label="Preview main’s version, bar 3" data-i18n-attr="aria-label:merge.previewMain" data-i18n-vars='{"bar":3}' data-i18n="merge.previewBtn">▶ Preview</button></header><div data-roll="ours2"></div></label>
+        <label class="side-opt"><header><input type="radio" name="c2" value="theirs"><span data-i18n="merge.takeBridgeVersion">Take bridge-alt’s version</span><button class="btn btn-quiet btn-sm play" type="button" data-play="theirs2" aria-label="Preview bridge-alt’s version, bar 3" data-i18n-attr="aria-label:merge.previewBridge" data-i18n-vars='{"bar":3}' data-i18n="merge.previewBtn">▶ Preview</button></header><div data-roll="theirs2"></div></label>
       </div>
-      <label class="both"><input type="radio" name="c2" value="both">Keep both: notes from both branches coexist in this bar<button class="btn btn-quiet btn-sm play" type="button" data-play="both2" aria-label="Preview both branches, bar 3">▶ Preview</button></label>
+      <label class="both"><input type="radio" name="c2" value="both"><span data-i18n="merge.keepBothText">Keep both: notes from both branches coexist in this bar</span><button class="btn btn-quiet btn-sm play" type="button" data-play="both2" aria-label="Preview both branches, bar 3" data-i18n-attr="aria-label:merge.previewBoth" data-i18n-vars='{"bar":3}' data-i18n="merge.previewBtn">▶ Preview</button></label>
     </section>
 
     <section class="success" id="success" role="status" aria-labelledby="h-ok" tabindex="-1">
       <svg class="tie" width="220" height="48" viewBox="0 0 220 48" aria-hidden="true"><line x1="6" x2="214" y1="14" y2="14" stroke="var(--ink)" stroke-opacity=".35"/><line x1="6" x2="214" y1="34" y2="34" stroke="var(--ink)" stroke-opacity=".35"/><circle cx="30" cy="14" r="5" style="fill:var(--ink)"/><circle cx="80" cy="14" r="5" style="fill:var(--ink)"/><circle cx="130" cy="14" r="5" style="fill:var(--ink)"/><circle cx="90" cy="34" r="5" fill="#0f7b6c"/><path d="M90 29C96 22 120 20 130 14" fill="none" stroke="#0f7b6c" stroke-width="2"/><circle cx="190" cy="14" r="6" style="fill:var(--raised);stroke:var(--ink)" stroke-width="2.5"/><path d="M130 14H184" style="stroke:var(--ink)" stroke-width="2"/></svg>
-      <h2 id="h-ok">Merged bridge-alt into main.</h2>
-      <p>The main branch gained one merge commit. You can review the result in the history or undo it right now.</p>
-      <div class="actions"><a class="btn btn-primary" href="project.html">Back to project</a><a class="btn btn-quiet" href="editor.html">Open the editor</a></div>
+      <h2 id="h-ok" data-i18n="merge.okTitle">Merged bridge-alt into main.</h2>
+      <p data-i18n="merge.okText">The main branch gained one merge commit. You can review the result in the history or undo it right now.</p>
+      <div class="actions"><a class="btn btn-primary" href="project.html" data-i18n="common.backToProject">Back to project</a><a class="btn btn-quiet" href="editor.html" data-i18n="pal.openEditor">Open the editor</a></div>
     </section>
-    <section class="card card-pad" id="result" aria-labelledby="h-res"><h2 id="h-res" class="section-title" style="margin-bottom:8px">Result after merging</h2><ul id="res-list"></ul></section>
+    <section class="card card-pad" id="result" aria-labelledby="h-res"><h2 id="h-res" class="section-title" style="margin-bottom:8px" data-i18n="merge.resultTitle">Result after merging</h2><ul id="res-list"></ul></section>
 
-    <dialog id="cf" aria-labelledby="cf-t"><form method="dialog" style="padding:24px;display:grid;gap:14px;max-width:520px"><h2 id="cf-t" style="font-size:20px;font-weight:540">Merge bridge-alt into main?</h2><p style="color:var(--soft)">Check the result before merging. You can undo right afterwards.</p><ul id="cf-list" style="display:grid;gap:8px;font-size:15px"></ul><div class="actions" style="justify-content:flex-end"><button class="btn btn-quiet" value="cancel">Go back</button><button class="btn btn-primary" value="ok">Merge</button></div></form></dialog>
+    <dialog id="cf" aria-labelledby="cf-t"><form method="dialog" style="padding:24px;display:grid;gap:14px;max-width:520px"><h2 id="cf-t" style="font-size:20px;font-weight:540" data-i18n="merge.confirmTitle">Merge bridge-alt into main?</h2><p style="color:var(--soft)" data-i18n="merge.confirmText">Check the result before merging. You can undo right afterwards.</p><ul id="cf-list" style="display:grid;gap:8px;font-size:15px"></ul><div class="actions" style="justify-content:flex-end"><button class="btn btn-quiet" value="cancel" data-i18n="merge.goBack">Go back</button><button class="btn btn-primary" value="ok" data-i18n="merge.merge">Merge</button></div></form></dialog>
     <div class="foot-bar">
-      <span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span id="left" aria-live="polite" style="font-size:14px"><b>2 bars</b> not chosen yet</span><button class="btn btn-ghost btn-sm" type="button" id="jump">Jump to an unchosen bar</button><span class="short" id="short" aria-hidden="true"></span></span>
-      <div class="actions"><a class="btn btn-quiet" href="project.html">Cancel</a><button class="btn btn-primary" id="done" type="button" disabled>Complete merge</button></div>
+      <span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span id="left" aria-live="polite" style="font-size:14px"><b>2 bars</b> not chosen yet</span><button class="btn btn-ghost btn-sm" type="button" id="jump" data-i18n="merge.jump">Jump to an unchosen bar</button><span class="short" id="short" aria-hidden="true"></span></span>
+      <div class="actions"><a class="btn btn-quiet" href="project.html" data-i18n="common.cancel">Cancel</a><button class="btn btn-primary" id="done" type="button" disabled data-i18n="merge.complete">Complete merge</button></div>
     </div>
   </main>
 </div>
@@ -135,24 +138,19 @@
 <script>
 (function () {
   var S = window.STAVE;
+  var T = S.t;
+  var SIDE_KEY = { ours: "merge.sideOurs", theirs: "merge.sideTheirs", both: "merge.sideBoth" };
+  var SHORT_KEY = { ours: "merge.shortOurs", theirs: "merge.shortTheirs", both: "merge.shortBoth" };
+  var merged = false;
   var STR = {
-    side: { ours: "main’s version", theirs: "bridge-alt’s version", both: "both branches" },
-    short: { ours: "main", theirs: "bridge-alt", both: "both" },
-    unresolved: "Unresolved", resolved: "Resolved", allResolved: "All conflicts resolved",
-    conflictsOpen: function (n) { return n + " conflicts unresolved"; },
-    barLine: function (bar, c, what, count, dr) { return "Bar " + bar + ": " + count + " " + what + " (" + c + ")" + (dr ? ". Will drop " + dr[1] + " notes of " + dr[0] + "." : ". No notes will be dropped."); },
-    barNone: function (bar) { return "Bar " + bar + ": not chosen yet"; },
-    selected: function (side, dr) { return "Selected " + side + ". " + (dr ? "Drop " + dr[1] + " notes of " + dr[0] + "." : "No notes will be dropped."); },
-    shortBar: function (bar, v) { return "Bar " + bar + ": " + v; },
-    pendingTitle: "Choose a version to keep for both bars to finish",
-    leftSome: function (n) { return "<b>" + n + " bars</b> not chosen yet"; },
-    leftNone: "<b>All set</b> for both bars",
-    playing: function (n) { return "Playing " + n + " notes"; },
-    preview: function (key) { return "Preview " + key; },
-    merged: "Merged", mergedLeft: "<b>Merged</b> bridge-alt into main",
-    mergedToast: "Merged bridge-alt into main.", undo: "Undo", dismiss: "Dismiss notification",
-    complete: "Complete merge",
-    undone: "Undone. The two branches have not been merged."
+    side: function (v) { return T(SIDE_KEY[v]); },
+    short: function (v) { return T(SHORT_KEY[v]); },
+    barLine: function (bar, c, what, count, dr) {
+      var v = { bar: bar, choice: c, what: T(what), count: count };
+      if (dr) { v.dropped = dr[1]; v.from = dr[0]; }
+      return T(dr ? "merge.barLineDrop" : "merge.barLineKeep", v);
+    },
+    selected: function (side, dr) { return T(dr ? "merge.selectedDrop" : "merge.selectedKeep", dr ? { side: side, dropped: dr[1], from: dr[0] } : { side: side }); }
   };
   S.mountShell("projects");
   function n(s, d, p) { return { s: s, d: d, p: p, born: 0, died: null, chg: null, t: 0 }; }
@@ -163,6 +161,7 @@
     theirs2: [n(0, 2, 72), n(4, 4, 74), n(8, 8, 71)]
   };
   var range = { 1: [38, 52], 2: [68, 80] };
+  function drawRolls() {
   Array.prototype.forEach.call(document.querySelectorAll("[data-roll]"), function (h) {
     var key = h.dataset.roll;
     var r = range[key.slice(-1)];
@@ -174,12 +173,14 @@
     mine.forEach(function (x) { mk[kk(x)] = 1; });
     other.forEach(function (x) { ok[kk(x)] = 1; });
     var all = mine.concat(other.filter(function (x) { return !mk[kk(x)]; }));
-    S.drawRoll(h, { notes: all, steps: 16, lo: r[0], hi: r[1], cell: 17, rowH: 9, gutter: 28, to: 0, mode: "plain", cls: function (x) { var a = mk[kk(x)], b = ok[kk(x)]; return a && b ? "n-dim" : a ? (side === "ours" ? "n-main" : "n-bridge") : (side === "ours" ? "n-ghost-bridge" : "n-ghost-main"); }, label: STR.preview(key) });
+    S.drawRoll(h, { notes: all, steps: 16, lo: r[0], hi: r[1], cell: 17, rowH: 9, gutter: 28, to: 0, mode: "plain", cls: function (x) { var a = mk[kk(x)], b = ok[kk(x)]; return a && b ? "n-dim" : a ? (side === "ours" ? "n-main" : "n-bridge") : (side === "ours" ? "n-ghost-bridge" : "n-ghost-main"); }, label: T("merge.rollLabel", { side: STR.side(side), bar: num }) });
   });
-  var COUNT = { c1: { ours: 3, theirs: 3, both: 5, what: "bass notes" }, c2: { ours: 4, theirs: 3, both: 7, what: "melody notes" } };
+  }
+  drawRolls();
+  document.addEventListener("stave:lang", function () { drawRolls(); check(); });
+  var COUNT = { c1: { ours: 3, theirs: 3, both: 5, what: "merge.bassNotes" }, c2: { ours: 4, theirs: 3, both: 7, what: "merge.melodyNotes" } };
   var DROP = { c1: { ours: ["bridge-alt", 2], theirs: ["main", 2], both: null }, c2: { ours: ["bridge-alt", 3], theirs: ["main", 4], both: null } };
   var BAR = { c1: 2, c2: 3 };
-  var SIDE = STR.side;
   function result() {
     var ul = document.getElementById("res-list");
     ul.innerHTML = "";
@@ -187,7 +188,7 @@
       var c = document.querySelector('input[name="' + k + '"]:checked');
       var li = document.createElement("li");
       var dr = c && DROP[k][c.value];
-      li.textContent = c ? STR.barLine(BAR[k], SIDE[c.value], COUNT[k].what, COUNT[k][c.value], dr) : STR.barNone(BAR[k]);
+      li.textContent = c ? STR.barLine(BAR[k], STR.side(c.value), COUNT[k].what, COUNT[k][c.value], dr) : T("merge.barNone", { bar: BAR[k] });
       if (!c) li.style.color = "var(--soft)";
       ul.appendChild(li);
     });
@@ -221,7 +222,7 @@
       o.start(st);
       o.stop(en + 0.05);
     });
-    live.textContent = STR.playing(arr.length);
+    live.textContent = T("merge.playing", { n: arr.length });
   }
   Array.prototype.forEach.call(document.querySelectorAll("[data-play]"), function (b) {
     b.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); playSet(b.dataset.play); });
@@ -236,7 +237,7 @@
     ["c1", "c2"].forEach(function (k) {
       var done2 = !!document.querySelector('input[name="' + k + '"]:checked');
       var chip = document.querySelector('[data-st="' + k + '"]');
-      chip.textContent = done2 ? STR.resolved : STR.unresolved;
+      S.bind(chip, done2 ? "merge.resolved" : "merge.unresolved");
       chip.classList.toggle("done", done2);
       if (!done2) open++;
     });
@@ -244,15 +245,15 @@
       var c = document.querySelector('input[name="' + k + '"]:checked');
       var sec = document.querySelector('[data-st="' + k + '"]').closest(".conflict");
       sec.classList.toggle("is-done", !!c && sec.dataset.hold !== "1");
-      if (c) document.getElementById("sum-" + k).textContent = STR.selected(SIDE[c.value], DROP[k][c.value]);
+      if (c) document.getElementById("sum-" + k).textContent = STR.selected(STR.side(c.value), DROP[k][c.value]);
     });
     var cnt = document.getElementById("cnt");
-    cnt.textContent = open ? STR.conflictsOpen(open) : STR.allResolved;
+    cnt.textContent = open ? T("merge.conflictsOpen", { n: open }) : T("merge.allResolved");
     cnt.classList.toggle("ok", !open);
-    var sh = ["c1", "c2"].map(function (k) { var c = document.querySelector('input[name="' + k + '"]:checked'); return STR.shortBar(BAR[k], c ? STR.short[c.value] : "—"); }).join(" · ");
+    var sh = ["c1", "c2"].map(function (k) { var c = document.querySelector('input[name="' + k + '"]:checked'); return T("merge.shortBar", { bar: BAR[k], value: c ? STR.short(c.value) : "—" }); }).join(" · ");
     document.getElementById("short").textContent = sh;
-    done.title = pending ? STR.pendingTitle : "";
-    left.innerHTML = pending ? STR.leftSome(pending) : STR.leftNone;
+    done.title = pending ? T("merge.pendingTitle") : "";
+    left.innerHTML = merged ? T("merge.mergedLeft") : pending ? T("merge.leftSome", { n: pending }) : T("merge.leftNone");
   }
   document.addEventListener("change", function (e) {
     if (e.target.type === "radio") { var s = e.target.closest(".conflict"); if (s) s.dataset.hold = "1"; }
@@ -277,29 +278,35 @@
     var inputs = document.querySelectorAll("input[type=radio], [data-all], [data-edit]");
     Array.prototype.forEach.call(inputs, function (i) { i.disabled = true; });
     done.disabled = true;
-    done.textContent = STR.merged;
-    left.innerHTML = STR.mergedLeft;
+    merged = true;
+    S.bind(done, "merge.merged");
+    left.innerHTML = T("merge.mergedLeft");
     var ok = document.getElementById("success");
     ok.classList.add("on");
     ok.scrollIntoView({ block: "start" });
     var t = document.createElement("div");
     t.className = "toast-u";
     t.setAttribute("role", "status");
-    t.innerHTML = "<span>" + STR.mergedToast + "</span>";
+    var tm = document.createElement("span");
+    S.bind(tm, "merge.okTitle");
+    t.appendChild(tm);
     var u = document.createElement("button");
     u.type = "button";
-    u.textContent = STR.undo;
+    S.bind(u, "merge.undo");
     u.addEventListener("click", function () {
       t.remove();
       Array.prototype.forEach.call(inputs, function (i) { i.disabled = false; });
       document.getElementById("success").classList.remove("on");
-      done.textContent = STR.complete;
+      merged = false;
+      S.bind(done, "merge.complete");
       check();
       done.focus();
       var n = document.createElement("div");
       n.className = "toast-u";
       n.setAttribute("role", "status");
-      n.innerHTML = "<span>" + STR.undone + "</span>";
+      var nm = document.createElement("span");
+      S.bind(nm, "merge.undone");
+      n.appendChild(nm);
       document.body.appendChild(n);
       setTimeout(function () { n.remove(); }, 3000);
     });
@@ -308,7 +315,8 @@
     u.focus();
     var x = document.createElement("button");
     x.type = "button";
-    x.setAttribute("aria-label", STR.dismiss);
+    x.setAttribute("aria-label", T("merge.dismiss"));
+    x.setAttribute("data-i18n-attr", "aria-label:merge.dismiss");
     x.textContent = "×";
     x.addEventListener("click", function () { t.remove(); });
     t.appendChild(x);

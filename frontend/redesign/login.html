@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>Sign in · STAVE</title>
+<title data-i18n="login.title">Sign in · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -50,12 +50,16 @@
   @media (max-width: 480px) { .auth-box { padding: 24px 20px; } }
   @media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="auth">
   <a class="brand" href="index.html"><span id="mk"></span>STAVE</a>
+  <div data-lang-switch style="position:absolute;top:clamp(24px,4vw,56px);right:clamp(24px,4vw,56px);z-index:3"></div>
 <svg class="staffsky" viewBox="0 0 1600 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
 <g class="gl"><path class="sl" d="M0 96H1600M0 112H1600M0 128H1600M0 144H1600M0 160H1600"/><path class="sl" d="M0 262H1600M0 278H1600M0 294H1600M0 310H1600M0 326H1600"/><path class="sl" d="M0 352H1600M0 368H1600M0 384H1600M0 400H1600M0 416H1600"/></g>
 <g class="eg"><path class="ed l0" d="M70 128 L170 136 L270 144 L370 136 L470 120 L570 128 L670 144 L770 152 L870 136 L970 128 L1070 112 L1170 120 L1270 136 L1370 144 L1470 128"/><path class="ed l1" d="M520 200 L600 218 L690 206 L790 222"/><path class="ed l1" d="M470 120 C 480 120, 480 200, 520 200"/><path class="ed l1" d="M790 222 C 900 222, 900 128, 970 128"/><path class="ed l2" d="M1020 340 L1110 330 L1230 346"/><path class="ed l2" d="M970 128 C 1000 128, 990 340, 1020 340"/></g>
@@ -63,39 +67,39 @@
 </svg>
   <main class="auth-main" id="main">
     <div class="auth-box rise">
-      <h1 id="title"><span data-mode="login">Welcome back</span><span data-mode="register" hidden>Create a STAVE account</span></h1>
-      <p id="sub"><span data-mode="login">Sign in to keep writing your unfinished song.</span><span data-mode="register" hidden>It takes a minute. Your first project is right behind it.</span></p>
+      <h1 id="title"><span data-mode="login" data-i18n="login.welcome">Welcome back</span><span data-mode="register" hidden data-i18n="login.createTitle">Create a STAVE account</span></h1>
+      <p id="sub"><span data-mode="login" data-i18n="login.sub">Sign in to keep writing your unfinished song.</span><span data-mode="register" hidden data-i18n="login.createSub">It takes a minute. Your first project is right behind it.</span></p>
       <form id="form" novalidate>
-        <div class="field" data-mode="register" hidden><label for="name">Display name</label><input class="input" id="name" name="name" autocomplete="nickname" placeholder="Khanh…"></div>
-        <div class="field"><label for="email">Email</label><input class="input" id="email" name="email" type="email" autocomplete="email" spellcheck="false" inputmode="email" placeholder="you@example.com"></div>
-        <div class="field"><label for="pw">Password</label><input class="input" id="pw" name="password" type="password" autocomplete="current-password" aria-describedby="pw-hint"><small class="hint" id="pw-hint">At least 8 characters.</small></div>
+        <div class="field" data-mode="register" hidden><label for="name" data-i18n="common.displayName">Display name</label><input class="input" id="name" name="name" autocomplete="nickname" placeholder="Khanh…"></div>
+        <div class="field"><label for="email" data-i18n="common.email">Email</label><input class="input" id="email" name="email" type="email" autocomplete="email" spellcheck="false" inputmode="email" placeholder="you@example.com"></div>
+        <div class="field"><label for="pw" data-i18n="login.password">Password</label><input class="input" id="pw" name="password" type="password" autocomplete="current-password" aria-describedby="pw-hint"><small class="hint" id="pw-hint" data-i18n="login.pwHint">At least 8 characters.</small></div>
         <p class="err" id="err" role="alert" hidden></p>
         <p class="hint" id="info" role="status" hidden></p>
-        <a class="forgot" href="#quen" id="forgot">Forgot password?</a>
-        <button class="btn btn-primary" type="button" id="go"><span data-mode="login">Sign in</span><span data-mode="register" hidden>Create account</span></button>
-        <div class="or">or</div>
-        <button class="btn btn-quiet" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M21 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5a4.3 4.3 0 0 1-1.9 2.8v2.3h3.1c1.8-1.7 2.8-4.1 2.8-6.8zM12 21c2.6 0 4.7-.9 6.2-2.3l-3.1-2.3c-.9.6-2 .9-3.1.9a5.4 5.4 0 0 1-5.1-3.7H3.7v2.4A9 9 0 0 0 12 21zM6.9 13.6a5.4 5.4 0 0 1 0-3.2V8H3.7a9 9 0 0 0 0 8.1zM12 6.6c1.4 0 2.7.5 3.7 1.4l2.8-2.8A9 9 0 0 0 3.7 8l3.2 2.4A5.4 5.4 0 0 1 12 6.6z"/></svg>Continue with Google</button>
+        <a class="forgot" href="#quen" id="forgot" data-i18n="login.forgot">Forgot password?</a>
+        <button class="btn btn-primary" type="button" id="go"><span data-mode="login" data-i18n="shell.signIn">Sign in</span><span data-mode="register" hidden data-i18n="login.createBtn">Create account</span></button>
+        <div class="or" data-i18n="login.or">or</div>
+        <button class="btn btn-quiet" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M21 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5a4.3 4.3 0 0 1-1.9 2.8v2.3h3.1c1.8-1.7 2.8-4.1 2.8-6.8zM12 21c2.6 0 4.7-.9 6.2-2.3l-3.1-2.3c-.9.6-2 .9-3.1.9a5.4 5.4 0 0 1-5.1-3.7H3.7v2.4A9 9 0 0 0 12 21zM6.9 13.6a5.4 5.4 0 0 1 0-3.2V8H3.7a9 9 0 0 0 0 8.1zM12 6.6c1.4 0 2.7.5 3.7 1.4l2.8-2.8A9 9 0 0 0 3.7 8l3.2 2.4A5.4 5.4 0 0 1 12 6.6z"/></svg><span data-i18n="login.google">Continue with Google</span></button>
       </form>
-      <p class="swap"><a href="help.html">Need help? See the glossary and guides</a></p>
-      <p class="swap" data-mode="login">No account yet? <a href="#dang-ky" data-flip>Sign up</a></p>
-      <p class="swap" data-mode="register" hidden>Already have an account? <a href="#dang-nhap" data-flip>Sign in</a></p>
+      <p class="swap"><a href="help.html" data-i18n="login.help">Need help? See the glossary and guides</a></p>
+      <p class="swap" data-mode="login"><span data-i18n="login.noAccount">No account yet?</span> <a href="#dang-ky" data-flip data-i18n="login.signUp">Sign up</a></p>
+      <p class="swap" data-mode="register" hidden><span data-i18n="login.haveAccount">Already have an account?</span> <a href="#dang-nhap" data-flip data-i18n="shell.signIn">Sign in</a></p>
     </div>
   </main>
   <aside class="auth-note" aria-hidden="true">
-    <p>Every song deserves a history.</p>
-    <p><b style="font-weight:540;color:var(--ink)">Rainy Saigon Night</b> · 3 branches, 10 versions. Each note is a save, each staff is a branch.</p>
+    <p data-i18n="login.note">Every song deserves a history.</p>
+    <p><b style="font-weight:540;color:var(--ink)">Rainy Saigon Night</b> <span data-i18n="login.noteDetail">· 3 branches, 10 versions. Each note is a save, each staff is a branch.</span></p>
   </aside>
 </div>
 <script src="assets/shared.js"></script>
 <script>
 (function () {
   var S = window.STAVE;
-  var T = {
-    badEmail: "That email doesn’t look right. Example: you@example.com.",
-    shortPw: "Password needs at least 8 characters.",
-    needEmail: "Enter your email above, then click “Forgot password?” again.",
-    resetSent: function (email) { return "A password reset link was sent to " + email + " (sample, not actually sent)."; }
-  };
+  var errState = null, infoState = null;
+  function showText() {
+    $("err").textContent = errState ? S.t(errState.key, errState.vars) : "";
+    $("info").textContent = infoState ? S.t(infoState.key, infoState.vars) : "";
+  }
+  document.addEventListener("stave:lang", showText);
   var EMAIL = /^\S+@\S+\.\S+$/;
   var $ = function (id) { return document.getElementById(id); };
   $("mk").innerHTML = S.mark(26);
@@ -116,25 +120,29 @@
     var email = $("email").value.trim();
     if (!EMAIL.test(email)) {
       $("err").hidden = false;
-      $("err").textContent = T.needEmail;
+      errState = { key: "login.needEmail" };
+      showText();
       $("email").focus();
       return;
     }
     $("err").hidden = true;
+    errState = null;
     $("info").hidden = false;
-    $("info").textContent = T.resetSent(email);
+    infoState = { key: "login.resetSent", vars: { email: email } };
+    showText();
   });
 
   $("go").addEventListener("click", function () {
     var email = $("email").value.trim(), pw = $("pw").value;
     var eBad = !EMAIL.test(email), pBad = !eBad && pw.length < 8;
-    var msg = eBad ? T.badEmail : pBad ? T.shortPw : "";
+    var msg = eBad ? "login.badEmail" : pBad ? "login.shortPw" : "";
     $("email").setAttribute("aria-invalid", String(eBad));
     if (eBad) $("email").setAttribute("aria-describedby", "err"); else $("email").removeAttribute("aria-describedby");
     $("pw").setAttribute("aria-invalid", String(pBad));
     $("pw").setAttribute("aria-describedby", pBad ? "err pw-hint" : "pw-hint");
     $("err").hidden = !msg;
-    $("err").textContent = msg;
+    errState = msg ? { key: msg } : null;
+    showText();
     if (msg) { $(eBad ? "email" : "pw").focus(); return; }
     try { sessionStorage.setItem("stave-in", "1"); } catch (e) {}
     location.href = "projects.html";

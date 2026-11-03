@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>Settings · STAVE</title>
+<title data-i18n="settings.title">Settings · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -50,46 +50,49 @@
   @media (max-width: 860px) { .set-row { grid-template-columns: 1fr; gap: 16px; } }
   @media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="app">
   <aside id="shell"></aside>
   <main class="main" id="main">
-    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
-    <div class="page-head"><div><h1>Settings</h1><p>Profile, appearance and the editor’s default settings.</p></div></div>
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
+    <div class="page-head"><div><h1 data-i18n="shell.settings">Settings</h1><p data-i18n="settings.intro">Profile, appearance and the editor’s default settings.</p></div></div>
     <div class="set">
       <section class="set-row" aria-labelledby="s1">
-        <div><h2 id="s1">Profile</h2><p class="desc">Your name and avatar shown on your public projects.</p></div>
+        <div><h2 id="s1" data-i18n="settings.profile">Profile</h2><p class="desc" data-i18n="settings.profileDesc">Your name and avatar shown on your public projects.</p></div>
         <div class="panel">
-          <div class="field"><label for="dn">Display name</label><input class="input" id="dn" name="name" value="Khanh" autocomplete="nickname"></div>
-          <div class="field"><label for="em">Email</label><input class="input" id="em" name="email" type="email" spellcheck="false" inputmode="email" value="khanh@stave.app" autocomplete="email"></div>
-          <div><button class="btn btn-primary btn-sm" type="button">Save changes</button></div>
+          <div class="field"><label for="dn" data-i18n="common.displayName">Display name</label><input class="input" id="dn" name="name" value="Khanh" autocomplete="nickname"></div>
+          <div class="field"><label for="em" data-i18n="common.email">Email</label><input class="input" id="em" name="email" type="email" spellcheck="false" inputmode="email" value="khanh@stave.app" autocomplete="email"></div>
+          <div><button class="btn btn-primary btn-sm" type="button" data-i18n="settings.save">Save changes</button></div>
         </div>
       </section>
       <section class="set-row" aria-labelledby="s2">
-        <div><h2 id="s2">Appearance</h2><p class="desc">Pick a base tone for the whole app. Status colors for added, removed and conflict never change.</p></div>
+        <div><h2 id="s2" data-i18n="settings.appearance">Appearance</h2><p class="desc" data-i18n="settings.appearanceDesc">Pick a base tone for the whole app. Status colors for added, removed and conflict never change.</p></div>
         <div class="panel"><div class="themes" id="themes">
-          <button class="theme t-space" type="button" aria-pressed="true"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b>Space <span class="pill">Default</span></b></button>
-          <button class="theme t-bw" type="button" aria-pressed="false"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b>Black and white</b></button>
-          <button class="theme t-slate" type="button" aria-pressed="false"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b>Slate gray</b></button>
-          <button class="theme t-wood" type="button" aria-pressed="false"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b>Dark wood</b></button>
+          <button class="theme t-space" type="button" aria-pressed="true"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b><span data-i18n="settings.themeSpace">Space</span> <span class="pill" data-i18n="settings.themeDefault">Default</span></b></button>
+          <button class="theme t-bw" type="button" aria-pressed="false"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b data-i18n="settings.themeBw">Black and white</b></button>
+          <button class="theme t-slate" type="button" aria-pressed="false"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b data-i18n="settings.themeSlate">Slate gray</b></button>
+          <button class="theme t-wood" type="button" aria-pressed="false"><span class="mock"><i class="m-side"></i><i class="m-bar"></i><i class="m-pill"></i><i class="m-diff"></i></span><b data-i18n="settings.themeWood">Dark wood</b></button>
         </div></div>
       </section>
       <section class="set-row" aria-labelledby="s3">
-        <div><h2 id="s3">Editor</h2><p class="desc">Default behavior when you open a project.</p></div>
+        <div><h2 id="s3" data-i18n="settings.editor">Editor</h2><p class="desc" data-i18n="settings.editorDesc">Default behavior when you open a project.</p></div>
         <div class="panel">
-          <label class="switch"><span><b>Autosave drafts</b><span>Save on every change</span></span><input type="checkbox" name="opt" checked></label>
-          <label class="switch"><span><b>Tips strip for newcomers</b><span>Shown at the top of the editor</span></span><input type="checkbox" name="opt" checked></label>
-          <label class="switch"><span><b>Snap notes to the grid while drawing</b><span>Quantize to 1/16</span></span><input type="checkbox" name="opt" checked></label>
+          <label class="switch"><span><b data-i18n="settings.autosave">Autosave drafts</b><span data-i18n="settings.autosaveDesc">Save on every change</span></span><input type="checkbox" name="opt" checked></label>
+          <label class="switch"><span><b data-i18n="settings.tips">Tips strip for newcomers</b><span data-i18n="settings.tipsDesc">Shown at the top of the editor</span></span><input type="checkbox" name="opt" checked></label>
+          <label class="switch"><span><b data-i18n="settings.snapOpt">Snap notes to the grid while drawing</b><span data-i18n="settings.snapDesc">Quantize to 1/16</span></span><input type="checkbox" name="opt" checked></label>
         </div>
       </section>
       <section class="set-row" aria-labelledby="s4">
-        <div><h2 id="s4">Custom sounds</h2><p class="desc">Sounds you upload to assign to notes.</p></div>
+        <div><h2 id="s4" data-i18n="settings.sounds">Custom sounds</h2><p class="desc" data-i18n="settings.soundsDesc">Sounds you upload to assign to notes.</p></div>
         <div class="panel">
-          <div class="switch"><span><b>12 MB used of 50 MB</b><span>6 sounds in 3 projects</span></span></div>
-          <div class="quota" role="img" aria-label="24% used"><i></i></div>
+          <div class="switch"><span><b data-i18n="settings.used">12 MB used of 50 MB</b><span data-i18n="settings.soundsCount">6 sounds in 3 projects</span></span></div>
+          <div class="quota" role="img" aria-label="24% used" data-i18n-attr="aria-label:settings.quota"><i></i></div>
         </div>
       </section>
     </div>

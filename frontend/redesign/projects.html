@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>My projects · STAVE</title>
+<title data-i18n="projects.title">My projects · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -22,7 +22,7 @@
   .sg-core { fill: #eef0ff; } .sg-core.teal { fill: #4fd6c4; } .sg-core.violet { fill: #c58bd6; } .sg-core.lit { fill: #dceeb1; }
   .sg-core.hollow { fill: #04050d; stroke: #eef0ff; stroke-width: 1.2; }
   .halo { fill: #eef0ff; opacity: .2; } .halo.teal { fill: #4fd6c4; } .halo.violet { fill: #c58bd6; } .halo.lit { fill: #dceeb1; opacity: .3; }
-  .row-id span .hash { display: inline; }
+  .row-id span .hash, .row-id span span { display: inline; white-space: nowrap; }
   .table td .hash { white-space: nowrap; }
   .note-cell { color: var(--soft); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .text-link { text-decoration: underline; text-underline-offset: 3px; }
@@ -37,92 +37,95 @@
   dialog .end { justify-content: flex-end; }
   .stats-gap { margin-top: 32px; }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="app">
   <aside id="shell"></aside>
   <main class="main" id="main">
-    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
     <div class="page-head">
-      <div><h1>My projects</h1><p>Your open draft sits at the top of the list so you can continue exactly where you stopped. <a class="text-link" href="help.html">What are commits, branches and merges?</a></p></div>
-      <div class="actions"><button class="btn btn-primary" type="button" id="new-btn"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New project</button></div>
+      <div><h1 data-i18n="shell.myProjects">My projects</h1><p><span data-i18n="projects.intro">Your open draft sits at the top of the list so you can continue exactly where you stopped.</span> <a class="text-link" href="help.html" data-i18n="projects.introLink">What are commits, branches and merges?</a></p></div>
+      <div class="actions"><button class="btn btn-primary" type="button" id="new-btn"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="projects.new">New project</span></button></div>
     </div>
 
-    <dl class="stats" aria-label="Overview">
-      <div><dt>Projects</dt><dd class="num">4</dd></div>
-      <div><dt>Commits this week</dt><dd class="num">9</dd></div>
-      <div><dt>Open branch</dt><dd class="num">4</dd></div>
-      <div><dt>Awaiting merge</dt><dd class="num">1</dd></div>
-      <div><dt>Audio storage</dt><dd class="num">12<small>/ 50 MB</small></dd></div>
+    <dl class="stats" aria-label="Overview" data-i18n-attr="aria-label:projects.overview">
+      <div><dt data-i18n="common.projects">Projects</dt><dd class="num">4</dd></div>
+      <div><dt data-i18n="projects.statCommits">Commits this week</dt><dd class="num">9</dd></div>
+      <div><dt data-i18n="projects.statBranch">Open branch</dt><dd class="num">4</dd></div>
+      <div><dt data-i18n="projects.statMerge">Awaiting merge</dt><dd class="num">1</dd></div>
+      <div><dt data-i18n="projects.statAudio">Audio storage</dt><dd class="num">12<small>/ 50 MB</small></dd></div>
     </dl>
 
     <div class="tabs stats-gap" id="ptabs">
-      <a href="?tab=dang-lam" data-key="dang-lam" aria-current="true">In progress<span class="tag">4</span></a>
-      <a href="?tab=luu-tru" data-key="luu-tru">Archived<span class="tag">0</span></a>
-      <a href="?tab=duoc-moi" data-key="duoc-moi">Invited<span class="tag">0</span></a>
+      <a href="?tab=dang-lam" data-key="dang-lam" aria-current="true"><span data-i18n="projects.tabProgress">In progress</span><span class="tag">4</span></a>
+      <a href="?tab=luu-tru" data-key="luu-tru"><span data-i18n="projects.tabArchived">Archived</span><span class="tag">0</span></a>
+      <a href="?tab=duoc-moi" data-key="duoc-moi"><span data-i18n="projects.tabInvited">Invited</span><span class="tag">0</span></a>
     </div>
     <div class="toolbar" id="toolbar">
-      <div class="search"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search projects…" aria-label="Search projects"></div>
-      <div class="grow"><span class="num">4 projects</span></div>
+      <div class="search"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search projects…" aria-label="Search projects" data-i18n-attr="placeholder:projects.searchPlaceholder,aria-label:common.searchProjects"></div>
+      <div class="grow"><span class="num" data-i18n="projects.count4">4 projects</span></div>
     </div>
     <div class="table-wrap" id="list"><table class="table">
-      <thead><tr><th class="id">Projects</th><th class="hide-s">Open branch</th><th class="hide-s">Latest commit</th><th>Status</th><th class="r">Updated</th><th><span class="sr-only">Action</span></th></tr></thead>
+      <thead><tr><th class="id" data-i18n="common.projects">Projects</th><th class="hide-s" data-i18n="projects.statBranch">Open branch</th><th class="hide-s" data-i18n="projects.thLatest">Latest commit</th><th data-i18n="projects.thStatus">Status</th><th class="r" data-i18n="projects.thUpdated">Updated</th><th><span class="sr-only" data-i18n="projects.thAction">Action</span></th></tr></thead>
       <tbody>
         <tr>
-          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="dem-sai-gon-mua" data-branches="2" data-merged="false"></div><div><a href="project.html"><b>Rainy Saigon Night</b></a><span><span class="hash">dem-sai-gon-mua.mid</span> · Public</span></div></div></td>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="dem-sai-gon-mua" data-branches="2" data-merged="false"></div><div><a href="project.html"><b>Rainy Saigon Night</b></a><span><span class="hash">dem-sai-gon-mua.mid</span> <span data-i18n="projects.dotPublic">· Public</span></span></div></div></td>
           <td class="hide-s"><span class="hash">main</span></td>
           <td class="hide-s note-cell">Normalize velocity for pad…</td>
-          <td><span class="pill pill-mod"><i class="dot"></i>Has draft</span></td>
-          <td class="r" style="color:var(--soft)">yesterday</td>
-          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Rainy Saigon Night">Open editor</a></td>
+          <td><span class="pill pill-mod"><i class="dot"></i><span data-i18n="projects.hasDraft">Has draft</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.yesterday">yesterday</td>
+          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Rainy Saigon Night" data-i18n-attr="aria-label:projects.openEditorFor" data-i18n-vars='{"name":"Rainy Saigon Night"}' data-i18n="common.openEditor">Open editor</a></td>
         </tr>
         <tr>
-          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="bossa-sang" data-branches="1" data-merged="false"></div><div><a href="project.html"><b>Morning bossa</b></a><span><span class="hash">bossa-sang.mid</span> · Private</span></div></div></td>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="bossa-sang" data-branches="1" data-merged="false"></div><div><a href="project.html"><b>Morning bossa</b></a><span><span class="hash">bossa-sang.mid</span> <span data-i18n="projects.dotPrivate">· Private</span></span></div></div></td>
           <td class="hide-s"><span class="hash">main</span></td>
           <td class="hide-s note-cell">Add nylon guitar intro</td>
-          <td><span class="pill pill-neutral"><i class="dot"></i>Committed</span></td>
-          <td class="r" style="color:var(--soft)">3 days ago</td>
-          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Morning bossa">Open editor</a></td>
+          <td><span class="pill pill-neutral"><i class="dot"></i><span data-i18n="projects.committed">Committed</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.days3">3 days ago</td>
+          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Morning bossa" data-i18n-attr="aria-label:projects.openEditorFor" data-i18n-vars='{"name":"Morning bossa"}' data-i18n="common.openEditor">Open editor</a></td>
         </tr>
         <tr>
-          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="intro-ep" data-branches="3" data-merged="false"></div><div><a href="project.html"><b>Intro for the November EP</b></a><span><span class="hash">intro-ep.mid</span> · Private</span></div></div></td>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="intro-ep" data-branches="3" data-merged="false"></div><div><a href="project.html"><b>Intro for the November EP</b></a><span><span class="hash">intro-ep.mid</span> <span data-i18n="projects.dotPrivate">· Private</span></span></div></div></td>
           <td class="hide-s"><span class="hash">bridge-alt</span></td>
           <td class="hide-s note-cell">Try the bridge with a minor chord</td>
-          <td><span class="pill pill-ink"><i class="dot"></i>Awaiting merge</span></td>
-          <td class="r" style="color:var(--soft)">5 days ago</td>
-          <td class="r"><a class="btn btn-primary btn-sm" href="merge.html" aria-label="Resolve conflicts for Intro for the November EP">Resolve conflicts</a></td>
+          <td><span class="pill pill-ink"><i class="dot"></i><span data-i18n="projects.statMerge">Awaiting merge</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.days5">5 days ago</td>
+          <td class="r"><a class="btn btn-primary btn-sm" href="merge.html" aria-label="Resolve conflicts for Intro for the November EP" data-i18n-attr="aria-label:projects.resolveFor" data-i18n-vars='{"name":"Intro for the November EP"}' data-i18n="projects.resolve">Resolve conflicts</a></td>
         </tr>
         <tr>
-          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="hoa-am" data-branches="1" data-merged="true"></div><div><a href="project.html"><b>Harmony exercise</b></a><span><span class="hash">hoa-am.mid</span> · Public</span></div></div></td>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="hoa-am" data-branches="1" data-merged="true"></div><div><a href="project.html"><b>Harmony exercise</b></a><span><span class="hash">hoa-am.mid</span> <span data-i18n="projects.dotPublic">· Public</span></span></div></div></td>
           <td class="hide-s"><span class="hash">main</span></td>
           <td class="hide-s note-cell">Finish lesson 4</td>
-          <td><span class="pill pill-neutral"><i class="dot"></i>Committed</span></td>
-          <td class="r" style="color:var(--soft)">2 weeks ago</td>
-          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Harmony exercise">Open editor</a></td>
+          <td><span class="pill pill-neutral"><i class="dot"></i><span data-i18n="projects.committed">Committed</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.weeks2">2 weeks ago</td>
+          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Harmony exercise" data-i18n-attr="aria-label:projects.openEditorFor" data-i18n-vars='{"name":"Harmony exercise"}' data-i18n="common.openEditor">Open editor</a></td>
         </tr>
       </tbody>
     </table></div>
 
     <div class="empty" id="empty-archived" hidden>
-      <h2>No archived projects</h2>
-      <p>Projects you archive will appear here, with their full history, and can be reopened at any time.</p>
-      <a class="btn btn-primary" href="?tab=dang-lam">Back to the project you’re working on</a>
+      <h2 data-i18n="projects.emptyArchivedTitle">No archived projects</h2>
+      <p data-i18n="projects.emptyArchivedText">Projects you archive will appear here, with their full history, and can be reopened at any time.</p>
+      <a class="btn btn-primary" href="?tab=dang-lam" data-i18n="projects.backToWorking">Back to the project you’re working on</a>
     </div>
     <div class="empty" id="empty-invited" hidden>
-      <h2>No one has invited you to a project yet</h2>
-      <p>When another user invites you to collaborate, the project will show up here.</p>
-      <a class="btn btn-primary" href="?tab=dang-lam">Back to the project you’re working on</a>
+      <h2 data-i18n="projects.emptyInvitedTitle">No one has invited you to a project yet</h2>
+      <p data-i18n="projects.emptyInvitedText">When another user invites you to collaborate, the project will show up here.</p>
+      <a class="btn btn-primary" href="?tab=dang-lam" data-i18n="projects.backToWorking">Back to the project you’re working on</a>
     </div>
   </main>
-<dialog id="np" aria-labelledby="np-t"><form method="dialog"><h2 id="np-t">New project</h2>
-<div class="field"><label for="np-n">Project name</label><input class="input" id="np-n" name="name" autocomplete="off" placeholder="Example: Rainy Saigon Night…"></div>
-<div class="field"><label for="np-g">Genre</label><select class="select" id="np-g" name="genre" autocomplete="off"><option>Lo-fi</option><option>Jazz</option><option>Electronic</option><option>Classical</option><option>Film score</option><option>Other</option></select></div>
-<fieldset><legend>Start from</legend>
-<label class="radio"><input type="radio" name="tpl" value="blank" checked> Blank</label>
-<label class="radio"><input type="radio" name="tpl" value="sample"> 4-bar template (Am – F – C – G chords)</label></fieldset>
-<div class="actions end"><button class="btn btn-quiet" value="cancel">Cancel</button><button class="btn btn-primary" value="ok">Create and open editor</button></div></form></dialog>
+<dialog id="np" aria-labelledby="np-t"><form method="dialog"><h2 id="np-t" data-i18n="projects.dialogTitle">New project</h2>
+<div class="field"><label for="np-n" data-i18n="projects.name">Project name</label><input class="input" id="np-n" name="name" autocomplete="off" placeholder="Example: Rainy Saigon Night…" data-i18n-attr="placeholder:projects.namePlaceholder"></div>
+<div class="field"><label for="np-g" data-i18n="common.genre">Genre</label><select class="select" id="np-g" name="genre" autocomplete="off"><option data-i18n="genre.lofi">Lo-fi</option><option data-i18n="genre.jazz">Jazz</option><option data-i18n="genre.electronic">Electronic</option><option data-i18n="genre.classical">Classical</option><option data-i18n="genre.film">Film score</option><option data-i18n="genre.other">Other</option></select></div>
+<fieldset><legend data-i18n="projects.startFrom">Start from</legend>
+<label class="radio"><input type="radio" name="tpl" value="blank" checked> <span data-i18n="projects.blank">Blank</span></label>
+<label class="radio"><input type="radio" name="tpl" value="sample"> <span data-i18n="projects.template">4-bar template (Am – F – C – G chords)</span></label></fieldset>
+<div class="actions end"><button class="btn btn-quiet" value="cancel" data-i18n="common.cancel">Cancel</button><button class="btn btn-primary" value="ok" data-i18n="projects.createOpen">Create and open editor</button></div></form></dialog>
 </div>
 <script src="assets/shared.js"></script>
 <script>
