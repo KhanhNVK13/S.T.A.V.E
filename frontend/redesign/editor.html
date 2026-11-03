@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#04050d">
 <title>Editor · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,8 +11,9 @@
 <link rel="stylesheet" href="assets/styles.css">
 <style>
   html, body { height: 100%; overflow: hidden; }
-  .ed { display: grid; grid-template-rows: 52px minmax(0, 1fr); height: 100vh; background: var(--ground); }
-  .ed-top { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line-strong); background: var(--ground); overflow-x: auto; }
+  .sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .ed { display: grid; grid-template-rows: 52px minmax(0, 1fr); height: 100vh; position: relative; z-index: 1; background: transparent; }
+  .ed-top { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line-strong); background: color-mix(in srgb, var(--ground) 90%, transparent); overflow-x: auto; }
   .ed-top > * { flex: none; }
   .ed-top .spacer { flex: 1 0 8px; }
   .ed-top .sep { width: 1px; height: 24px; background: var(--line-strong); flex: none; }
@@ -24,7 +25,7 @@
   .saved .dot { color: var(--add); }
   .group { display: flex; align-items: center; gap: 2px; flex: none; }
   .tbtn { height: 32px; min-width: 32px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--soft); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13.5px; font-weight: 500; white-space: nowrap; }
-  .tbtn:hover { background: rgba(0,0,0,.07); color: var(--ink); }
+  .tbtn:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); }
   .tbtn[aria-pressed="true"] { background: var(--ink); color: var(--raised); }
   .play { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--raised); border: 0; display: grid; place-items: center; flex: none; }
   .play svg { fill: currentColor; stroke: none; }
@@ -34,16 +35,16 @@
   .ed-body { display: grid; grid-template-columns: 252px minmax(0, 1fr) 296px; min-height: 0; }
   .ed-body[data-hist="false"] { grid-template-columns: 252px minmax(0, 1fr) 0; }
   .ed-body[data-hist="false"] .hist { display: none; }
-  .tracks { border-right: 1px solid var(--line-strong); padding: 12px 10px; overflow-y: auto; }
+  .tracks { border-right: 1px solid var(--line-strong); padding: 12px 10px; overflow-y: auto; background: color-mix(in srgb, var(--ground) 90%, transparent); }
   .tracks h2, .hist h2 { font-size: 12.5px; font-weight: 500; color: var(--faint); padding: 0 6px; margin-bottom: 8px; }
   .track { display: grid; grid-template-columns: 6px 1fr auto; gap: 10px; align-items: center; width: 100%; text-align: left; padding: 10px 8px; border: 0; border-radius: 8px; background: transparent; margin-bottom: 4px; }
-  .track:hover { background: rgba(0,0,0,.05); }
+  .track:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
   .track[aria-pressed="true"] { background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-strong); }
   .track .stripe { align-self: stretch; border-radius: 3px; }
   .track b { display: block; font-size: 14px; font-weight: 600; }
   .track small { display: block; color: var(--soft); font-size: 12.5px; }
   .track .ms { display: flex; gap: 4px; }
-  .track .ms span { width: 26px; height: 26px; border-radius: 5px; display: grid; place-items: center; font-size: 13px; font-weight: 600; background: rgba(0,0,0,.07); color: var(--soft); }
+  .track .ms span { width: 26px; height: 26px; border-radius: 5px; display: grid; place-items: center; font-size: 13px; font-weight: 600; background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--soft); }
   .track .vol { grid-column: 2 / 4; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
   .track .vol i { display: block; height: 100%; }
   .add-track { width: 100%; margin-top: 8px; justify-content: flex-start; }
@@ -59,33 +60,33 @@
   .vel { display: flex; border-top: 1px solid var(--line-strong); background: var(--paper); min-height: 0; overflow: hidden; }
   .vel .lab { flex: none; width: 56px; padding: 8px 8px 0; font-size: 13px; color: var(--faint); background: var(--paper); z-index: 1; }
   .vel-scroll { overflow: hidden; flex: 1; }
-  .hist { border-left: 1px solid var(--line-strong); padding: 12px 10px; overflow-y: auto; }
+  .hist { border-left: 1px solid var(--line-strong); padding: 12px 10px; overflow-y: auto; background: color-mix(in srgb, var(--ground) 90%, transparent); }
   .h-item { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 9px 6px; border-radius: 8px; font-size: 13.5px; }
-  .h-item:hover { background: rgba(0,0,0,.05); }
+  .h-item:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
   .h-item svg { margin-top: 3px; }
   .h-item small { display: block; color: var(--soft); font-size: 12.5px; }
-  #commit-btn[disabled] { opacity: 1; background: #fff; color: var(--soft); border: 1px dashed var(--line-strong); cursor: not-allowed; }
+  #commit-btn[disabled] { opacity: 1; background: var(--raised); color: var(--soft); border: 1px dashed var(--line-strong); cursor: not-allowed; }
   .ptabs { display: flex; gap: 4px; padding: 0 0 10px; }
   .ptabs button { border: 0; background: transparent; padding: 6px 12px; border-radius: 999px; font-size: 13.5px; font-weight: 500; color: var(--soft); }
-  .ptabs button[aria-selected="true"] { background: var(--ink); color: #fff; }
+  .ptabs button[aria-selected="true"] { background: var(--ink); color: var(--ground); }
   .br-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 6px; border-radius: 8px; font-size: 14px; }
-  .br-row:hover { background: rgba(0,0,0,.04); }
+  .br-row:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
   .br-row small { grid-column: 1; color: var(--soft); font-size: 12.5px; }
   .br-row .btn { grid-row: 1 / 3; grid-column: 2; }
   .h-cmp { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
-  .menu { position: fixed; z-index: 40; background: #fff; border: 1px solid var(--line-strong); border-radius: 12px; padding: 6px; min-width: 220px; box-shadow: 0 12px 32px rgba(0,0,0,.14); }
+  .menu { position: fixed; z-index: 40; background: var(--raised); border: 1px solid var(--line-strong); border-radius: 12px; padding: 6px; min-width: 220px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
   .menu button { display: flex; justify-content: space-between; gap: 18px; width: 100%; border: 0; background: transparent; padding: 9px 12px; border-radius: 8px; font-size: 14px; text-align: left; }
   .menu button:hover, .menu button:focus-visible { background: var(--paper); }
   .menu kbd { margin-left: 0; }
-  .toast-m { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px; z-index: 60; }
-  .strip { display: flex; align-items: center; gap: 16px; padding: 0 14px; height: 40px; border-top: 1px solid var(--line-strong); background: #fff; font-size: 13px; color: var(--soft); flex-wrap: nowrap; overflow-x: auto; }
+  .toast-m { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--ground); padding: 10px 18px; border-radius: 999px; font-size: 14px; z-index: 60; }
+  .strip { display: flex; align-items: center; gap: 16px; padding: 0 14px; height: 40px; border-top: 1px solid var(--line-strong); background: var(--raised); font-size: 13px; color: var(--soft); flex-wrap: nowrap; overflow-x: auto; }
   .strip > * { flex: none; }
-  .strip select { height: 28px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; padding: 0 8px; font-size: 13px; }
+  .strip select { height: 28px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--raised); padding: 0 8px; font-size: 13px; }
   .strip .tbtn { height: 28px; min-width: 28px; }
-  .net { margin: 10px 10px 0; padding: 10px 14px; border-radius: 10px; background: #fbdde4; color: #6b0f26; display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 14px; }
+  .net { margin: 10px 10px 0; padding: 10px 14px; border-radius: 10px; background: var(--del-wash); color: var(--ink); border: 1px solid var(--del); display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 14px; }
   .net[hidden] { display: none; }
-  .toast-u { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 14px 10px 20px; border-radius: 999px; font-size: 14px; z-index: 60; display: flex; gap: 14px; align-items: center; }
-  .toast-u button { background: #fff; color: var(--ink); border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 500; }
+  .toast-u { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--ground); padding: 10px 14px 10px 20px; border-radius: 999px; font-size: 14px; z-index: 60; display: flex; gap: 14px; align-items: center; }
+  .toast-u button { background: var(--ground); color: var(--ink); border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 500; }
   .keys-t { width: 100%; border-collapse: collapse; font-size: 14px; }
   .keys-t td { padding: 7px 0; border-top: 1px solid var(--line); }
   .keys-t td:first-child { width: 42%; }
@@ -95,14 +96,34 @@
   #pn-hist::before { content: ""; position: absolute; left: 14px; top: 30px; bottom: 16px; width: 2px; background: var(--line-strong); }
   .h-draft .nh { background: var(--mod-wash); }
   #commit-btn { position: relative; }
-  .cbadge { position: absolute; top: -8px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #fff; color: var(--ink); border: 2px solid var(--ink); font-size: 12px; font-weight: 600; display: grid; place-items: center; }
+  .cbadge { position: absolute; top: -8px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--ground); color: var(--ink); border: 2px solid var(--ink); font-size: 12px; font-weight: 600; display: grid; place-items: center; }
   .cbadge[hidden] { display: none; }
   .h-draft { background: var(--mod-wash); }
   .h-draft:hover { background: var(--mod-wash); }
   .tip { margin: 10px 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--paper); font-size: 13.5px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
   .tip[hidden] { display: none; }
 
-  dialog { border: 0; border-radius: 12px; padding: 0; width: min(92vw, 480px); background: var(--raised); color: var(--ink); box-shadow: 0 24px 60px rgba(0,0,0,.35); }
+  .btn-primary { color: var(--ground); }
+  .btn-primary:hover { background: color-mix(in srgb, var(--ink) 85%, var(--ground)); }
+  .btn-quiet { background: var(--raised); color: var(--ink); }
+  .btn-quiet:hover { background: var(--paper); }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+  .br-bridge { font-weight: 600; color: #4fd6c4; }
+  .br-drums { font-weight: 600; color: #c58bd6; }
+  .keys .kw { fill: var(--raised); stroke: var(--line-strong); stroke-width: 1; }
+  .keys .kb { fill: var(--ground); stroke: var(--line-strong); stroke-width: 1; }
+  .keys .kl { fill: var(--soft); font: 600 11px Onest, sans-serif; }
+  .g-blk { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .g-c { fill: color-mix(in srgb, var(--ink) 12%, transparent); }
+  .g-bar { stroke: color-mix(in srgb, var(--ink) 38%, transparent); stroke-width: 1.6; }
+  .g-beat { stroke: color-mix(in srgb, var(--ink) 12%, transparent); stroke-width: 1; }
+  .n-on { stroke: color-mix(in srgb, var(--ink) 55%, transparent); stroke-width: 1; }
+  .n-sel { stroke: var(--ink); stroke-width: 2.5; }
+  .cur { fill: none; stroke: var(--ink); stroke-width: 2.5; }
+  .marq { fill: color-mix(in srgb, var(--ink) 12%, transparent); stroke: var(--ink); stroke-dasharray: 4 3; }
+  .nh-d { fill: var(--ground); stroke: var(--mod); stroke-width: 2; }
+  .nh-c { fill: var(--ink); stroke: var(--ink); stroke-width: 2; }
+  dialog { border-radius: 12px; padding: 0; width: min(92vw, 480px); background: var(--raised); color: var(--ink); box-shadow: 0 24px 60px rgba(0,0,0,.6); border: 1px solid var(--line-strong); }
   dialog { overscroll-behavior: contain; }
   dialog::backdrop { background: rgba(0,0,0,.45); }
   .dlg { padding: 22px; display: grid; gap: 16px; }
@@ -119,6 +140,7 @@
 </style>
 </head>
 <body>
+<canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
 <a class="skip" href="#body">Skip to main content</a>
 <div class="ed">
   <header class="ed-top" role="toolbar" aria-label="Toolbar">
@@ -168,13 +190,13 @@
     <aside class="hist" aria-label="History">
       <div class="ptabs" role="tablist" aria-label="Right panel"><button type="button" role="tab" id="tb-hist" aria-selected="true" aria-controls="pn-hist">History</button><button type="button" role="tab" id="tb-br" aria-selected="false" aria-controls="pn-br">Branches</button></div>
       <div id="pn-hist" role="tabpanel" aria-labelledby="tb-hist">
-      <div class="h-item h-draft"><svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5" ry="3.6" transform="rotate(-20 8 21)" fill="#fff" stroke="#8a5b00" stroke-width="2"/><path d="M13 19V4" stroke="#8a5b00" stroke-width="2" stroke-dasharray="3 2"/></svg><div><b id="draft-title" style="font-weight:600">Draft</b><small id="draft-sub">3 uncommitted changes</small></div></div>
+      <div class="h-item h-draft"><svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse class="nh-d" cx="8" cy="21" rx="5" ry="3.6" transform="rotate(-20 8 21)"/><path class="nh-d" d="M13 19V4" fill="none" stroke-dasharray="3 2"/></svg><div><b id="draft-title" style="font-weight:600">Draft</b><small id="draft-sub">3 uncommitted changes</small></div></div>
       <div id="hist-list"></div>
       </div>
       <div id="pn-br" role="tabpanel" aria-labelledby="tb-br" hidden>
         <div class="br-row"><span><b style="font-weight:600">main</b></span><small>Main branch · 6 commits</small><span class="pill">open</span></div>
-        <div class="br-row"><span><b style="font-weight:600;color:#0f7b6c">bridge-alt</b></span><small>2 ahead, 1 behind</small><button class="btn btn-quiet btn-sm" type="button" data-br="bridge-alt">Switch</button></div>
-        <div class="br-row"><span><b style="font-weight:600;color:#7b3f7a">drums-swing</b></span><small>1 ahead</small><button class="btn btn-quiet btn-sm" type="button" data-br="drums-swing">Switch</button></div>
+        <div class="br-row"><span><b class="br-bridge">bridge-alt</b></span><small>2 ahead, 1 behind</small><button class="btn btn-quiet btn-sm" type="button" data-br="bridge-alt">Switch</button></div>
+        <div class="br-row"><span><b class="br-drums">drums-swing</b></span><small>1 ahead</small><button class="btn btn-quiet btn-sm" type="button" data-br="drums-swing">Switch</button></div>
       </div>
     </aside>
   </main>
@@ -195,6 +217,37 @@
 <script>
 (function () {
   var S = window.STAVE;
+  var STR = {
+    saved: "Saved", saving: "Saving…", notSaved: "Not saved",
+    noChanges: "No changes yet", changes: function (n) { return n + " uncommitted changes"; },
+    summary: function (a, r) { return "+" + a + " notes · −" + r + " notes"; },
+    selected: function (n) { return "Selected " + n + " notes"; },
+    selectedIn: function (n, track) { return "Selected " + n + " notes in track " + track; },
+    deselected: "Deselected",
+    removedN: function (n) { return "Removed " + n + " notes"; },
+    removedNote: function (p) { return "Removed note " + p; },
+    placed: function (p, bar) { return "Placed note " + p + " in bar " + bar; },
+    where: function (name, bar, beat, step, has) { return name + ", bar " + bar + ", beat " + beat + ", step " + step + (has ? ", has a note" : ", empty"); },
+    commitNone: "Commit, no changes yet",
+    commitN: function (n) { return "Commit, " + n + " changes"; },
+    commitTitleNone: "Edit the music before committing", commitTitle: "Commit (Ctrl Enter)",
+    noCommit: "No changes to commit",
+    draft: function (t) { return "Draft: " + t; },
+    velTrack: function (name) { return "Velocity of track " + name; },
+    play: "Play", pause: "Pause",
+    sample: function (item) { return item + ": sample feature, not connected to a backend"; },
+    switched: function (b) { return "Switched to branch " + b; },
+    switchedSample: function (b) { return "Switched to branch " + b + " (sample)"; },
+    commitDone: "Commit created.", undo: "Undo",
+    commitUndone: "Commit undone. Your draft was restored.",
+    snap: function (t) { return "Snap " + t; },
+    zoom: function (t) { return "Zoom " + t; },
+    saveFailed: "Couldn’t save the draft to the server. Your changes are still on this device, so don’t close the tab until it saves.",
+    offlineMsg: "Connection lost. Changes are kept on this device and will save automatically when you’re back online.",
+    backOnline: "Back online, draft saved", savedAgain: "Draft saved again",
+    stillOffline: "Still offline. Changes are still kept on this device.",
+    justNow: "just now"
+  };
   var NS = "http://www.w3.org/2000/svg";
   var LO = 40, HI = 79, ROW = 16, CELL = 24, STEPS = 64, KEYW = 56;
   var TRACKS = [
@@ -232,8 +285,8 @@
     var keys = el("svg", { class: "keys", width: KEYW, height: H, viewBox: "0 0 " + KEYW + " " + H, "aria-hidden": "true" });
     for (var p = HI; p >= LO; p--) {
       var y = (HI - p) * ROW, pc = p % 12;
-      el("rect", { x: 0, y: y, width: KEYW, height: ROW, fill: black[pc] ? "#000000" : "#fbf9f3", stroke: "#d6cfbd", "stroke-width": 1 }, keys);
-      if (pc === 0) { var t = el("text", { x: KEYW - 6, y: y + ROW - 4, "text-anchor": "end", "font-size": 11, "font-weight": 600, fill: "#59574e", "font-family": "Onest, sans-serif" }, keys); t.textContent = "C" + (Math.floor(p / 12) - 1); }
+      el("rect", { class: black[pc] ? "kb" : "kw", x: 0, y: y, width: KEYW, height: ROW }, keys);
+      if (pc === 0) { var t = el("text", { class: "kl", x: KEYW - 6, y: y + ROW - 4, "text-anchor": "end" }, keys); t.textContent = "C" + (Math.floor(p / 12) - 1); }
     }
     var gridDiv = document.createElement("div");
     gridDiv.className = "grid";
@@ -250,10 +303,10 @@
     var svg = el("svg", { id: "gsvg", width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Note grid, 4 bars" });
     for (var q = HI; q >= LO; q--) {
       var yy = (HI - q) * ROW, c = q % 12;
-      if (black[c]) el("rect", { x: 0, y: yy, width: W, height: ROW, fill: "rgba(0,0,0,.05)" }, svg);
-      if (c === 0) el("rect", { x: 0, y: yy, width: W, height: ROW, fill: "rgba(0,0,0,.09)" }, svg);
+      if (black[c]) el("rect", { class: "g-blk", x: 0, y: yy, width: W, height: ROW }, svg);
+      if (c === 0) el("rect", { class: "g-c", x: 0, y: yy, width: W, height: ROW }, svg);
     }
-    for (var s = 0; s <= STEPS; s += 4) el("line", { x1: s * CELL, x2: s * CELL, y1: 0, y2: H, stroke: s % 16 === 0 ? "rgba(0,0,0,.34)" : "rgba(0,0,0,.1)", "stroke-width": s % 16 === 0 ? 1.6 : 1 }, svg);
+    for (var s = 0; s <= STEPS; s += 4) el("line", { class: s % 16 === 0 ? "g-bar" : "g-beat", x1: s * CELL, x2: s * CELL, y1: 0, y2: H }, svg);
     var layer = el("g", { id: "notes" }, svg);
     el("g", { id: "cursor" }, svg);
     gridDiv.appendChild(svg);
@@ -272,23 +325,24 @@
     layer.innerHTML = "";
     notes.forEach(function (n, i) {
       var on = n.t === sel;
-      var r = el("rect", { x: n.s * CELL + 1, y: (HI - n.p) * ROW + 1, width: n.d * CELL - 2, height: ROW - 2, rx: 3, fill: TRACKS[n.t].color, "fill-opacity": on ? 0.35 + n.v * 0.65 : 0.45, stroke: selSet.has(n) ? "#000" : (on ? "rgba(0,0,0,.25)" : "none"), "stroke-width": selSet.has(n) ? 2.5 : 1 }, layer);
+      var r = el("rect", { x: n.s * CELL + 1, y: (HI - n.p) * ROW + 1, width: n.d * CELL - 2, height: ROW - 2, rx: 3, fill: TRACKS[n.t].color, "fill-opacity": on ? 0.35 + n.v * 0.65 : 0.45 }, layer);
+      if (selSet.has(n)) r.setAttribute("class", "n-sel"); else if (on) r.setAttribute("class", "n-on");
       r.dataset.i = i;
       r.style.cursor = tool === "erase" ? "not-allowed" : "pointer";
     });
     vel();
     drawCursor();
-    document.getElementById("selcount").textContent = selSet.size ? "Selected  " + selSet.size + " notes" : "";
+    document.getElementById("selcount").textContent = selSet.size ? STR.selected(selSet.size) : "";
     var net = notes.length - baseline;
-    document.getElementById("draft-sub").textContent = added + removed === 0 ? "No changes yet" : added + removed + " uncommitted changes";
-    document.getElementById("saved").textContent = added + removed === 0 ? "Saved" : "Saving…";
-    document.getElementById("dlg-sum").textContent = "+" + added + " notes · −" + removed + " notes";
+    document.getElementById("draft-sub").textContent = added + removed === 0 ? STR.noChanges : STR.changes(added + removed);
+    document.getElementById("saved").textContent = added + removed === 0 ? STR.saved : STR.saving;
+    document.getElementById("dlg-sum").textContent = STR.summary(added, removed);
     document.getElementById("commit-btn").disabled = added + removed === 0;
     var cbd = document.getElementById("cbadge");
     cbd.hidden = added + removed === 0;
     cbd.textContent = String(added + removed);
-    document.getElementById("commit-btn").setAttribute("aria-label", added + removed === 0 ? "Commit, no changes yet" : "Commit,  " + (added + removed) + " changes");
-    document.getElementById("commit-btn").title = added + removed === 0 ? "Edit the music before committing" : "Commit (Ctrl Enter)";
+    document.getElementById("commit-btn").setAttribute("aria-label", added + removed === 0 ? STR.commitNone : STR.commitN(added + removed));
+    document.getElementById("commit-btn").title = added + removed === 0 ? STR.commitTitleNone : STR.commitTitle;
     document.getElementById("commit-btn").setAttribute("aria-describedby", added + removed === 0 ? "saved" : "");
     void net;
   }
@@ -323,14 +377,14 @@
     return -1;
   }
   function where() {
-    return pname(cur.p) + ", bar  " + (Math.floor(cur.s / 16) + 1) + ", beat  " + (Math.floor((cur.s % 16) / 4) + 1) + ", step  " + ((cur.s % 4) + 1) + (noteAt() > -1 ? ", has a note" : ", empty");
+    return STR.where(pname(cur.p), Math.floor(cur.s / 16) + 1, Math.floor((cur.s % 16) / 4) + 1, (cur.s % 4) + 1, noteAt() > -1);
   }
   function drawCursor() {
     var g = document.getElementById("cursor");
     if (!g) return;
     g.innerHTML = "";
     if (!kb) return;
-    el("rect", { x: cur.s * CELL + 1, y: (HI - cur.p) * ROW + 1, width: CELL - 2, height: ROW - 2, rx: 3, fill: "none", stroke: "#000", "stroke-width": 2.5 }, g);
+    el("rect", { class: "cur", x: cur.s * CELL + 1, y: (HI - cur.p) * ROW + 1, width: CELL - 2, height: ROW - 2, rx: 3 }, g);
   }
   function reveal() {
     var x = cur.s * CELL, y = (HI - cur.p) * ROW;
@@ -344,14 +398,14 @@
     notes.push({ s: cur.s, d: Math.max(2, SNAP), p: cur.p, t: sel, v: 0.8, fresh: true });
     added++;
     paint();
-    say("Placed note  " + pname(cur.p) + " in bar  " + (Math.floor(cur.s / 16) + 1));
+    say(STR.placed(pname(cur.p), Math.floor(cur.s / 16) + 1));
   }
   function dropNote(i) {
     pushH();
     var g = notes.splice(i, 1)[0];
     if (g.fresh) added--; else removed++;
     paint();
-    say("Removed note  " + pname(g.p));
+    say(STR.removedNote(pname(g.p)));
   }
   function onKey(e) {
     var k = e.key, big = e.ctrlKey || e.metaKey ? 4 : 1;
@@ -382,7 +436,7 @@
   function selectAll() {
     selSet = new Set(notes.filter(function (n) { return n.t === sel; }));
     paint();
-    say("Selected  " + selSet.size + " notes in track  " + TRACKS[sel].name);
+    say(STR.selectedIn(selSet.size, TRACKS[sel].name));
   }
   function deleteSelected() {
     pushH();
@@ -391,7 +445,7 @@
     notes = notes.filter(function (n) { return !selSet.has(n); });
     selSet = new Set();
     paint();
-    say("Removed  " + count + " notes");
+    say(STR.removedN(count));
   }
   var redoStack = [];
   function pushH() { history.push(notes.slice()); redoStack.length = 0; }
@@ -408,18 +462,18 @@
       if (hit) {
         if (e.shiftKey) { if (selSet.has(hit)) selSet.delete(hit); else selSet.add(hit); } else selSet = new Set([hit]);
         paint();
-        say("Selected  " + selSet.size + " notes");
+        say(STR.selected(selSet.size));
         return;
       }
       var p0 = pos(e), gs = document.getElementById("gsvg");
-      var mq = el("rect", { x: p0.x, y: p0.y, width: 0, height: 0, fill: "rgba(0,0,0,.08)", stroke: "#000", "stroke-dasharray": "4 3" }, gs);
+      var mq = el("rect", { class: "marq", x: p0.x, y: p0.y, width: 0, height: 0 }, gs);
       var mv = function (ev) { var q = pos(ev); mq.setAttribute("x", Math.min(p0.x, q.x)); mq.setAttribute("y", Math.min(p0.y, q.y)); mq.setAttribute("width", Math.abs(q.x - p0.x)); mq.setAttribute("height", Math.abs(q.y - p0.y)); };
       var up = function (ev) {
         document.removeEventListener("pointermove", mv);
         document.removeEventListener("pointerup", up);
         var q = pos(ev), x1 = Math.min(p0.x, q.x), x2 = Math.max(p0.x, q.x), y1 = Math.min(p0.y, q.y), y2 = Math.max(p0.y, q.y);
         mq.remove();
-        if (x2 - x1 < 4 && y2 - y1 < 4) { selSet = new Set(); paint(); say("Deselected"); return; }
+        if (x2 - x1 < 4 && y2 - y1 < 4) { selSet = new Set(); paint(); say(STR.deselected); return; }
         if (!e.shiftKey) selSet = new Set();
         notes.forEach(function (n) {
           if (n.t !== sel) return;
@@ -427,7 +481,7 @@
           if (nx < x2 && nx + nw > x1 && ny < y2 && ny + ROW > y1) selSet.add(n);
         });
         paint();
-        say("Selected  " + selSet.size + " notes");
+        say(STR.selected(selSet.size));
       };
       document.addEventListener("pointermove", mv);
       document.addEventListener("pointerup", up);
@@ -459,7 +513,7 @@
     added = now;
     removed = Math.max(0, baseline - (notes.length - now));
     paint();
-    say("Draft:  " + document.getElementById("draft-sub").textContent);
+    say(STR.draft(document.getElementById("draft-sub").textContent));
   });
   document.getElementById("undo").addEventListener("click", function () {
     if (!history.length) return;
@@ -471,7 +525,7 @@
     added = now;
     removed = Math.max(0, baseline - (notes.length - now));
     paint();
-    say("Draft:  " + document.getElementById("draft-sub").textContent);
+    say(STR.draft(document.getElementById("draft-sub").textContent));
   });
 
   var tr = document.getElementById("tracks");
@@ -485,7 +539,7 @@
       sel = i;
       Array.prototype.forEach.call(tr.children, function (x, j) { x.setAttribute("aria-pressed", String(j === i)); });
       document.getElementById("vlab").innerHTML = "Velocity<br><i style=\"display:inline-block;width:10px;height:10px;border-radius:3px;background:" + t.color + "\"></i>";
-      document.getElementById("vlab").title = "Velocity of track  " + t.name;
+      document.getElementById("vlab").title = STR.velTrack(t.name);
       paint();
     });
     tr.appendChild(b);
@@ -504,7 +558,7 @@
   play.addEventListener("click", function () {
     playing = !playing;
     document.querySelector(".grid").classList.toggle("playing", playing);
-    play.setAttribute("aria-label", playing ? "Pause" : "Play");
+    play.setAttribute("aria-label", playing ? STR.pause : STR.play);
     document.getElementById("play-ic").innerHTML = playing ? '<path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="3"/>' : '<path d="M7 5v14l12-7z"/>';
   });
 
@@ -512,7 +566,7 @@
   document.addEventListener("keydown", function (e) {
     var t = e.target, tag = t && t.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || document.querySelector("dialog[open]")) return;
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { var cb = document.getElementById("commit-btn"); if (!cb.disabled) cb.click(); else say("No changes to commit"); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { var cb = document.getElementById("commit-btn"); if (!cb.disabled) cb.click(); else say(STR.noCommit); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAll(); return; }
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "z") { e.preventDefault(); document.getElementById("redo").click(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); document.getElementById("undo").click(); return; }
@@ -558,7 +612,7 @@
           var t = document.createElement("div");
           t.className = "toast-m";
           t.setAttribute("role", "status");
-          t.textContent = it[0].replace("…", "") + ": sample feature, not connected to a backend";
+          t.textContent = STR.sample(it[0].replace("…", ""));
           document.body.appendChild(t);
           setTimeout(function () { t.remove(); }, 2400);
         });
@@ -583,7 +637,7 @@
   S.COMMITS.slice().reverse().forEach(function (c) {
     var d = document.createElement("div");
     d.className = "h-item";
-    d.innerHTML = '<svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5.5" ry="4" transform="rotate(-20 8 21)" fill="#121212"/><path d="M13 19V4" stroke="#121212" stroke-width="2"/></svg><div>' + c.msg + "<small>" + c.ago + ' · <a class="h-cmp" href="compare.html">Compare</a></small></div>';
+    d.innerHTML = '<svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5.5" ry="4" transform="rotate(-20 8 21)" class="nh-c"/><path d="M13 19V4" class="nh-c" fill="none"/></svg><div>' + c.msg + "<small>" + c.ago + ' · <a class="h-cmp" href="compare.html">Compare</a></small></div>';
     list.appendChild(d);
   });
 
@@ -602,10 +656,10 @@
   msg.addEventListener("input", function () { document.getElementById("dlg-ok").disabled = !msg.value.trim(); });
   dlg.addEventListener("close", function () {
     if (dlg.returnValue === "ok") {
-      var c = { hash: "9a1f" + Math.floor(Math.random() * 900 + 100), msg: msg.value.trim(), ago: "just now" };
+      var c = { hash: "9a1f" + Math.floor(Math.random() * 900 + 100), msg: msg.value.trim(), ago: STR.justNow };
       var d = document.createElement("div");
       d.className = "h-item";
-      d.innerHTML = '<svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5.5" ry="4" transform="rotate(-20 8 21)" fill="#121212"/><path d="M13 19V4" stroke="#121212" stroke-width="2"/></svg><div>' + c.msg.replace(/</g, "&lt;") + '<small>' + c.ago + ' · <a class="h-cmp" href="compare.html">Compare</a></small></div>';
+      d.innerHTML = '<svg class="nh" viewBox="0 0 20 28" aria-hidden="true"><ellipse cx="8" cy="21" rx="5.5" ry="4" transform="rotate(-20 8 21)" class="nh-c"/><path d="M13 19V4" class="nh-c" fill="none"/></svg><div>' + c.msg.replace(/</g, "&lt;") + '<small>' + c.ago + ' · <a class="h-cmp" href="compare.html">Compare</a></small></div>';
       list.insertBefore(d, list.firstChild);
       var snap = { notes: notes, added: added, removed: removed, baseline: baseline, history: history, fresh: notes.map(function (n) { return !!n.fresh; }) };
       baseline = notes.length; added = 0; removed = 0; history = [];
@@ -615,17 +669,17 @@
       var tu = document.createElement("div");
       tu.className = "toast-u";
       tu.setAttribute("role", "status");
-      tu.innerHTML = "<span>Commit created.</span>";
+      tu.innerHTML = "<span>" + STR.commitDone + "</span>";
       var ub = document.createElement("button");
       ub.type = "button";
-      ub.textContent = "Undo";
+      ub.textContent = STR.undo;
       ub.addEventListener("click", function () {
         d.remove();
         notes = snap.notes; added = snap.added; removed = snap.removed; baseline = snap.baseline; history = snap.history;
         notes.forEach(function (n, i) { n.fresh = snap.fresh[i]; });
         tu.remove();
         paint();
-        say("Commit undone. Your draft was restored.");
+        say(STR.commitUndone);
         document.getElementById("commit-btn").focus();
       });
       tu.appendChild(ub);
@@ -636,9 +690,9 @@
 
   S.mountPalette();
   document.getElementById("tip-keys").addEventListener("click", function () { document.getElementById("keys").showModal(); });
-  document.getElementById("snap").addEventListener("change", function (e) { SNAP = Number(e.target.value); cur.s = Math.floor(cur.s / SNAP) * SNAP; say("Snap  " + e.target.options[e.target.selectedIndex].text); });
-  document.getElementById("zin").addEventListener("click", function () { if (ZI < ZOOM.length - 1) { ZI++; build(); say("Zoom  " + document.getElementById("zlab").textContent); } });
-  document.getElementById("zout").addEventListener("click", function () { if (ZI > 0) { ZI--; build(); say("Zoom  " + document.getElementById("zlab").textContent); } });
+  document.getElementById("snap").addEventListener("change", function (e) { SNAP = Number(e.target.value); cur.s = Math.floor(cur.s / SNAP) * SNAP; say(STR.snap(e.target.options[e.target.selectedIndex].text)); });
+  document.getElementById("zin").addEventListener("click", function () { if (ZI < ZOOM.length - 1) { ZI++; build(); say(STR.zoom(document.getElementById("zlab").textContent)); } });
+  document.getElementById("zout").addEventListener("click", function () { if (ZI > 0) { ZI--; build(); say(STR.zoom(document.getElementById("zlab").textContent)); } });
   var kd = document.getElementById("keys"), kb2 = document.getElementById("keys-btn");
   kb2.addEventListener("click", function () { kd.showModal(); });
   document.addEventListener("keydown", function (e) { if (e.key === "?" && !document.querySelector("dialog[open]") && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") { e.preventDefault(); kd.showModal(); } });
@@ -646,17 +700,17 @@
   var netMsg = net.firstElementChild;
   var failing = /[?&]state=save-error/.test(location.search);
   function showFail() {
-    netMsg.textContent = "Couldn’t save the draft to the server. Your changes are still on this device, so don’t close the tab until it saves.";
+    netMsg.textContent = STR.saveFailed;
     net.hidden = false;
-    document.getElementById("saved").textContent = "Not saved";
+    document.getElementById("saved").textContent = STR.notSaved;
   }
   if (failing) setTimeout(showFail, 400);
-  window.addEventListener("offline", function () { net.hidden = false; document.getElementById("saved").textContent = "Not saved"; });
-  window.addEventListener("online", function () { net.hidden = true; document.getElementById("saved").textContent = "Saved"; say("Back online, draft saved"); });
+  window.addEventListener("offline", function () { net.hidden = false; document.getElementById("saved").textContent = STR.notSaved; });
+  window.addEventListener("online", function () { net.hidden = true; document.getElementById("saved").textContent = STR.saved; say(STR.backOnline); });
   document.getElementById("net-retry").addEventListener("click", function () {
-    if (failing) { failing = false; net.hidden = true; netMsg.textContent = "Connection lost. Changes are kept on this device and will save automatically when you’re back online."; document.getElementById("saved").textContent = "Saved"; say("Draft saved again"); return; }
-    if (navigator.onLine) { net.hidden = true; document.getElementById("saved").textContent = "Saved"; say("Draft saved again"); }
-    else say("Still offline. Changes are still kept on this device.");
+    if (failing) { failing = false; net.hidden = true; netMsg.textContent = STR.offlineMsg; document.getElementById("saved").textContent = STR.saved; say(STR.savedAgain); return; }
+    if (navigator.onLine) { net.hidden = true; document.getElementById("saved").textContent = STR.saved; say(STR.savedAgain); }
+    else say(STR.stillOffline);
   });
   (function () {
     var tH = document.getElementById("tb-hist"), tB = document.getElementById("tb-br");
@@ -675,15 +729,16 @@
         var t = document.createElement("div");
         t.className = "toast-m";
         t.setAttribute("role", "status");
-        t.textContent = "Switched to branch  " + b.dataset.br + " (sample)";
+        t.textContent = STR.switchedSample(b.dataset.br);
         document.body.appendChild(t);
         setTimeout(function () { t.remove(); }, 2400);
-        say("Switched to branch  " + b.dataset.br);
+        say(STR.switched(b.dataset.br));
       });
     });
   })();
   build();
 })();
 </script>
+<script src="assets/sky.js" defer></script>
 </body>
 </html>
