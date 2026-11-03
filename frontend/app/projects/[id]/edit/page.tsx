@@ -7,6 +7,7 @@ import { Lock } from "lucide-react";
 import { RequireAuth } from "../../../../components/require-auth";
 import { Button } from "../../../../components/ui/button";
 import { getProject } from "../../../../lib/api-client";
+import { SkyLoading } from "../../../../components/project/sky-state";
 import { MidiEditor } from "../../../../components/midi-editor/midi-editor";
 import { apiErrorMessage } from "../../../../lib/error-message";
 
@@ -65,8 +66,8 @@ export default function EditProjectPage() {
             </div>
           </div>
         ) : !project ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-muted">Đang tải dự án…</p>
+          <div className="flex h-full items-center justify-center px-4">
+            <SkyLoading label="Đang tải dự án…" />
           </div>
         ) : project.archived_at ? (
           <div className="flex h-full items-center justify-center px-4">
