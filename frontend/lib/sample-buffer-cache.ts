@@ -63,8 +63,12 @@ function fetchAndDecode(url: string): Promise<AudioBuffer> {
 export function loadSampleBuffer(url: string): Promise<AudioBuffer> {
   let cached = bufferCache.get(url);
   if (!cached) {
-    cached = fetchAndDecode(url);
-    bufferCache.set(url, cached);
+    const pending = fetchAndDecode(url);
+    cached = pending;
+    bufferCache.set(url, pending);
+    pending.catch(() => {
+      if (bufferCache.get(url) === pending) bufferCache.delete(url);
+    });
   }
   return cached;
 }

@@ -50,8 +50,8 @@ describe('FE-LIB-19 instrument-waveform.getOscillatorType(instrument)', () => {
     expect(getOscillatorType('FX 4 (atmosphere)')).toBe('sine');
   });
 
-  it('UTCID13 returns triangle for Lead 1 (square) by default', () => {
-    expect(getOscillatorType('Lead 1 (square)')).toBe('triangle');
+  it('UTCID13 returns square for Lead 1 (square) (GM Synth Lead family)', () => {
+    expect(getOscillatorType('Lead 1 (square)')).toBe('square');
   });
 
   it('UTCID14 returns sawtooth for Bassoon (contains "bass")', () => {

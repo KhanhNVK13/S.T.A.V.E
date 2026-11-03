@@ -29,7 +29,7 @@ export function getOscillatorType(instrument: string | null): OscillatorType {
     return "sawtooth";
   }
   // Brass/Lead → square (bright, cutting)
-  if (instLower.includes("brass") || instLower.includes("trumpet") || instLower.includes("synth lead")) {
+  if (instLower.includes("brass") || instLower.includes("trumpet") || instLower.includes("synth lead") || /^lead \d/.test(instLower)) {
     return "square";
   }
   // Strings → triangle (smooth)
@@ -37,7 +37,7 @@ export function getOscillatorType(instrument: string | null): OscillatorType {
     return "triangle";
   }
   // Synth pads → sine (pure, smooth)
-  if (instLower.includes("synth pad") || instLower.includes("sweep") || instLower.includes("atmosphere")) {
+  if (instLower.includes("synth pad") || /^pad \d/.test(instLower) || instLower.includes("sweep") || instLower.includes("atmosphere")) {
     return "sine";
   }
   // Default → triangle

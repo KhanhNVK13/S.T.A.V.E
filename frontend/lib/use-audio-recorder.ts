@@ -169,6 +169,12 @@ export function useAudioRecorder(maxSec: number = MAX_RECORDING_SEC): AudioRecor
   }, [releaseHardware, maxSec]);
 
   const reset = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (recorder) {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      if (recorder.state !== "inactive") recorder.stop();
+    }
     releaseHardware();
     recorderRef.current = null;
     chunksRef.current = [];

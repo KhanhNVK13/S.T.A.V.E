@@ -14,6 +14,13 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "redesign/**",
   ]),
+  {
+    files: ["**/*.test.{ts,tsx}", "lib/test-helpers/**"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-namespace": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
