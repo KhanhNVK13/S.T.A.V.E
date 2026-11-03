@@ -74,46 +74,49 @@
   .pick .who { color: var(--soft); font-size: 14px; }
   @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head><body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="app">
   <aside id="shell"></aside>
   <main class="main" id="main">
-    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
 
     <div class="page-head">
       <div>
-        <p class="crumb"><a href="projects.html">My projects</a> / khanh</p>
+        <p class="crumb"><a href="projects.html" data-i18n="shell.myProjects">My projects</a> / khanh</p>
         <h1>Rainy Saigon Night</h1>
-        <div class="head-meta"><span class="pill"><i class="dot"></i>Public</span><span class="hash">dem-sai-gon-mua.mid</span><span>92 BPM · A minor · 4 tracks</span></div>
+        <div class="head-meta"><span class="pill"><i class="dot"></i><span data-i18n="common.public">Public</span></span><span class="hash">dem-sai-gon-mua.mid</span><span data-i18n="project.meta">92 BPM · A minor · 4 tracks</span></div>
       </div>
       <div class="actions">
-        <button class="btn btn-quiet" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Star <span class="num">214</span></button>
-        <button class="btn btn-quiet" type="button" title="Fork: make your own copy of the project to remix as you like"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/></svg>Fork <span class="num">31</span></button>
-        <a class="btn btn-primary" href="editor.html">Open editor</a>
+        <button class="btn btn-quiet" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg><span data-i18n="project.star">Star</span> <span class="num">214</span></button>
+        <button class="btn btn-quiet" type="button" title="Fork: make your own copy of the project to remix as you like" data-i18n-attr="title:project.forkTitle"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/></svg><span data-i18n="project.fork">Fork</span> <span class="num">31</span></button>
+        <a class="btn btn-primary" href="editor.html" data-i18n="common.openEditor">Open editor</a>
       </div>
     </div>
 
     <div class="tabs">
-      <a href="project.html" aria-current="true">Overview</a>
-      <a href="project.html#commits">Commit<span class="tag">6</span></a>
-      <a href="project.html#nhanh">Branches<span class="tag">3</span></a>
-      <a href="compare.html">Compare</a>
-      <a href="merge.html" title="Pull request: propose bringing a branch into the main branch">Pull request<span class="tag">1</span></a>
-      <a href="settings.html">Settings</a>
+      <a href="project.html" aria-current="true" data-i18n="project.tabOverview">Overview</a>
+      <a href="project.html#commits"><span data-i18n="project.tabCommit">Commit</span><span class="tag">6</span></a>
+      <a href="project.html#nhanh"><span data-i18n="project.tabBranches">Branches</span><span class="tag">3</span></a>
+      <a href="compare.html" data-i18n="common.compare">Compare</a>
+      <a href="merge.html" title="Pull request: propose bringing a branch into the main branch" data-i18n-attr="title:project.prTitle"><span data-i18n="project.tabPr">Pull request</span><span class="tag">1</span></a>
+      <a href="settings.html" data-i18n="shell.settings">Settings</a>
     </div>
 
     <section id="nhanh" aria-labelledby="h-graph">
-      <div class="section-head"><h2 id="h-graph" class="section-title">History on the staff</h2><span class="meta">Each star is a commit, each constellation is a branch</span></div>
-      <p class="gloss"><b>Commit</b> is a point you can return to at any time. <b>Branches</b> is a parallel experiment. A hollow star is where two branches were merged. <a class="text-link" href="help.html">View glossary</a></p>
+      <div class="section-head"><h2 id="h-graph" class="section-title" data-i18n="project.historyTitle">History on the staff</h2><span class="meta" data-i18n="project.historyMeta">Each star is a commit, each constellation is a branch</span></div>
+      <p class="gloss" data-i18n-html="project.gloss"><b>Commit</b> is a point you can return to at any time. <b data-i18n="project.tabBranches">Branches</b> is a parallel experiment. A hollow star is where two branches were merged. <a class="text-link" href="help.html">View glossary</a></p>
       <div class="sky-card">
         <div class="scroll-x" id="graph"></div>
         <div class="pick" aria-live="polite">
           <span class="id" id="pk-id"></span>
           <span class="msg" id="pk-msg"></span>
           <span class="who" id="pk-who"></span>
-          <a class="btn btn-quiet btn-sm" href="compare.html">Compare</a>
+          <a class="btn btn-quiet btn-sm" href="compare.html" data-i18n="common.compare">Compare</a>
         </div>
       </div>
     </section>
@@ -121,28 +124,28 @@
     <div class="split section">
       <section id="commits" aria-labelledby="h-commits">
         <div class="section-head">
-          <h2 id="h-commits" class="section-title">Recent commits</h2>
+          <h2 id="h-commits" class="section-title" data-i18n="project.recent">Recent commits</h2>
           <span class="branch-sel"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 5-8 3-12 7"/></svg>main<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
         </div>
         <div class="card" id="commit-rows"></div>
-        <dialog id="restore" aria-labelledby="rs-t"><form method="dialog"><h2 id="rs-t">Restore to this point?</h2><p>STAVE will create a new commit with the contents of “<span id="rs-msg"></span>”. Older commits stay intact and you can return to them at any time.</p><div class="actions end"><button class="btn btn-quiet" value="cancel">Cancel</button><button class="btn btn-primary" value="ok">Restore</button></div></form></dialog>
+        <dialog id="restore" aria-labelledby="rs-t"><form method="dialog"><h2 id="rs-t" data-i18n="project.restoreTitle">Restore to this point?</h2><p id="rs-text" data-i18n="project.restoreText" data-i18n-vars='{"msg":""}'>STAVE will create a new commit with the contents of “”. Older commits stay intact and you can return to them at any time.</p><div class="actions end"><button class="btn btn-quiet" value="cancel" data-i18n="common.cancel">Cancel</button><button class="btn btn-primary" value="ok" data-i18n="common.restore">Restore</button></div></form></dialog>
       </section>
 
       <aside>
-        <div class="section-head"><h2 class="section-title">Preview</h2><span class="meta">Sample, audio not playing yet</span></div>
+        <div class="section-head"><h2 class="section-title" data-i18n="project.preview">Preview</h2><span class="meta" data-i18n="project.previewMeta">Sample, audio not playing yet</span></div>
         <div class="card player">
-          <button class="play" type="button" aria-label="Play"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" style="fill:currentColor"><path d="M7 5v14l12-7z"/></svg></button>
+          <button class="play" type="button" aria-label="Play" data-i18n-attr="aria-label:project.play"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" style="fill:currentColor"><path d="M7 5v14l12-7z"/></svg></button>
           <div class="bars" id="bars" aria-hidden="true"></div>
           <span class="num time">0:00 / 1:42</span>
         </div>
-        <div class="section-head side-gap"><h2 class="section-title">Back to project</h2></div>
+        <div class="section-head side-gap"><h2 class="section-title" data-i18n="common.backToProject">Back to project</h2></div>
         <div class="card card-pad">
-          <p class="about">Lo-fi chill for rainy evenings. Pad, root-note bass and a pentatonic melody.</p>
+          <p class="about" data-i18n="project.about">Lo-fi chill for rainy evenings. Pad, root-note bass and a pentatonic melody.</p>
           <dl class="kv">
-            <dt>Author</dt><dd>Khanh</dd>
-            <dt>Collaborators</dt><dd>Minh Anh</dd>
-            <dt>Created</dt><dd>Oct 12, 2026</dd>
-            <dt>Default branch</dt><dd>main</dd>
+            <dt data-i18n="project.author">Author</dt><dd>Khanh</dd>
+            <dt data-i18n="project.collab">Collaborators</dt><dd>Minh Anh</dd>
+            <dt data-i18n="project.created">Created</dt><dd>Oct 12, 2026</dd>
+            <dt data-i18n="project.defaultBranch">Default branch</dt><dd>main</dd>
           </dl>
         </div>
       </aside>
@@ -153,12 +156,12 @@
 <template id="t-commit">
   <div class="commit">
     <b data-f="msg"></b>
-    <span class="acts"><span class="pill" data-f="newest" hidden>Newest</span><a class="btn btn-quiet btn-sm" href="compare.html">Compare</a><button class="btn btn-quiet btn-sm" type="button" data-f="restore">Restore</button></span>
-    <small><span data-f="by"></span> · <button class="copy" type="button" data-f="copy"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><span data-f="copy-label">Copy ID</span></button></small>
+    <span class="acts"><span class="pill" data-f="newest" hidden data-i18n="project.newest">Newest</span><a class="btn btn-quiet btn-sm" href="compare.html" data-i18n="common.compare">Compare</a><button class="btn btn-quiet btn-sm" type="button" data-f="restore" data-i18n="common.restore">Restore</button></span>
+    <small><span data-f="by"></span> · <button class="copy" type="button" data-f="copy"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><span data-f="copy-label" data-i18n="common.copyId">Copy ID</span></button></small>
     <span class="chips" data-f="chips"></span>
   </div>
 </template>
-<template id="t-toast"><div class="toast">Created a restore commit from “<span data-f="msg"></span>…”</div></template>
+<template id="t-toast"><div class="toast" data-i18n="project.restoredToast">Created a restore commit from “…”</div></template>
 <div class="toast-host" id="toasts" role="status"></div>
 
 <script src="assets/shared.js"></script>
@@ -168,13 +171,7 @@
   var NS = "http://www.w3.org/2000/svg";
   S.mountShell("projects");
 
-  var TEXT = {
-    copied: "Copied",
-    copyAria: "Copy commit ID ",
-    graphAria: "Commit constellation. Use the arrow keys to move between commits.",
-    starAria: "Commit ",
-    pending: "proposed merge"
-  };
+  var T = S.t;
   var TRACKS = [["Piano pad"], ["Bass"], ["Melody"], ["Melody", "Piano pad"], ["Bass"], ["Piano pad", "Melody"]];
   var TRACK_COLOR = { "Piano pad": "#4b5d73", "Bass": "#9a5b2e", "Melody": "#5c7a2f" };
   var LANES = [{ name: "main", cls: "" }, { name: "bridge-alt", cls: "teal" }, { name: "drums-swing", cls: "violet" }];
@@ -203,7 +200,7 @@
   function constellation(host, startHash) {
     var laneH = 74, left = 126, step = 112;
     var W = left + 7 * step + 40, H = LANES.length * laneH + 12;
-    var svg = node("svg", { viewBox: "0 0 " + W + " " + H, class: "constellation", role: "listbox", "aria-label": TEXT.graphAria });
+    var svg = node("svg", { viewBox: "0 0 " + W + " " + H, class: "constellation", role: "listbox", "aria-label": T("project.graphAria") });
     var edges = node("g", { "aria-hidden": "true" }, svg);
     LANES.forEach(function (ln, i) {
       var y0 = 10 + i * laneH + 14;
@@ -227,7 +224,7 @@
     var items = [];
     NODES.forEach(function (n) {
       var p = pos(n.lane, n.col), ln = LANES[n.lane];
-      var g = node("g", { transform: "translate(" + p.x + " " + p.y + ")", role: "option", tabindex: "-1", "aria-selected": "false", class: "cstar " + ln.cls + (n.merge ? " merge" : ""), "aria-label": TEXT.starAria + n.h + ", " + n.msg + ", " + ln.name }, svg);
+      var g = node("g", { transform: "translate(" + p.x + " " + p.y + ")", role: "option", tabindex: "-1", "aria-selected": "false", class: "cstar " + ln.cls + (n.merge ? " merge" : ""), "aria-label": T("project.starAria", { hash: n.h, msg: n.msg, lane: ln.name }) }, svg);
       var body = node("g", { class: "body" }, g);
       node("circle", { r: 18, class: "hit" }, body);
       node("circle", { r: 15, class: "halo-o" }, body);
@@ -245,10 +242,19 @@
       it.g.setAttribute("aria-selected", "true");
       it.g.setAttribute("tabindex", "0");
       if (focus) it.g.focus();
-      document.getElementById("pk-id").textContent = it.n.h;
-      document.getElementById("pk-msg").textContent = it.n.msg;
-      document.getElementById("pk-who").textContent = LANES[it.n.lane].name + " · " + it.n.author + " · " + it.n.ago;
+      showPick();
     }
+    function showPick() {
+      if (!cur) return;
+      document.getElementById("pk-id").textContent = cur.n.h;
+      document.getElementById("pk-msg").textContent = cur.n.msg;
+      document.getElementById("pk-who").textContent = LANES[cur.n.lane].name + " · " + cur.n.author + " · " + S.ago(cur.n.ago);
+    }
+    document.addEventListener("stave:lang", function () {
+      svg.setAttribute("aria-label", T("project.graphAria"));
+      items.forEach(function (o) { o.g.setAttribute("aria-label", T("project.starAria", { hash: o.n.h, msg: o.n.msg, lane: LANES[o.n.lane].name })); });
+      showPick();
+    });
     function neighbor(dir) {
       var n = cur.n, best = null, bd = 1e9;
       items.forEach(function (o) {
@@ -308,14 +314,18 @@
 
   var wrap = document.getElementById("commit-rows");
   var tpl = document.getElementById("t-commit");
+  function renderRows() {
+  wrap.textContent = "";
   S.COMMITS.slice().reverse().forEach(function (c, i) {
     var ci = S.COMMITS.length - 1 - i;
     var row = tpl.content.cloneNode(true);
     function f(k) { return row.querySelector('[data-f="' + k + '"]'); }
     f("msg").textContent = c.msg;
-    f("by").textContent = c.author + " · " + c.ago;
+    f("by").textContent = c.author + " · " + S.ago(c.ago);
     f("copy").dataset.h = c.hash;
-    f("copy").setAttribute("aria-label", TEXT.copyAria + c.hash);
+    f("copy").setAttribute("aria-label", T("project.copyAria", { hash: c.hash }));
+    f("copy").setAttribute("data-i18n-attr", "aria-label:project.copyAria");
+    f("copy").setAttribute("data-i18n-vars", JSON.stringify({ hash: c.hash }));
     if (i === 0) { f("newest").hidden = false; f("restore").remove(); }
     else f("restore").dataset.restore = ci;
     TRACKS[ci].forEach(function (t) {
@@ -329,16 +339,18 @@
     });
     wrap.appendChild(row);
   });
+  S.apply(wrap);
+  }
+  renderRows();
+  document.addEventListener("stave:lang", renderRows);
 
   wrap.addEventListener("click", function (e) {
     var b = e.target.closest(".copy");
     if (!b) return;
     try { navigator.clipboard.writeText(b.dataset.h).catch(function () {}); } catch (x) {}
     var lab = b.querySelector("[data-f='copy-label']");
-    var was = lab.dataset.was || lab.textContent;
-    lab.dataset.was = was;
-    lab.textContent = TEXT.copied;
-    setTimeout(function () { lab.textContent = was; }, 1600);
+    S.bind(lab, "project.copied");
+    setTimeout(function () { S.bind(lab, "common.copyId"); }, 1600);
   });
 
   var dlg = document.getElementById("restore");
@@ -347,16 +359,19 @@
     var b = e.target.closest("[data-restore]");
     if (!b) return;
     pick = Number(b.dataset.restore);
-    document.getElementById("rs-msg").textContent = S.COMMITS[pick].msg;
+    var rt = document.getElementById("rs-text");
+    rt.setAttribute("data-i18n-vars", JSON.stringify({ msg: S.COMMITS[pick].msg }));
+    S.apply(rt);
     dlg.showModal();
   });
   dlg.addEventListener("close", function () {
     if (dlg.returnValue !== "ok") return;
     var t = document.getElementById("t-toast").content.cloneNode(true);
-    t.querySelector("[data-f='msg']").textContent = S.COMMITS[pick].msg.slice(0, 32);
     var host = document.getElementById("toasts");
     host.appendChild(t);
     var el = host.lastElementChild;
+    el.setAttribute("data-i18n-vars", JSON.stringify({ msg: S.COMMITS[pick].msg.slice(0, 32) }));
+    S.apply(el);
     setTimeout(function () { el.remove(); }, 3200);
   });
 

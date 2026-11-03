@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04050d">
-<title>Compare versions · STAVE</title>
+<title data-i18n="compare.title">Compare versions · STAVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
@@ -50,56 +50,59 @@
   .legend .k { background: rgba(238,240,255,.4); }
   @media (max-width: 1100px) { .diff-grid { grid-template-columns: 1fr; } }
 </style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
 </head>
 <body>
 <canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
 <div class="app">
   <aside id="shell"></aside>
   <main class="main" id="main">
-    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
     <div class="page-head">
       <div>
-        <p class="crumb"><a href="project.html">Rainy Saigon Night</a> / compare</p>
-        <h1>Compare two versions</h1>
-        <p>See every note added, removed or changed between two commits, grouped by bar.</p>
+        <p class="crumb"><a href="project.html">Rainy Saigon Night</a> <span data-i18n="compare.crumb">/ compare</span></p>
+        <h1 data-i18n="compare.heading">Compare two versions</h1>
+        <p data-i18n="compare.intro">See every note added, removed or changed between two commits, grouped by bar.</p>
       </div>
-      <div class="actions"><a class="btn btn-quiet" href="project.html">Back to project</a><a class="btn btn-primary" href="merge.html">Merge branch…</a></div>
+      <div class="actions"><a class="btn btn-quiet" href="project.html" data-i18n="common.backToProject">Back to project</a><a class="btn btn-primary" href="merge.html" data-i18n="compare.merge">Merge branch…</a></div>
     </div>
 
     <div class="pick">
-      <select class="select" id="from" name="from" autocomplete="off" aria-label="From commit"></select>
+      <select class="select" id="from" name="from" autocomplete="off" aria-label="From commit" data-i18n-attr="aria-label:compare.from"></select>
       <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-      <select class="select" id="to" name="to" autocomplete="off" aria-label="To commit"></select>
+      <select class="select" id="to" name="to" autocomplete="off" aria-label="To commit" data-i18n-attr="aria-label:compare.to"></select>
     </div>
 
     <dl class="stats summary">
-      <div><dt>Added notes</dt><dd class="num delta">+<span id="s-a">0</span></dd></div>
-      <div><dt>Removed notes</dt><dd class="num delta neg">−<span id="s-d">0</span></dd></div>
-      <div><dt>Velocity changed</dt><dd class="num delta mod" id="s-m">0</dd></div>
-      <div><dt>Affected bars</dt><dd class="num"><span id="s-b">0</span><small>/ 4</small></dd></div>
-      <div><dt>Affected tracks</dt><dd class="num"><span id="s-t">0</span><small>/ 3</small></dd></div>
+      <div><dt data-i18n="compare.statAdded">Added notes</dt><dd class="num delta">+<span id="s-a">0</span></dd></div>
+      <div><dt data-i18n="common.removedNotes">Removed notes</dt><dd class="num delta neg">−<span id="s-d">0</span></dd></div>
+      <div><dt data-i18n="common.velocityChanged">Velocity changed</dt><dd class="num delta mod" id="s-m">0</dd></div>
+      <div><dt data-i18n="compare.statBars">Affected bars</dt><dd class="num"><span id="s-b">0</span><small>/ 4</small></dd></div>
+      <div><dt data-i18n="compare.statTracks">Affected tracks</dt><dd class="num"><span id="s-t">0</span><small>/ 3</small></dd></div>
     </dl>
 
     <div class="diff-grid">
       <section aria-labelledby="h-roll">
         <div class="section-head">
-          <h2 id="h-roll" class="section-title">Differences on the piano roll</h2>
-          <label class="toggle"><input type="checkbox" id="only" name="only"> Show changed notes only</label>
+          <h2 id="h-roll" class="section-title" data-i18n="compare.rollTitle">Differences on the piano roll</h2>
+          <label class="toggle"><input type="checkbox" id="only" name="only"> <span data-i18n="compare.only">Show changed notes only</span></label>
         </div>
         <div class="card card-pad"><div id="roll" class="scroll-x"></div>
-          <div class="legend legend-gap"><span><i class="a"></i>New notes</span><span><i class="d"></i>Removed notes</span><span><i class="m"></i>Velocity changed</span><span><i class="k"></i>Unchanged</span></div>
+          <div class="legend legend-gap"><span><i class="a"></i><span data-i18n="common.newNotes">New notes</span></span><span><i class="d"></i><span data-i18n="common.removedNotes">Removed notes</span></span><span><i class="m"></i><span data-i18n="common.velocityChanged">Velocity changed</span></span><span><i class="k"></i><span data-i18n="common.unchanged">Unchanged</span></span></div>
         </div>
       </section>
       <section aria-labelledby="h-bars">
-        <div class="section-head"><h2 id="h-bars" class="section-title">By bar</h2></div>
+        <div class="section-head"><h2 id="h-bars" class="section-title" data-i18n="compare.byBar">By bar</h2></div>
         <ul class="card bars-list" id="bars"></ul>
-        <p class="card card-pad" id="same" hidden>These two commits are identical.</p>
+        <p class="card card-pad" id="same" hidden data-i18n="compare.same">These two commits are identical.</p>
       </section>
     </div>
   </main>
 </div>
-<template id="t-bar"><li><b>Bar <span data-f="n"></span></b><div class="tags"><span class="pill pill-add" data-f="a" hidden><span>+<span data-f="av"></span> notes</span></span><span class="pill pill-del" data-f="d" hidden><span>−<span data-f="dv"></span> notes</span></span><span class="pill pill-mod" data-f="m" hidden><span><span data-f="mv"></span> velocity</span></span></div><span></span><span class="trk" data-f="trk"></span></li></template>
+<template id="t-bar"><li><b><span data-i18n="compare.bar">Bar</span> <span data-f="n"></span></b><div class="tags"><span class="pill pill-add" data-f="a" hidden><span>+<span data-f="av"></span> <span data-i18n="compare.notes">notes</span></span></span><span class="pill pill-del" data-f="d" hidden><span>−<span data-f="dv"></span> <span data-i18n="compare.notes">notes</span></span></span><span class="pill pill-mod" data-f="m" hidden><span><span data-f="mv"></span> <span data-i18n="compare.velocity">velocity</span></span></span></div><span></span><span class="trk" data-f="trk"></span></li></template>
 <script src="assets/shared.js"></script>
 <script>
 (function () {
@@ -175,7 +178,7 @@
     var shown = only.checked
       ? notes.filter(function (n) { return S.stateAt(n, f) !== S.stateAt(n, t) || (S.stateAt(n, f) && S.stateAt(n, t) && n.chg !== null && n.chg > f && n.chg <= t); })
       : notes;
-    glow(S.drawRoll(rollHost, { notes: shown, steps: 64, from: f, to: t, mode: "diff", label: "Differences between two commits" }));
+    glow(S.drawRoll(rollHost, { notes: shown, steps: 64, from: f, to: t, mode: "diff", label: S.t("compare.rollLabel") }));
     list.innerHTML = "";
     var keys = Object.keys(per);
     same.hidden = keys.length > 0;
@@ -190,6 +193,7 @@
     });
   }
   [from, to, only].forEach(function (e) { e.addEventListener("change", render); });
+  document.addEventListener("stave:lang", render);
   render();
 })();
 </script>
