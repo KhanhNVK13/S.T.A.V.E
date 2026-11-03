@@ -1,36 +1,24 @@
 (function () {
   var NS = "http://www.w3.org/2000/svg";
 
-  var TEXT = {
-    workspace: "Khanh’s workspace",
-    navMain: "Main navigation",
-    quickFind: "Quick find",
-    quickFindKeys: "Ctrl K",
-    recentProjects: "Recent projects",
-    helpGlossary: "Help and glossary",
-    settings: "Settings",
-    userName: "Khanh",
-    userEmail: "khanh@stave.app",
-    myProjects: "My projects",
-    explore: "Explore",
-    rankings: "Rankings",
-    notifications: "Notifications",
-    help: "Help",
-    signIn: "Sign in",
-    brandHome: "STAVE, home",
-    mainNav: "Main",
-    palPlaceholder: "Find a page, project or action…",
-    palHint: "↑ ↓ to choose · Enter to open · Esc to close",
-    palEmpty: function (q) { return "No results for “" + q + "”. Try a project name or “compare”."; },
-    palPages: "Pages",
-    palProjects: "Projects",
-    palActions: "Actions",
-    openEditor: "Open the editor",
-    compareVersions: "Compare two versions",
-    mergeBranch: "Merge branch",
-    pianoRoll: "Piano roll",
-    branchGraph: "Branch graph: main, bridge-alt, drums-swing"
-  };
+  var L = function (key, vars) { return window.STAVE.t(key, vars); };
+  var USER = { name: "Khanh", email: "khanh@stave.app" };
+
+  function tx(key) {
+    return '<span data-i18n="' + key + '">' + L(key) + "</span>";
+  }
+
+  function ago(s) {
+    var m = /^(\d+) (day|week)s? ago$/.exec(s);
+    if (m) return L("time." + m[2], { n: Number(m[1]) });
+    if (s === "yesterday") return L("time.yesterday");
+    if (s === "just now") return L("time.justNow");
+    if (s === "proposed merge") return L("time.proposedMerge");
+    return s;
+  }
+
+  var GENRES = { "Lo-fi": "genre.lofi", Jazz: "genre.jazz", Electronic: "genre.electronic", Classical: "genre.classical", "Film score": "genre.film", Other: "genre.other" };
+  function genre(g) { return GENRES[g] ? L(GENRES[g]) : g; }
 
   var ICONS = {
     folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
@@ -80,10 +68,10 @@
     if (!host) return;
     try { sessionStorage.setItem("stave-in", "1"); } catch { }
     var items = [
-      ["projects", "folder", TEXT.myProjects, "projects.html", "4"],
-      ["explore", "compass", TEXT.explore, "explore.html", ""],
-      ["rankings", "trophy", TEXT.rankings, "rankings.html", ""],
-      ["notifications", "bell", TEXT.notifications, "projects.html#notifications", "3"]
+      ["projects", "folder", "shell.myProjects", "projects.html", "4"],
+      ["explore", "compass", "shell.explore", "explore.html", ""],
+      ["rankings", "trophy", "shell.rankings", "rankings.html", ""],
+      ["notifications", "bell", "shell.notifications", "projects.html#notifications", "3"]
     ];
     var recent = [
       ["Rainy Saigon Night", "project.html"],
@@ -91,19 +79,21 @@
       ["Intro for the November EP", "project.html"]
     ];
     var nav = items.map(function (it) {
-      return '<a href="' + it[3] + '"' + (it[0] === active ? ' aria-current="page"' : "") + ">" + ic(it[1]) + it[2] + (it[4] ? '<span class="count">' + it[4] + "</span>" : "") + "</a>";
+      return '<a href="' + it[3] + '"' + (it[0] === active ? ' aria-current="page"' : "") + ">" + ic(it[1]) + tx(it[2]) + (it[4] ? '<span class="count">' + it[4] + "</span>" : "") + "</a>";
     }).join("");
     var rec = recent.map(function (r) {
       return '<a href="' + r[1] + '">' + ic("music") + r[0] + "</a>";
     }).join("");
     host.className = "side";
-    host.setAttribute("aria-label", TEXT.navMain);
+    host.setAttribute("aria-label", L("shell.navMain"));
+    host.setAttribute("data-i18n-attr", "aria-label:shell.navMain");
     host.innerHTML =
-      '<a class="switcher" href="index.html">' + mark() + '<span translate="no">STAVE<small>' + TEXT.workspace + '</small></span></a>' +
-      '<button class="pal-btn" id="pal-open" type="button" aria-keyshortcuts="Control+K Meta+K">' + ic("search") + TEXT.quickFind + '<kbd>' + TEXT.quickFindKeys + '</kbd></button>' +
-      '<nav class="nav">' + nav + '<div class="nav-label">' + TEXT.recentProjects + '</div>' + rec + "</nav>" +
-      '<div class="side-foot nav"><a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + TEXT.helpGlossary + '</a><a href="settings.html">' + ic("sliders") + TEXT.settings + '</a>' +
-      '<a class="user" href="settings.html"><span class="avatar">' + TEXT.userName.charAt(0) + '</span><span>' + TEXT.userName + '<br><small style="color:var(--soft)">' + TEXT.userEmail + '</small></span></a></div>';
+      '<a class="switcher" href="index.html">' + mark() + '<span translate="no">STAVE<small data-i18n="shell.workspace">' + L("shell.workspace") + '</small></span></a>' +
+      '<button class="pal-btn" id="pal-open" type="button" aria-keyshortcuts="Control+K Meta+K">' + ic("search") + tx("shell.quickFind") + '<kbd>' + L("shell.quickFindKeys") + '</kbd></button>' +
+      '<nav class="nav">' + nav + '<div class="nav-label" data-i18n="shell.recentProjects">' + L("shell.recentProjects") + '</div>' + rec + "</nav>" +
+      '<div class="side-foot nav"><div class="lang-row" data-lang-switch></div><a href="help.html"' + (active === "help" ? ' aria-current="page"' : "") + '>' + ic("help") + tx("shell.helpGlossary") + '</a><a href="settings.html">' + ic("sliders") + tx("shell.settings") + '</a>' +
+      '<a class="user" href="settings.html"><span class="avatar">' + USER.name.charAt(0) + '</span><span>' + USER.name + '<br><small style="color:var(--soft)">' + USER.email + '</small></span></a></div>';
+    window.STAVE.mountLangSwitches(host);
     mountPalette();
     var btn = document.getElementById("menu-btn");
     if (btn) {
@@ -202,7 +192,8 @@
     var gutter = o.gutter === undefined ? 34 : o.gutter;
     var W = gutter + steps * cell;
     var H = (hi - lo + 1) * rowH + 18;
-    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "roll", role: "img", "aria-label": o.label || TEXT.pianoRoll });
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "roll", role: "img", "aria-label": o.label || L("shell.pianoRoll") });
+    if (!o.label) svg.setAttribute("data-i18n-attr", "aria-label:shell.pianoRoll");
     var black = { 1: 1, 3: 1, 6: 1, 8: 1, 10: 1 };
     for (var p = hi; p >= lo; p--) {
       var y = 18 + (hi - p) * rowH;
@@ -310,7 +301,7 @@
     var step = 112;
     var W = left + 7 * step + 40;
     var H = lanes.length * laneH + 14;
-    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "graph", role: "img", "aria-label": TEXT.branchGraph });
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "graph", role: "img", "aria-label": L("shell.branchGraph"), "data-i18n-attr": "aria-label:shell.branchGraph" });
     lanes.forEach(function (ln, i) {
       var y0 = 12 + i * laneH + 14;
       for (var l = 0; l < 5; l++) {
@@ -361,37 +352,50 @@
   function mountPalette() {
     if (document.getElementById("palette")) return;
     var items = [
-      [TEXT.myProjects, "projects.html", TEXT.palPages],
-      [TEXT.explore, "explore.html", TEXT.palPages],
-      [TEXT.rankings, "rankings.html", TEXT.palPages],
-      ["Rainy Saigon Night", "project.html", TEXT.palProjects],
-      ["Morning bossa", "project.html", TEXT.palProjects],
-      ["Intro for the November EP", "project.html", TEXT.palProjects],
-      [TEXT.openEditor, "editor.html", TEXT.palActions],
-      [TEXT.compareVersions, "compare.html", TEXT.palActions],
-      [TEXT.mergeBranch, "merge.html", TEXT.palActions],
-      [TEXT.helpGlossary, "help.html", TEXT.palPages],
-      [TEXT.settings, "settings.html", TEXT.palPages]
-    ];
+      ["shell.myProjects", "projects.html", "pal.pages"],
+      ["shell.explore", "explore.html", "pal.pages"],
+      ["shell.rankings", "rankings.html", "pal.pages"],
+      [null, "project.html", "pal.projects", "Rainy Saigon Night"],
+      [null, "project.html", "pal.projects", "Morning bossa"],
+      [null, "project.html", "pal.projects", "Intro for the November EP"],
+      ["pal.openEditor", "editor.html", "pal.actions"],
+      ["pal.compareVersions", "compare.html", "pal.actions"],
+      ["pal.mergeBranch", "merge.html", "pal.actions"],
+      ["shell.helpGlossary", "help.html", "pal.pages"],
+      ["shell.settings", "settings.html", "pal.pages"]
+    ].map(function (i) { return { key: i[0], href: i[1], group: i[2], name: i[3] }; });
+    function label(i) { return i.key ? L(i.key) : i.name; }
     var d = document.createElement("dialog");
     d.id = "palette";
     d.className = "palette";
-    d.setAttribute("aria-label", TEXT.quickFind);
-    d.innerHTML = '<input id="pal-in" class="pal-in" name="q" type="search" autocomplete="off" spellcheck="false" role="combobox" aria-controls="pal-list" aria-expanded="false" placeholder="' + TEXT.palPlaceholder + '" aria-label="' + TEXT.quickFind + '"><ul id="pal-list" class="pal-list" role="listbox"></ul><p class="pal-hint">' + TEXT.palHint + '</p>';
+    d.setAttribute("aria-label", L("shell.quickFind"));
+    d.setAttribute("data-i18n-attr", "aria-label:shell.quickFind");
+    d.innerHTML = '<input id="pal-in" class="pal-in" name="q" type="search" autocomplete="off" spellcheck="false" role="combobox" aria-controls="pal-list" aria-expanded="false" placeholder="' + L("pal.placeholder") + '" aria-label="' + L("shell.quickFind") + '" data-i18n-attr="placeholder:pal.placeholder,aria-label:shell.quickFind"><ul id="pal-list" class="pal-list" role="listbox"></ul><p class="pal-hint" data-i18n="pal.hint">' + L("pal.hint") + '</p>';
     document.body.appendChild(d);
     var inp = d.querySelector("#pal-in"), ul = d.querySelector("#pal-list"), cur = 0, shown = [];
     function draw() {
       var q = inp.value.trim().toLowerCase();
-      shown = items.filter(function (i) { return !q || i[0].toLowerCase().indexOf(q) > -1; });
+      shown = items.filter(function (i) { return !q || label(i).toLowerCase().indexOf(q) > -1; });
       cur = Math.min(cur, Math.max(0, shown.length - 1));
-      ul.innerHTML = shown.length ? "" : '<li class="pal-empty">' + TEXT.palEmpty(inp.value.replace(/</g, "&lt;")) + "</li>";
+      ul.innerHTML = "";
+      if (!shown.length) {
+        var none = document.createElement("li");
+        none.className = "pal-empty";
+        none.textContent = L("pal.empty", { q: inp.value });
+        ul.appendChild(none);
+      }
       shown.forEach(function (i, n) {
         var li = document.createElement("li");
         li.setAttribute("role", "option");
         li.id = "pal-o" + n;
         li.setAttribute("aria-selected", String(n === cur));
-        li.innerHTML = "<span>" + i[0] + "</span><small>" + i[2] + "</small>";
-        li.addEventListener("click", function () { location.href = i[1]; });
+        var name = document.createElement("span");
+        name.textContent = label(i);
+        var grp = document.createElement("small");
+        grp.textContent = L(i.group);
+        li.appendChild(name);
+        li.appendChild(grp);
+        li.addEventListener("click", function () { location.href = i.href; });
         ul.appendChild(li);
       });
       inp.setAttribute("aria-activedescendant", shown.length ? "pal-o" + cur : "");
@@ -401,7 +405,7 @@
     inp.addEventListener("keydown", function (e) {
       if (e.key === "ArrowDown") { e.preventDefault(); cur = Math.min(shown.length - 1, cur + 1); draw(); }
       else if (e.key === "ArrowUp") { e.preventDefault(); cur = Math.max(0, cur - 1); draw(); }
-      else if (e.key === "Enter" && shown[cur]) { location.href = shown[cur][1]; }
+      else if (e.key === "Enter" && shown[cur]) { location.href = shown[cur].href; }
     });
     var prevFocus = null;
     function open() { prevFocus = document.activeElement; inp.value = ""; cur = 0; draw(); if (!d.open) d.showModal(); inp.focus(); }
@@ -410,6 +414,7 @@
     document.addEventListener("keydown", function (e) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); if (d.open) d.close(); else open(); }
     });
+    document.addEventListener("stave:lang", function () { if (d.open) draw(); });
     var trig = document.getElementById("pal-open");
     if (trig) trig.addEventListener("click", open);
   }
@@ -432,16 +437,20 @@
   function mountPublicHeader(active) {
     var host = document.getElementById("pubtop");
     if (!host) return;
-    var links = [["explore", TEXT.explore, "explore.html"], ["rankings", TEXT.rankings, "rankings.html"], ["help", TEXT.help, "help.html"]];
+    var links = [["explore", "shell.explore", "explore.html"], ["rankings", "shell.rankings", "rankings.html"], ["help", "shell.help", "help.html"]];
     host.setAttribute("role", "banner");
-    host.innerHTML = '<a class="pub-brand" href="index.html" translate="no" aria-label="' + TEXT.brandHome + '">' + mark(28) + 'STAVE</a><nav class="pub-links" aria-label="' + TEXT.mainNav + '">' +
-      links.map(function (l) { return '<a href="' + l[2] + '"' + (l[0] === active ? ' aria-current="page"' : "") + ">" + l[1] + "</a>"; }).join("") +
-      (loggedIn() ? '<a class="btn btn-primary btn-sm" href="projects.html">' + TEXT.myProjects + "</a>" : '<a class="btn btn-quiet btn-sm" href="login.html">' + TEXT.signIn + "</a>") + "</nav>";
+    host.innerHTML = '<a class="pub-brand" href="index.html" translate="no" aria-label="' + L("shell.brandHome") + '" data-i18n-attr="aria-label:shell.brandHome">' + mark(28) + 'STAVE</a><nav class="pub-links" aria-label="' + L("shell.mainNav") + '" data-i18n-attr="aria-label:shell.mainNav">' +
+      links.map(function (l) { return '<a href="' + l[2] + '"' + (l[0] === active ? ' aria-current="page"' : "") + ' data-i18n="' + l[1] + '">' + L(l[1]) + "</a>"; }).join("") +
+      '<span data-lang-switch></span>' +
+      (loggedIn() ? '<a class="btn btn-primary btn-sm" href="projects.html" data-i18n="shell.myProjects">' + L("shell.myProjects") + "</a>" : '<a class="btn btn-quiet btn-sm" href="login.html" data-i18n="shell.signIn">' + L("shell.signIn") + "</a>") + "</nav>";
+    window.STAVE.mountLangSwitches(host);
     mountPalette();
   }
 
-  window.STAVE = {
-    ic: ic, mark: mark, mountShell: mountShell, rng: rng,
+  window.STAVE = Object.assign(window.STAVE || {}, {
+    ago: ago, genre: genre, ic: ic, mark: mark, mountShell: mountShell, rng: rng,
     mountPalette: mountPalette, mountPublicHeader: mountPublicHeader, PUBLIC_PROJECTS: PUBLIC_PROJECTS, COMMITS: COMMITS, buildSong: buildSong, drawRoll: drawRoll, thumb: thumb, staffThumb: staffThumb, staffGraph: staffGraph, stateAt: stateAt
-  };
+  });
+
+  window.STAVE.addSamples(COMMITS.map(function (c) { return c.msg; }).concat(COMMITS.map(function (c) { return c.author; }), PUBLIC_PROJECTS.map(function (p) { return p[0]; }), PUBLIC_PROJECTS.map(function (p) { return p[4]; }), ["Intro for the November EP", "Morning bossa", "Rainy Saigon Night", "Harmony exercise", "Add nylon guitar intro", "Finish lesson 4", "Try the bridge with a minor chord", "Soften the bridge melody velocity", "Brush pattern for the swing drums", "Merge bridge-alt into main"]));
 })();
