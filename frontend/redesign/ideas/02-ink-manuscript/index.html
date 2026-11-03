@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f3ead6">
+<title>STAVE · Ink Manuscript</title>
+<meta name="description" content="Version control for MIDI music, written like a manuscript: draft, commit, branch and merge every take.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ink.css">
+<script>
+  /* Decide the motion mode before first paint so hidden start states never flash.
+     "anim"  = full scroll-scrubbed ink (>= 900px, motion allowed)
+     "lite"  = small screens: CSS fades only, no scrub
+     neither = reduced motion: everything is shown in its final state */
+  (function () {
+    var d = document.documentElement;
+    d.classList.add("js");
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { d.classList.add("reduced"); return; }
+    d.classList.add(window.innerWidth >= 900 ? "anim" : "lite");
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<nav class="folio-nav" aria-label="Sections">
+  <ol>
+    <li><a href="#s01" aria-label="Section 1: Introduction">01</a></li>
+    <li><a href="#s02" aria-label="Section 2: The name">02</a></li>
+    <li><a href="#s03" aria-label="Section 3: History">03</a></li>
+    <li><a href="#s04" aria-label="Section 4: Why keep every version">04</a></li>
+    <li><a href="#s05" aria-label="Section 5: How it works">05</a></li>
+    <li><a href="#s06" aria-label="Section 6: Tools">06</a></li>
+    <li><a href="#s07" aria-label="Section 7: Get started">07</a></li>
+  </ol>
+</nav>
+
+<main id="main" tabindex="-1">
+
+  <!-- 01 · Introduction -->
+  <section class="leaf leaf-hero" id="s01" aria-labelledby="h01">
+    <header class="masthead">
+      <a class="brand ink-link" href="../../index.html" aria-label="STAVE, home"><span class="brand-mark" aria-hidden="true">♪</span><span translate="no">STAVE</span></a>
+      <nav aria-label="Main">
+        <a class="ink-link" href="../../explore.html">Explore</a>
+        <a class="ink-link" href="../../help.html">Help</a>
+        <a class="ink-link" href="../../login.html">Sign in</a>
+      </nav>
+    </header>
+
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="hand kicker rv">a manuscript for every take</p>
+        <h1 id="h01" class="rv">Every take,<br>kept in&nbsp;ink.</h1>
+        <p class="lede rv">STAVE is version control for MIDI music. Sketch a draft, commit it, branch a wild idea and merge the best of both — without ever losing a page.</p>
+        <div class="actions rv">
+          <a class="btn-ink" href="../../login.html">Create your first project</a>
+          <a class="ink-link quiet" href="#s05">See how it works</a>
+        </div>
+      </div>
+      <figure class="hero-sheet" aria-hidden="true">
+        <svg id="hero-staff" viewBox="0 0 640 360" class="sheet-svg"></svg>
+        <figcaption class="hand margin-note rv">bar 1 — first idea, Oct 12</figcaption>
+      </figure>
+    </div>
+    <p class="folio hand" aria-hidden="true">№ 01 <span>/ 07</span></p>
+    <p class="scroll-cue hand rv" aria-hidden="true">turn the page ↓</p>
+  </section>
+
+  <!-- 02 · The name -->
+  <section class="leaf leaf-name" id="s02" aria-labelledby="h02">
+    <h2 id="h02" class="visually-hidden">The name STAVE</h2>
+    <p class="hand kicker center rv">what's in a name?</p>
+    <div class="name-wrap">
+      <svg id="name-svg" class="name-svg" viewBox="0 0 1200 640" role="img" aria-label="STAVE: Source Tracking and Version Control Environment">
+        <defs id="name-defs"></defs>
+        <g id="name-letters"></g>
+      </svg>
+    </div>
+    <p class="name-foot rv">Five letters on a staff. Each one a promise about your music.</p>
+    <p class="folio hand" aria-hidden="true">№ 02 <span>/ 07</span></p>
+  </section>
+
+  <!-- 03 · History -->
+  <section class="leaf leaf-history" id="s03" aria-labelledby="h03">
+    <div class="sec-head">
+      <p class="hand kicker rv">the score of your song</p>
+      <h2 id="h03" class="rv">A history you can read like music.</h2>
+      <p class="lede rv">Every commit is a note on the staff. Read left to right and you hear how the song grew — who wrote what, and when.</p>
+    </div>
+    <figure class="history-fig">
+      <svg id="history-svg" class="sheet-svg" viewBox="0 0 1200 300" role="img" aria-label="Commit history drawn as a staff: six commits on main and a side branch called bridge-alt that merges back."></svg>
+    </figure>
+    <ol class="commit-notes" id="commit-notes"></ol>
+    <p class="folio hand" aria-hidden="true">№ 03 <span>/ 07</span></p>
+  </section>
+
+  <!-- 04 · Why every version -->
+  <section class="leaf leaf-why" id="s04" aria-labelledby="h04">
+    <div class="why-grid">
+      <div class="why-copy">
+        <p class="hand kicker rv">undo forgets · ink remembers</p>
+        <h2 id="h04" class="rv">Why keep every version?</h2>
+        <ol class="reasons">
+          <li class="rv"><span class="hand num" aria-hidden="true">i.</span><div><strong>Be brave with ideas.</strong> Try the strange chord. The safe take is still on the previous page.</div></li>
+          <li class="rv"><span class="hand num" aria-hidden="true">ii.</span><div><strong>See exactly what changed.</strong> Compare two takes note by note, not by ear alone.</div></li>
+          <li class="rv"><span class="hand num" aria-hidden="true">iii.</span><div><strong>Go back to any day.</strong> Last Tuesday's groove is one click away, forever.</div></li>
+        </ol>
+      </div>
+      <figure class="why-fig">
+        <div class="roll-paper" id="why-roll"></div>
+        <figcaption>
+          <span class="mono">b92af61</span> <span class="hand">→</span> <span class="mono">d70c9b3</span>
+          <ul class="legend" aria-label="Diff legend">
+            <li class="lg-add"><i aria-hidden="true"></i>note added</li>
+            <li class="lg-del"><i aria-hidden="true"></i>note removed</li>
+            <li class="lg-mod"><i aria-hidden="true"></i>velocity changed</li>
+          </ul>
+        </figcaption>
+      </figure>
+    </div>
+    <p class="folio hand" aria-hidden="true">№ 04 <span>/ 07</span></p>
+  </section>
+
+  <!-- 05 · How it works: four pages -->
+  <section class="leaf leaf-guide" id="s05" aria-labelledby="h05">
+    <div class="sec-head center">
+      <p class="hand kicker rv">four pages, one song</p>
+      <h2 id="h05" class="rv">Draft, commit, branch, merge.</h2>
+    </div>
+    <ol class="pages">
+      <li class="page-wrap" style="--r:-2.2deg">
+        <article class="page" aria-labelledby="p1">
+          <p class="page-no hand" aria-hidden="true">p. 1</p>
+          <svg class="page-art" viewBox="0 0 240 120" aria-hidden="true" data-art="draft"></svg>
+          <h3 id="p1">Draft</h3>
+          <p>Sketch freely in the editor. Nothing is final until you say so.</p>
+        </article>
+      </li>
+      <li class="page-wrap" style="--r:1.4deg">
+        <article class="page" aria-labelledby="p2">
+          <p class="page-no hand" aria-hidden="true">p. 2</p>
+          <svg class="page-art" viewBox="0 0 240 120" aria-hidden="true" data-art="commit"></svg>
+          <h3 id="p2">Commit</h3>
+          <p>Save a named snapshot — a take you can always return to.</p>
+        </article>
+      </li>
+      <li class="page-wrap" style="--r:-1deg">
+        <article class="page" aria-labelledby="p3">
+          <p class="page-no hand" aria-hidden="true">p. 3</p>
+          <svg class="page-art" viewBox="0 0 240 120" aria-hidden="true" data-art="branch"></svg>
+          <h3 id="p3">Branch</h3>
+          <p>Try another idea on its own staff, without touching the main line.</p>
+        </article>
+      </li>
+      <li class="page-wrap" style="--r:2deg">
+        <article class="page" aria-labelledby="p4">
+          <p class="page-no hand" aria-hidden="true">p. 4</p>
+          <svg class="page-art" viewBox="0 0 240 120" aria-hidden="true" data-art="merge"></svg>
+          <h3 id="p4">Merge</h3>
+          <p>Bring the best ideas back together, bar by bar.</p>
+        </article>
+      </li>
+    </ol>
+    <p class="folio hand" aria-hidden="true">№ 05 <span>/ 07</span></p>
+  </section>
+
+  <!-- 06 · Tools -->
+  <section class="leaf leaf-tools" id="s06" aria-labelledby="h06">
+    <div class="sec-head">
+      <p class="hand kicker rv">the composer's desk</p>
+      <h2 id="h06" class="rv">Every instrument, on one desk.</h2>
+    </div>
+    <ul class="ledger">
+      <li class="entry rv">
+        <svg class="entry-art" id="gm-grid" viewBox="0 0 320 120" aria-hidden="true"></svg>
+        <div>
+          <h3><span class="big-num">128</span> General MIDI instruments</h3>
+          <p>Sixteen families, eight voices each — from grand piano to helicopter.</p>
+        </div>
+      </li>
+      <li class="entry rv">
+        <svg class="entry-art" data-art="drums" viewBox="0 0 320 120" aria-hidden="true"></svg>
+        <div>
+          <h3>A full drum kit</h3>
+          <p>Channel 10 percussion: kick, snare, hats, toms and that one triangle.</p>
+        </div>
+      </li>
+      <li class="entry rv">
+        <svg class="entry-art" data-art="wave" viewBox="0 0 320 120" aria-hidden="true"></svg>
+        <div>
+          <h3>Your own sounds</h3>
+          <p>Upload a sample and play it like any other instrument.</p>
+        </div>
+      </li>
+      <li class="entry rv">
+        <div class="stamps" aria-hidden="true"><span>.mid</span><span>WAV</span><span>MP3</span></div>
+        <div>
+          <h3>Export anywhere</h3>
+          <p>Take a <span class="mono">.mid</span> to your DAW, or a WAV or MP3 straight to your ears.</p>
+        </div>
+      </li>
+    </ul>
+    <p class="folio hand" aria-hidden="true">№ 06 <span>/ 07</span></p>
+  </section>
+
+  <!-- 07 · Call to action + footer (merged) -->
+  <section class="leaf leaf-cta" id="s07" aria-labelledby="h07">
+    <div class="cta-body">
+      <p class="hand kicker center rv">the first page is still blank</p>
+      <h2 id="h07" class="rv">Start your manuscript.</h2>
+      <p class="lede center rv">Free while in preview. Bring a MIDI file or start from silence.</p>
+      <div class="actions center rv">
+        <a class="btn-ink" href="../../login.html">Create your first project</a>
+        <a class="ink-link quiet" href="../../explore.html">Browse public projects</a>
+      </div>
+      <svg class="signature" id="signature" viewBox="0 0 520 90" aria-hidden="true"></svg>
+    </div>
+
+    <footer class="colophon">
+      <a class="brand ink-link" href="../../index.html" aria-label="STAVE, home"><span class="brand-mark" aria-hidden="true">♪</span><span translate="no">STAVE</span></a>
+      <nav aria-label="Footer">
+        <a class="ink-link" href="../../explore.html">Explore</a>
+        <a class="ink-link" href="../../rankings.html">Rankings</a>
+        <a class="ink-link" href="../../help.html">Help &amp; glossary</a>
+        <a class="ink-link" href="../../login.html">Sign in</a>
+      </nav>
+      <p class="small">Design prototype · all names and data are placeholders · © 2026 STAVE</p>
+    </footer>
+    <p class="folio hand" aria-hidden="true">№ 07 <span>/ 07</span></p>
+  </section>
+</main>
+
+<!-- Shared sample data (COMMITS, buildSong, drawRoll) -->
+<script src="../../assets/shared.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script src="ink.js"></script>
+</body>
+</html>
