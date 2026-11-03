@@ -13,11 +13,11 @@
 
   /* every string this script writes into the page */
   var TEXT = {
-    graphLabel: "Commit graph. Each star is a commit; use arrow keys or Tab to move between them.",
+    graphLabel: function () { return S.t("index.graphLabel"); },
     lanes: ["main", "bridge-alt", "drums-swing"],
-    commitLabel: function (c) { return "Commit " + c.hash + ": " + c.msg + ", " + c.author + ", " + c.when; },
-    meta: function (c) { return c.author + " · " + c.when + " · " + c.ago; },
-    rollLabel: function (from, to) { return "Piano roll comparing commit " + (from ? from.hash : "(empty)") + " with " + to.hash; },
+    commitLabel: function (c) { return S.t("index.commitLabel", { hash: c.hash, msg: c.msg, author: c.author, when: c.when }); },
+    meta: function (c) { return c.author + " · " + c.when + " · " + S.ago(c.ago); },
+    rollLabel: function (from, to) { return S.t("index.rollLabel", { from: from ? from.hash : S.t("index.empty"), to: to.hash }); },
     ellipsis: "…"
   };
   var sections = Array.prototype.slice.call(document.querySelectorAll(".scene"));
@@ -47,7 +47,7 @@
   var graph = (function () {
     var host = document.getElementById("graph");
     var W = 760, H = 232, laneY = [58, 122, 188];
-    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": TEXT.graphLabel });
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": TEXT.graphLabel() });
     var defs = svgEl("defs", {}, svg);
     var rg = svgEl("radialGradient", { id: "halo" }, defs);
     svgEl("stop", { offset: "0", "stop-color": "#dceeb1", "stop-opacity": ".95" }, rg);
@@ -97,7 +97,7 @@
       return g;
     });
     host.appendChild(svg);
-    return { nodes: nodes };
+    return { nodes: nodes, svg: svg };
   })();
 
   var sel = -1;
@@ -137,6 +137,14 @@
     });
   });
   select(3, false);
+
+  document.addEventListener("stave:lang", function () {
+    graph.svg.setAttribute("aria-label", TEXT.graphLabel());
+    graph.nodes.forEach(function (n, i) { n.setAttribute("aria-label", TEXT.commitLabel(COMMITS[i])); });
+    var k = sel;
+    sel = -1;
+    select(k, false);
+  });
 
   // 04 · clean version chain
   (function () {
