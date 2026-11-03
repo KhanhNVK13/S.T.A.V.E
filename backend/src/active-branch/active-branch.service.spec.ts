@@ -12,8 +12,8 @@ function makeService(tables: Record<string, Array<Record<string, unknown>>>) {
   return { service: new ActiveBranchService(mock.client), ...mock };
 }
 
-describe('ActiveBranchService.getActiveBranchId', () => {
-  it('reads the project column for the owner', async () => {
+describe('BE-ACB-01 ActiveBranchService.getActiveBranchId', () => {
+  it('UTCID01 reads the project column for the owner', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: ownerId, active_branch_id: branchId } }],
     });
@@ -23,7 +23,7 @@ describe('ActiveBranchService.getActiveBranchId', () => {
     expect(builders.project_member_active_branches).toBeUndefined();
   });
 
-  it('reads the per-user row for a collaborator', async () => {
+  it('UTCID02 reads the per-user row for a collaborator', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: ownerId, active_branch_id: 'owner-b' } }],
       project_member_active_branches: [{ data: { branch_id: branchId } }],
@@ -37,7 +37,7 @@ describe('ActiveBranchService.getActiveBranchId', () => {
     );
   });
 
-  it('returns null when a collaborator never switched', async () => {
+  it('UTCID03 returns null when a collaborator never switched', async () => {
     const { service } = makeService({
       projects: [{ data: { owner_id: ownerId, active_branch_id: null } }],
       project_member_active_branches: [{ data: null }],
@@ -47,7 +47,7 @@ describe('ActiveBranchService.getActiveBranchId', () => {
     ).resolves.toBeNull();
   });
 
-  it('returns null for a missing project', async () => {
+  it('UTCID04 returns null for a missing project', async () => {
     const { service } = makeService({ projects: [{ data: null }] });
     await expect(
       service.getActiveBranchId(projectId, ownerId),
@@ -55,8 +55,8 @@ describe('ActiveBranchService.getActiveBranchId', () => {
   });
 });
 
-describe('ActiveBranchService.setActiveBranch', () => {
-  it('updates the project column for the owner', async () => {
+describe('BE-ACB-02 ActiveBranchService.setActiveBranch', () => {
+  it('UTCID01 updates the project column for the owner', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: ownerId } }, { data: null, error: null }],
     });
@@ -66,7 +66,7 @@ describe('ActiveBranchService.setActiveBranch', () => {
     });
   });
 
-  it('upserts a per-user row for a collaborator', async () => {
+  it('UTCID02 upserts a per-user row for a collaborator', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: ownerId } }],
       project_member_active_branches: [{ data: null, error: null }],
@@ -83,7 +83,7 @@ describe('ActiveBranchService.setActiveBranch', () => {
     expect(builders.projects.update).not.toHaveBeenCalled();
   });
 
-  it('reports a write error', async () => {
+  it('UTCID03 reports a write error', async () => {
     const { service } = makeService({
       projects: [{ data: { owner_id: ownerId } }],
       project_member_active_branches: [

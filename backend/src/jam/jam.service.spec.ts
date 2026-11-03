@@ -375,8 +375,8 @@ function aliceUser(): JamSocketUser {
   };
 }
 
-describe('JamService — UC-66 handleUserJoin', () => {
-  it('happy path: active event + active account → full JamStatePayload', async () => {
+describe('BE-JAM-01 JamService — UC-66 handleUserJoin', () => {
+  it('UTCID01 happy path: active event + active account → full JamStatePayload', async () => {
     const service = makeService(makeTables());
 
     const state = await service.handleUserJoin(
@@ -403,7 +403,7 @@ describe('JamService — UC-66 handleUserJoin', () => {
     expect(service.participantCount('event-1')).toBe(1);
   });
 
-  it('2.E1: unknown event → NotFoundException', async () => {
+  it('UTCID02 2.E1: unknown event → NotFoundException', async () => {
     const service = makeService(makeTables());
     await expect(
       service.handleUserJoin('missing', aliceUser(), 'socket-a'),
@@ -413,7 +413,7 @@ describe('JamService — UC-66 handleUserJoin', () => {
     ).rejects.toThrow('Jam event not found');
   });
 
-  it('2.E2: event not started yet → ConflictException code EVENT_NOT_STARTED', async () => {
+  it('UTCID03 2.E2: event not started yet → ConflictException code EVENT_NOT_STARTED', async () => {
     const service = makeService(
       makeTables({
         events: [
@@ -439,7 +439,7 @@ describe('JamService — UC-66 handleUserJoin', () => {
     });
   });
 
-  it('2.E3: event already ended → ConflictException code EVENT_COMPLETED', async () => {
+  it('UTCID04 2.E3: event already ended → ConflictException code EVENT_COMPLETED', async () => {
     const service = makeService(
       makeTables({
         events: [
@@ -465,7 +465,7 @@ describe('JamService — UC-66 handleUserJoin', () => {
     });
   });
 
-  it('3.E1: suspended account → ForbiddenException code ACCOUNT_NOT_ACTIVE', async () => {
+  it('UTCID05 3.E1: suspended account → ForbiddenException code ACCOUNT_NOT_ACTIVE', async () => {
     const service = makeService(
       makeTables({
         users: [userRow(ALICE, 'suspended')],
@@ -485,7 +485,7 @@ describe('JamService — UC-66 handleUserJoin', () => {
     });
   });
 
-  it('4.E1: room at the participant cap → ConflictException code ROOM_FULL', async () => {
+  it('UTCID06 4.E1: room at the participant cap → ConflictException code ROOM_FULL', async () => {
     // Pre-fill the room up to the cap, then a NEW user is refused.
     const filled = Array.from(
       { length: JamService.MAX_JAM_PARTICIPANTS },
@@ -527,8 +527,8 @@ describe('JamService — UC-66 handleUserJoin', () => {
   });
 });
 
-describe('JamService — UC-66 listEvents / getEventById / ensureStatus', () => {
-  it('lists events and returns the live participant count', async () => {
+describe('BE-JAM-02 JamService — UC-66 listEvents / getEventById / ensureStatus', () => {
+  it('UTCID01 lists events and returns the live participant count', async () => {
     const service = makeService(makeTables());
     const events = await service.listEvents({});
     expect(events).toHaveLength(1);
@@ -536,14 +536,14 @@ describe('JamService — UC-66 listEvents / getEventById / ensureStatus', () => 
     expect(events[0].currentParticipantCount).toBe(0);
   });
 
-  it('getEventById → NotFoundException when missing', async () => {
+  it('UTCID02 getEventById → NotFoundException when missing', async () => {
     const service = makeService(makeTables());
     await expect(service.getEventById('nope')).rejects.toThrow(
       NotFoundException,
     );
   });
 
-  it('ensureStatus promotes a scheduled event past its start to active', async () => {
+  it('UTCID03 ensureStatus promotes a scheduled event past its start to active', async () => {
     const service = makeService(
       makeTables({
         events: [
@@ -563,7 +563,7 @@ describe('JamService — UC-66 listEvents / getEventById / ensureStatus', () => 
     expect(event.ended_at).not.toBeNull();
   });
 
-  it('errorPayload maps NotFoundException to EVENT_NOT_FOUND', () => {
+  it('UTCID04 errorPayload maps NotFoundException to EVENT_NOT_FOUND', () => {
     expect(
       JamService.errorPayload(new NotFoundException('Jam event not found')),
     ).toEqual({
@@ -575,8 +575,8 @@ describe('JamService — UC-66 listEvents / getEventById / ensureStatus', () => 
 
 // ── UC-67 — handleEditNote (LWW note ops, BR-68/69/71, 12.E1 sweep) ────────
 
-describe('JamService — UC-67 handleEditNote', () => {
-  it('add: note lands in the RAM snapshot, room goes dirty, edit_count bumps', async () => {
+describe('BE-JAM-03 JamService — UC-67 handleEditNote', () => {
+  it('UTCID01 add: note lands in the RAM snapshot, room goes dirty, edit_count bumps', async () => {
     const { service, state } = makeJamService(jamTables());
 
     const payload = await service.handleEditNote(
@@ -619,7 +619,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     expect(room.recentActivities.some((a) => a.op === 'add')).toBe(true);
   });
 
-  it('update: overwrites the matching note in place (LWW)', async () => {
+  it('UTCID02 update: overwrites the matching note in place (LWW)', async () => {
     const { service } = makeJamService(jamTables());
 
     const payload = await service.handleEditNote(
@@ -655,7 +655,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     expect(room.snapshot.notes).toHaveLength(1);
   });
 
-  it('delete: removes the note from the RAM snapshot', async () => {
+  it('UTCID03 delete: removes the note from the RAM snapshot', async () => {
     const { service } = makeJamService(jamTables());
 
     await service.handleEditNote(
@@ -678,7 +678,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     expect(room.isDirty).toBe(true);
   });
 
-  it('an empty snapshot (no jam project) gets a seeded piano track so notes can land', async () => {
+  it('UTCID04 an empty snapshot (no jam project) gets a seeded piano track so notes can land', async () => {
     const { service } = makeJamService(
       jamTables({
         events: [jamEventRow({ jam_project_id: null })],
@@ -714,7 +714,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     expect(created.snapshot.notes).toHaveLength(1);
   });
 
-  it('8.E1 (LWW concurrency): two users editing the same note — last write wins, nobody is rejected', async () => {
+  it('UTCID05 8.E1 (LWW concurrency): two users editing the same note — last write wins, nobody is rejected', async () => {
     const { service } = makeJamService(jamTables());
 
     const bobUser: JamSocketUser = {
@@ -759,7 +759,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     expect(payload.userId).toBe(BOB);
   });
 
-  it('2.E1: editing inside the cooldown window → ConflictException COOLDOWN_ACTIVE with remainingSeconds', async () => {
+  it('UTCID06 2.E1: editing inside the cooldown window → ConflictException COOLDOWN_ACTIVE with remainingSeconds', async () => {
     const { service } = makeJamService(jamTables());
 
     await service.handleEditNote(aliceUser(), editDto());
@@ -787,7 +787,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     );
   });
 
-  it('5.E1: an ended event refuses every edit with JAM_EVENT_ENDED', async () => {
+  it('UTCID07 5.E1: an ended event refuses every edit with JAM_EVENT_ENDED', async () => {
     const { service } = makeJamService(
       jamTables({
         events: [
@@ -810,7 +810,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     expect(service.getRoom('event-1')).toBeUndefined();
   });
 
-  it('7.E1: out-of-range MIDI data → BadRequestException INVALID_NOTE_DATA', async () => {
+  it('UTCID08 7.E1: out-of-range MIDI data → BadRequestException INVALID_NOTE_DATA', async () => {
     const { service } = makeJamService(jamTables());
 
     const caught = await service
@@ -831,7 +831,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     });
   });
 
-  it('7.E2: a note on a missing track → NotFoundException TRACK_NOT_FOUND', async () => {
+  it('UTCID09 7.E2: a note on a missing track → NotFoundException TRACK_NOT_FOUND', async () => {
     const { service } = makeJamService(jamTables());
 
     const caught = await service
@@ -850,7 +850,7 @@ describe('JamService — UC-67 handleEditNote', () => {
     });
   });
 
-  it('5.E2: an unknown event → NotFoundException JAM_ROOM_NOT_FOUND (reload path)', async () => {
+  it('UTCID10 5.E2: an unknown event → NotFoundException JAM_ROOM_NOT_FOUND (reload path)', async () => {
     const { service } = makeJamService(jamTables());
 
     const caught = await service
@@ -867,8 +867,8 @@ describe('JamService — UC-67 handleEditNote', () => {
   });
 });
 
-describe('JamService — UC-67 sweep + flush failures (BR-116, 12.E1)', () => {
-  it('12.E1: a failing flush stays dirty, retries, and warns past the threshold', async () => {
+describe('BE-JAM-04 JamService — UC-67 sweep + flush failures (BR-116, 12.E1)', () => {
+  it('UTCID01 12.E1: a failing flush stays dirty, retries, and warns past the threshold', async () => {
     const { service, state, failTables } = makeJamService(jamTables(), {
       failUpsertTables: new Set(['drafts']),
     });
@@ -1010,8 +1010,8 @@ function makeResultService(
   return new JamService(db);
 }
 
-describe('JamService — UC-68 getJamResult', () => {
-  it('happy path: ended event → frozen head-commit snapshot + ranked contributors', async () => {
+describe('BE-JAM-05 JamService — UC-68 getJamResult', () => {
+  it('UTCID01 happy path: ended event → frozen head-commit snapshot + ranked contributors', async () => {
     const service = makeResultService(endedResultTables());
     const result = await service.getJamResult('event-1');
 
@@ -1032,7 +1032,7 @@ describe('JamService — UC-68 getJamResult', () => {
     expect(result.contributors[1]).toMatchObject({ actionCount: 3 });
   });
 
-  it('2.E3: unknown event → NotFoundException', async () => {
+  it('UTCID02 2.E3: unknown event → NotFoundException', async () => {
     const service = makeResultService(endedResultTables());
     await expect(service.getJamResult('nope')).rejects.toThrow(
       NotFoundException,
@@ -1042,7 +1042,7 @@ describe('JamService — UC-68 getJamResult', () => {
     );
   });
 
-  it('2.E4: event still active → BadRequestException', async () => {
+  it('UTCID03 2.E4: event still active → BadRequestException', async () => {
     const service = makeResultService(
       endedResultTables({
         // Far-future end so `ensureStatus` cannot promote it to ended.
@@ -1062,7 +1062,7 @@ describe('JamService — UC-68 getJamResult', () => {
     );
   });
 
-  it('2.E1 (no_result): ended but flagged → hasContributions false, empty payload', async () => {
+  it('UTCID04 2.E1 (no_result): ended but flagged → hasContributions false, empty payload', async () => {
     const service = makeResultService(
       endedResultTables({ event: { no_result: true } }),
     );
@@ -1072,7 +1072,7 @@ describe('JamService — UC-68 getJamResult', () => {
     expect(result.contributors).toEqual([]);
   });
 
-  it('2.E1 (no contributors): nobody edited → hasContributions false', async () => {
+  it('UTCID05 2.E1 (no contributors): nobody edited → hasContributions false', async () => {
     const service = makeResultService(endedResultTables({ participants: [] }));
     const result = await service.getJamResult('event-1');
     expect(result.hasContributions).toBe(false);
@@ -1080,7 +1080,7 @@ describe('JamService — UC-68 getJamResult', () => {
     expect(result.contributors).toEqual([]);
   });
 
-  it('2.E1 (empty snapshot): no head commit, draft is empty → hasContributions false but contributors stay listed', async () => {
+  it('UTCID06 2.E1 (empty snapshot): no head commit, draft is empty → hasContributions false but contributors stay listed', async () => {
     const emptySnapshot = {
       schemaVersion: 3,
       meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
@@ -1109,7 +1109,7 @@ describe('JamService — UC-68 getJamResult', () => {
     expect(result.contributors.map((c) => c.userId)).toEqual([BOB, ALICE]);
   });
 
-  it('draft fallback: no head commit → the default-branch draft is the frozen snapshot', async () => {
+  it('UTCID07 draft fallback: no head commit → the default-branch draft is the frozen snapshot', async () => {
     const service = makeResultService(
       endedResultTables({
         branches: [
@@ -1127,7 +1127,7 @@ describe('JamService — UC-68 getJamResult', () => {
     expect(result.snapshot?.notes.map((n) => n.id)).toEqual([JAM_SEED_NOTE.id]);
   });
 
-  it('2.E2: DB failure while reading → InternalServerErrorException', async () => {
+  it('UTCID08 2.E2: DB failure while reading → InternalServerErrorException', async () => {
     const service = makeResultService(endedResultTables(), {
       failSelectTables: new Set(['jam_participants']),
     });
@@ -1170,8 +1170,8 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
     };
   }
 
-  describe('configureEvent', () => {
-    it('happy path (scheduled): updates name, description, start, end, cooldown, and startingProjectId', async () => {
+  describe('BE-JAM-06 configureEvent', () => {
+    it('UTCID01 happy path (scheduled): updates name, description, start, end, cooldown, and startingProjectId', async () => {
       const futureStart = new Date(Date.now() + 3600 * 1000).toISOString();
       const futureEnd = new Date(Date.now() + 7200 * 1000).toISOString();
       const schedEvent = activeEventRow({
@@ -1215,7 +1215,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       });
     });
 
-    it('happy path (active): extends end time, updates cooldown in RAM, triggers WS listener & notices', async () => {
+    it('UTCID02 happy path (active): extends end time, updates cooldown in RAM, triggers WS listener & notices', async () => {
       const activeEv = activeEventRow({
         id: 'ev-active-1',
         status: 'active',
@@ -1247,7 +1247,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       expect(state.admin_audit_log[0].action).toBe('jam.configure');
     });
 
-    it('2.E1: active event rejects changes to immutable fields', async () => {
+    it('UTCID03 2.E1: active event rejects changes to immutable fields', async () => {
       const activeEv = activeEventRow({
         id: 'ev-active-2',
         status: 'active',
@@ -1266,7 +1266,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       ).rejects.toThrow('Cannot modify immutable fields while jam is active');
     });
 
-    it('2.E2: ended event rejects any configuration', async () => {
+    it('UTCID04 2.E2: ended event rejects any configuration', async () => {
       const endedEv = activeEventRow({
         id: 'ev-ended-1',
         status: 'ended',
@@ -1286,7 +1286,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       ).rejects.toThrow('Cannot configure an ended jam event');
     });
 
-    it('3.E1: non-existent event throws NotFoundException', async () => {
+    it('UTCID05 3.E1: non-existent event throws NotFoundException', async () => {
       const { service } = setupAdminService();
       await expect(
         service.configureEvent(
@@ -1299,7 +1299,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('4.E1: invalid end time in the past throws BadRequestException', async () => {
+    it('UTCID06 4.E1: invalid end time in the past throws BadRequestException', async () => {
       const futureStart = new Date(Date.now() + 3600 * 1000).toISOString();
       const futureEnd = new Date(Date.now() + 7200 * 1000).toISOString();
       const schedEvent = activeEventRow({
@@ -1317,7 +1317,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('4.E2: invalid cooldown (< 1 or > 3600) throws BadRequestException', async () => {
+    it('UTCID07 4.E2: invalid cooldown (< 1 or > 3600) throws BadRequestException', async () => {
       const schedEvent = activeEventRow({
         id: 'ev-sched-bad-cd',
         status: 'scheduled',
@@ -1339,7 +1339,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('Pre-condition 4: private or non-existent starting project throws BadRequestException', async () => {
+    it('UTCID08 Pre-condition 4: private or non-existent starting project throws BadRequestException', async () => {
       const schedEvent = activeEventRow({
         id: 'ev-sched-proj',
         status: 'scheduled',
@@ -1372,8 +1372,8 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
     });
   });
 
-  describe('cancelEvent', () => {
-    it('happy path: cancels a scheduled event, logs audit, and notifies participants', async () => {
+  describe('BE-JAM-07 cancelEvent', () => {
+    it('UTCID01 happy path: cancels a scheduled event, logs audit, and notifies participants', async () => {
       const schedEvent = activeEventRow({
         id: 'ev-sched-cancel',
         status: 'scheduled',
@@ -1405,7 +1405,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       });
     });
 
-    it('5.E1: rejects cancelling an active event', async () => {
+    it('UTCID02 5.E1: rejects cancelling an active event', async () => {
       const activeEv = activeEventRow({
         id: 'ev-active-cancel',
         status: 'active',
@@ -1420,7 +1420,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       ).rejects.toThrow('Only scheduled events can be cancelled');
     });
 
-    it('5.E1: rejects cancelling an ended event', async () => {
+    it('UTCID03 5.E1: rejects cancelling an ended event', async () => {
       const endedEv = activeEventRow({
         id: 'ev-ended-cancel',
         status: 'ended',
@@ -1433,7 +1433,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('3.E1: non-existent event throws NotFoundException', async () => {
+    it('UTCID04 3.E1: non-existent event throws NotFoundException', async () => {
       const { service } = setupAdminService();
       await expect(
         service.cancelEvent(ADMIN_ID, '00000000-0000-0000-0000-000000000099'),
@@ -1444,7 +1444,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
 
 // ── UC-95 — endJamEvent (force-end: freeze + final flush + audit) ──────────
 
-describe('JamService — UC-95 endJamEvent', () => {
+describe('BE-JAM-08 JamService — UC-95 endJamEvent', () => {
   const ADMIN_ID = 'admin-user-1';
 
   /**
@@ -1488,7 +1488,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     return { service, state };
   }
 
-  it('happy path: active event → room frozen, snapshot flushed, event ended, audit row + realtime broadcast', async () => {
+  it('UTCID01 happy path: active event → room frozen, snapshot flushed, event ended, audit row + realtime broadcast', async () => {
     const { service, state } = setupEndService();
     const wsMock = jest.fn();
     service.settleEndEventEnded(wsMock);
@@ -1556,7 +1556,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     );
   });
 
-  it('no contributions: the event ends with no_result = true (duc.md 3.E1 — no commit)', async () => {
+  it('UTCID02 no contributions: the event ends with no_result = true (duc.md 3.E1 — no commit)', async () => {
     const { service, state } = setupEndService({
       events: [
         activeEventRow({
@@ -1572,7 +1572,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     expect(event.no_result).toBe(true);
   });
 
-  it('3.E1: unknown event → NotFoundException (Vietnamese copy)', async () => {
+  it('UTCID03 3.E1: unknown event → NotFoundException (Vietnamese copy)', async () => {
     const { service } = setupEndService();
     await expect(
       service.endJamEvent('00000000-0000-0000-0000-000000000099', ADMIN_ID),
@@ -1581,7 +1581,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     );
   });
 
-  it('3.E2: an already-ended event → ConflictException', async () => {
+  it('UTCID04 3.E2: an already-ended event → ConflictException', async () => {
     const { service } = setupEndService({
       events: [
         activeEventRow({
@@ -1596,7 +1596,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     );
   });
 
-  it('3.E3: a cancelled event → BadRequestException', async () => {
+  it('UTCID05 3.E3: a cancelled event → BadRequestException', async () => {
     const { service } = setupEndService({
       events: [
         activeEventRow({
@@ -1613,7 +1613,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     );
   });
 
-  it('4.E1: the final flush fails → 500, event stays active (admin retries)', async () => {
+  it('UTCID06 4.E1: the final flush fails → 500, event stays active (admin retries)', async () => {
     const { service, state } = setupEndService({
       failUpsertTables: new Set(['drafts']),
     });
@@ -1628,7 +1628,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     expect(state.admin_audit_log).toHaveLength(0);
   });
 
-  it('5.E1: a `jam_events` update failure → 500 (status write is strict)', async () => {
+  it('UTCID07 5.E1: a `jam_events` update failure → 500 (status write is strict)', async () => {
     const { service } = setupEndService({
       failUpdateTables: new Set(['jam_events']),
     });
@@ -1637,7 +1637,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     );
   });
 
-  it('5.E1: an `admin_audit_log` insert failure → 500 (audit is strict)', async () => {
+  it('UTCID08 5.E1: an `admin_audit_log` insert failure → 500 (audit is strict)', async () => {
     const { service, state } = setupEndService({
       failInsertTables: new Set(['admin_audit_log']),
     });
@@ -1648,7 +1648,7 @@ describe('JamService — UC-95 endJamEvent', () => {
     expect(state.jam_events[0].status).toBe('ended');
   });
 
-  it('a scheduled event may also be ended early (admin “kết thúc ngay”)', async () => {
+  it('UTCID09 a scheduled event may also be ended early (admin “kết thúc ngay”)', async () => {
     const { service, state } = setupEndService({
       events: [
         activeEventRow({

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startNoteScheduler } from "./note-scheduler";
 
-describe("startNoteScheduler", () => {
+describe("FE-LIB-44 startNoteScheduler", () => {
   let clock = 0;
   const now = () => clock;
   const advance = (ms: number) => {
@@ -18,7 +18,7 @@ describe("startNoteScheduler", () => {
     vi.useRealTimers();
   });
 
-  it("covers every tick from start to end exactly once, in contiguous chunks", () => {
+  it("UTCID01 covers every tick from start to end exactly once, in contiguous chunks", () => {
     const chunks: Array<[number, number]> = [];
     startNoteScheduler({
       now,
@@ -38,7 +38,7 @@ describe("startNoteScheduler", () => {
     }
   });
 
-  it("schedules only within the lookahead window, not the whole song at once", () => {
+  it("UTCID02 schedules only within the lookahead window, not the whole song at once", () => {
     const chunks: Array<[number, number]> = [];
     startNoteScheduler({
       now,
@@ -55,7 +55,7 @@ describe("startNoteScheduler", () => {
     expect(chunks[0][1]).toBeLessThanOrEqual(151);
   });
 
-  it("stops scheduling as soon as it is cancelled", () => {
+  it("UTCID03 stops scheduling as soon as it is cancelled", () => {
     const schedule = vi.fn();
     const stop = startNoteScheduler({
       now,
@@ -73,7 +73,7 @@ describe("startNoteScheduler", () => {
     expect(schedule.mock.calls.length).toBe(calls);
   });
 
-  it("calls onEnd once after the last tick plus the tail", () => {
+  it("UTCID04 calls onEnd once after the last tick plus the tail", () => {
     const run = vi.fn();
     startNoteScheduler({
       now,

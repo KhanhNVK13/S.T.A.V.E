@@ -115,8 +115,8 @@ const dto = {
   description: 'mô tả',
 };
 
-describe('PullRequestsService.create', () => {
-  it('stores the names and counts and notifies the owner of the original', async () => {
+describe('BE-PRQ-02 PullRequestsService.create', () => {
+  it('UTCID01 stores the names and counts and notifies the owner of the original', async () => {
     const { service, builders, notify } = makeService({
       tables: createTables(),
     });
@@ -151,14 +151,14 @@ describe('PullRequestsService.create', () => {
     expect(builders.projects.select).not.toHaveBeenCalled();
   });
 
-  it('rejects a description over 2000 characters', async () => {
+  it('UTCID02 rejects a description over 2000 characters', async () => {
     const { service } = makeService({ tables: createTables() });
     await expect(
       service.create(forkId, author, { ...dto, description: 'a'.repeat(2001) }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('only accepts a project that is a fork', async () => {
+  it('UTCID03 only accepts a project that is a fork', async () => {
     const { service } = makeService({
       tables: createTables({
         projects: [{ data: project(forkId, { forked_from_project_id: null }) }],
@@ -169,7 +169,7 @@ describe('PullRequestsService.create', () => {
     );
   });
 
-  it('refuses when the original project is no longer public', async () => {
+  it('UTCID04 refuses when the original project is no longer public', async () => {
     const { service } = makeService({
       tables: createTables({
         projects: [
@@ -183,7 +183,7 @@ describe('PullRequestsService.create', () => {
     );
   });
 
-  it('refuses when the fork has nothing new', async () => {
+  it('UTCID05 refuses when the fork has nothing new', async () => {
     const { service } = makeService({
       tables: createTables(),
       analysis: {
@@ -197,7 +197,7 @@ describe('PullRequestsService.create', () => {
     );
   });
 
-  it('points to the existing open pull request instead of creating a duplicate', async () => {
+  it('UTCID06 points to the existing open pull request instead of creating a duplicate', async () => {
     const { service, builders } = makeService({
       tables: createTables({ pull_requests: [{ data: { id: 'existing' } }] }),
     });
@@ -207,7 +207,7 @@ describe('PullRequestsService.create', () => {
     expect(builders.pull_requests.insert).not.toHaveBeenCalled();
   });
 
-  it('marks the pull request as having conflicts', async () => {
+  it('UTCID07 marks the pull request as having conflicts', async () => {
     const { service, builders } = makeService({
       tables: createTables(),
       analysis: {
@@ -223,14 +223,14 @@ describe('PullRequestsService.create', () => {
   });
 });
 
-describe('PullRequestsService.loadForUser permissions', () => {
+describe('BE-PRQ-03 PullRequestsService.loadForUser permissions', () => {
   const tables = (targetOverrides: Record<string, unknown> = {}) =>
     ({
       pull_requests: [{ data: prRow() }],
       projects: [{ data: project(originalId, targetOverrides) }],
     }) as SupabaseMockOptions['tables'];
 
-  it('lets the owner of the original merge and close', async () => {
+  it('UTCID01 lets the owner of the original merge and close', async () => {
     const { service } = makeService({
       tables: tables(),
       accessOf: { [owner]: 'owner' },
@@ -243,14 +243,14 @@ describe('PullRequestsService.loadForUser permissions', () => {
     });
   });
 
-  it('lets the author close but not merge', async () => {
+  it('UTCID02 lets the author close but not merge', async () => {
     const { service } = makeService({ tables: tables() });
     const result = await service.loadForUser(prId, author);
     expect(result.permissions.canMerge).toBe(false);
     expect(result.permissions.canClose).toBe(true);
   });
 
-  it('lets a stranger read a pull request of a public project without acting on it', async () => {
+  it('UTCID03 lets a stranger read a pull request of a public project without acting on it', async () => {
     const { service } = makeService({ tables: tables() });
     const result = await service.loadForUser(prId, stranger);
     expect(result.permissions.canMerge).toBe(false);
@@ -258,7 +258,7 @@ describe('PullRequestsService.loadForUser permissions', () => {
     expect(result.permissions.canComment).toBe(true);
   });
 
-  it('hides the pull request from a stranger when the original is private', async () => {
+  it('UTCID04 hides the pull request from a stranger when the original is private', async () => {
     const { service } = makeService({
       tables: tables({ visibility: 'private' }),
     });
@@ -267,7 +267,7 @@ describe('PullRequestsService.loadForUser permissions', () => {
     );
   });
 
-  it('keeps a pull request readable for its author after the original is deleted', async () => {
+  it('UTCID05 keeps a pull request readable for its author after the original is deleted', async () => {
     const { service } = makeService({
       tables: {
         pull_requests: [{ data: prRow({ target_project_id: null }) }],
@@ -278,7 +278,7 @@ describe('PullRequestsService.loadForUser permissions', () => {
     expect(result.permissions.canMerge).toBe(false);
   });
 
-  it('answers not found for a missing pull request', async () => {
+  it('UTCID06 answers not found for a missing pull request', async () => {
     const { service } = makeService({
       tables: { pull_requests: [{ data: null }] },
     });
@@ -288,7 +288,7 @@ describe('PullRequestsService.loadForUser permissions', () => {
   });
 });
 
-describe('PullRequestsService.addComment', () => {
+describe('BE-PRQ-04 PullRequestsService.addComment', () => {
   const base = () =>
     ({
       pull_requests: [{ data: prRow() }],
@@ -320,7 +320,7 @@ describe('PullRequestsService.addComment', () => {
       ],
     }) as SupabaseMockOptions['tables'];
 
-  it('rejects an empty comment and one over 2000 characters', async () => {
+  it('UTCID01 rejects an empty comment and one over 2000 characters', async () => {
     const empty = makeService({
       tables: base(),
       accessOf: { [owner]: 'owner' },
@@ -338,7 +338,7 @@ describe('PullRequestsService.addComment', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('notifies the author but not the commenter', async () => {
+  it('UTCID02 notifies the author but not the commenter', async () => {
     const { service, notify } = makeService({
       tables: base(),
       accessOf: { [owner]: 'owner' },
@@ -353,7 +353,7 @@ describe('PullRequestsService.addComment', () => {
   });
 });
 
-describe('PullRequestsService.close', () => {
+describe('BE-PRQ-05 PullRequestsService.close', () => {
   const tables = (status = 'open') =>
     ({
       pull_requests: [
@@ -365,7 +365,7 @@ describe('PullRequestsService.close', () => {
       users: [{ data: { display_name: 'An', username: 'an' } }],
     }) as SupabaseMockOptions['tables'];
 
-  it('refuses to close a pull request that is no longer open', async () => {
+  it('UTCID01 refuses to close a pull request that is no longer open', async () => {
     const { service } = makeService({
       tables: tables('merged'),
       accessOf: { [owner]: 'owner' },
@@ -375,14 +375,14 @@ describe('PullRequestsService.close', () => {
     );
   });
 
-  it('refuses a stranger', async () => {
+  it('UTCID02 refuses a stranger', async () => {
     const { service } = makeService({ tables: tables() });
     await expect(service.close(prId, stranger, {})).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });
 
-  it('lets the author withdraw and tells the owner of the original', async () => {
+  it('UTCID03 lets the author withdraw and tells the owner of the original', async () => {
     const { service, notify, builders } = makeService({ tables: tables() });
     await service.close(prId, author, { comment: 'Rút lại' });
     expect(notify).toHaveBeenCalledWith(
@@ -395,7 +395,7 @@ describe('PullRequestsService.close', () => {
     );
   });
 
-  it('tells the author when the owner of the original closes it', async () => {
+  it('UTCID04 tells the author when the owner of the original closes it', async () => {
     const { service, notify } = makeService({
       tables: tables(),
       accessOf: { [owner]: 'owner' },
@@ -409,8 +409,8 @@ describe('PullRequestsService.close', () => {
   });
 });
 
-describe('PullRequestsService.listForProject', () => {
-  it('hides a private project from people without access', async () => {
+describe('BE-PRQ-06 PullRequestsService.listForProject', () => {
+  it('UTCID01 hides a private project from people without access', async () => {
     const { service } = makeService({
       tables: {
         projects: [{ data: project(originalId, { visibility: 'private' }) }],
@@ -421,7 +421,7 @@ describe('PullRequestsService.listForProject', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('shows a stranger only the pull requests targeting the public project', async () => {
+  it('UTCID02 shows a stranger only the pull requests targeting the public project', async () => {
     const own = prRow({ id: 'own', target_project_id: originalId });
     const other = prRow({
       id: 'other',
@@ -440,8 +440,8 @@ describe('PullRequestsService.listForProject', () => {
   });
 });
 
-describe('PullRequestsService.targetBranches', () => {
-  it('lists the branches of the original project, default first', async () => {
+describe('BE-PRQ-07 PullRequestsService.targetBranches', () => {
+  it('UTCID01 lists the branches of the original project, default first', async () => {
     const { service } = makeService({
       tables: {
         projects: [{ data: project(forkId) }, { data: project(originalId) }],
@@ -460,7 +460,7 @@ describe('PullRequestsService.targetBranches', () => {
     expect(result.branches.map((b) => b.id)).toEqual(['tb', 'tb2']);
   });
 
-  it('refuses when the original is no longer public', async () => {
+  it('UTCID02 refuses when the original is no longer public', async () => {
     const { service } = makeService({
       tables: {
         projects: [
@@ -475,8 +475,8 @@ describe('PullRequestsService.targetBranches', () => {
   });
 });
 
-describe('PullRequestsService.markMerged', () => {
-  it('records the merge only while the pull request is still open', async () => {
+describe('BE-PRQ-08 PullRequestsService.markMerged', () => {
+  it('UTCID01 records the merge only while the pull request is still open', async () => {
     const { service, builders } = makeService({
       tables: { pull_requests: [{ data: { id: prId }, error: null }] },
     });
@@ -484,7 +484,7 @@ describe('PullRequestsService.markMerged', () => {
     expect(builders.pull_requests.eq).toHaveBeenCalledWith('status', 'open');
   });
 
-  it('reports a conflict when someone else already finished it', async () => {
+  it('UTCID02 reports a conflict when someone else already finished it', async () => {
     const { service } = makeService({
       tables: { pull_requests: [{ data: null, error: null }] },
     });

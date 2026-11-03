@@ -17,14 +17,14 @@ function makeService(tables: SupabaseMockOptions['tables'] = {}) {
   return { service: new NotificationsService(mock.client), ...mock };
 }
 
-describe('notification types', () => {
-  it('defines 28 unique types', () => {
+describe('BE-NTF-01 notification types', () => {
+  it('UTCID01 defines 28 unique types', () => {
     const types = NOTIFICATION_TYPES.map((t) => t.type);
     expect(types).toHaveLength(28);
     expect(new Set(types).size).toBe(28);
   });
 
-  it('marks only security and billing types as mandatory', () => {
+  it('UTCID02 marks only security and billing types as mandatory', () => {
     for (const def of NOTIFICATION_TYPES) {
       const expected =
         def.type.startsWith('security.') || def.type.startsWith('billing.');
@@ -35,7 +35,7 @@ describe('notification types', () => {
     expect(isMandatoryType('not.a.type')).toBe(false);
   });
 
-  it('uses every placeholder of a type in its default body or subject', () => {
+  it('UTCID03 uses every placeholder of a type in its default body or subject', () => {
     for (const def of NOTIFICATION_TYPES) {
       for (const key of def.placeholders) {
         expect(`${def.defaultSubject} ${def.defaultBody}`).toContain(
@@ -45,7 +45,7 @@ describe('notification types', () => {
     }
   });
 
-  it('only references declared placeholders', () => {
+  it('UTCID04 only references declared placeholders', () => {
     for (const def of NOTIFICATION_TYPES) {
       const used = [
         ...`${def.defaultSubject} ${def.defaultBody}`.matchAll(
@@ -56,7 +56,7 @@ describe('notification types', () => {
     }
   });
 
-  it('renders placeholders and blanks missing values', () => {
+  it('UTCID05 renders placeholders and blanks missing values', () => {
     expect(
       renderTemplate('Chào {{name}} ({{ missing }})', { name: 'An' }),
     ).toBe('Chào An ()');
@@ -64,8 +64,8 @@ describe('notification types', () => {
   });
 });
 
-describe('NotificationsService.notify', () => {
-  it('writes the rendered title and body into the payload', async () => {
+describe('BE-NTF-02 NotificationsService.notify', () => {
+  it('UTCID01 writes the rendered title and body into the payload', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: null }],
       notification_templates: [{ data: null }],
@@ -89,7 +89,7 @@ describe('NotificationsService.notify', () => {
     });
   });
 
-  it('does not send an optional type the user muted', async () => {
+  it('UTCID02 does not send an optional type the user muted', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: { enabled: false } }],
       notifications: [],
@@ -101,7 +101,7 @@ describe('NotificationsService.notify', () => {
     expect(builders.notifications.insert).not.toHaveBeenCalled();
   });
 
-  it('always sends a mandatory type and never reads preferences', async () => {
+  it('UTCID03 always sends a mandatory type and never reads preferences', async () => {
     const { service, builders } = makeService({
       notification_preferences: [],
       notification_templates: [{ data: null }],
@@ -115,7 +115,7 @@ describe('NotificationsService.notify', () => {
     expect(builders.notification_preferences.select).not.toHaveBeenCalled();
   });
 
-  it('uses the stored template when one exists', async () => {
+  it('UTCID04 uses the stored template when one exists', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: null }],
       notification_templates: [
@@ -142,7 +142,7 @@ describe('NotificationsService.notify', () => {
     );
   });
 
-  it('still records an unknown type with the type as its title', async () => {
+  it('UTCID05 still records an unknown type with the type as its title', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: null }],
       notification_templates: [{ data: null }],
@@ -160,7 +160,7 @@ describe('NotificationsService.notify', () => {
     );
   });
 
-  it('never throws when the write fails', async () => {
+  it('UTCID06 never throws when the write fails', async () => {
     const { service } = makeService({
       notification_preferences: [{ data: null }],
       notification_templates: [{ data: null }],
@@ -174,7 +174,7 @@ describe('NotificationsService.notify', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('never throws when a lookup throws', async () => {
+  it('UTCID07 never throws when a lookup throws', async () => {
     const { service } = makeService({});
     await expect(
       service.notify(userId, 'comment.new', {

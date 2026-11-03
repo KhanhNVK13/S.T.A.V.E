@@ -97,40 +97,40 @@ function setup(collaborators = true): ProjectAccessService {
   return new ProjectAccessService(mockSupabaseClient(state));
 }
 
-describe('ProjectAccessService.getAccess', () => {
-  it('returns "owner" for the project owner', async () => {
+describe('BE-PAC-01 ProjectAccessService.getAccess', () => {
+  it('UTCID01 returns "owner" for the project owner', async () => {
     const service = setup(false);
     expect(await service.getAccess('p-1', 'owner-1')).toBe('owner');
   });
 
-  it('returns "edit" for an accepted collaborator with edit permission', async () => {
+  it('UTCID02 returns "edit" for an accepted collaborator with edit permission', async () => {
     const service = setup();
     expect(await service.getAccess('p-1', 'collab-edit')).toBe('edit');
   });
 
-  it('returns "view" for an accepted collaborator with view permission', async () => {
+  it('UTCID03 returns "view" for an accepted collaborator with view permission', async () => {
     const service = setup();
     expect(await service.getAccess('p-1', 'collab-view')).toBe('view');
   });
 
-  it('returns null for a pending collaborator (BR-65)', async () => {
+  it('UTCID04 returns null for a pending collaborator (BR-65)', async () => {
     const service = setup();
     expect(await service.getAccess('p-1', 'collab-pending')).toBeNull();
   });
 
-  it('returns null for a stranger with no relation', async () => {
+  it('UTCID05 returns null for a stranger with no relation', async () => {
     const service = setup();
     expect(await service.getAccess('p-1', 'stranger')).toBeNull();
   });
 
-  it('throws NotFoundException when the project does not exist', async () => {
+  it('UTCID06 throws NotFoundException when the project does not exist', async () => {
     const service = setup();
     await expect(service.getAccess('missing', 'owner-1')).rejects.toThrow(
       NotFoundException,
     );
   });
 
-  it('throws NotFoundException when the project is hidden for moderation', async () => {
+  it('UTCID07 throws NotFoundException when the project is hidden for moderation', async () => {
     const state: Record<string, TableState> = {
       projects: {
         rows: [{ ...projectRow, moderation_hidden_at: '2026-10-01T00:00:00Z' }],
@@ -144,8 +144,8 @@ describe('ProjectAccessService.getAccess', () => {
   });
 });
 
-describe('ProjectAccessService assertions', () => {
-  it('assertCanView passes for owner, edit and view collaborators', async () => {
+describe('BE-PAC-02 ProjectAccessService assertions', () => {
+  it('UTCID01 assertCanView passes for owner, edit and view collaborators', async () => {
     const service = setup();
     await expect(
       service.assertCanView('p-1', 'owner-1'),
@@ -158,7 +158,7 @@ describe('ProjectAccessService assertions', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('assertCanView rejects pending collaborators and strangers', async () => {
+  it('UTCID02 assertCanView rejects pending collaborators and strangers', async () => {
     const service = setup();
     await expect(
       service.assertCanView('p-1', 'collab-pending'),
@@ -168,7 +168,7 @@ describe('ProjectAccessService assertions', () => {
     );
   });
 
-  it('assertCanEdit passes for owner and edit collaborators only', async () => {
+  it('UTCID03 assertCanEdit passes for owner and edit collaborators only', async () => {
     const service = setup();
     await expect(
       service.assertCanEdit('p-1', 'owner-1'),
@@ -184,7 +184,7 @@ describe('ProjectAccessService assertions', () => {
     );
   });
 
-  it('assertOwner passes for the owner and rejects everyone else', async () => {
+  it('UTCID04 assertOwner passes for the owner and rejects everyone else', async () => {
     const service = setup();
     await expect(
       service.assertOwner('p-1', 'owner-1'),
@@ -194,7 +194,7 @@ describe('ProjectAccessService assertions', () => {
     );
   });
 
-  it('propagates a DB error as InternalServerErrorException', async () => {
+  it('UTCID05 propagates a DB error as InternalServerErrorException', async () => {
     const state: Record<string, TableState> = {
       projects: { rows: [projectRow], error: { message: 'db down' } },
       project_collaborators: { rows: [] },

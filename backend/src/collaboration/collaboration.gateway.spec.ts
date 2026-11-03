@@ -106,8 +106,8 @@ function fakeSocket(
   return socket;
 }
 
-describe('PresenceRegistry (in-RAM, BR-70)', () => {
-  it('counts multiple tabs of one user as a single avatar', () => {
+describe('BE-PRS-01 PresenceRegistry (in-RAM, BR-70)', () => {
+  it('UTCID01 counts multiple tabs of one user as a single avatar', () => {
     const r = new PresenceRegistry();
     r.addSocket('p-1', 'u1', 's1', profile('u1', 'One'));
     r.addSocket('p-1', 'u1', 's2', profile('u1', 'One'));
@@ -120,7 +120,7 @@ describe('PresenceRegistry (in-RAM, BR-70)', () => {
     ).toEqual(['u1', 'u2']);
   });
 
-  it('removing a non-last tab keeps the avatar; removing the last one drops it', () => {
+  it('UTCID02 removing a non-last tab keeps the avatar; removing the last one drops it', () => {
     const r = new PresenceRegistry();
     r.addSocket('p-1', 'u1', 's1', profile('u1', 'One'));
     r.addSocket('p-1', 'u1', 's2', profile('u1', 'One'));
@@ -132,7 +132,7 @@ describe('PresenceRegistry (in-RAM, BR-70)', () => {
     expect(r.users('p-1')).toHaveLength(0);
   });
 
-  it('roomsOf / forgetSocket let a disconnect clean every room at once', () => {
+  it('UTCID03 roomsOf / forgetSocket let a disconnect clean every room at once', () => {
     const r = new PresenceRegistry();
     r.addSocket('p-1', 'u1', 's1', profile('u1', 'One'));
     r.addSocket('p-2', 'u1', 's1', profile('u1', 'One'));
@@ -141,7 +141,7 @@ describe('PresenceRegistry (in-RAM, BR-70)', () => {
     expect(r.roomsOf('s1')).toHaveLength(0);
   });
 
-  it('removeUser returns the socket ids so the gateway can kick each tab', () => {
+  it('UTCID04 removeUser returns the socket ids so the gateway can kick each tab', () => {
     const r = new PresenceRegistry();
     r.addSocket('p-1', 'u1', 's1', profile('u1', 'One'));
     r.addSocket('p-1', 'u1', 's2', profile('u1', 'One'));
@@ -151,8 +151,8 @@ describe('PresenceRegistry (in-RAM, BR-70)', () => {
   });
 });
 
-describe('CollaborationGateway — handshake auth (1.E1)', () => {
-  it('disconnects when handshake auth is missing', async () => {
+describe('BE-PRS-02 CollaborationGateway — handshake auth (1.E1)', () => {
+  it('UTCID01 disconnects when handshake auth is missing', async () => {
     const gateway = makeGateway();
     const client = fakeSocket('s1');
     await gateway.handleConnection(client);
@@ -160,7 +160,7 @@ describe('CollaborationGateway — handshake auth (1.E1)', () => {
     expect(client.data).toBeUndefined();
   });
 
-  it('disconnects on an invalid access token', async () => {
+  it('UTCID02 disconnects on an invalid access token', async () => {
     const gateway = makeGateway();
     const client = fakeSocket('s1', {
       accessToken: 'garbage',
@@ -171,7 +171,7 @@ describe('CollaborationGateway — handshake auth (1.E1)', () => {
     expect(client.data).toBeUndefined();
   });
 
-  it('accepts a valid token + live session and stores the identity', async () => {
+  it('UTCID03 accepts a valid token + live session and stores the identity', async () => {
     const rows: Record<string, Row[]> = {
       sessions: [
         {
@@ -207,7 +207,7 @@ describe('CollaborationGateway — handshake auth (1.E1)', () => {
     expect(client.data.profile.displayName).toBe('Owner');
   });
 
-  it('disconnects when the session was revoked', async () => {
+  it('UTCID04 disconnects when the session was revoked', async () => {
     const rows: Record<string, Row[]> = {
       sessions: [
         {
@@ -232,7 +232,7 @@ describe('CollaborationGateway — handshake auth (1.E1)', () => {
     expect(client.disconnect).toHaveBeenCalledWith(true);
   });
 
-  it('disconnects when the session belongs to a different user', async () => {
+  it('UTCID05 disconnects when the session belongs to a different user', async () => {
     const rows: Record<string, Row[]> = {
       sessions: [
         {
@@ -258,7 +258,7 @@ describe('CollaborationGateway — handshake auth (1.E1)', () => {
   });
 });
 
-describe('CollaborationGateway — presence:join (1.E2/1.E3/1.E4)', () => {
+describe('BE-PRS-03 CollaborationGateway — presence:join (1.E2/1.E3/1.E4)', () => {
   async function authorizedClient(socketId: string, userId: string) {
     const client = fakeSocket(socketId, {
       accessToken: `valid-${userId}`,
@@ -284,7 +284,7 @@ describe('CollaborationGateway — presence:join (1.E2/1.E3/1.E4)', () => {
     return { gateway: g, client };
   }
 
-  it('joins the room and stays for an authorized user', async () => {
+  it('UTCID01 joins the room and stays for an authorized user', async () => {
     const { gateway, client } = await authorizedClient('s1', OWNER);
     await gateway.handleJoin(client, { projectId: 'p-1' });
 
@@ -297,7 +297,7 @@ describe('CollaborationGateway — presence:join (1.E2/1.E3/1.E4)', () => {
     ).toContain(OWNER);
   });
 
-  it('rejects an unknown project with presence:denied (1.E2)', async () => {
+  it('UTCID02 rejects an unknown project with presence:denied (1.E2)', async () => {
     const { gateway, client } = await authorizedClient('s1', OWNER);
     await gateway.handleJoin(client, { projectId: 'missing' });
 
@@ -308,7 +308,7 @@ describe('CollaborationGateway — presence:join (1.E2/1.E3/1.E4)', () => {
     expect(gateway.getRegistry().users('missing')).toHaveLength(0);
   });
 
-  it('rejects a pending collaborator (BR-65 / 1.E4)', async () => {
+  it('UTCID03 rejects a pending collaborator (BR-65 / 1.E4)', async () => {
     const { gateway, client } = await authorizedClient('s1', PENDING);
     await gateway.handleJoin(client, { projectId: 'p-1' });
 
@@ -319,7 +319,7 @@ describe('CollaborationGateway — presence:join (1.E2/1.E3/1.E4)', () => {
     expect(gateway.getRegistry().users('p-1')).toHaveLength(0);
   });
 
-  it('rejects an outsider with presence:denied (1.E3)', async () => {
+  it('UTCID04 rejects an outsider with presence:denied (1.E3)', async () => {
     const { gateway, client } = await authorizedClient('s1', OUTSIDER);
     await gateway.handleJoin(client, { projectId: 'p-1' });
 
@@ -330,8 +330,8 @@ describe('CollaborationGateway — presence:join (1.E2/1.E3/1.E4)', () => {
   });
 });
 
-describe('CollaborationGateway — leave + disconnect cleanup (4.E1)', () => {
-  it('presence:leave drops the user only when it was their last tab', () => {
+describe('BE-PRS-04 CollaborationGateway — leave + disconnect cleanup (4.E1)', () => {
+  it('UTCID01 presence:leave drops the user only when it was their last tab', () => {
     const gateway = makeGateway();
     const a = fakeSocket('s1', {
       accessToken: `valid-${OWNER}`,
@@ -366,7 +366,7 @@ describe('CollaborationGateway — leave + disconnect cleanup (4.E1)', () => {
     expect(gateway.getRegistry().users('p-1')).toHaveLength(0);
   });
 
-  it('handleDisconnect cleans every room the socket was in', () => {
+  it('UTCID02 handleDisconnect cleans every room the socket was in', () => {
     const gateway = makeGateway();
     const client = fakeSocket('s1', {
       accessToken: `valid-${OWNER}`,
@@ -387,7 +387,7 @@ describe('CollaborationGateway — leave + disconnect cleanup (4.E1)', () => {
     expect(gateway.getRegistry().users('p-2')).toHaveLength(0);
   });
 
-  it('revokeUserAccess kicks every open tab of the removed user (UC-62)', () => {
+  it('UTCID03 revokeUserAccess kicks every open tab of the removed user (UC-62)', () => {
     const gateway = makeGateway();
     const registry = gateway.getRegistry();
     registry.addSocket('p-1', COLLAB, 'c1', profile(COLLAB, 'Collab'));

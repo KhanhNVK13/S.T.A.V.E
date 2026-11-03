@@ -8,7 +8,7 @@ import {
  * PlatformSettingsService reads `platform_settings` with a 30s in-memory
  * cache and fails open to the caller's fallback.
  */
-describe('PlatformSettingsService', () => {
+describe('BE-PLS-01 PlatformSettingsService', () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-11-02'));
   });
@@ -25,7 +25,7 @@ describe('PlatformSettingsService', () => {
     error: null,
   });
 
-  it('returns the stored value and serves repeat reads from the cache', async () => {
+  it('UTCID01 returns the stored value and serves repeat reads from the cache', async () => {
     const mock = createSupabaseMock([], {
       tables: { platform_settings: [row(52_428_800)] },
     });
@@ -44,7 +44,7 @@ describe('PlatformSettingsService', () => {
     );
   });
 
-  it('re-queries once the 30s cache window has passed', async () => {
+  it('UTCID02 re-queries once the 30s cache window has passed', async () => {
     const mock = createSupabaseMock([], {
       tables: { platform_settings: [row(1), row(2)] },
     });
@@ -62,7 +62,7 @@ describe('PlatformSettingsService', () => {
     );
   });
 
-  it('is keyed per setting: two keys are cached and expired independently', async () => {
+  it('UTCID03 is keyed per setting: two keys are cached and expired independently', async () => {
     const mock = createSupabaseMock([], {
       tables: {
         platform_settings: [
@@ -86,7 +86,7 @@ describe('PlatformSettingsService', () => {
     );
   });
 
-  it('returns the fallback when no row exists for the key', async () => {
+  it('UTCID04 returns the fallback when no row exists for the key', async () => {
     const mock = createSupabaseMock([], {
       tables: {
         platform_settings: [{ data: null, error: null }],
@@ -96,7 +96,7 @@ describe('PlatformSettingsService', () => {
     await expect(svc.get('missing_key', 'fallback')).resolves.toBe('fallback');
   });
 
-  it('returns the fallback when the stored value is JSON null', async () => {
+  it('UTCID05 returns the fallback when the stored value is JSON null', async () => {
     const mock = createSupabaseMock([], {
       tables: { platform_settings: [row(null)] },
     });
@@ -104,7 +104,7 @@ describe('PlatformSettingsService', () => {
     await expect(svc.get('custom_sound_quota_bytes', 7)).resolves.toBe(7);
   });
 
-  it('fails open on a DB error without caching the error', async () => {
+  it('UTCID06 fails open on a DB error without caching the error', async () => {
     const mock = createSupabaseMock([], {
       tables: {
         platform_settings: [
@@ -122,7 +122,7 @@ describe('PlatformSettingsService', () => {
     );
   });
 
-  it('invalidates a single key so the next read re-queries', async () => {
+  it('UTCID07 invalidates a single key so the next read re-queries', async () => {
     const mock = createSupabaseMock([], {
       tables: { platform_settings: [row(1), row(2), row(3)] },
     });
@@ -140,7 +140,7 @@ describe('PlatformSettingsService', () => {
     await expect(svc.get('k', 0)).resolves.toBe(2);
   });
 
-  it('supports structured (jsonb object) values', async () => {
+  it('UTCID08 supports structured (jsonb object) values', async () => {
     const payload = { enabled: true, maxPerDay: 5 };
     const mock = createSupabaseMock([], {
       tables: {

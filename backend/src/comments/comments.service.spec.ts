@@ -245,8 +245,8 @@ function baseRows(): Record<string, Row[]> {
 // UC-63: listComments + noteMissing (BR-68)
 // ==========================================================================
 
-describe('CommentsService — UC-63 listComments', () => {
-  it('returns the flat list with author info and noteMissing=false when the note exists', async () => {
+describe('BE-CMM-01 CommentsService — UC-63 listComments', () => {
+  it('UTCID01 returns the flat list with author info and noteMissing=false when the note exists', async () => {
     const rows = baseRows();
     rows.comments = [
       {
@@ -272,7 +272,7 @@ describe('CommentsService — UC-63 listComments', () => {
     expect(items[0].trackId).toBe(TRACK_A);
   });
 
-  it('marks noteMissing=true when the anchored note is gone from the draft (BR-68)', async () => {
+  it('UTCID02 marks noteMissing=true when the anchored note is gone from the draft (BR-68)', async () => {
     const rows = baseRows();
     // Simulate the note being deleted: only NOTE_1 remains in the draft.
     rows.drafts[0].snapshot = {
@@ -310,7 +310,7 @@ describe('CommentsService — UC-63 listComments', () => {
     expect(items[0].noteId).toBe('note-deleted');
   });
 
-  it('falls back to the head commit snapshot when no draft exists', async () => {
+  it('UTCID03 falls back to the head commit snapshot when no draft exists', async () => {
     const rows = baseRows();
     rows.drafts = [];
     const commitSnapshot: DraftSnapshot = {
@@ -350,7 +350,7 @@ describe('CommentsService — UC-63 listComments', () => {
     expect(items[0].noteMissing).toBe(false);
   });
 
-  it('rejects a user with no access', async () => {
+  it('UTCID04 rejects a user with no access', async () => {
     const rows = baseRows();
     const forbidden = new ForbiddenException('no access');
     const service = makeService(rows, {
@@ -367,8 +367,8 @@ describe('CommentsService — UC-63 listComments', () => {
 // UC-63: createComment
 // ==========================================================================
 
-describe('CommentsService — UC-63 createComment', () => {
-  it('stores a top-level comment with no anchor as project-wide (1.1)', async () => {
+describe('BE-CMM-02 CommentsService — UC-63 createComment', () => {
+  it('UTCID01 stores a top-level comment with no anchor as project-wide (1.1)', async () => {
     const rows = baseRows();
     const service = makeService(rows);
     const dto: CreateCommentDto = { body: '  Overall the chorus is good ' };
@@ -390,7 +390,7 @@ describe('CommentsService — UC-63 createComment', () => {
     });
   });
 
-  it('rejects an empty-after-trim body (4.E1)', async () => {
+  it('UTCID02 rejects an empty-after-trim body (4.E1)', async () => {
     const rows = baseRows();
     const service = makeService(rows);
     await expect(
@@ -399,7 +399,7 @@ describe('CommentsService — UC-63 createComment', () => {
     expect(rows.comments).toHaveLength(0);
   });
 
-  it('anchors a comment to a bar + track + note', async () => {
+  it('UTCID03 anchors a comment to a bar + track + note', async () => {
     const rows = baseRows();
     const service = makeService(rows);
     const item = await service.createComment(
@@ -415,7 +415,7 @@ describe('CommentsService — UC-63 createComment', () => {
     expect(item.author.username).toBe('viewer');
   });
 
-  it('a reply inherits the parent anchor (2.1) and is stored with parentId', async () => {
+  it('UTCID04 a reply inherits the parent anchor (2.1) and is stored with parentId', async () => {
     const rows = baseRows();
     rows.comments = [
       {
@@ -444,7 +444,7 @@ describe('CommentsService — UC-63 createComment', () => {
     expect(item.noteId).toBe(NOTE_2);
   });
 
-  it('refuses to reply to a reply — one level only (2.1)', async () => {
+  it('UTCID05 refuses to reply to a reply — one level only (2.1)', async () => {
     const rows = baseRows();
     rows.comments = [
       {
@@ -480,7 +480,7 @@ describe('CommentsService — UC-63 createComment', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('404s when the parent comment is not in this project', async () => {
+  it('UTCID06 404s when the parent comment is not in this project', async () => {
     const rows = baseRows();
     rows.comments = [
       {
@@ -510,7 +510,7 @@ describe('CommentsService — UC-63 createComment', () => {
 // UC-63: deleteComment (BR-69)
 // ==========================================================================
 
-describe('CommentsService — UC-63 deleteComment', () => {
+describe('BE-CMM-03 CommentsService — UC-63 deleteComment', () => {
   function deleteRows(): Record<string, Row[]> {
     const rows = baseRows();
     rows.comments = [
@@ -540,7 +540,7 @@ describe('CommentsService — UC-63 deleteComment', () => {
     return rows;
   }
 
-  it('the author can delete their own comment', async () => {
+  it('UTCID01 the author can delete their own comment', async () => {
     const rows = deleteRows();
     const service = makeService(rows, {
       ...fakeProjectAccess(),
@@ -551,7 +551,7 @@ describe('CommentsService — UC-63 deleteComment', () => {
     expect(rows.comments).toHaveLength(1);
   });
 
-  it('the owner can delete any comment (BR-69)', async () => {
+  it('UTCID02 the owner can delete any comment (BR-69)', async () => {
     const rows = deleteRows();
     const service = makeService(rows, {
       ...fakeProjectAccess(),
@@ -561,7 +561,7 @@ describe('CommentsService — UC-63 deleteComment', () => {
     expect(rows.comments.find((c) => c.id === 'c-own')).toBeUndefined();
   });
 
-  it('a non-author, non-owner viewer is refused (403)', async () => {
+  it('UTCID03 a non-author, non-owner viewer is refused (403)', async () => {
     const rows = deleteRows();
     const service = makeService(rows, {
       ...fakeProjectAccess(),
@@ -574,7 +574,7 @@ describe('CommentsService — UC-63 deleteComment', () => {
     expect(rows.comments).toHaveLength(2); // nothing deleted
   });
 
-  it('404s for a comment that does not exist in the project', async () => {
+  it('UTCID04 404s for a comment that does not exist in the project', async () => {
     const rows = deleteRows();
     const service = makeService(rows);
     await expect(service.deleteComment('p-1', 'nope', OWNER)).rejects.toThrow(
