@@ -247,8 +247,8 @@ const NEW_NOTE = {
   velocity: 80,
 };
 
-describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
-  it('applies a valid note and broadcasts `jam:note_updated` to the whole room', async () => {
+describe('BE-JAM-09 JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
+  it('UTCID01 applies a valid note and broadcasts `jam:note_updated` to the whole room', async () => {
     const { gateway, service, roomEmits } = makeGateway();
     const socket = fakeJammedSocket();
 
@@ -279,7 +279,7 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
     });
   });
 
-  it('drops an edit aimed at a room the socket is not in (JAM_ROOM_NOT_FOUND)', async () => {
+  it('UTCID02 drops an edit aimed at a room the socket is not in (JAM_ROOM_NOT_FOUND)', async () => {
     const { gateway } = makeGateway();
     const socket = fakeJammedSocket();
 
@@ -296,7 +296,7 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
     );
   });
 
-  it('a socket that never joined any room gets a neutral error, not a crash', async () => {
+  it('UTCID03 a socket that never joined any room gets a neutral error, not a crash', async () => {
     const { gateway } = makeGateway();
     const socket = fakeJammedSocket({ eventId: null });
 
@@ -313,7 +313,7 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
     );
   });
 
-  it('3.E1: an unauthenticated socket is rejected and disconnected', async () => {
+  it('UTCID04 3.E1: an unauthenticated socket is rejected and disconnected', async () => {
     const { gateway } = makeGateway();
     const socket: any = {
       id: 'socket-x',
@@ -340,7 +340,7 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
     expect(socket.disconnect).toHaveBeenCalledWith(true);
   });
 
-  it('2.E1: a cooldown rejection emits `jam:cooldown_active` to the sender only', async () => {
+  it('UTCID05 2.E1: a cooldown rejection emits `jam:cooldown_active` to the sender only', async () => {
     const { gateway, service, roomEmits } = makeGateway();
     const socket = fakeJammedSocket();
 
@@ -376,7 +376,7 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
     expect(service.getRoom(EVENT_ID)!.snapshot.notes).toHaveLength(1);
   });
 
-  it('5.E1: an ended event → `jam:event_ended` is broadcast + sender gets the error', async () => {
+  it('UTCID06 5.E1: an ended event → `jam:event_ended` is broadcast + sender gets the error', async () => {
     const { gateway, state, roomEmits } = makeGateway();
     const socket = fakeJammedSocket();
 
@@ -402,7 +402,7 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
     expect(ended!.room).toBe(`jam:${EVENT_ID}`);
   });
 
-  it('7.E1: malformed note data is rejected with INVALID_NOTE_DATA (no note lands)', async () => {
+  it('UTCID07 7.E1: malformed note data is rejected with INVALID_NOTE_DATA (no note lands)', async () => {
     const { gateway, service } = makeGateway();
     const socket = fakeJammedSocket();
 
@@ -438,7 +438,7 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
     expect(service.getRoom(EVENT_ID)).toBeUndefined();
   });
 
-  it('7.E2: a note on a track not in the snapshot is rejected with TRACK_NOT_FOUND', async () => {
+  it('UTCID08 7.E2: a note on a track not in the snapshot is rejected with TRACK_NOT_FOUND', async () => {
     const { gateway, service } = makeGateway();
     const socket = fakeJammedSocket();
 
@@ -462,8 +462,8 @@ describe('JamGateway — UC-67 handleEditNote / handleEditAlias', () => {
   });
 });
 
-describe('JamGateway — onModuleInit wires the sweep listener (12.E1)', () => {
-  it('broadcasts `jam:storage_warning` for each warning the sweep reports', () => {
+describe('BE-JAM-10 JamGateway — onModuleInit wires the sweep listener (12.E1)', () => {
+  it('UTCID01 broadcasts `jam:storage_warning` for each warning the sweep reports', () => {
     const { gateway, service } = makeGateway();
     const emits: Array<{ room: string; event: string; payload: unknown }> = [];
     (gateway as unknown as { server: unknown }).server = {

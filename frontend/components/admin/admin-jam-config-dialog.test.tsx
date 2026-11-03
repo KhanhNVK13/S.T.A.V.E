@@ -42,8 +42,8 @@ function makeEvent(overrides: Partial<JamEvent> = {}): JamEvent {
   };
 }
 
-describe("AdminJamConfigDialog (UC-94)", () => {
-  it("scheduled event: renders form with all fields editable and shows cancel section", () => {
+describe("FE-ADM-01 AdminJamConfigDialog (UC-94)", () => {
+  it("UTCID01 scheduled event: renders form with all fields editable and shows cancel section", () => {
     const event = makeEvent({ status: "scheduled" });
     const onClose = vi.fn();
     const onSaved = vi.fn();
@@ -70,7 +70,7 @@ describe("AdminJamConfigDialog (UC-94)", () => {
     expect(screen.getByText("Lưu thay đổi")).toBeDefined();
   });
 
-  it("active event (BR-75 & 2.E1): disables name, start time, and starting project with active warning banner", () => {
+  it("UTCID02 active event (BR-75 & 2.E1): disables name, start time, and starting project with active warning banner", () => {
     const event = makeEvent({
       status: "active",
       started_at: new Date(Date.now() - 600 * 1000).toISOString(),
@@ -105,7 +105,7 @@ describe("AdminJamConfigDialog (UC-94)", () => {
     expect(screen.queryByText("Hủy sự kiện này")).toBeNull();
   });
 
-  it("ended event (2.E2): shows locked message and disallows editing", () => {
+  it("UTCID03 ended event (2.E2): shows locked message and disallows editing", () => {
     const event = makeEvent({
       status: "ended",
       ended_at: new Date().toISOString(),
@@ -128,7 +128,7 @@ describe("AdminJamConfigDialog (UC-94)", () => {
     expect(screen.queryByText("Lưu thay đổi")).toBeNull();
   });
 
-  it("validates cooldown limits (4.E2: must be between 1 and 3600)", async () => {
+  it("UTCID04 validates cooldown limits (4.E2: must be between 1 and 3600)", async () => {
     const event = makeEvent({ status: "scheduled" });
     const onClose = vi.fn();
     const onSaved = vi.fn();
@@ -155,7 +155,7 @@ describe("AdminJamConfigDialog (UC-94)", () => {
     expect(apiJam.adminConfigureJamEvent).not.toHaveBeenCalled();
   });
 
-  it("submits valid configuration updates and triggers onSaved callback", async () => {
+  it("UTCID05 submits valid configuration updates and triggers onSaved callback", async () => {
     const event = makeEvent({ status: "scheduled" });
     const onClose = vi.fn();
     const onSaved = vi.fn();

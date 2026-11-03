@@ -31,26 +31,27 @@ function row(index: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('notificationHref', () => {
+describe('BE-NTF-03 notificationHref', () => {
   it.each([
-    ['comment.new', { projectId: 'p1' }, '/projects/p1'],
+    ['UTCID01', 'comment.new', { projectId: 'p1' }, '/projects/p1'],
     [
+      'UTCID02',
       'pr.merged',
       { pullRequestId: 'r1', projectId: 'p1' },
       '/pull-requests/r1',
     ],
-    ['jam.started', { eventId: 'e1' }, '/jam/e1'],
-    ['collab.invite', { invitationId: 'i1' }, '/invitations'],
-    ['billing.payment_success', {}, '/plans'],
-    ['security.google_connected', {}, '/profile'],
-    ['report.reviewed', {}, null],
-  ])('%s %j maps to %s', (type, payload, expected) => {
+    ['UTCID03', 'jam.started', { eventId: 'e1' }, '/jam/e1'],
+    ['UTCID04', 'collab.invite', { invitationId: 'i1' }, '/invitations'],
+    ['UTCID05', 'billing.payment_success', {}, '/plans'],
+    ['UTCID06', 'security.google_connected', {}, '/profile'],
+    ['UTCID07', 'report.reviewed', {}, null],
+  ])('%s %s %j maps to %s', (_id, type, payload, expected) => {
     expect(notificationHref(type, payload)).toBe(expected);
   });
 });
 
-describe('NotificationInboxService.list', () => {
-  it('returns the page and a cursor when there are more rows', async () => {
+describe('BE-NTF-04 NotificationInboxService.list', () => {
+  it('UTCID01 returns the page and a cursor when there are more rows', async () => {
     const { service } = makeService({
       notifications: [{ data: [row(3), row(2), row(1)] }],
     });
@@ -62,7 +63,7 @@ describe('NotificationInboxService.list', () => {
     expect(result.nextCursor).not.toBeNull();
   });
 
-  it('has no cursor on the last page', async () => {
+  it('UTCID02 has no cursor on the last page', async () => {
     const { service } = makeService({
       notifications: [{ data: [row(2), row(1)] }],
     });
@@ -71,7 +72,7 @@ describe('NotificationInboxService.list', () => {
     expect(result.nextCursor).toBeNull();
   });
 
-  it('applies the unread and mentions filters', async () => {
+  it('UTCID03 applies the unread and mentions filters', async () => {
     const unread = makeService({ notifications: [{ data: [] }] });
     await unread.service.list(userId, { filter: 'unread', limit: 30 });
     expect(unread.builders.notifications.is).toHaveBeenCalledWith(
@@ -87,7 +88,7 @@ describe('NotificationInboxService.list', () => {
     ]);
   });
 
-  it('only ever reads the caller rows', async () => {
+  it('UTCID04 only ever reads the caller rows', async () => {
     const { service, builders } = makeService({
       notifications: [{ data: [] }],
     });
@@ -95,7 +96,7 @@ describe('NotificationInboxService.list', () => {
     expect(builders.notifications.eq).toHaveBeenCalledWith('user_id', userId);
   });
 
-  it('continues from a cursor', async () => {
+  it('UTCID05 continues from a cursor', async () => {
     const first = makeService({
       notifications: [{ data: [row(3), row(2), row(1)] }],
     });
@@ -137,7 +138,7 @@ describe('NotificationInboxService.list', () => {
     },
   );
 
-  it('rejects a malformed cursor', async () => {
+  it('UTCID06 rejects a malformed cursor', async () => {
     const { service } = makeService({ notifications: [{ data: [] }] });
     await expect(
       service.list(userId, {
@@ -148,7 +149,7 @@ describe('NotificationInboxService.list', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('reports a database failure', async () => {
+  it('UTCID07 reports a database failure', async () => {
     const { service } = makeService({
       notifications: [{ data: null, error: { message: 'x' } }],
     });
@@ -158,8 +159,8 @@ describe('NotificationInboxService.list', () => {
   });
 });
 
-describe('NotificationInboxService.unreadCount', () => {
-  it('returns the count of unread rows', async () => {
+describe('BE-NTF-05 NotificationInboxService.unreadCount', () => {
+  it('UTCID01 returns the count of unread rows', async () => {
     const { service } = makeService({
       notifications: [{ data: null, count: 4 }],
     });
@@ -167,8 +168,8 @@ describe('NotificationInboxService.unreadCount', () => {
   });
 });
 
-describe('NotificationInboxService.open', () => {
-  it('marks the notification read and returns the href when the target exists', async () => {
+describe('BE-NTF-06 NotificationInboxService.open', () => {
+  it('UTCID01 marks the notification read and returns the href when the target exists', async () => {
     const { service, builders } = makeService({
       notifications: [
         {
@@ -192,7 +193,7 @@ describe('NotificationInboxService.open', () => {
     });
   });
 
-  it('still marks it read but reports ok false when the target is gone', async () => {
+  it('UTCID02 still marks it read but reports ok false when the target is gone', async () => {
     const { service, builders } = makeService({
       notifications: [
         {
@@ -213,7 +214,7 @@ describe('NotificationInboxService.open', () => {
     expect(builders.notifications.update).toHaveBeenCalled();
   });
 
-  it('does not rewrite read_at for an already read notification', async () => {
+  it('UTCID03 does not rewrite read_at for an already read notification', async () => {
     const { service, builders } = makeService({
       notifications: [
         {
@@ -233,7 +234,7 @@ describe('NotificationInboxService.open', () => {
     expect(builders.notifications.update).not.toHaveBeenCalled();
   });
 
-  it('answers not found for a notification of someone else', async () => {
+  it('UTCID04 answers not found for a notification of someone else', async () => {
     const { service } = makeService({ notifications: [{ data: null }] });
     await expect(service.open(userId, notificationId)).rejects.toBeInstanceOf(
       NotFoundException,
@@ -241,8 +242,8 @@ describe('NotificationInboxService.open', () => {
   });
 });
 
-describe('NotificationInboxService.readAll', () => {
-  it('marks every unread row of the caller', async () => {
+describe('BE-NTF-07 NotificationInboxService.readAll', () => {
+  it('UTCID01 marks every unread row of the caller', async () => {
     const { service, builders } = makeService({
       notifications: [{ data: null, error: null }],
     });
@@ -252,8 +253,8 @@ describe('NotificationInboxService.readAll', () => {
   });
 });
 
-describe('NotificationInboxService preferences', () => {
-  it('lists every type with stored values and forces mandatory types on', async () => {
+describe('BE-NTF-08 NotificationInboxService preferences', () => {
+  it('UTCID01 lists every type with stored values and forces mandatory types on', async () => {
     const { service } = makeService({
       notification_preferences: [
         {
@@ -279,7 +280,7 @@ describe('NotificationInboxService preferences', () => {
     ).toEqual({ in_app: true, email: true });
   });
 
-  it('saves a change for the caller keyed by type and channel', async () => {
+  it('UTCID02 saves a change for the caller keyed by type and channel', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: null, error: null }],
     });
@@ -299,7 +300,7 @@ describe('NotificationInboxService preferences', () => {
     );
   });
 
-  it('refuses to turn off a mandatory type', async () => {
+  it('UTCID03 refuses to turn off a mandatory type', async () => {
     const { service, builders } = makeService({
       notification_preferences: [],
     });
@@ -313,7 +314,7 @@ describe('NotificationInboxService preferences', () => {
     expect(builders.notification_preferences.upsert).not.toHaveBeenCalled();
   });
 
-  it('refuses an unknown type', async () => {
+  it('UTCID04 refuses an unknown type', async () => {
     const { service } = makeService({ notification_preferences: [] });
     await expect(
       service.setPreference(userId, {
@@ -324,7 +325,7 @@ describe('NotificationInboxService preferences', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('reports a save failure', async () => {
+  it('UTCID05 reports a save failure', async () => {
     const { service } = makeService({
       notification_preferences: [{ data: null, error: { message: 'x' } }],
     });

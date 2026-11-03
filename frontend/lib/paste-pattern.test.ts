@@ -49,8 +49,8 @@ function snapshot(
 
 const COLORS = ["#111111", "#222222"];
 
-describe("pastePattern", () => {
-  it("keeps relative timing from the playhead and gives pasted notes new ids", () => {
+describe("FE-LIB-45 pastePattern", () => {
+  it("UTCID01 keeps relative timing from the playhead and gives pasted notes new ids", () => {
     const source = snapshot([track("a", 0)], [
       note("n1", "a", 100, 50),
       note("n2", "a", 300, 50, 64),
@@ -72,7 +72,7 @@ describe("pastePattern", () => {
     expect(result.pastedIds).toHaveLength(2);
   });
 
-  it("scales ticks when pasting into a project with a different ppq", () => {
+  it("UTCID02 scales ticks when pasting into a project with a different ppq", () => {
     const source = snapshot([track("a", 0)], [note("n1", "a", 0, 960)], 960);
     const clipboard = buildClipboard(source, new Set(["n1"]))!;
     const dest = snapshot([track("t", 0)], [], 480);
@@ -88,7 +88,7 @@ describe("pastePattern", () => {
     expect(result.snapshot.notes[0]).toMatchObject({ start: 480, duration: 480 });
   });
 
-  it("pastes a multi-track pattern onto the target track and the tracks beneath it", () => {
+  it("UTCID03 pastes a multi-track pattern onto the target track and the tracks beneath it", () => {
     const source = snapshot(
       [track("a", 0, "Lead"), track("b", 1, "Bass")],
       [note("n1", "a", 0, 100), note("n2", "b", 0, 100, 40)],
@@ -110,7 +110,7 @@ describe("pastePattern", () => {
     expect(result.report.createdTracks).toBe(0);
   });
 
-  it("creates tracks when there are not enough, up to the track limit", () => {
+  it("UTCID04 creates tracks when there are not enough, up to the track limit", () => {
     const source = snapshot(
       [track("a", 0, "Lead"), track("b", 1, "Bass"), track("c", 2, "Pad")],
       [
@@ -137,7 +137,7 @@ describe("pastePattern", () => {
     expect(result.snapshot.notes).toHaveLength(2);
   });
 
-  it("splits an existing note that spans the whole pasted range and ignores other pitches", () => {
+  it("UTCID05 splits an existing note that spans the whole pasted range and ignores other pitches", () => {
     const clipboard: PatternClipboard = {
       notes: [note("c1", "a", 0, 100)],
       tracks: [{ id: "a", name: "a", order: 0, instrument: null }],
@@ -172,7 +172,7 @@ describe("pastePattern", () => {
     expect(result.report.split).toBe(1);
   });
 
-  it("removes an existing note that is fully covered and trims one that overlaps its start", () => {
+  it("UTCID06 removes an existing note that is fully covered and trims one that overlaps its start", () => {
     const clipboard: PatternClipboard = {
       notes: [note("c1", "a", 0, 100)],
       tracks: [{ id: "a", name: "a", order: 0, instrument: null }],
@@ -200,7 +200,7 @@ describe("pastePattern", () => {
     expect(result.report.trimmed).toBe(1);
   });
 
-  it("rejects notes whose pitch is outside 0 to 127", () => {
+  it("UTCID07 rejects notes whose pitch is outside 0 to 127", () => {
     const clipboard: PatternClipboard = {
       notes: [note("bad", "a", 0, 100, 130), note("ok", "a", 0, 100, 60)],
       tracks: [{ id: "a", name: "a", order: 0, instrument: null }],
@@ -219,7 +219,7 @@ describe("pastePattern", () => {
     expect(result.snapshot.notes).toHaveLength(1);
   });
 
-  it("returns the original snapshot and creates no track when no note can be pasted", () => {
+  it("UTCID08 returns the original snapshot and creates no track when no note can be pasted", () => {
     const clipboard: PatternClipboard = {
       notes: [note("bad", "a", 0, 100, 130)],
       tracks: [
@@ -243,7 +243,7 @@ describe("pastePattern", () => {
     expect(describePaste(result.report).message).toContain("Không có nốt nào được dán");
   });
 
-  it("does nothing when the target track does not exist", () => {
+  it("UTCID09 does nothing when the target track does not exist", () => {
     const clipboard = buildClipboard(
       snapshot([track("a", 0)], [note("n1", "a", 0, 10)]),
       new Set(["n1"]),
@@ -263,8 +263,8 @@ describe("pastePattern", () => {
   });
 });
 
-describe("describePaste", () => {
-  it("reports what changed when existing notes were trimmed", () => {
+describe("FE-LIB-46 describePaste", () => {
+  it("UTCID01 reports what changed when existing notes were trimmed", () => {
     const { message, variant } = describePaste({
       pasted: 3,
       createdTracks: 1,
@@ -280,7 +280,7 @@ describe("describePaste", () => {
     expect(message).toContain("xoá 1 nốt");
   });
 
-  it("is a plain success when nothing else changed", () => {
+  it("UTCID02 is a plain success when nothing else changed", () => {
     expect(
       describePaste({
         pasted: 2,

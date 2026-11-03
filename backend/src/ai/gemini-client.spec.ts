@@ -13,31 +13,31 @@ function buildClient(env: Record<string, string>) {
   return new GeminiClient(config);
 }
 
-describe('GeminiClient', () => {
+describe('BE-AIX-02 GeminiClient', () => {
   const env = { GEMINI_API_KEY: 'k', GEMINI_MODEL: 'm' };
 
   beforeEach(() => generateContent.mockReset());
 
-  it('returns null without an API key', async () => {
+  it('UTCID01 returns null without an API key', async () => {
     await expect(
       buildClient({ GEMINI_MODEL: 'm' }).generateText('x'),
     ).resolves.toBeNull();
     expect(generateContent).not.toHaveBeenCalled();
   });
 
-  it('returns trimmed text without waiting for the timeout', async () => {
+  it('UTCID02 returns trimmed text without waiting for the timeout', async () => {
     generateContent.mockResolvedValue({ text: '  xin chào  ' });
     const start = Date.now();
     await expect(buildClient(env).generateText('x')).resolves.toBe('xin chào');
     expect(Date.now() - start).toBeLessThan(1000);
   });
 
-  it('returns null when the model call throws', async () => {
+  it('UTCID03 returns null when the model call throws', async () => {
     generateContent.mockRejectedValue(new Error('quota'));
     await expect(buildClient(env).generateText('x')).resolves.toBeNull();
   });
 
-  it('returns null when the model hangs past the timeout', async () => {
+  it('UTCID04 returns null when the model hangs past the timeout', async () => {
     jest.useFakeTimers();
     generateContent.mockReturnValue(new Promise(() => undefined));
     const pending = buildClient(env).generateText('x');

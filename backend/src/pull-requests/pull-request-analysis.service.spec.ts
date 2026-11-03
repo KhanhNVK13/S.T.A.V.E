@@ -84,8 +84,8 @@ function tables(
   };
 }
 
-describe('PullRequestAnalysisService.analyze', () => {
-  it('finds the commits of the fork that the original does not have', async () => {
+describe('BE-PRQ-01 PullRequestAnalysisService.analyze', () => {
+  it('UTCID01 finds the commits of the fork that the original does not have', async () => {
     const { service, previewMerge } = makeService({
       tables: tables(
         [commit('f3', 'f2'), commit('f2', 'f1'), commit('f1', null)],
@@ -101,7 +101,7 @@ describe('PullRequestAnalysisService.analyze', () => {
     expect(previewMerge).toHaveBeenCalled();
   });
 
-  it('treats commits already imported into the original as the base', async () => {
+  it('UTCID02 treats commits already imported into the original as the base', async () => {
     const { service } = makeService({
       tables: tables(
         [commit('f3', 'f2'), commit('f2', 'f1'), commit('f1', null)],
@@ -115,7 +115,7 @@ describe('PullRequestAnalysisService.analyze', () => {
     expect(result.newCommits.map((c) => c.id)).toEqual(['f3']);
   });
 
-  it('reports no new commits when the fork has nothing the original lacks', async () => {
+  it('UTCID03 reports no new commits when the fork has nothing the original lacks', async () => {
     const { service } = makeService({
       tables: tables(
         [commit('f3', null)],
@@ -129,7 +129,7 @@ describe('PullRequestAnalysisService.analyze', () => {
     expect(result.baseCommitId).toBe('o1');
   });
 
-  it('rejects branches that share no history', async () => {
+  it('UTCID04 rejects branches that share no history', async () => {
     const { service } = makeService({
       tables: tables([commit('f3', null)], [], []),
       targetAncestors: ['t1'],

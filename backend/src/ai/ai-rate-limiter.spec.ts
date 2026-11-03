@@ -1,10 +1,10 @@
 import { AiRateLimiter } from './ai-rate-limiter';
 
-describe('AiRateLimiter', () => {
+describe('BE-AIX-01 AiRateLimiter', () => {
   beforeEach(() => jest.useFakeTimers().setSystemTime(new Date('2026-11-02')));
   afterEach(() => jest.useRealTimers());
 
-  it('allows up to the limit then rejects', () => {
+  it('UTCID01 allows up to the limit then rejects', () => {
     const limiter = new AiRateLimiter();
     const results = Array.from({ length: 4 }, () =>
       limiter.tryConsume('u1', { limit: 3, windowMs: 1000 }),
@@ -12,7 +12,7 @@ describe('AiRateLimiter', () => {
     expect(results).toEqual([true, true, true, false]);
   });
 
-  it('does not extend the lockout with rejected attempts', () => {
+  it('UTCID02 does not extend the lockout with rejected attempts', () => {
     const limiter = new AiRateLimiter();
     const cfg = { limit: 1, windowMs: 1000 };
     expect(limiter.tryConsume('u1', cfg)).toBe(true);
@@ -22,7 +22,7 @@ describe('AiRateLimiter', () => {
     expect(limiter.tryConsume('u1', cfg)).toBe(true);
   });
 
-  it('tracks users independently', () => {
+  it('UTCID03 tracks users independently', () => {
     const limiter = new AiRateLimiter();
     const cfg = { limit: 1, windowMs: 1000 };
     expect(limiter.tryConsume('u1', cfg)).toBe(true);

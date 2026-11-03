@@ -60,11 +60,11 @@ function emptyContext() {
 
 const B = 480 * 4; // ticks per bar (4/4 @ ppq 480)
 
-describe("music-theory.analyzeSnapshot", () => {
+describe("FE-INS-01 music-theory.analyzeSnapshot", () => {
   // ------------------------------------------------------------------
   // Key detection on vu.md sample materials
   // ------------------------------------------------------------------
-  it("C–G–Am–F resolves to C major (primary)", () => {
+  it("UTCID01 C–G–Am–F resolves to C major (primary)", () => {
     const notes = [
       ...chordNotes("C", [0, 4, 7], 0),
       ...chordNotes("G", [7, 11, 2], B),
@@ -82,7 +82,7 @@ describe("music-theory.analyzeSnapshot", () => {
     expect(key.isMinor).toBe(false);
   });
 
-  it("a 3-chord Dm–G–C loop does NOT crash and returns a key", () => {
+  it("UTCID02 a 3-chord Dm–G–C loop does NOT crash and returns a key", () => {
     const notes = [
       ...chordNotes("Dm", [2, 5, 9], 0),
       ...chordNotes("G", [7, 11, 2], B),
@@ -102,45 +102,45 @@ describe("music-theory.analyzeSnapshot", () => {
   // ------------------------------------------------------------------
   // Progression pattern matching (deterministic, decoupled from key)
   // ------------------------------------------------------------------
-  it("detects ii–V–I for numerals [ii, V, I]", () => {
+  it("UTCID03 detects ii–V–I for numerals [ii, V, I]", () => {
     const ids = detectProgressions(["ii", "V", "I"]);
     expect(ids).toContain("ii-v-i");
   });
 
-  it("detects I–V–vi–IV for the classic pop loop", () => {
+  it("UTCID04 detects I–V–vi–IV for the classic pop loop", () => {
     expect(detectProgressions(["I", "V", "vi", "IV"])).toContain("i-v-vi-iv");
   });
 
-  it("detects the 12-bar blues only for the exact 12-bar shape", () => {
+  it("UTCID05 detects the 12-bar blues only for the exact 12-bar shape", () => {
     const blues = ["I", "I", "I", "I", "IV", "IV", "I", "I", "V", "IV", "I", "I"];
     expect(detectProgressions(blues)).toContain("blues-12");
     expect(detectProgressions(blues.slice(0, 11))).not.toContain("blues-12");
   });
 
-  it("returns [] when no known pattern matches (3.E1 — do not invent)", () => {
+  it("UTCID06 returns [] when no known pattern matches (3.E1 — do not invent)", () => {
     expect(detectProgressions(["I", "iii"])).toEqual([]);
   });
 
   // ------------------------------------------------------------------
   // Cadence detection
   // ------------------------------------------------------------------
-  it("detects the authentic cadence V → I", () => {
+  it("UTCID07 detects the authentic cadence V → I", () => {
     expect(detectCadence(["ii", "V", "I"])?.id).toBe("authentic");
   });
-  it("detects the plagal cadence IV → I", () => {
+  it("UTCID08 detects the plagal cadence IV → I", () => {
     expect(detectCadence(["I", "IV", "I"])?.id).toBe("plagal");
   });
-  it("detects the deceptive cadence V → vi", () => {
+  it("UTCID09 detects the deceptive cadence V → vi", () => {
     expect(detectCadence(["I", "V", "vi"])?.id).toBe("deceptive");
   });
-  it("returns null when fewer than two numerals", () => {
+  it("UTCID10 returns null when fewer than two numerals", () => {
     expect(detectCadence(["I"])).toBeNull();
   });
 
   // ------------------------------------------------------------------
   // Per-bar chords + numerals on a full C-major I–V–vi–IV loop
   // ------------------------------------------------------------------
-  it("assigns per-bar chords and converts to I–V–vi–IV numerals", () => {
+  it("UTCID11 assigns per-bar chords and converts to I–V–vi–IV numerals", () => {
     const notes = [
       ...chordNotes("C", [0, 4, 7], 0),
       ...chordNotes("G", [7, 11, 2], B),
@@ -161,7 +161,7 @@ describe("music-theory.analyzeSnapshot", () => {
     expect(numerals.get(4)).toBe("IV");
   });
 
-  it("leaves a bar empty when it has fewer than 3 distinct pitch classes", () => {
+  it("UTCID12 leaves a bar empty when it has fewer than 3 distinct pitch classes", () => {
     // Bar with only two pitch classes → should be null (rule 3).
     const notes = [
       ...chordNotes("duo", [0, 4], 0), // only 2 pcs
@@ -186,7 +186,7 @@ describe("music-theory.analyzeSnapshot", () => {
   // ------------------------------------------------------------------
   // End-to-end analyze() + boundary conditions
   // ------------------------------------------------------------------
-  it("a longer Dm–G–C–C–C–C passage reads C major (not just the 3-chord loop)", () => {
+  it("UTCID13 a longer Dm–G–C–C–C–C passage reads C major (not just the 3-chord loop)", () => {
     // Dữ liệu dài hơn, có trọng số duration hợp lý: Dm–G–C lặp, về C.
     // 2.E1 được đáp (≥8 nốt, ≥2 ô nhịp); kỳ vọng tông C trưởng + ii–V–I.
     const notes = [
@@ -218,7 +218,7 @@ describe("music-theory.analyzeSnapshot", () => {
     expect(key.isMinor).toBe(false);
   });
 
-  it("full C–G–Am–F analysis yields key + I–V–vi–IV progression", () => {
+  it("UTCID14 full C–G–Am–F analysis yields key + I–V–vi–IV progression", () => {
     const notes = [
       ...chordNotes("C", [0, 4, 7], 0),
       ...chordNotes("G", [7, 11, 2], B),
@@ -237,7 +237,7 @@ describe("music-theory.analyzeSnapshot", () => {
     expect(prog?.toBar).toBe(4);
   });
 
-  it("fewer than MIN_NOTES notes → insufficient (2.E1)", () => {
+  it("UTCID15 fewer than MIN_NOTES notes → insufficient (2.E1)", () => {
     expect(MIN_NOTES).toBe(8);
     const notes = [
       ...chordNotes("C", [0, 4, 7], 0), // 3 notes < 8
@@ -248,7 +248,7 @@ describe("music-theory.analyzeSnapshot", () => {
     expect(result.insights).toEqual([]);
   });
 
-  it("fewer than MIN_NOTE_BARS bars-with-notes → insufficient", () => {
+  it("UTCID16 fewer than MIN_NOTE_BARS bars-with-notes → insufficient", () => {
     expect(MIN_NOTE_BARS).toBe(2);
     // 12 notes all in a single bar (4 pcs groups, 1 bar) → 1 bar < 2.
     const notes = [
@@ -263,7 +263,7 @@ describe("music-theory.analyzeSnapshot", () => {
     expect(result.insufficient).toBe(true);
   });
 
-  it("drum tracks are excluded from the analysis", () => {
+  it("UTCID17 drum tracks are excluded from the analysis", () => {
     // Only a drum-kit track carrying 12 notes → no analyzable notes.
     const drumNotes = Array.from({ length: 12 }, (_, i) => ({
       id: `d${i}`,
@@ -290,14 +290,14 @@ describe("music-theory.analyzeSnapshot", () => {
   });
 });
 
-describe("music-theory regressions", () => {
+describe("FE-INS-02 music-theory regressions", () => {
   const C = [0, 4, 7];
   const G = [7, 11, 2];
   const Am = [9, 0, 4];
   const F = [5, 9, 0];
   const bar = (n: number) => B * (n - 1);
 
-  it("names the key by its real root (D major, not E)", () => {
+  it("UTCID01 names the key by its real root (D major, not E)", () => {
     const notes = [
       ...chordNotes("D", [2, 6, 9], bar(1)),
       ...chordNotes("A", [9, 1, 4], bar(2)),
@@ -309,7 +309,7 @@ describe("music-theory regressions", () => {
     expect(result.insights.some((i) => i.id === "progression-i-v-vi-iv")).toBe(true);
   });
 
-  it("does not stitch a progression across empty bars", () => {
+  it("UTCID02 does not stitch a progression across empty bars", () => {
     const notes = [
       ...chordNotes("C", C, bar(1)),
       ...chordNotes("G", G, bar(2)),
@@ -320,7 +320,7 @@ describe("music-theory regressions", () => {
     expect(result.insights.some((i) => i.id === "progression-i-v-vi-iv")).toBe(false);
   });
 
-  it("reports a cadence that ends a phrase before a rest", () => {
+  it("UTCID03 reports a cadence that ends a phrase before a rest", () => {
     const notes = [
       ...chordNotes("C1", C, bar(1)),
       ...chordNotes("G", G, bar(2)),
@@ -333,7 +333,7 @@ describe("music-theory regressions", () => {
     expect([cadence?.fromBar, cadence?.toBar]).toEqual([2, 3]);
   });
 
-  it("does not report a cadence between non-adjacent bars", () => {
+  it("UTCID04 does not report a cadence between non-adjacent bars", () => {
     const notes = [
       ...chordNotes("C1", C, bar(1)),
       ...chordNotes("C2", C, bar(2)),

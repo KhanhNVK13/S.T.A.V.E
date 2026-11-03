@@ -27,8 +27,8 @@ async function firstBytes(blob: Blob): Promise<number[]> {
   return Array.from(new Uint8Array(buffer).slice(0, 2));
 }
 
-describe("encodeMp3", () => {
-  it("encodes a stereo buffer into a valid MP3 stream smaller than the PCM", async () => {
+describe("FE-LIB-43 encodeMp3", () => {
+  it("UTCID01 encodes a stereo buffer into a valid MP3 stream smaller than the PCM", async () => {
     const buffer = fakeBuffer(2, 44100, 1);
     const blob = await encodeMp3(buffer, 128);
     expect(blob.type).toBe("audio/mpeg");
@@ -39,7 +39,7 @@ describe("encodeMp3", () => {
     expect(b1 & 0xe0).toBe(0xe0);
   });
 
-  it("encodes a mono buffer and reports progress up to 1", async () => {
+  it("UTCID02 encodes a mono buffer and reports progress up to 1", async () => {
     const seen: number[] = [];
     const blob = await encodeMp3(fakeBuffer(1, 22050, 1), 96, (p) => seen.push(p));
     expect(blob.size).toBeGreaterThan(500);

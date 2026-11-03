@@ -247,7 +247,7 @@ function collabRows(): Row[] {
   ];
 }
 
-describe('CollaborationService — UC-60 inviteCollaborator', () => {
+describe('BE-COL-01 CollaborationService — UC-60 inviteCollaborator', () => {
   const users: Row[] = [
     {
       id: VIEWER,
@@ -264,7 +264,7 @@ describe('CollaborationService — UC-60 inviteCollaborator', () => {
     },
   ];
 
-  it('creates a pending invitation row', async () => {
+  it('UTCID01 creates a pending invitation row', async () => {
     const rows: Record<string, Row[]> = {
       users,
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'My Project' }],
@@ -283,7 +283,7 @@ describe('CollaborationService — UC-60 inviteCollaborator', () => {
     expect(rows.project_collaborators).toHaveLength(1);
   });
 
-  it('refuses inviting oneself (400)', async () => {
+  it('UTCID02 refuses inviting oneself (400)', async () => {
     const rows: Record<string, Row[]> = {
       users,
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -299,7 +299,7 @@ describe('CollaborationService — UC-60 inviteCollaborator', () => {
     );
   });
 
-  it('returns 404 with a neutral message when no account matches', async () => {
+  it('UTCID03 returns 404 with a neutral message when no account matches', async () => {
     const rows: Record<string, Row[]> = {
       users,
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -315,7 +315,7 @@ describe('CollaborationService — UC-60 inviteCollaborator', () => {
     );
   });
 
-  it('rejects a duplicate pending invitation with 409', async () => {
+  it('UTCID04 rejects a duplicate pending invitation with 409', async () => {
     const rows: Record<string, Row[]> = {
       users,
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -342,7 +342,7 @@ describe('CollaborationService — UC-60 inviteCollaborator', () => {
     );
   });
 
-  it('rejects when the cap of 10 is reached (counting pending)', async () => {
+  it('UTCID05 rejects when the cap of 10 is reached (counting pending)', async () => {
     const full: Row[] = Array.from({ length: 10 }, (_, i) => ({
       id: `c-${i}`,
       project_id: 'p-1',
@@ -368,7 +368,7 @@ describe('CollaborationService — UC-60 inviteCollaborator', () => {
     );
   });
 
-  it('finds a user by case-insensitive email', async () => {
+  it('UTCID06 finds a user by case-insensitive email', async () => {
     const rows: Record<string, Row[]> = {
       users,
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -384,8 +384,8 @@ describe('CollaborationService — UC-60 inviteCollaborator', () => {
   });
 });
 
-describe('CollaborationService — UC-60 list + accept/decline', () => {
-  it('lists collaborators for the owner', async () => {
+describe('BE-COL-02 CollaborationService — UC-60 list + accept/decline', () => {
+  it('UTCID01 lists collaborators for the owner', async () => {
     const rows: Record<string, Row[]> = {
       users: [
         { id: VIEWER, username: 'viewer', display_name: 'V', avatar_url: null },
@@ -400,7 +400,7 @@ describe('CollaborationService — UC-60 list + accept/decline', () => {
     expect(items[0].status).toBe('accepted');
   });
 
-  it('accepts an invitation and stamps responded_at', async () => {
+  it('UTCID02 accepts an invitation and stamps responded_at', async () => {
     const rows: Record<string, Row[]> = {
       users: [{ id: PENDING, username: 'p', display_name: 'P' }],
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -424,7 +424,7 @@ describe('CollaborationService — UC-60 list + accept/decline', () => {
     expect(row.responded_at).toBeTruthy();
   });
 
-  it('declining removes the invitation row', async () => {
+  it('UTCID03 declining removes the invitation row', async () => {
     const rows: Record<string, Row[]> = {
       users: [{ id: PENDING, username: 'p', display_name: 'P' }],
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -446,7 +446,7 @@ describe('CollaborationService — UC-60 list + accept/decline', () => {
     expect(rows.project_collaborators).toHaveLength(0);
   });
 
-  it('cannot accept an invitation that belongs to someone else', async () => {
+  it('UTCID04 cannot accept an invitation that belongs to someone else', async () => {
     const rows: Record<string, Row[]> = {
       users: [{ id: PENDING, username: 'p', display_name: 'P' }],
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -470,8 +470,8 @@ describe('CollaborationService — UC-60 list + accept/decline', () => {
   });
 });
 
-describe('CollaborationService — UC-61 patchCollaborator', () => {
-  it('updates the permission level of a collaborator', async () => {
+describe('BE-COL-03 CollaborationService — UC-61 patchCollaborator', () => {
+  it('UTCID01 updates the permission level of a collaborator', async () => {
     const rows: Record<string, Row[]> = {
       users: [
         { id: VIEWER, username: 'viewer', display_name: 'V', avatar_url: null },
@@ -486,7 +486,7 @@ describe('CollaborationService — UC-61 patchCollaborator', () => {
     expect(rows.project_collaborators[0].permission_level).toBe('edit');
   });
 
-  it('throws when the collaborator is not in the project', async () => {
+  it('UTCID02 throws when the collaborator is not in the project', async () => {
     const rows: Record<string, Row[]> = {
       users: [{ id: VIEWER, username: 'viewer', display_name: 'V' }],
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -500,8 +500,8 @@ describe('CollaborationService — UC-61 patchCollaborator', () => {
   });
 });
 
-describe('CollaborationService — UC-62 removeCollaborator', () => {
-  it('removes an accepted collaborator', async () => {
+describe('BE-COL-04 CollaborationService — UC-62 removeCollaborator', () => {
+  it('UTCID01 removes an accepted collaborator', async () => {
     const rows: Record<string, Row[]> = {
       users: [{ id: VIEWER, username: 'viewer', display_name: 'V' }],
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -512,7 +512,7 @@ describe('CollaborationService — UC-62 removeCollaborator', () => {
     expect(rows.project_collaborators).toHaveLength(0);
   });
 
-  it('refuses to remove the owner if a row exists', async () => {
+  it('UTCID02 refuses to remove the owner if a row exists', async () => {
     const rows: Record<string, Row[]> = {
       users: [{ id: OWNER, username: 'owner', display_name: 'O' }],
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -535,7 +535,7 @@ describe('CollaborationService — UC-62 removeCollaborator', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('leaves pending invitations without notification when removed', async () => {
+  it('UTCID03 leaves pending invitations without notification when removed', async () => {
     const rows: Record<string, Row[]> = {
       users: [{ id: PENDING, username: 'p', display_name: 'P' }],
       projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
@@ -636,8 +636,8 @@ function uc65Rows(overrides: Record<string, Row[]> = {}) {
   };
 }
 
-describe('CollaborationService — UC-65 listContributions', () => {
-  it('aggregates commits + note stats + track distribution for owner and collaborator', async () => {
+describe('BE-COL-05 CollaborationService — UC-65 listContributions', () => {
+  it('UTCID01 aggregates commits + note stats + track distribution for owner and collaborator', async () => {
     const rows = uc65Rows({
       commits: [
         // main: owner, 2 notes added on track t-1.
@@ -744,7 +744,7 @@ describe('CollaborationService — UC-65 listContributions', () => {
     expect(c2.notesModified).toBe(1);
   });
 
-  it('excludes merge commits from note stats but counts them (BR-72)', async () => {
+  it('UTCID02 excludes merge commits from note stats but counts them (BR-72)', async () => {
     const rows = uc65Rows({
       commits: [
         commitRow('c-1', OWNER, snap('Melody', 2), {
@@ -785,7 +785,7 @@ describe('CollaborationService — UC-65 listContributions', () => {
     expect(merge.notesModified).toBe(0);
   });
 
-  it('flags a removed collaborator (3.E1) while keeping their numbers', async () => {
+  it('UTCID03 flags a removed collaborator (3.E1) while keeping their numbers', async () => {
     // VIEWER was an author but no longer has an accepted row.
     const rows = uc65Rows({
       project_collaborators: [],
@@ -811,7 +811,7 @@ describe('CollaborationService — UC-65 listContributions', () => {
     expect(viewer.notesAdded).toBe(1);
   });
 
-  it('marks a deleted account as "Người dùng đã xoá" (3.E2)', async () => {
+  it('UTCID04 marks a deleted account as "Người dùng đã xoá" (3.E2)', async () => {
     const GHOST = 'ghost-1';
     const rows = uc65Rows({
       users: [{ id: OWNER, username: 'owner', display_name: 'Owner' }],
@@ -833,7 +833,7 @@ describe('CollaborationService — UC-65 listContributions', () => {
     expect(ghost.notesAdded).toBe(1);
   });
 
-  it('returns empty (no 500) when the project has no commits (4.E1)', async () => {
+  it('UTCID05 returns empty (no 500) when the project has no commits (4.E1)', async () => {
     const rows = uc65Rows();
     const service = makeService(rows);
 
@@ -845,7 +845,7 @@ describe('CollaborationService — UC-65 listContributions', () => {
     });
   });
 
-  it('rejects pending collaborators and outsiders (1.E1 → 403)', async () => {
+  it('UTCID06 rejects pending collaborators and outsiders (1.E1 → 403)', async () => {
     const pendingAccess = fakeProjectAccess({
       assertCanView: jest
         .fn()
@@ -875,7 +875,7 @@ describe('CollaborationService — UC-65 listContributions', () => {
     ).resolves.not.toThrow();
   });
 
-  it('rejects a branchId that does not belong to the project (404)', async () => {
+  it('UTCID07 rejects a branchId that does not belong to the project (404)', async () => {
     const rows = uc65Rows({
       commits: [commitRow('c-1', OWNER, snap('Melody', 1))],
     });
@@ -886,7 +886,7 @@ describe('CollaborationService — UC-65 listContributions', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('filters by a time window and a single author (5.1)', async () => {
+  it('UTCID08 filters by a time window and a single author (5.1)', async () => {
     const rows = uc65Rows({
       commits: [
         commitRow('c-1', OWNER, snap('Melody', 1), {

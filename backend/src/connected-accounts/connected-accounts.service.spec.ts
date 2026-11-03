@@ -24,8 +24,8 @@ const withIdentities = (identities: unknown[]) => ({
   getUserById: [{ data: { user: { identities } }, error: null }],
 });
 
-describe('ConnectedAccountsService.notify', () => {
-  it('notifies a connection using the email Supabase reports', async () => {
+describe('BE-CNA-01 ConnectedAccountsService.notify', () => {
+  it('UTCID01 notifies a connection using the email Supabase reports', async () => {
     const { service, notify } = makeService(
       withIdentities([
         { provider: 'email' },
@@ -38,7 +38,7 @@ describe('ConnectedAccountsService.notify', () => {
     });
   });
 
-  it('refuses to announce a connection that does not exist', async () => {
+  it('UTCID02 refuses to announce a connection that does not exist', async () => {
     const { service, notify } = makeService(
       withIdentities([{ provider: 'email' }]),
     );
@@ -48,7 +48,7 @@ describe('ConnectedAccountsService.notify', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('notifies a disconnection once no Google identity remains', async () => {
+  it('UTCID03 notifies a disconnection once no Google identity remains', async () => {
     const { service, notify } = makeService(
       withIdentities([{ provider: 'email' }]),
     );
@@ -63,7 +63,7 @@ describe('ConnectedAccountsService.notify', () => {
     );
   });
 
-  it('refuses to announce a disconnection while Google is still linked', async () => {
+  it('UTCID04 refuses to announce a disconnection while Google is still linked', async () => {
     const { service, notify } = makeService(
       withIdentities([
         { provider: 'google', identity_data: { email: 'a@b.c' } },
@@ -75,7 +75,7 @@ describe('ConnectedAccountsService.notify', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('reports a failure to read the account', async () => {
+  it('UTCID05 reports a failure to read the account', async () => {
     const { service } = makeService({
       getUserById: [{ data: { user: null }, error: { message: 'x' } }],
     });

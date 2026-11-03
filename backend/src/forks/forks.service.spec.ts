@@ -52,8 +52,8 @@ const baseTables = (extra: Record<string, unknown> = {}) =>
     ...extra,
   }) as SupabaseMockOptions['tables'];
 
-describe('ForksService.fork', () => {
-  it('forks a public project of someone else and notifies the owner', async () => {
+describe('BE-FRK-01 ForksService.fork', () => {
+  it('UTCID01 forks a public project of someone else and notifies the owner', async () => {
     const { service, notify, rpc } = makeService(baseTables());
     await expect(service.fork(projectId, userId)).resolves.toEqual({
       id: newId,
@@ -70,7 +70,7 @@ describe('ForksService.fork', () => {
     });
   });
 
-  it('answers not found for a missing or hidden project', async () => {
+  it('UTCID02 answers not found for a missing or hidden project', async () => {
     const missing = makeService({ projects: [{ data: null }] });
     await expect(
       missing.service.fork(projectId, userId),
@@ -99,7 +99,7 @@ describe('ForksService.fork', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('answers not found when the owner account is suspended', async () => {
+  it('UTCID03 answers not found when the owner account is suspended', async () => {
     const { service, rpc } = makeService({
       projects: [{ data: source() }],
       users: [{ data: { status: 'suspended' } }],
@@ -110,7 +110,7 @@ describe('ForksService.fork', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('refuses to fork your own project', async () => {
+  it('UTCID04 refuses to fork your own project', async () => {
     const { service, rpc } = makeService({
       projects: [{ data: source() }],
       users: [{ data: { status: 'active' } }],
@@ -121,7 +121,7 @@ describe('ForksService.fork', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('keeps the original name even when the caller already has a project with that name', async () => {
+  it('UTCID05 keeps the original name even when the caller already has a project with that name', async () => {
     const { service, rpc } = makeService(baseTables());
     await service.fork(projectId, userId);
     expect(rpc).toHaveBeenCalledTimes(1);
@@ -131,7 +131,7 @@ describe('ForksService.fork', () => {
     );
   });
 
-  it('cuts a name longer than 100 characters', async () => {
+  it('UTCID06 cuts a name longer than 100 characters', async () => {
     const long = 'a'.repeat(120);
     const { service, rpc } = makeService({
       projects: [{ data: source({ name: long }) }],
@@ -147,7 +147,7 @@ describe('ForksService.fork', () => {
     );
   });
 
-  it('reports a failure of the copy and sends no notification', async () => {
+  it('UTCID07 reports a failure of the copy and sends no notification', async () => {
     const { service, notify } = makeService(baseTables(), {
       fork_project: { data: null, error: { code: 'XX000', message: 'boom' } },
     });
