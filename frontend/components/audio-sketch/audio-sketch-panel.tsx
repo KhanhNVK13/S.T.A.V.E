@@ -300,7 +300,7 @@ export function AudioSketchPanel({
 
       if (uploadError) {
         // UC-55 ngoại lệ 4.E1 — giữ nguyên bản ghi trong trình soạn để thử lại.
-        throw new Error(`Tải lên thất bại: ${uploadError.message}`);
+        throw new Error("Tải lên thất bại. Hãy kiểm tra mạng rồi thử lại.");
       }
 
       await attachAudioSketch(projectId, {

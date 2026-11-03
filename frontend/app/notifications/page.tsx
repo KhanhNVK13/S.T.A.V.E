@@ -199,12 +199,18 @@ function NotificationsView() {
           <div className="flex flex-col gap-5">
             {groups.map((group) => (
               <section key={group.key} aria-label={group.label}>
-                <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted">{group.label}</h2>
+                <h2 className="mb-2 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">
+                  {group.label}
+                  <span aria-hidden="true" className="h-px flex-1 bg-border" />
+                </h2>
                 <ul className="overflow-hidden rounded-card border border-border bg-surface">
                   {group.items.map((item) => {
                     const unread = !item.read_at;
                     return (
-                      <li key={item.id} className="border-b border-border last:border-b-0">
+                      <li
+                        key={item.id}
+                        className="relative border-b border-border last:border-b-0 before:absolute before:left-[1.1rem] before:top-0 before:h-full before:w-px before:bg-border-strong first:before:top-[1.2rem] first:before:h-[calc(100%-1.2rem)] last:before:h-[1.2rem] only:before:hidden"
+                      >
                         <button
                           type="button"
                           onClick={() => void openItem(item)}
@@ -214,7 +220,9 @@ function NotificationsView() {
                         >
                           <span
                             aria-hidden="true"
-                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-accent" : "bg-transparent"}`}
+                            className={`relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                              unread ? "bg-accent ring-4 ring-accent-muted" : "border border-border-strong bg-surface"
+                            }`}
                           />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline justify-between gap-3">
