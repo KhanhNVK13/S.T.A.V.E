@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../context/auth-context";
 import { ThemeProvider } from "../context/theme-context";
 import { SiteHeader } from "../components/site-header";
 import { SiteFooter } from "../components/site-footer";
 import { FlashToastHost } from "../components/flash-toast";
+import { SpaceBackdrop } from "../components/space/space-backdrop";
 
 const staveSans = Inter({
   variable: "--font-stave-sans",
@@ -15,6 +16,12 @@ const staveSans = Inter({
 const staveMono = JetBrains_Mono({
   variable: "--font-stave-mono",
   subsets: ["latin"],
+});
+
+const staveDisplay = Unbounded({
+  variable: "--font-stave-display",
+  subsets: ["latin"],
+  weight: "800",
 });
 
 export const metadata: Metadata = {
@@ -27,12 +34,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="vi"
+      data-theme="space"
       suppressHydrationWarning
-      className={`${staveSans.variable} ${staveMono.variable} h-full antialiased`}
+      className={`${staveSans.variable} ${staveMono.variable} ${staveDisplay.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col bg-background font-sans text-foreground">
         <AuthProvider>
           <ThemeProvider>
+            <SpaceBackdrop />
             <a
               href="#main"
               className="sr-only z-50 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
