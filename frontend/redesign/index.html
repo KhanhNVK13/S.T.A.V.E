@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#060814">
 <title>STAVE · Version control for MIDI music</title>
+<script src="assets/session.js"></script>
 <meta name="description" content="Every commit is a star. Version control for MIDI music, told as a flight through a universe of constellations.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,12 +19,13 @@
 <a class="skip" href="#main">Skip to main content</a>
 
 <header class="top">
-  <a class="brand" href="index.html#s1" translate="no" aria-label="STAVE, home">STAVE</a>
+  <a class="brand" href="index.html" translate="no" aria-label="STAVE, home">STAVE</a>
   <nav class="top-links" aria-label="Site">
     <a href="explore.html">Explore</a>
     <a href="rankings.html">Rankings</a>
     <a href="help.html">Help</a>
-    <a class="btn btn-ghost btn-sm" href="login.html">Sign in</a>
+    <a class="btn btn-ghost btn-sm" href="login.html" data-auth-only="out">Sign in</a>
+    <a class="btn btn-ghost btn-sm" href="home.html" data-auth-only="in">Open Home</a>
   </nav>
 </header>
 
@@ -46,7 +48,8 @@
       <h1 id="h1" data-rv>Every song<br>has a history.</h1>
       <p class="lead" data-rv>Save each version of your track, branch off to try another arrangement, then merge the best ideas back together. Source control, tuned for music.</p>
       <div class="actions" data-rv>
-        <a class="btn btn-primary" href="login.html">Start for free</a>
+        <a class="btn btn-primary" href="login.html" data-auth-only="out">Start for free</a>
+        <a class="btn btn-primary" href="home.html" data-auth-only="in">Open Home</a>
         <a class="btn btn-line" href="project.html">View a sample project</a>
       </div>
     </div>
@@ -212,18 +215,20 @@
       <h2 id="h7" data-rv>Create your first project</h2>
       <p class="lead" data-rv>Import a MIDI file or start from a blank page. Your first commit is one click away.</p>
       <div class="actions" data-rv>
-        <a class="btn btn-primary btn-lg" href="login.html">Create your first project</a>
+        <a class="btn btn-primary btn-lg" href="login.html" data-auth-only="out">Create your first project</a>
+        <a class="btn btn-primary btn-lg" href="projects.html?new=1" data-auth-only="in">Create a project</a>
         <a class="btn btn-line btn-lg" href="explore.html">Browse public projects</a>
       </div>
     </div>
     <footer class="foot" data-rv>
-      <a class="brand" href="index.html#s1" translate="no" aria-label="STAVE, home">STAVE</a>
+      <a class="brand" href="index.html" translate="no" aria-label="STAVE, home">STAVE</a>
       <nav aria-label="Footer">
         <a href="explore.html">Explore</a>
         <a href="rankings.html">Rankings</a>
         <a href="help.html">Help and glossary</a>
         <a href="settings.html">Settings</a>
-        <a href="login.html">Sign in</a>
+        <a href="login.html" data-auth-only="out">Sign in</a>
+        <a href="home.html" data-auth-only="in">Open Home</a>
       </nav>
       <p>© 2026 STAVE. Placeholder content for a design prototype.</p>
     </footer>
