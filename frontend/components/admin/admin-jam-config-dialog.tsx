@@ -222,6 +222,8 @@ export function AdminJamConfigDialog({
                 )}
               </span>
               <input
+                name="jam-name"
+                autoComplete="off"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={120}
@@ -245,6 +247,7 @@ export function AdminJamConfigDialog({
                 )}
               </span>
               <textarea
+                name="jam-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
@@ -269,6 +272,8 @@ export function AdminJamConfigDialog({
                   )}
                 </span>
                 <input
+                  name="jam-start"
+                  autoComplete="off"
                   type="datetime-local"
                   value={startAt}
                   onChange={(e) => setStartAt(e.target.value)}
@@ -290,6 +295,8 @@ export function AdminJamConfigDialog({
                   <span className="text-xs text-accent">Mở khóa</span>
                 </span>
                 <input
+                  name="jam-end"
+                  autoComplete="off"
                   type="datetime-local"
                   value={endAt}
                   onChange={(e) => setEndAt(e.target.value)}
@@ -310,6 +317,7 @@ export function AdminJamConfigDialog({
                 )}
               </span>
               <select
+                name="jam-starting-project"
                 value={startingProjectId}
                 onChange={(e) => setStartingProjectId(e.target.value)}
                 disabled={isActive}
@@ -337,6 +345,8 @@ export function AdminJamConfigDialog({
                 <span className="text-xs text-accent">Mở khóa</span>
               </span>
               <input
+                name="jam-cooldown"
+                autoComplete="off"
                 type="number"
                 min={1}
                 max={3600}

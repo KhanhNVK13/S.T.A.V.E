@@ -358,7 +358,7 @@ const styles: Record<string, React.CSSProperties> = {
   backdrop: {
     position: "fixed",
     inset: 0,
-    background: "color-mix(in oklab, var(--foreground) 40%, transparent)",
+    background: "rgba(0, 0, 0, .6)",
     backdropFilter: "blur(4px)",
     zIndex: 50,
   },
@@ -371,7 +371,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "var(--surface)",
     border: "1px solid var(--border)",
     borderRadius: 12,
-    boxShadow: "0 24px 60px color-mix(in oklab, var(--foreground) 22%, transparent)",
+    boxShadow: "0 24px 60px rgba(0, 0, 0, .45)",
     zIndex: 51,
     outline: "none",
     display: "flex",
@@ -401,7 +401,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     margin: 0,
-    fontSize: 11,
+    fontSize: 12,
     color: "var(--muted-foreground)",
   },
   closeBtn: {
@@ -433,7 +433,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 2,
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "var(--muted-foreground)",
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -457,7 +457,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 600,
     color: "var(--muted-foreground)",
     textTransform: "uppercase",
@@ -520,7 +520,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   progressHint: {
     margin: 0,
-    fontSize: 11,
+    fontSize: 12,
     color: "var(--muted-foreground)",
   },
   successBox: {
@@ -576,7 +576,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 12,
     height: 12,
     border: "2px solid color-mix(in oklab, var(--accent-foreground) 40%, transparent)",
-    borderTopColor: "#fff",
+    borderTopColor: "var(--accent-foreground)",
     borderRadius: "50%",
     display: "inline-block",
     animation: "spin 0.8s linear infinite",

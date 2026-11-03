@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f7f7f5">
+<title>STAVE · Metro Map Landing</title>
+<meta name="description" content="Idea 03: a flat metro map where every branch is a line, every commit is a station and a merge is an interchange.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="#s1" translate="no" aria-label="STAVE, back to the start"><span data-mark aria-hidden="true"></span>STAVE</a>
+  <a class="btn btn-quiet" href="../../login.html">Sign in</a>
+</header>
+
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a href="#s1" aria-label="01 Welcome"><span class="tip">Welcome</span><span class="dot"></span></a></li>
+    <li><a href="#s2" aria-label="02 The name"><span class="tip">The name</span><span class="dot"></span></a></li>
+    <li><a href="#s3" aria-label="03 History"><span class="tip">History</span><span class="dot"></span></a></li>
+    <li><a href="#s4" aria-label="04 Why save versions"><span class="tip">Why save</span><span class="dot"></span></a></li>
+    <li><a href="#s5" aria-label="05 How it works"><span class="tip">How it works</span><span class="dot"></span></a></li>
+    <li><a href="#s6" aria-label="06 Toolbox"><span class="tip">Toolbox</span><span class="dot"></span></a></li>
+    <li><a href="#s7" aria-label="07 Start your project"><span class="tip">Start</span><span class="dot"></span></a></li>
+  </ol>
+</nav>
+
+<svg id="map" class="map" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false"></svg>
+
+<main id="main">
+
+  <!-- 01 · Welcome -->
+  <section class="blk" id="s1" aria-labelledby="h1">
+    <div class="card">
+      <p class="eyebrow reveal"><span class="chip">01</span> Welcome aboard</p>
+      <h1 id="h1" class="reveal">Version control for MIDI music.</h1>
+      <p class="lead reveal">Commit your ideas, branch the experiments, compare every note and merge the best line. All in your browser, all on one map.</p>
+      <div class="actions reveal">
+        <a class="btn btn-primary" href="../../login.html">Create your first project</a>
+        <a class="btn btn-quiet" href="#s2">See where the line goes</a>
+      </div>
+      <p class="hint reveal" aria-hidden="true">Scroll to ride the line ↓</p>
+    </div>
+  </section>
+
+  <!-- 02 · The name -->
+  <section class="blk" id="s2" aria-labelledby="h2">
+    <div class="card card-flat wide">
+      <p class="eyebrow reveal"><span class="chip">02</span> The name</p>
+      <h2 id="h2" class="reveal">Five lines. One name.</h2>
+      <p class="sr-only">STAVE stands for Source Tracking and Version Control Environment.</p>
+      <div class="fan reveal-box">
+        <svg id="fan" viewBox="0 0 1100 440" role="img" aria-label="Five metro lines, S, T, A, V and E. Each line ends at a terminus: Source, Tracking, and, Version Control, Environment."></svg>
+      </div>
+      <p class="caption reveal">Follow each line to its last stop.</p>
+    </div>
+  </section>
+
+  <!-- 03 · History -->
+  <section class="blk" id="s3" aria-labelledby="h3">
+    <div class="card card-wide">
+      <div class="hist">
+        <div class="hist-l">
+          <p class="eyebrow reveal"><span class="chip">03</span> History</p>
+          <h2 id="h3" class="reveal">Every save is a station.</h2>
+          <p class="body reveal">Pick a station to see exactly what changed since the one before it.</p>
+          <ol class="stns reveal" id="stns" aria-label="Commits on main"></ol>
+        </div>
+        <div class="hist-r reveal">
+          <div id="graph" class="graph-host"></div>
+          <div class="diff-head" aria-live="polite">
+            <p class="diff-title" id="diff-title"></p>
+            <p class="diff-sum" id="diff-sum"></p>
+          </div>
+          <div id="roll" class="roll-host"></div>
+          <p class="legend" aria-label="Legend">
+            <span><i class="a"></i>Added</span>
+            <span><i class="d"></i>Removed</span>
+            <span><i class="m"></i>Velocity changed</span>
+            <span><i class="k"></i>Unchanged</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · Why -->
+  <section class="blk" id="s4" aria-labelledby="h4">
+    <div class="card card-mid">
+      <p class="eyebrow reveal"><span class="chip">04</span> Why save every version</p>
+      <h2 id="h4" class="reveal">Overwrite once and it’s gone.</h2>
+      <div class="vs reveal">
+        <div class="vs-a">
+          <p class="vs-t">Without versions</p>
+          <p class="files">
+            <span>song_final.mid</span><span>song_final2.mid</span><span>song_final_REAL.mid</span><span>song_final_v3_USE_THIS.mid</span>
+          </p>
+        </div>
+        <div class="vs-b">
+          <p class="vs-t">With STAVE</p>
+          <p class="mini-line" aria-label="One file, six stations">
+            <i></i><i></i><i></i><i></i><i></i><i class="last"></i>
+          </p>
+        </div>
+      </div>
+      <ul class="why">
+        <li class="reveal"><span class="why-ic" data-ic="history"></span><h3>Undo anything</h3><p>Bring back the chord frame from two weeks ago without losing today’s melody.</p></li>
+        <li class="reveal"><span class="why-ic" data-ic="branch"></span><h3>Try bold ideas</h3><p>Branch off, rewrite the bridge, and merge it only if you love it.</p></li>
+        <li class="reveal"><span class="why-ic" data-ic="compare"></span><h3>See who changed what</h3><p>Each station keeps the author, the time and the exact notes.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 05 · Guide -->
+  <section class="blk" id="s5" aria-labelledby="h5">
+    <div class="card card-mid">
+      <p class="eyebrow reveal"><span class="chip">05</span> How it works</p>
+      <h2 id="h5" class="reveal">Draft, commit, branch, merge.</h2>
+      <ol class="steps" id="steps">
+        <li class="step reveal"><span class="step-dot" aria-hidden="true"></span><span class="step-ic" data-ic="pencil"></span><div><h3>1 · Draft</h3><p>Sketch freely in the editor. Nothing is written to history yet.</p></div><span class="step-th" data-th="0"></span></li>
+        <li class="step reveal"><span class="step-dot" aria-hidden="true"></span><span class="step-ic" data-ic="commit"></span><div><h3>2 · Commit</h3><p>Happy with it? Name the moment and it becomes a station on the line.</p></div><span class="step-th" data-th="1"></span></li>
+        <li class="step reveal"><span class="step-dot" aria-hidden="true"></span><span class="step-ic" data-ic="branch"></span><div><h3>3 · Branch</h3><p>Open a new line to try an idea without touching main.</p></div><span class="step-th" data-th="2"></span></li>
+        <li class="step reveal"><span class="step-dot ring" aria-hidden="true"></span><span class="step-ic" data-ic="merge"></span><div><h3>4 · Merge</h3><p>Bring the line back. Where two lines meet is an interchange.</p></div><span class="step-th" data-th="3"></span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 06 · Tools -->
+  <section class="blk" id="s6" aria-labelledby="h6">
+    <div class="card card-mid">
+      <p class="eyebrow reveal"><span class="chip">06</span> Toolbox</p>
+      <h2 id="h6" class="reveal">Everything you need to make the sound.</h2>
+      <ul class="tools">
+        <li class="tool reveal" style="--c:#0f7b6c"><p class="big"><span id="count" data-target="128">128</span></p><h3>General MIDI instruments</h3><p>From grand piano to synth pads and sound effects.</p></li>
+        <li class="tool reveal" style="--c:#7b3f7a"><p class="big">Drums</p><h3>Full drum kits</h3><p>Every pad mapped on its own channel, ready to program.</p></li>
+        <li class="tool reveal" style="--c:#c2410c"><p class="big">Yours</p><h3>Custom sounds</h3><p>Upload or record a sample and map it to any key.</p></li>
+        <li class="tool reveal" style="--c:#3b3a8f"><p class="big">Export</p><h3>.mid · WAV · MP3</h3><p>Take the song anywhere as MIDI or rendered audio.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 07 · CTA + footer -->
+  <section class="blk blk-end" id="s7" aria-labelledby="h7">
+    <div class="end-main">
+      <div class="card">
+        <p class="eyebrow reveal"><span class="chip">07</span> Terminal station</p>
+        <h2 id="h7" class="reveal">Create your first project</h2>
+        <p class="lead reveal">Your first station takes about a minute. Every one after that is a single click.</p>
+        <div class="actions reveal">
+          <a class="btn btn-primary" href="../../login.html">Create your first project</a>
+          <a class="btn btn-quiet" href="../../explore.html">Explore public projects</a>
+        </div>
+      </div>
+    </div>
+    <footer class="foot reveal">
+      <a class="brand" href="#s1" translate="no" aria-label="STAVE, back to the top"><span data-mark aria-hidden="true"></span>STAVE</a>
+      <nav aria-label="Footer">
+        <a href="../../explore.html">Explore</a>
+        <a href="../../rankings.html">Rankings</a>
+        <a href="../../help.html">Help</a>
+        <a href="../../login.html">Sign in</a>
+      </nav>
+      <p>Design prototype · placeholder content · no backend</p>
+    </footer>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="../../assets/shared.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

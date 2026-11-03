@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
-import { Search, Music2, Piano, Archive, Undo2, Settings as SettingsIcon, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Piano, Archive, Undo2, Settings as SettingsIcon, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { RequireAuth } from '../../components/require-auth';
 import {
   archiveProject,
@@ -17,7 +17,8 @@ import { PageHeader } from '../../components/ui/page-header';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Tabs } from '../../components/ui/tabs';
-import { EmptyState } from '../../components/ui/empty-state';
+import { StarPrint } from '../../components/project/star-print';
+import { SkyEmpty, SkyLoading } from '../../components/project/sky-state';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { Toast } from '../../components/ui/toast';
 import { INPUT_CLASS } from '../../components/ui/form';
@@ -120,7 +121,7 @@ function ProjectRow({
               ? [`Tạo ${formatDateTime(project.created_at)}`, project.description].filter(Boolean).join(' · ')
               : (project.description ?? undefined)
           }
-          leading={<Music2 className="h-4 w-4 shrink-0 text-muted" />}
+          leading={<StarPrint id={project.id} size="sm" />}
         />
 
         <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
@@ -409,19 +410,7 @@ function ProjectsContent() {
       </div>
 
       {/* Content */}
-      {loading && (
-        <RowList cols={COLS}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
-              <div className="h-4 w-4 shrink-0 rounded bg-surface-subtle" />
-              <div className="flex-1">
-                <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
-                <div className="h-2.5 w-1/2 rounded bg-surface-subtle" />
-              </div>
-            </div>
-          ))}
-        </RowList>
-      )}
+      {loading && <SkyLoading label="Đang tải danh sách dự án…" />}
 
       {error && (
         <div className="rounded-card border border-danger/20 bg-danger-muted p-4">
@@ -436,8 +425,7 @@ function ProjectsContent() {
       )}
 
       {!loading && !error && filteredProjects.length === 0 && (
-        <EmptyState
-          icon={search || genre ? Search : Music2}
+        <SkyEmpty
           title={
             search || genre
               ? `Không tìm thấy dự án nào${search ? ` matching "${search}"` : ''}${genre ? ` #${genre}` : ''}`
@@ -559,21 +547,7 @@ export default function ProjectsPage() {
       <Suspense
         fallback={
           <div className="mx-auto max-w-page px-5 py-8">
-            <div className="mb-6 flex items-center justify-between">
-              <div className="h-8 w-40 animate-pulse rounded bg-surface-subtle" />
-              <div className="h-8 w-32 animate-pulse rounded bg-surface-subtle" />
-            </div>
-            <RowList cols={COLS}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
-                  <div className="h-4 w-4 shrink-0 rounded bg-surface-subtle" />
-                  <div className="flex-1">
-                    <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
-                    <div className="h-2.5 w-1/2 rounded bg-surface-subtle" />
-                  </div>
-                </div>
-              ))}
-            </RowList>
+            <SkyLoading label="Đang tải danh sách dự án…" />
           </div>
         }
       >

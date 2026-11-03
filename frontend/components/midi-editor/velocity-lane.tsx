@@ -43,7 +43,7 @@ const BAR_MIN_W = 3;
 const LANE_COLOR_SPEC = {
   bg: "var(--surface)",
   border: "var(--border)",
-  gridLine: "color-mix(in oklab, var(--border) 45%, var(--surface))",
+  gridLine: "color-mix(in oklab, var(--foreground) 14%, var(--surface))",
   axisText: "var(--muted-foreground)",
   labelBg: "var(--surface-subtle)",
   selectedBorder: "var(--foreground)",

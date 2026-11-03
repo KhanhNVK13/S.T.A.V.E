@@ -3,7 +3,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { SetThemeDto } from './set-theme.dto';
 
-const message = 'presetKey must be one of: unleashed, moss, claret';
+const message = 'presetKey must be one of: space, unleashed, moss, claret';
 
 async function themeErrors(value: Record<string, unknown>) {
   return validate(plainToInstance(SetThemeDto, value));
