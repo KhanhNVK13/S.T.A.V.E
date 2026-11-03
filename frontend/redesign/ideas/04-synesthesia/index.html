@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#07070d">
+<title>STAVE · Synesthesia</title>
+<meta name="description" content="Landing page demo: a liquid WebGL background that turns every MIDI pitch into a hue.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/synesthesia.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<a class="skip" href="#s1">Skip to content</a>
+
+<!-- Background layers: WebGL canvas (GLSL ES 3.00) or, on small screens / without WebGL2, stacked CSS gradients cross-faded with opacity -->
+<canvas id="fluid" aria-hidden="true"></canvas>
+<div id="fallback-bg" aria-hidden="true"></div>
+<div class="scrim" aria-hidden="true"></div>
+
+<header class="top">
+  <a class="brand" href="#s1" translate="no" aria-label="STAVE, back to the top">STAVE</a>
+  <nav class="dots" aria-label="Sections">
+    <ol>
+      <li><a href="#s1" aria-label="Section 1: Introduction"><span></span></a></li>
+      <li><a href="#s2" aria-label="Section 2: The name"><span></span></a></li>
+      <li><a href="#s3" aria-label="Section 3: History"><span></span></a></li>
+      <li><a href="#s4" aria-label="Section 4: Why save versions"><span></span></a></li>
+      <li><a href="#s5" aria-label="Section 5: How it works"><span></span></a></li>
+      <li><a href="#s6" aria-label="Section 6: Tools"><span></span></a></li>
+      <li><a href="#s7" aria-label="Section 7: Get started"><span></span></a></li>
+    </ol>
+  </nav>
+  <button class="sound" id="sound" type="button" aria-pressed="false">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path class="waves" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span id="sound-label">Sound preview: off</span>
+  </button>
+</header>
+<p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+<main id="main">
+
+<!-- 01 · Introduction -->
+<section class="blk" id="s1" aria-labelledby="h1">
+  <div class="inner hero">
+    <p class="eyebrow" data-in>Version control for MIDI music</p>
+    <h1 id="h1" data-in>Every take,<br>kept in colour.</h1>
+    <p class="lead" data-in>STAVE records each change to your song as a commit, so you can branch, compare and merge ideas without ever losing one.</p>
+    <div class="actions" data-in>
+      <a class="btn btn-solid" href="../../login.html">Create your first project</a>
+      <a class="btn btn-ghost" href="#s5">See how it works</a>
+    </div>
+    <div class="pitchkey" data-in aria-hidden="true">
+      <div class="keys" id="pitchkey"></div>
+      <p>Move your cursor: left to right is pitch, top to bottom is octave. The liquid takes the colour of the note you point at.</p>
+    </div>
+  </div>
+  <p class="cue" aria-hidden="true">Scroll</p>
+</section>
+
+<!-- 02 · The name -->
+<section class="blk" id="s2" aria-labelledby="h2">
+  <div class="inner">
+    <h2 id="h2" data-in>Five letters, one idea.</h2>
+    <ul class="name" id="name" aria-label="STAVE: Source Tracking and Version Control Environment">
+      <li data-letter><span class="big" aria-hidden="true">S</span><span class="cap" aria-hidden="true"><b>S</b>ource</span></li>
+      <li data-letter><span class="big" aria-hidden="true">T</span><span class="cap" aria-hidden="true"><b>T</b>racking</span></li>
+      <li data-letter><span class="big" aria-hidden="true">A</span><span class="cap" aria-hidden="true"><b>A</b>nd</span></li>
+      <li data-letter><span class="big" aria-hidden="true">V</span><span class="cap" aria-hidden="true"><b>V</b>ersion <i>Control</i></span></li>
+      <li data-letter><span class="big" aria-hidden="true">E</span><span class="cap" aria-hidden="true"><b>E</b>nvironment</span></li>
+    </ul>
+    <p class="note" data-in>On a musical staff, five lines hold every note. Here, five letters hold every version.</p>
+  </div>
+</section>
+
+<!-- 03 · History -->
+<section class="blk" id="s3" aria-labelledby="h3">
+  <div class="inner hist">
+    <div class="hist-copy">
+      <h2 id="h3" data-in>Your song, one commit at a time.</h2>
+      <p data-in>Pick a commit to see exactly what changed in the piano roll.</p>
+      <ol class="commit-list" id="commits" data-in></ol>
+    </div>
+    <div class="paper" data-in>
+      <div class="paper-bar">
+        <strong id="stage-title">Commit</strong>
+        <span class="tally" id="tally" aria-live="polite"></span>
+      </div>
+      <div id="roll"></div>
+      <div class="legend">
+        <span><i class="a"></i>Added note</span>
+        <span><i class="d"></i>Removed note</span>
+        <span><i class="m"></i>Velocity changed</span>
+        <span><i class="k"></i>Unchanged</span>
+      </div>
+      <div class="scrub">
+        <button class="mini" id="play" type="button" aria-label="Play through the commits"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path id="play-ic" d="M7 5v14l12-7z" fill="currentColor"/></svg></button>
+        <input id="range" type="range" min="0" max="5" step="1" value="5" aria-label="Select commit">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 · Why save every version -->
+<section class="blk" id="s4" aria-labelledby="h4">
+  <div class="inner">
+    <h2 id="h4" data-in>A song is a thousand small decisions.</h2>
+    <div class="versus">
+      <div class="side bad" data-in>
+        <h3>Without versions</h3>
+        <ul class="files" aria-label="A folder full of renamed files">
+          <li>song_final.mid</li>
+          <li>song_final_v2.mid</li>
+          <li>song_FINAL_real.mid</li>
+          <li>song_final_real_USE_THIS.mid</li>
+        </ul>
+        <p>Which one has the good bass line?</p>
+      </div>
+      <div class="side good" data-in>
+        <h3>With STAVE</h3>
+        <ul class="files" aria-label="One project with a clean history">
+          <li><code>d70c9b3</code> Normalize velocity</li>
+          <li><code>a58e204</code> Swing the bass</li>
+          <li><code>3fd81c7</code> Melody bars 3–4</li>
+          <li><code>b92af61</code> Verse melody</li>
+        </ul>
+        <p>One project. Every step is a click away.</p>
+      </div>
+    </div>
+    <ul class="reasons">
+      <li data-in><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Go back to any moment</b><span>Restore the take you loved on Tuesday.</span></li>
+      <li data-in><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="6" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="19" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6 7v10M18 10c0 5-8 3-12 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><b>Try wild ideas safely</b><span>Experiment on a branch. Main stays untouched.</span></li>
+      <li data-in><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 5.5a3 3 0 0 1 0 5.5M18 14.5c2 .8 3 2.7 3 5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><b>Credit every hand</b><span>See who wrote which bar, and when.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 05 · How it works -->
+<section class="blk" id="s5" aria-labelledby="h5">
+  <div class="inner how">
+    <div class="how-copy">
+      <h2 id="h5" data-in>Draft. Commit. Branch. Merge.</h2>
+      <ol class="steps" id="steps" data-in>
+        <li><button type="button" aria-pressed="true" data-step="0"><span class="n">1</span><span><b>Draft</b><small>Sketch freely. Nothing is saved until you say so.</small></span></button></li>
+        <li><button type="button" aria-pressed="false" data-step="1"><span class="n">2</span><span><b>Commit</b><small>Save a snapshot with a short message.</small></span></button></li>
+        <li><button type="button" aria-pressed="false" data-step="2"><span class="n">3</span><span><b>Branch</b><small>Explore an alternative without touching main.</small></span></button></li>
+        <li><button type="button" aria-pressed="false" data-step="3"><span class="n">4</span><span><b>Merge</b><small>Bring the best parts back together, bar by bar.</small></span></button></li>
+      </ol>
+    </div>
+    <div class="paper" data-in>
+      <div class="panes">
+        <div class="pane" id="pane0"><div class="pane-head"><span class="pill">Unsaved draft</span></div><div class="host" id="v0"></div><p>Notes appear as you play. The history stays clean.</p></div>
+        <div class="pane" id="pane1" hidden><div class="pane-head"><code>7c03d5e</code><span class="msg">Add a root-note bass line</span></div><div class="host" id="v1"></div><p>The new bass notes are added in blue. Nothing else moved.</p></div>
+        <div class="pane" id="pane2" hidden><div class="pane-head"><span class="pill">3 branches</span></div><div class="host" id="v2"></div><p>bridge-alt and drums-swing grow on their own staves.</p></div>
+        <div class="pane" id="pane3" hidden><div class="pane-head"><code>5be1f08</code><span class="msg">Merge bridge-alt into main</span></div><div class="host" id="v3"></div><p>The hollow note is the merge: two lines of work, one song.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 · Tools -->
+<section class="blk" id="s6" aria-labelledby="h6">
+  <div class="inner tools">
+    <div class="tools-copy">
+      <h2 id="h6" data-in>Everything a session needs.</h2>
+      <ul class="tool-list">
+        <li data-in><b>128 General MIDI instruments</b><span>From grand piano to gunshot, every program in the standard bank.</span></li>
+        <li data-in><b>Drums, ready to play</b><span>Full kits on channel 10: kick, snare, hats, toms and more.</span></li>
+        <li data-in><b>Your own sounds</b><span>Upload or record a sample, then map it to any note.</span></li>
+        <li data-in><b>Export anywhere</b><span class="chips"><code>.mid</code><code>WAV</code><code>MP3</code></span></li>
+      </ul>
+    </div>
+    <div class="gm" data-in>
+      <p class="gm-read" id="gm-read" aria-live="polite">Choose a family to light up its eight programs.</p>
+      <div class="gm-grid" id="gm"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 07 · Call to action + footer (merged) -->
+<section class="blk final" id="s7" aria-labelledby="h7">
+  <div class="inner cta">
+    <h2 id="h7" data-in>Hear it. Keep it. Build on it.</h2>
+    <p class="lead" data-in>Start with a draft. Commit when it sounds right.</p>
+    <div class="actions" data-in>
+      <a class="btn btn-solid btn-lg" href="../../login.html">Create your first project</a>
+      <a class="btn btn-ghost btn-lg" href="../../explore.html">Explore public projects</a>
+    </div>
+  </div>
+  <footer class="foot">
+    <a class="brand" href="#s1" translate="no" aria-label="STAVE, back to the top">STAVE</a>
+    <nav aria-label="Footer">
+      <a href="../../explore.html">Explore</a>
+      <a href="../../rankings.html">Rankings</a>
+      <a href="../../help.html">Help</a>
+      <a href="../../login.html">Sign in</a>
+    </nav>
+    <small>© 2026 STAVE · Design prototype, placeholder data</small>
+  </footer>
+</section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="../../assets/shared.js"></script>
+<script src="js/pitch.js"></script>
+<script src="js/fluid.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/page.js"></script>
+</body>
+</html>
