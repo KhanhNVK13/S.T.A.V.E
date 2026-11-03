@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import { CalendarDays, FolderOpen, Play, GitFork } from 'lucide-react';
 import { getPublicUserProfile, getUserPublicProjects, PublicUserProfile, PublicProject } from '../../../lib/api-client';
@@ -10,7 +10,10 @@ import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Badge } from '../../../components/ui/badge';
-import { RowList, RowHeader, RowItem, RowTitle, RowStat, RowTime } from '../../../components/ui/row-list';
+import { RowList, RowHeader, RowTitle, RowStat, RowTime } from '../../../components/ui/row-list';
+import { GalaxyPage } from '../../../components/galaxy/galaxy-page';
+import { GalaxyRow } from '../../../components/galaxy/galaxy-row';
+import { CreatorConstellation } from '../../../components/galaxy/creator-constellation';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -29,18 +32,20 @@ export default function CreatorProfilePage({ params }: Props) {
 
   const { data, loading, error } = useApiResource<CreatorPageData>(
     () =>
-      Promise.all([getPublicUserProfile(id), getUserPublicProjects(id)]).then(
-        ([profile, projects]) => ({ profile, projects }),
-      ),
+      Promise.all([getPublicUserProfile(id), getUserPublicProjects(id)]).then(([profile, projects]) => ({
+        profile,
+        projects,
+      })),
     [id],
     'Không tìm thấy người dùng này.',
   );
   const profile = data?.profile ?? null;
   const projects = data?.projects ?? [];
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-page px-5 py-8">
+      <GalaxyPage>
         <div className="animate-pulse">
           <div className="mb-8 flex items-center gap-4">
             <div className="h-20 w-20 rounded-full bg-surface-subtle" />
@@ -55,13 +60,13 @@ export default function CreatorProfilePage({ params }: Props) {
             ))}
           </div>
         </div>
-      </div>
+      </GalaxyPage>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="mx-auto max-w-page px-5 py-8">
+      <GalaxyPage>
         <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
           <h1 className="text-xl font-semibold text-danger">Không tìm thấy</h1>
           <p className="mt-2 text-muted">{error ?? 'Người dùng này không tồn tại.'}</p>
@@ -69,14 +74,14 @@ export default function CreatorProfilePage({ params }: Props) {
             <Button className="mt-4">Quay lại Khám phá</Button>
           </Link>
         </div>
-      </div>
+      </GalaxyPage>
     );
   }
 
   const joinDate = formatMonthYear(profile.created_at);
 
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <GalaxyPage>
       <div className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <Avatar
@@ -106,13 +111,16 @@ export default function CreatorProfilePage({ params }: Props) {
             <p className="text-xs text-muted">Dự án công khai</p>
           </div>
           <div className="px-5 py-3">
-            <p className="font-mono text-[17px] font-bold">
-              {profile.total_forks.toLocaleString(APP_LOCALE)}
-            </p>
+            <p className="font-mono text-[17px] font-bold">{profile.total_forks.toLocaleString(APP_LOCALE)}</p>
             <p className="text-xs text-muted">Lượt fork</p>
           </div>
         </div>
       </div>
+
+      <CreatorConstellation
+        stars={projects.map((p) => ({ id: p.id, playCount: p.play_count, forkCount: p.fork_count }))}
+        activeId={hoveredId}
+      />
 
       <h2 className="mb-2.5 text-[17px] font-semibold">Dự án công khai ({projects.length})</h2>
       {projects.length === 0 ? (
@@ -128,20 +136,21 @@ export default function CreatorProfilePage({ params }: Props) {
           </RowHeader>
 
           {projects.map((project) => (
-            <RowItem key={project.id}>
-              <RowTitle
-                href={`/projects/${project.id}`}
-                name={project.name}
-                meta={project.description ?? undefined}
-              />
+            <GalaxyRow
+              key={project.id}
+              onActiveChange={(active) =>
+                setHoveredId((current) => (active ? project.id : current === project.id ? null : current))
+              }
+            >
+              <RowTitle href={`/projects/${project.id}`} name={project.name} meta={project.description ?? undefined} />
               <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
               <RowStat icon={Play} value={project.play_count} title="Lượt nghe" />
               <RowStat icon={GitFork} value={project.fork_count} title="Lượt fork" />
               <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
-            </RowItem>
+            </GalaxyRow>
           ))}
         </RowList>
       )}
-    </div>
+    </GalaxyPage>
   );
 }

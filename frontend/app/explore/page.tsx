@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search as SearchIcon, ChevronLeft, ChevronRight, X, Play, GitFork } from 'lucide-react';
@@ -13,7 +13,11 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Avatar } from '../../components/ui/avatar';
 import { INPUT_CLASS } from '../../components/ui/form';
-import { RowList, RowHeader, RowItem, RowTitle, RowStat, RowTime } from '../../components/ui/row-list';
+import { RowList, RowHeader, RowTitle, RowStat, RowTime } from '../../components/ui/row-list';
+import { GalaxyPage } from '../../components/galaxy/galaxy-page';
+import { GalaxyMap } from '../../components/galaxy/galaxy-map';
+import { GalaxyRow } from '../../components/galaxy/galaxy-row';
+import { weightOf } from '../../components/galaxy/constellation';
 
 const GENRE_FILTERS = [
   { value: '', label: 'Tất cả thể loại' },
@@ -105,6 +109,12 @@ function ExploreContent() {
 
   const items = data?.items;
 
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const galaxyItems = useMemo(
+    () => (items ?? []).map((p) => ({ id: p.id, weight: weightOf(p.play_count, p.fork_count) })),
+    [items],
+  );
+
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -158,125 +168,137 @@ function ExploreContent() {
         )}
       </div>
 
-      {loading ? (
-        <RowSkeleton />
-      ) : error ? (
-        <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
-          <p className="text-[13px] text-danger">{error}</p>
-          <Button variant="secondary" onClick={() => window.location.reload()} className="mt-4">
-            Thử lại
-          </Button>
+      <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(300px,36%)] min-[900px]:items-start">
+      <div className="min-w-0">
+        {loading ? (
+          <RowSkeleton />
+        ) : error ? (
+          <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
+            <p className="text-[13px] text-danger">{error}</p>
+            <Button variant="secondary" onClick={() => window.location.reload()} className="mt-4">
+              Thử lại
+            </Button>
+          </div>
+        ) : items?.length === 0 ? (
+          <EmptyState
+            icon={SearchIcon}
+            title={
+              search || genre || tag
+                ? "Không tìm thấy dự án nào."
+                : "Chưa có dự án nào được công khai."
+            }
+            description={
+              search || genre || tag
+                ? undefined
+                : "Hãy là người đầu tiên chia sẻ một bản nhạc với cộng đồng."
+            }
+            action={
+              search || genre || tag ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearchInput('');
+                    updateParams({ search: null, genre: null, tag: null });
+                  }}
+                >
+                  Xoá bộ lọc
+                </Button>
+              ) : (
+                <Link href="/projects/new">
+                  <Button>Tạo dự án</Button>
+                </Link>
+              )
+            }
+          />
+        ) : (
+          <>
+            <p className="mb-2 text-xs text-muted">
+              {search
+                ? `${data?.total ?? 0} kết quả cho "${search}"`
+                : `${data?.total ?? 0} dự án công khai`}
+            </p>
+
+            <RowList cols={COLS}>
+              <RowHeader>
+                <span>Dự án</span>
+                <span>Thể loại</span>
+                <span>Lượt nghe</span>
+                <span>Fork</span>
+                <span className="text-right">Cập nhật</span>
+              </RowHeader>
+
+              {items?.map((project) => {
+                const ownerName = project.owner.display_name ?? project.owner.username ?? 'Người dùng';
+                return (
+                  <GalaxyRow key={project.id} onActiveChange={(active) => setHoveredId((current) => (active ? project.id : current === project.id ? null : current))}>
+                    <RowTitle
+                      href={`/projects/${project.id}`}
+                      name={project.name}
+                      meta={
+                        <>
+                          <Link href={`/creator/${project.owner.id}`} className="hover:text-accent hover:underline">
+                            {ownerName}
+                          </Link>
+                          {project.description ? ` · ${project.description}` : ''}
+                        </>
+                      }
+                      leading={
+                        <Avatar
+                          id={project.owner.id}
+                          label={ownerName}
+                          imageUrl={project.owner.avatar_url}
+                        />
+                      }
+                    />
+                    <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
+                    <RowStat icon={Play} value={project.play_count} title="Lượt nghe" />
+                    <RowStat icon={GitFork} value={project.fork_count} title="Lượt fork" />
+                    <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
+                  </GalaxyRow>
+                );
+              })}
+            </RowList>
+
+            {data && data.totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-center gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => updateParams({ page: String(page - 1) })}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Trước
+                </Button>
+                <span className="px-3 font-mono text-xs text-muted">
+                  {page} / {data.totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  onClick={() => updateParams({ page: String(page + 1) })}
+                  disabled={page >= data.totalPages}
+                >
+                  Sau <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <aside aria-hidden="true" className="sticky top-6 hidden overflow-hidden rounded-card border border-border bg-background min-[900px]:block">
+        <div className="border-b border-border px-3.5 py-2.5">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Bản đồ thiên hà</p>
+          <p className="text-xs text-muted">Mỗi dự án là một chòm sao. Rê chuột vào một dòng để làm nó sáng lên.</p>
         </div>
-      ) : items?.length === 0 ? (
-        <EmptyState
-          icon={SearchIcon}
-          title={
-            search || genre || tag
-              ? "Không tìm thấy dự án nào."
-              : "Chưa có dự án nào được công khai."
-          }
-          description={
-            search || genre || tag
-              ? undefined
-              : "Hãy là người đầu tiên chia sẻ một bản nhạc với cộng đồng."
-          }
-          action={
-            search || genre || tag ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setSearchInput('');
-                  updateParams({ search: null, genre: null, tag: null });
-                }}
-              >
-                Xoá bộ lọc
-              </Button>
-            ) : (
-              <Link href="/projects/new">
-                <Button>Tạo dự án</Button>
-              </Link>
-            )
-          }
-        />
-      ) : (
-        <>
-          <p className="mb-2 text-xs text-muted">
-            {search
-              ? `${data?.total ?? 0} kết quả cho "${search}"`
-              : `${data?.total ?? 0} dự án công khai`}
-          </p>
-
-          <RowList cols={COLS}>
-            <RowHeader>
-              <span>Dự án</span>
-              <span>Thể loại</span>
-              <span>Lượt nghe</span>
-              <span>Fork</span>
-              <span className="text-right">Cập nhật</span>
-            </RowHeader>
-
-            {items?.map((project) => {
-              const ownerName = project.owner.display_name ?? project.owner.username ?? 'Người dùng';
-              return (
-                <RowItem key={project.id}>
-                  <RowTitle
-                    href={`/projects/${project.id}`}
-                    name={project.name}
-                    meta={
-                      <>
-                        <Link href={`/creator/${project.owner.id}`} className="hover:text-accent hover:underline">
-                          {ownerName}
-                        </Link>
-                        {project.description ? ` · ${project.description}` : ''}
-                      </>
-                    }
-                    leading={
-                      <Avatar
-                        id={project.owner.id}
-                        label={ownerName}
-                        imageUrl={project.owner.avatar_url}
-                      />
-                    }
-                  />
-                  <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
-                  <RowStat icon={Play} value={project.play_count} title="Lượt nghe" />
-                  <RowStat icon={GitFork} value={project.fork_count} title="Lượt fork" />
-                  <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
-                </RowItem>
-              );
-            })}
-          </RowList>
-
-          {data && data.totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => updateParams({ page: String(page - 1) })}
-                disabled={page <= 1}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" /> Trước
-              </Button>
-              <span className="px-3 font-mono text-xs text-muted">
-                {page} / {data.totalPages}
-              </span>
-              <Button
-                variant="secondary"
-                onClick={() => updateParams({ page: String(page + 1) })}
-                disabled={page >= data.totalPages}
-              >
-                Sau <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+        <GalaxyMap items={galaxyItems} activeId={hoveredId} className="h-[calc(100svh-21rem)] max-h-[620px] min-h-[340px]" />
+      </aside>
+      </div>
     </>
   );
 }
 
 export default function ExplorePage() {
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <GalaxyPage>
       <PageHeader
         breadcrumbs={[{ label: 'Thư viện công khai' }]}
         title="Khám phá"
@@ -292,6 +314,6 @@ export default function ExplorePage() {
       <Suspense fallback={<RowSkeleton />}>
         <ExploreContent />
       </Suspense>
-    </div>
+    </GalaxyPage>
   );
 }
