@@ -101,13 +101,13 @@ function ContributorCard({
           <p className="font-mono text-[15px] font-bold">
             {contributor.totalCommits}
           </p>
-          <p className="text-[11px] leading-tight text-muted">Số commit</p>
+          <p className="text-xs leading-tight text-muted">Số commit</p>
         </div>
         <div className="rounded-md bg-success-muted px-1 py-1.5">
           <p className="font-mono text-[15px] font-bold text-success-foreground">
             +{contributor.notesAdded}
           </p>
-          <p className="text-[11px] leading-tight text-success-foreground">
+          <p className="text-xs leading-tight text-success-foreground">
             Nốt thêm mới
           </p>
         </div>
@@ -115,7 +115,7 @@ function ContributorCard({
           <p className="font-mono text-[15px] font-bold text-danger">
             -{contributor.notesRemoved}
           </p>
-          <p className="text-[11px] leading-tight text-danger">
+          <p className="text-xs leading-tight text-danger">
             Nốt đã xoá
           </p>
         </div>
@@ -123,7 +123,7 @@ function ContributorCard({
           <p className="font-mono text-[15px] font-bold text-warning-foreground">
             {contributor.notesModified}
           </p>
-          <p className="text-[11px] leading-tight text-warning-foreground">
+          <p className="text-xs leading-tight text-warning-foreground">
             Nốt đã sửa
           </p>
         </div>
@@ -132,7 +132,7 @@ function ContributorCard({
       {/* Track distribution bars (no chart library — width % divs only). */}
       {contributor.trackDistribution.length > 0 && (
         <div className="mt-3 space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
             Phân bố thay đổi theo track
           </p>
           {contributor.trackDistribution.map((t) => (
@@ -149,7 +149,7 @@ function ContributorCard({
                   style={{ width: `${t.percentage}%` }}
                 />
               </div>
-              <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-muted">
+              <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted">
                 {t.changeCount} · {t.percentage}%
               </span>
             </div>
@@ -184,7 +184,7 @@ function CommitRow({
           {authorName ?? "Người dùng"} · {formatRelativeTime(commit.createdAt)}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums">
+      <div className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
         <span className="text-success-foreground">+{commit.notesAdded}</span>
         <span className="text-danger">-{commit.notesRemoved}</span>
         {commit.notesModified > 0 && (

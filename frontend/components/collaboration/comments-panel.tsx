@@ -317,7 +317,7 @@ export function CommentsPanel({
                         onClick={() =>
                           onSeek(barToTick(Number(barKey), ppq, timeSignature))
                         }
-                        className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-accent transition-colors hover:bg-accent-muted"
+                        className="rounded-md px-2 py-0.5 text-xs font-semibold text-accent transition-colors hover:bg-accent-muted"
                       >
                         Đi tới ô nhịp
                       </button>
@@ -421,7 +421,7 @@ export function CommentsPanel({
                                 >
                                   Huỷ
                                 </Button>
-                                <span className="ml-auto text-[11px] text-muted">
+                                <span className="ml-auto text-xs text-muted">
                                   {replyBody.length}/{COMMENT_BODY_MAX_LENGTH}
                                 </span>
                               </div>
@@ -466,7 +466,7 @@ export function CommentsPanel({
                 setAnchorTrackId("");
                 setAnchorBar("");
               }}
-              className="text-[11px] font-semibold text-muted hover:text-danger"
+              className="text-xs font-semibold text-muted hover:text-danger"
             >
               Xoá vị trí
             </button>
@@ -534,7 +534,7 @@ export function CommentsPanel({
             className={`${INPUT_CLASS} h-7 w-14 py-0 text-xs`}
           />
           <span
-            className={`text-[11px] ${
+            className={`text-xs ${
               bodyLen >= COMMENT_BODY_MAX_LENGTH ? "text-danger" : "text-muted"
             }`}
           >
@@ -631,7 +631,7 @@ function CommentRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="text-[13px] font-semibold">{authorName}</span>
-            <span className="text-[11px] text-muted">
+            <span className="text-xs text-muted">
               {formatRelativeTime(c.createdAt)}
             </span>
             {c.bar !== null && <Badge variant="neutral">Nhịp {String(c.bar)}</Badge>}
@@ -659,7 +659,7 @@ function CommentRow({
                   onClick={() =>
                     onSeek(barToTick(c.bar as number, ppq, timeSignature))
                   }
-                  className="flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline"
+                  className="flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
                 >
                   <MapPin size={11} /> Đi tới ô nhịp
                 </button>
@@ -668,7 +668,7 @@ function CommentRow({
               <button
                 type="button"
                 onClick={onReply}
-                className="flex items-center gap-1 text-[11px] font-semibold text-muted hover:text-foreground"
+                className="flex items-center gap-1 text-xs font-semibold text-muted hover:text-foreground"
               >
                 <CornerDownRight size={11} /> Trả lời
               </button>
@@ -677,7 +677,7 @@ function CommentRow({
               <button
                 type="button"
                 onClick={onDelete}
-                className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-muted transition-colors hover:text-danger"
+                className="ml-auto flex items-center gap-1 text-xs font-semibold text-muted transition-colors hover:text-danger"
               >
                 <Trash2 size={11} /> Xoá
               </button>
