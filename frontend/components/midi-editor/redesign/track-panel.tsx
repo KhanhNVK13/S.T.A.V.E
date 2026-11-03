@@ -196,7 +196,7 @@ export function TrackPanel({
                     style={{
                       ...styles.msBtn,
                       background: track.solo ? DC.success : DC.surface,
-                      color: track.solo ? "#fff" : DC.textMuted,
+                      color: track.solo ? DC.onAccent : DC.textMuted,
                       borderColor: track.solo ? DC.success : DC.border,
                     }}
                   >
@@ -547,10 +547,10 @@ const styles: Record<string, React.CSSProperties> = {
     width: 13,
     height: 13,
     background: DC.accentDeep,
-    border: "2px solid #fff",
+    border: `2px solid ${DC.surface}`,
     borderRadius: "50%",
     transform: "translate(-50%,-50%)",
-    boxShadow: "0 1px 3px rgba(0,0,0,.22)",
+    boxShadow: "0 1px 3px rgba(0,0,0,.5)",
     pointerEvents: "none",
   },
   volInput: {
@@ -587,7 +587,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "none",
     color: DC.textMuted,
     cursor: "pointer",
-    fontSize: 11,
+    fontSize: 12,
     padding: 0,
   },
   instrumentSearchWrap: {
@@ -599,12 +599,12 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${DC.border}`,
     borderRadius: 6,
     padding: "5px 8px",
-    fontSize: 11.5,
+    fontSize: 12,
     color: DC.text,
   },
   instrumentSearchEmpty: {
     padding: "10px 16px",
-    fontSize: 11.5,
+    fontSize: 12,
     color: DC.textMuted,
     textAlign: "center",
   },

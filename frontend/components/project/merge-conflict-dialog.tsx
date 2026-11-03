@@ -58,7 +58,7 @@ export function MergeConflictDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8">
       <div
         ref={dialogRef}
         role="dialog"

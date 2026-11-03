@@ -76,7 +76,7 @@ export const modalButtonStyles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 8,
     background: DC.accent,
-    color: "#fff",
+    color: DC.onAccent,
     border: "none",
     borderRadius: 8,
     padding: "10px 16px",
@@ -113,7 +113,7 @@ const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(20, 22, 27, .45)",
+    background: DC.scrim,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -127,7 +127,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: DC.surface,
     border: `1px solid ${DC.border}`,
     borderRadius: 12,
-    boxShadow: "0 18px 40px rgba(15, 42, 92, .18)",
+    boxShadow: DC.shadowPop,
     outline: "none",
   },
   header: {
