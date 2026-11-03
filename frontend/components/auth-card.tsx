@@ -2,12 +2,49 @@ import { useId } from "react";
 import type { ReactNode } from "react";
 import { withErrorProps } from "./ui/form";
 import { Logo } from "./ui/logo";
-import { MiniRoll } from "./ui/mini-roll";
+
+const STARS: [number, number][] = [
+  [30, 150],
+  [100, 110],
+  [170, 130],
+  [250, 70],
+  [330, 90],
+  [410, 40],
+];
+
+function Constellation({ className = "" }: { className?: string }) {
+  const haloId = useId();
+  return (
+    <svg aria-hidden viewBox="0 0 460 200" className={className}>
+      <defs>
+        <radialGradient id={haloId}>
+          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.55" />
+          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {[60, 80, 100, 120, 140].map((y) => (
+        <line key={y} x1="0" x2="460" y1={y} y2={y} stroke="var(--border)" strokeWidth="1" />
+      ))}
+      <polyline
+        points={STARS.map((p) => p.join(",")).join(" ")}
+        fill="none"
+        stroke="var(--border-strong)"
+        strokeWidth="1.2"
+      />
+      {STARS.map(([x, y]) => (
+        <g key={`${x}-${y}`}>
+          <circle cx={x} cy={y} r="16" fill={`url(#${haloId})`} />
+          <circle cx={x} cy={y} r="3" fill="var(--foreground)" />
+        </g>
+      ))}
+    </svg>
+  );
+}
 
 /**
  * Khung 2 cột cho 4 trang xác thực: cột trái là mảng thương hiệu (ẩn trên
- * mobile), cột phải là form. Khác hẳn layout phần còn lại của app (nội dung
- * trong PageHeader) — xem CLAUDE.md 4.7.
+ * mobile), cột phải là thẻ form. Thẻ dùng nền bề mặt hơi trong suốt để nền sao
+ * của theme tối lộ ra phía sau (không làm mờ), kèm một vòng sáng nhỏ ở góc.
  */
 export function AuthCard({
   title,
@@ -22,24 +59,30 @@ export function AuthCard({
 }) {
   return (
     <div className="grid min-h-full lg:grid-cols-2">
-      <div className="hidden flex-col justify-center border-r border-border bg-surface-subtle p-[9%] lg:flex">
+      <div className="hidden flex-col justify-center border-r border-border bg-surface-subtle/50 p-[9%] lg:flex">
         <Logo />
         <p className="mt-6 max-w-[360px] text-[28px] font-bold leading-[1.25]">
           Quản lý phiên bản cho bản nhạc đang hình thành.
         </p>
-        <MiniRoll className="mt-5 w-full max-w-[540px] rounded-card border border-border" />
+        <Constellation className="mt-6 w-full max-w-[540px]" />
       </div>
 
       <div className="mx-auto w-full max-w-[430px] px-6 py-12 sm:px-11">
         <div className="mb-6 lg:hidden">
           <Logo />
         </div>
-        {eyebrow && (
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{eyebrow}</p>
-        )}
-        {title && <h1 className="my-1 text-[23px] font-semibold tracking-tight">{title}</h1>}
-        {description && <p className="mb-6 text-xs text-muted">{description}</p>}
-        {children}
+        <div className="relative rounded-card border border-border bg-surface/80 p-6 motion-safe:transition-[opacity,transform] motion-safe:duration-[800ms] motion-safe:ease-out starting:translate-y-3 starting:opacity-0">
+          <span
+            aria-hidden
+            className="absolute -top-1 right-6 h-2 w-2 rounded-full bg-accent shadow-[0_0_14px_5px_var(--accent)]"
+          />
+          {eyebrow && (
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{eyebrow}</p>
+          )}
+          {title && <h1 className="my-1 text-[23px] font-semibold tracking-tight">{title}</h1>}
+          {description && <p className="mb-6 text-xs text-muted">{description}</p>}
+          {children}
+        </div>
       </div>
     </div>
   );
