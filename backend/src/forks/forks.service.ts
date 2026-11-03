@@ -9,6 +9,7 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SEEDED_JAM_EVENTS } from '../jam/jam.service';
 
 const MAX_NAME_LENGTH = 100;
 
@@ -33,7 +34,14 @@ export class ForksService {
     const source = await this.loadSource(projectId);
 
     if (source.visibility !== 'public' || source.archived_at) {
-      throw new ConflictException('Project is no longer available');
+      // UC-68 / BR-76 & POST-4: a jam event's result project is created
+      // private and archived on end — but it is exactly the kind of
+      // project the "Sao chép về dự án của tôi" button exists to fork.
+      // Every OTHER private/archived project still refuses.
+      const jamResult = await this.isJamResultProject(projectId);
+      if (!jamResult) {
+        throw new ConflictException('Project is no longer available');
+      }
     }
     if (source.owner_id === userId) {
       throw new BadRequestException('You cannot fork your own project');
@@ -55,6 +63,29 @@ export class ForksService {
     });
 
     return { id: newId as string };
+  }
+
+  /**
+   * True when `projectId` is the `resulting_project_id` of an ENDED
+   * `jam_events` row — the only private/archived source the fork rule
+   * (UC-68 / BR-76, POST-4) must let through. Read-only check: it never
+   * mutates the jam event.
+   */
+  private async isJamResultProject(projectId: string): Promise<boolean> {
+    try {
+      const { data } = await this.supabase
+        .from('jam_events')
+        .select('id')
+        .eq('resulting_project_id', projectId)
+        .eq('status', 'ended')
+        .limit(1);
+      if ((data?.length ?? 0) > 0) return true;
+    } catch {
+      // Pre-migration DB without the table: check seeded events below
+    }
+    return SEEDED_JAM_EVENTS.some(
+      (e) => e.resulting_project_id === projectId && e.status === 'ended',
+    );
   }
 
   private async loadSource(projectId: string): Promise<SourceProject> {

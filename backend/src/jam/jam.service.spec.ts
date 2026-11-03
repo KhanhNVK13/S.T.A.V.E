@@ -1,0 +1,1665 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DraftTrack } from '@stave/shared-types';
+import { JAM_MAX_FLUSH_FAILURES } from '@stave/shared-types';
+import { JamService, JamSocketUser } from './jam.service';
+import type { EditJamNoteRequestDto } from './dto/edit-jam-note.dto';
+
+type Row = Record<string, unknown>;
+
+/**
+ * In-RAM mock of the SupabaseClient surface JamService uses. Supports the
+ * `select().eq().maybeSingle()`, `update().eq()`, `upsert(..., {onConflict})`
+ * and `insert()` chains against in-memory rows. No DB, no network.
+ *
+ * Mirrors the proven shape in `collaboration.service.spec.ts`: the builder is
+ * thenable so `await client.from(t).update(...).eq(...)` and
+ * `await client.from(t).upsert(...)` resolve, and `.maybeSingle()` returns a
+ * promise when called explicitly.
+ */
+function createInMemorySupabase(
+  tables: Record<string, Row[]>,
+  options: {
+    failUpsertTables?: Set<string>;
+    /** select() on these tables returns a non-null error (UC-68 2.E2 hook). */
+    failSelectTables?: Set<string>;
+    /** UC-95 5.E1 — update() on these tables returns a non-null error. */
+    failUpdateTables?: Set<string>;
+    /** UC-95 5.E1 — insert() on these tables returns a non-null error. */
+    failInsertTables?: Set<string>;
+  } = {},
+): SupabaseClient {
+  const state: Record<string, Row[]> = {};
+  for (const key of Object.keys(tables)) {
+    state[key] = (tables[key] ?? []).map((row) => ({ ...row }));
+  }
+
+  const filterRow = (row: Row, preds: Array<(row: Row) => boolean>) =>
+    preds.every((p) => p(row));
+
+  const build = (table: string): any => {
+    const rows = (state[table] ??= []);
+    const preds: Array<(row: Row) => boolean> = [];
+    let mode: 'select' | 'update' | 'insert' | 'upsert' = 'select';
+    let payload: Row = {};
+    let onConflict: string | undefined;
+
+    const upsertKeys = (): string[] =>
+      (onConflict ?? '')
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+    const q: any = {};
+    q.select = () => q;
+    q.eq = (col: string, val: unknown) => {
+      preds.push((row) => row[col] === val);
+      return q;
+    };
+    q.neq = (col: string, val: unknown) => {
+      preds.push((row) => row[col] !== val);
+      return q;
+    };
+    q.in = (col: string, vals: unknown[]) => {
+      preds.push((row) => vals.includes(row[col]));
+      return q;
+    };
+    let limitCount: number | null = null;
+    q.limit = (count: number) => {
+      limitCount = count;
+      return q;
+    };
+    q.order = () => q;
+    q.update = (p: Row) => {
+      mode = 'update';
+      payload = p;
+      return q;
+    };
+    q.insert = (p: Row) => {
+      mode = 'insert';
+      payload = p;
+      return q;
+    };
+    q.upsert = (p: Row, opts?: { onConflict?: string }) => {
+      mode = 'upsert';
+      payload = p;
+      onConflict = opts?.onConflict;
+      return q;
+    };
+
+    const run = (): {
+      data: Row | Row[] | null;
+      error: { message: string } | null;
+    } => {
+      switch (mode) {
+        case 'select': {
+          // UC-68 2.E2 test hook: a table in `failSelectTables` always
+          // returns an error instead of rows.
+          if (options.failSelectTables?.has(table)) {
+            return {
+              data: [],
+              error: { message: `select failed on ${table} (simulated)` },
+            };
+          }
+          const matched = rows.filter((r) => filterRow(r, preds));
+          return {
+            data: limitCount != null ? matched.slice(0, limitCount) : matched,
+            error: null,
+          };
+        }
+        case 'update': {
+          // UC-95 5.E1 test hook: a table in `failUpdateTables` always
+          // rejects (a failed `jam_events` update must surface as 500).
+          if (options.failUpdateTables?.has(table)) {
+            return {
+              data: null,
+              error: { message: `update rejected on ${table} (simulated)` },
+            };
+          }
+          for (const row of rows) {
+            if (filterRow(row, preds)) Object.assign(row, payload);
+          }
+          return { data: null, error: null };
+        }
+        case 'insert': {
+          // UC-95 5.E1 test hook: a table in `failInsertTables` always
+          // rejects (a failed `admin_audit_log` insert must surface as 500).
+          if (options.failInsertTables?.has(table)) {
+            return {
+              data: null,
+              error: { message: `insert rejected on ${table} (simulated)` },
+            };
+          }
+          const inserted = { ...payload };
+          rows.push(inserted);
+          return { data: inserted, error: null };
+        }
+        case 'upsert': {
+          // 12.E1 test hook: a table in `failUpsertTables` always rejects.
+          if (options.failUpsertTables?.has(table)) {
+            return {
+              data: null,
+              error: { message: `upsert rejected on ${table} (simulated)` },
+            };
+          }
+          const keys = upsertKeys();
+          const existing = keys.length
+            ? rows.find((row) => keys.every((k) => row[k] === payload[k]))
+            : undefined;
+          if (existing) {
+            Object.assign(existing, payload);
+            return { data: existing, error: null };
+          }
+          const inserted = { ...payload };
+          rows.push(inserted);
+          return { data: inserted, error: null };
+        }
+      }
+    };
+
+    // The chain itself is awaited (`await ...update().eq()`), so it must be
+    // thenable — that is the real Supabase surface.
+    const thenable = {
+      then: (
+        res: (v: ReturnType<typeof run>) => unknown,
+        rej?: (e: unknown) => unknown,
+      ) => Promise.resolve(run()).then(res, rej),
+      catch: (rej: (e: unknown) => unknown) =>
+        Promise.resolve(run()).catch(rej),
+    };
+    Object.assign(q, thenable);
+
+    q.maybeSingle = () =>
+      Promise.resolve(run()).then(({ data, error }) => ({
+        data: Array.isArray(data) ? (data[0] ?? null) : data,
+        error,
+      }));
+    q.single = () =>
+      Promise.resolve(run()).then(({ data, error }) => {
+        const single = Array.isArray(data) ? data[0] : data;
+        if (single == null) {
+          return Promise.reject(
+            new Error(error?.message ?? `single: no row for ${table}`),
+          );
+        }
+        return { data: single, error };
+      });
+
+    return q;
+  };
+
+  return {
+    from: (table: string) => build(table),
+    auth: { getUser: jest.fn() },
+    // Test hook: the in-memory rows so a spec can assert `edit_count` etc.
+    _state: state,
+  } as unknown as SupabaseClient;
+}
+
+/**
+ * A base active event row. The window is deliberately clock-safe: the start
+ * is far in the past and the end far in the future, so `ensureStatus` is a
+ * no-op regardless of the real system clock (a test must never depend on
+ * "what time it is").
+ */
+function activeEventRow(overrides: Row = {}): Row {
+  return {
+    id: 'event-1',
+    created_by: 'admin-1',
+    status: 'active',
+    started_at: '2026-01-01T00:00:00Z',
+    ended_at: null,
+    resulting_project_id: null,
+    name: 'Open Jam',
+    description: 'A public jam',
+    scheduled_start_at: '2026-01-01T00:00:00Z',
+    scheduled_end_at: '2999-01-01T00:00:00Z',
+    starting_project_id: null,
+    jam_project_id: null,
+    edit_cooldown_sec: null,
+    no_result: false,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function userRow(userId: string, status = 'active'): Row {
+  return {
+    id: userId,
+    email: `${userId}@x.com`,
+    username: userId.replace('-', ''),
+    display_name: userId,
+    status,
+  };
+}
+
+const ALICE = 'user-alice';
+const BOB = 'user-bob';
+
+function makeTables(
+  overrides: {
+    events?: Row[];
+    users?: Row[];
+    jamParticipants?: Row[];
+  } = {},
+) {
+  return {
+    jam_events: overrides.events ?? [activeEventRow()],
+    users: overrides.users ?? [userRow(ALICE), userRow(BOB)],
+    jam_participants: overrides.jamParticipants ?? [],
+  };
+}
+
+function makeService(tables: ReturnType<typeof makeTables>) {
+  return new JamService(createInMemorySupabase(tables));
+}
+
+// ── UC-67 helpers ────────────────────────────────────────────────────────────
+
+/**
+ * A clock-safe active event that owns a jam project, so `getOrCreateRoom`
+ * hydrates its snapshot from the `drafts` table (which carries a real track
+ * + a real note) instead of the empty default. `edit_cooldown_sec` is pinned
+ * so the cooldown test is deterministic.
+ */
+function jamEventRow(overrides: Row = {}): Row {
+  return activeEventRow({
+    jam_project_id: 'proj-1',
+    edit_cooldown_sec: 5,
+    ...overrides,
+  });
+}
+
+const JAM_TRACK: DraftTrack = {
+  id: 'track-1',
+  name: 'Piano',
+  order: 0,
+  color: '#000000',
+  muted: false,
+  solo: false,
+  volume: 1,
+  pan: 0,
+  instrument: 'Acoustic Grand Piano',
+};
+
+const JAM_SEED_NOTE = {
+  id: 'note-1',
+  trackId: 'track-1',
+  pitch: 60,
+  start: 480,
+  duration: 480,
+  velocity: 80,
+};
+
+function jamTables(
+  overrides: {
+    events?: Row[];
+    users?: Row[];
+    jamParticipants?: Row[];
+  } = {},
+) {
+  return {
+    jam_events: overrides.events ?? [jamEventRow()],
+    users: overrides.users ?? [
+      userRow(ALICE),
+      userRow(BOB),
+      userRow('admin-1'),
+    ],
+    jam_participants: overrides.jamParticipants ?? [],
+    projects: [{ id: 'proj-1', owner_id: 'admin-1' }],
+    branches: [{ id: 'br-1', project_id: 'proj-1', is_default: true }],
+    drafts: [
+      {
+        branch_id: 'br-1',
+        user_id: 'admin-1',
+        snapshot: {
+          schemaVersion: 3,
+          meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
+          tracks: [JAM_TRACK],
+          notes: [{ ...JAM_SEED_NOTE }],
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Build a service + expose the in-memory DB so a spec can assert on the
+ * persisted `jam_participants.edit_count` (Post-condition #5) and drive the
+ * 12.E1 flush-failure scenarios. `state` is the live row store the mock
+ * mutates; `failTables` is the Set the mock consults for upsert rejections,
+ * and is itself mutable so a test can recover on demand.
+ */
+function makeJamService(
+  tables: ReturnType<typeof jamTables>,
+  options?: { failUpsertTables?: Set<string> },
+) {
+  const failTables = options?.failUpsertTables ?? new Set<string>();
+  const db = createInMemorySupabase(tables, { failUpsertTables: failTables });
+  const service = new JamService(db);
+  const state = (db as unknown as { _state: Record<string, Row[]> })._state;
+  return { service, state, failTables };
+}
+
+/** A valid `EditJamNoteRequestDto`-shaped object for UC-67 tests. */
+function editDto(overrides: Partial<EditJamNoteRequestDto> = {}) {
+  return {
+    jamId: 'event-1',
+    action: 'add' as const,
+    note: {
+      id: 'note-2',
+      trackId: 'track-1',
+      midi: 64,
+      startTick: 0,
+      durationTicks: 480,
+      velocity: 80,
+    },
+    clientTimestamp: 0,
+    ...overrides,
+  };
+}
+
+function aliceUser(): JamSocketUser {
+  return {
+    id: ALICE,
+    username: 'alice',
+    displayName: 'Alice',
+    avatarUrl: null,
+  };
+}
+
+describe('JamService — UC-66 handleUserJoin', () => {
+  it('happy path: active event + active account → full JamStatePayload', async () => {
+    const service = makeService(makeTables());
+
+    const state = await service.handleUserJoin(
+      'event-1',
+      aliceUser(),
+      'socket-a',
+    );
+
+    expect(state.endsAt).toBe('2999-01-01T00:00:00Z');
+    expect(state.cooldownSec).toBe(JamService.DEFAULT_COOLDOWN_SEC);
+    expect(state.snapshot.notes).toEqual([]);
+    expect(state.snapshot.schemaVersion).toBeDefined();
+    // The socket is now the room's participant.
+    expect(state.participants).toHaveLength(1);
+    expect(state.participants[0]).toMatchObject({
+      userId: ALICE,
+      username: 'alice',
+      socketId: 'socket-a',
+    });
+    // A `join` activity entry is recorded.
+    expect(state.activity).toHaveLength(1);
+    expect(state.activity[0].op).toBe('join');
+    // The participant row was persisted (in-memory jam_participants table).
+    expect(service.participantCount('event-1')).toBe(1);
+  });
+
+  it('2.E1: unknown event → NotFoundException', async () => {
+    const service = makeService(makeTables());
+    await expect(
+      service.handleUserJoin('missing', aliceUser(), 'socket-a'),
+    ).rejects.toThrow(NotFoundException);
+    await expect(
+      service.handleUserJoin('missing', aliceUser(), 'socket-a'),
+    ).rejects.toThrow('Jam event not found');
+  });
+
+  it('2.E2: event not started yet → ConflictException code EVENT_NOT_STARTED', async () => {
+    const service = makeService(
+      makeTables({
+        events: [
+          activeEventRow({
+            status: 'scheduled',
+            scheduled_start_at: '2099-01-01T00:00:00Z',
+            started_at: null,
+          }),
+        ],
+      }),
+    );
+
+    const caught = await service
+      .handleUserJoin('event-1', aliceUser(), 'socket-a')
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect((caught as ConflictException).getResponse()).toEqual({
+      code: 'EVENT_NOT_STARTED',
+      message: 'The jam has not started yet',
+    });
+  });
+
+  it('2.E3: event already ended → ConflictException code EVENT_COMPLETED', async () => {
+    const service = makeService(
+      makeTables({
+        events: [
+          activeEventRow({
+            status: 'ended',
+            scheduled_end_at: '2026-01-01T00:00:00Z',
+            ended_at: '2026-01-01T00:00:00Z',
+          }),
+        ],
+      }),
+    );
+
+    const caught = await service
+      .handleUserJoin('event-1', aliceUser(), 'socket-a')
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect((caught as ConflictException).getResponse()).toEqual({
+      code: 'EVENT_COMPLETED',
+      message: 'The jam has already ended',
+    });
+  });
+
+  it('3.E1: suspended account → ForbiddenException code ACCOUNT_NOT_ACTIVE', async () => {
+    const service = makeService(
+      makeTables({
+        users: [userRow(ALICE, 'suspended')],
+      }),
+    );
+
+    const caught = await service
+      .handleUserJoin('event-1', aliceUser(), 'socket-a')
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+    expect(caught).toBeInstanceOf(ForbiddenException);
+    expect(caught).toMatchObject({
+      status: 403,
+      response: { code: 'ACCOUNT_NOT_ACTIVE' },
+    });
+  });
+
+  it('4.E1: room at the participant cap → ConflictException code ROOM_FULL', async () => {
+    // Pre-fill the room up to the cap, then a NEW user is refused.
+    const filled = Array.from(
+      { length: JamService.MAX_JAM_PARTICIPANTS },
+      (_, i) => userRow(`user-${i}`),
+    );
+    const service = makeService(
+      makeTables({ users: [...filled, userRow(ALICE)] }),
+    );
+
+    const seedUser = (i: number): JamSocketUser => ({
+      id: `user-${i}`,
+      username: `u${i}`,
+      displayName: `U${i}`,
+      avatarUrl: null,
+    });
+
+    // Seed the room's participants up to the cap without Alice.
+    for (let i = 0; i < JamService.MAX_JAM_PARTICIPANTS; i += 1) {
+      await service.handleUserJoin('event-1', seedUser(i), `socket-${i}`);
+    }
+
+    const caught = await service
+      .handleUserJoin('event-1', aliceUser(), 'socket-alice')
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect((caught as ConflictException).getResponse()).toEqual({
+      code: 'ROOM_FULL',
+      message: 'The jam room is full',
+    });
+
+    // A REJOIN of a current participant (5.1) is still allowed — distinct
+    // user count stays at the cap, so capacity is measured per user, not tab.
+    await expect(
+      service.handleUserJoin('event-1', seedUser(0), 'socket-0-rejoin'),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('JamService — UC-66 listEvents / getEventById / ensureStatus', () => {
+  it('lists events and returns the live participant count', async () => {
+    const service = makeService(makeTables());
+    const events = await service.listEvents({});
+    expect(events).toHaveLength(1);
+    expect(events[0].id).toBe('event-1');
+    expect(events[0].currentParticipantCount).toBe(0);
+  });
+
+  it('getEventById → NotFoundException when missing', async () => {
+    const service = makeService(makeTables());
+    await expect(service.getEventById('nope')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('ensureStatus promotes a scheduled event past its start to active', async () => {
+    const service = makeService(
+      makeTables({
+        events: [
+          activeEventRow({
+            status: 'scheduled',
+            scheduled_start_at: '2020-01-01T00:00:00Z',
+            scheduled_end_at: '2020-01-01T01:00:00Z',
+            started_at: null,
+          }),
+        ],
+      }),
+    );
+
+    const event = await service.getEventById('event-1');
+    // Past its start AND its end → it should have advanced all the way to ended.
+    expect(event.status).toBe('ended');
+    expect(event.ended_at).not.toBeNull();
+  });
+
+  it('errorPayload maps NotFoundException to EVENT_NOT_FOUND', () => {
+    expect(
+      JamService.errorPayload(new NotFoundException('Jam event not found')),
+    ).toEqual({
+      code: 'EVENT_NOT_FOUND',
+      message: 'Jam event not found',
+    });
+  });
+});
+
+// ── UC-67 — handleEditNote (LWW note ops, BR-68/69/71, 12.E1 sweep) ────────
+
+describe('JamService — UC-67 handleEditNote', () => {
+  it('add: note lands in the RAM snapshot, room goes dirty, edit_count bumps', async () => {
+    const { service, state } = makeJamService(jamTables());
+
+    const payload = await service.handleEditNote(
+      aliceUser(),
+      editDto({ action: 'add', note: { ...editDto().note, id: 'note-2' } }),
+    );
+
+    expect(payload).toMatchObject({
+      jamId: 'event-1',
+      action: 'add',
+      note: {
+        id: 'note-2',
+        trackId: 'track-1',
+        midi: 64,
+        startTick: 0,
+        durationTicks: 480,
+        velocity: 80,
+      },
+      userId: ALICE,
+      username: 'alice',
+    });
+    expect(typeof payload.timestamp).toBe('number');
+
+    const room = service.getRoom('event-1')!;
+    // The snapshot now carries the seeded note + the new one (LWW applied).
+    const ids = room.snapshot.notes.map((n) => n.id).sort();
+    expect(ids).toEqual(['note-1', 'note-2']);
+    // Post-condition #3/#4: cooldown stamped + room flagged dirty for the sweep.
+    expect(room.lastEditAtByUser[ALICE]).toBeGreaterThan(0);
+    expect(room.isDirty).toBe(true);
+    // Post-condition #5: the DB counter was bumped (in-memory table).
+    expect(state.jam_participants).toContainEqual(
+      expect.objectContaining({
+        event_id: 'event-1',
+        user_id: ALICE,
+        edit_count: 1,
+      }),
+    );
+    // An activity line was appended for the feed.
+    expect(room.recentActivities.some((a) => a.op === 'add')).toBe(true);
+  });
+
+  it('update: overwrites the matching note in place (LWW)', async () => {
+    const { service } = makeJamService(jamTables());
+
+    const payload = await service.handleEditNote(
+      aliceUser(),
+      editDto({
+        action: 'update',
+        note: {
+          id: 'note-1',
+          trackId: 'track-1',
+          midi: 72,
+          startTick: 960,
+          durationTicks: 240,
+          velocity: 100,
+        },
+      }),
+    );
+
+    expect(payload.note).toMatchObject({
+      midi: 72,
+      startTick: 960,
+      durationTicks: 240,
+      velocity: 100,
+    });
+    const room = service.getRoom('event-1')!;
+    const updated = room.snapshot.notes.find((n) => n.id === 'note-1')!;
+    expect(updated).toMatchObject({
+      pitch: 72,
+      start: 960,
+      duration: 240,
+      velocity: 100,
+    });
+    // The note array did not grow — a real in-place update.
+    expect(room.snapshot.notes).toHaveLength(1);
+  });
+
+  it('delete: removes the note from the RAM snapshot', async () => {
+    const { service } = makeJamService(jamTables());
+
+    await service.handleEditNote(
+      aliceUser(),
+      editDto({
+        action: 'delete',
+        note: {
+          id: 'note-1',
+          trackId: 'track-1',
+          midi: 60,
+          startTick: 480,
+          durationTicks: 480,
+          velocity: 80,
+        },
+      }),
+    );
+
+    const room = service.getRoom('event-1')!;
+    expect(room.snapshot.notes).toHaveLength(0);
+    expect(room.isDirty).toBe(true);
+  });
+
+  it('an empty snapshot (no jam project) gets a seeded piano track so notes can land', async () => {
+    const { service } = makeJamService(
+      jamTables({
+        events: [jamEventRow({ jam_project_id: null })],
+      }),
+    );
+
+    // The default snapshot has `tracks: []` — the room must be seeded with a
+    // piano track or every edit is rejected by 7.E2.
+    const room = service.getRoom('event-1');
+    expect(room).toBeUndefined(); // not created until an op or join
+
+    // An add against the seeded track id succeeds end-to-end.
+    const payload = await service.handleEditNote(
+      aliceUser(),
+      editDto({
+        note: {
+          id: 'note-seed',
+          trackId: '00000000-0000-4000-8000-000000000001',
+          midi: 60,
+          startTick: 0,
+          durationTicks: 480,
+          velocity: 80,
+        },
+      }),
+    );
+
+    expect(payload.note.id).toBe('note-seed');
+    const created = service.getRoom('event-1')!;
+    expect(created.snapshot.tracks).toHaveLength(1);
+    expect(created.snapshot.tracks[0]).toMatchObject({
+      instrument: 'Acoustic Grand Piano',
+    });
+    expect(created.snapshot.notes).toHaveLength(1);
+  });
+
+  it('8.E1 (LWW concurrency): two users editing the same note — last write wins, nobody is rejected', async () => {
+    const { service } = makeJamService(jamTables());
+
+    const bobUser: JamSocketUser = {
+      id: BOB,
+      username: 'bob',
+      displayName: 'Bob',
+      avatarUrl: null,
+    };
+    await service.handleEditNote(
+      aliceUser(),
+      editDto({
+        action: 'update',
+        note: {
+          id: 'note-1',
+          trackId: 'track-1',
+          midi: 60,
+          startTick: 480,
+          durationTicks: 480,
+          velocity: 90,
+        },
+      }),
+    );
+    // Alice's cooldown is now armed; Bob's is not, and his write must still
+    // land (3.1 — no queue, no block, LWW by server timestamp).
+    const payload = await service.handleEditNote(
+      bobUser,
+      editDto({
+        action: 'update',
+        note: {
+          id: 'note-1',
+          trackId: 'track-1',
+          midi: 60,
+          startTick: 480,
+          durationTicks: 480,
+          velocity: 120,
+        },
+      }),
+    );
+
+    const room = service.getRoom('event-1')!;
+    expect(room.snapshot.notes[0].velocity).toBe(120); // Bob's value won
+    expect(payload.userId).toBe(BOB);
+  });
+
+  it('2.E1: editing inside the cooldown window → ConflictException COOLDOWN_ACTIVE with remainingSeconds', async () => {
+    const { service } = makeJamService(jamTables());
+
+    await service.handleEditNote(aliceUser(), editDto());
+
+    const caught = await service
+      .handleEditNote(
+        aliceUser(),
+        editDto({ note: { ...editDto().note, id: 'note-3' } }),
+      )
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+    expect(caught).toBeInstanceOf(ConflictException);
+    const body = (caught as ConflictException).getResponse() as Record<
+      string,
+      unknown
+    >;
+    expect(body.code).toBe('COOLDOWN_ACTIVE');
+    expect(typeof body.remainingSeconds).toBe('number');
+    // The snapshot did NOT change — the second op was rejected.
+    expect(service.getRoom('event-1')!.snapshot.notes.map((n) => n.id)).toEqual(
+      ['note-1', 'note-2'],
+    );
+  });
+
+  it('5.E1: an ended event refuses every edit with JAM_EVENT_ENDED', async () => {
+    const { service } = makeJamService(
+      jamTables({
+        events: [
+          jamEventRow({ status: 'ended', ended_at: '2026-01-02T00:00:00Z' }),
+        ],
+      }),
+    );
+
+    const caught = await service.handleEditNote(aliceUser(), editDto()).then(
+      () => null,
+      (err: unknown) => err,
+    );
+
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect((caught as ConflictException).getResponse()).toMatchObject({
+      code: 'JAM_EVENT_ENDED',
+    });
+    // No room was created for an ended event — the write path is closed
+    // before hydration (BR-70).
+    expect(service.getRoom('event-1')).toBeUndefined();
+  });
+
+  it('7.E1: out-of-range MIDI data → BadRequestException INVALID_NOTE_DATA', async () => {
+    const { service } = makeJamService(jamTables());
+
+    const caught = await service
+      .handleEditNote(
+        aliceUser(),
+        editDto({
+          note: { ...editDto().note, midi: 130, durationTicks: 0 },
+        }),
+      )
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+    expect(caught).toBeInstanceOf(BadRequestException);
+    expect((caught as BadRequestException).getResponse()).toMatchObject({
+      code: 'INVALID_NOTE_DATA',
+    });
+  });
+
+  it('7.E2: a note on a missing track → NotFoundException TRACK_NOT_FOUND', async () => {
+    const { service } = makeJamService(jamTables());
+
+    const caught = await service
+      .handleEditNote(
+        aliceUser(),
+        editDto({ note: { ...editDto().note, trackId: 'no-such-track' } }),
+      )
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+    expect(caught).toBeInstanceOf(NotFoundException);
+    expect((caught as NotFoundException).getResponse()).toMatchObject({
+      code: 'TRACK_NOT_FOUND',
+    });
+  });
+
+  it('5.E2: an unknown event → NotFoundException JAM_ROOM_NOT_FOUND (reload path)', async () => {
+    const { service } = makeJamService(jamTables());
+
+    const caught = await service
+      .handleEditNote(aliceUser(), editDto({ jamId: 'missing' }))
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+    expect(caught).toBeInstanceOf(NotFoundException);
+    expect((caught as NotFoundException).getResponse()).toMatchObject({
+      code: 'JAM_ROOM_NOT_FOUND',
+    });
+  });
+});
+
+describe('JamService — UC-67 sweep + flush failures (BR-116, 12.E1)', () => {
+  it('12.E1: a failing flush stays dirty, retries, and warns past the threshold', async () => {
+    const { service, state, failTables } = makeJamService(jamTables(), {
+      failUpsertTables: new Set(['drafts']),
+    });
+
+    // An edit makes the room dirty (the flush target is the drafts upsert).
+    await service.handleEditNote(aliceUser(), editDto());
+    const room = service.getRoom('event-1')!;
+    expect(room.isDirty).toBe(true);
+
+    const events: Array<{
+      endedEvents: unknown[];
+      storageWarnings: Array<{
+        jamId: string;
+        consecutiveFlushFailures: number;
+      }>;
+    }> = [];
+    service.settleJamSweep((batch) => events.push(batch));
+
+    // Three failing sweeps → the counter climbs and the warning fires at 3.
+    await service.sweep();
+    await service.sweep();
+    expect(room.isDirty).toBe(true); // 12.E1: retry, never lose contributions
+    expect(room.consecutiveFlushFailures).toBe(2);
+    await service.sweep();
+    expect(room.consecutiveFlushFailures).toBe(3);
+    expect(events.at(-1)!.storageWarnings).toEqual([
+      { jamId: 'event-1', consecutiveFlushFailures: 3 },
+    ]);
+    expect(JAM_MAX_FLUSH_FAILURES).toBe(3);
+
+    // The snapshot is still NOT persisted while the DB is down.
+    const persisted = state.drafts[0] as unknown as {
+      snapshot: { notes: Array<{ id: string }> };
+    };
+    expect(persisted.snapshot.notes.map((n) => n.id)).toEqual(['note-1']);
+
+    // Recovery: the DB comes back, the next flush succeeds and the counter
+    // resets — the client's banner clears with a `0` warning.
+    failTables.delete('drafts');
+    await service.sweep();
+    expect(room.isDirty).toBe(false);
+    expect(room.consecutiveFlushFailures).toBe(0);
+    expect(events.at(-1)!.storageWarnings).toEqual([
+      { jamId: 'event-1', consecutiveFlushFailures: 0 },
+    ]);
+    // And the finally-written snapshot now carries the contribution.
+    expect(
+      (
+        state.drafts[0] as unknown as {
+          snapshot: { notes: Array<{ id: string }> };
+        }
+      ).snapshot.notes
+        .map((n) => n.id)
+        .sort(),
+    ).toEqual(['note-1', 'note-2']);
+  });
+});
+
+// ── UC-68 helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Tables for an ended event whose result project carries a frozen snapshot:
+ * head commit on the default branch (the UC-95 commit) plus a draft
+ * fallback row. Clock-safe: everything is far in the past, so
+ * `ensureStatus` is a no-op.
+ */
+function endedResultTables(
+  overrides: {
+    event?: Row;
+    participants?: Row[];
+    branches?: Row[];
+    commits?: Row[];
+    drafts?: Row[];
+  } = {},
+) {
+  const snapshot = {
+    schemaVersion: 3,
+    meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
+    tracks: [JAM_TRACK],
+    notes: [{ ...JAM_SEED_NOTE }],
+  };
+  return {
+    jam_events: [
+      {
+        ...activeEventRow({
+          status: 'ended',
+          started_at: '2026-01-01T00:00:00Z',
+          ended_at: '2026-01-01T01:00:00Z',
+          scheduled_start_at: '2026-01-01T00:00:00Z',
+          scheduled_end_at: '2026-01-01T01:00:00Z',
+          resulting_project_id: 'proj-result',
+        }),
+        ...overrides.event,
+      },
+    ],
+    users: [userRow(ALICE), userRow(BOB)],
+    jam_participants: overrides.participants ?? [
+      // 2.E1 — a join with edit_count 0 must NOT appear as a contributor.
+      {
+        event_id: 'event-1',
+        user_id: 'user-carol',
+        edit_count: 0,
+        joined_at: '2026-01-01T00:00:00Z',
+      },
+      {
+        event_id: 'event-1',
+        user_id: ALICE,
+        edit_count: 3,
+        joined_at: '2026-01-01T00:00:00Z',
+      },
+      {
+        event_id: 'event-1',
+        user_id: BOB,
+        edit_count: 5,
+        joined_at: '2026-01-01T00:01:00Z',
+      },
+    ],
+    projects: [{ id: 'proj-result', owner_id: 'admin-1' }],
+    branches: overrides.branches ?? [
+      {
+        id: 'br-res',
+        project_id: 'proj-result',
+        is_default: true,
+        head_commit_id: 'commit-res',
+      },
+    ],
+    commits: overrides.commits ?? [{ id: 'commit-res', snapshot }],
+    drafts: overrides.drafts ?? [
+      { branch_id: 'br-res', user_id: 'admin-1', snapshot },
+    ],
+  };
+}
+
+function makeResultService(
+  tables: Record<string, Row[]>,
+  options: { failSelectTables?: Set<string> } = {},
+) {
+  const db = createInMemorySupabase(tables, options);
+  return new JamService(db);
+}
+
+describe('JamService — UC-68 getJamResult', () => {
+  it('happy path: ended event → frozen head-commit snapshot + ranked contributors', async () => {
+    const service = makeResultService(endedResultTables());
+    const result = await service.getJamResult('event-1');
+
+    expect(result.eventId).toBe('event-1');
+    expect(result.status).toBe('ended');
+    expect(result.resultingProjectId).toBe('proj-result');
+    expect(result.hasContributions).toBe(true);
+    // The snapshot is the UC-95 head commit's, not the live room's.
+    expect(result.snapshot).toEqual({
+      schemaVersion: 3,
+      meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
+      tracks: [JAM_TRACK],
+      notes: [{ ...JAM_SEED_NOTE }],
+    });
+    // Ranked by most edits first; the zero-edit joiner is excluded (2.E1).
+    expect(result.contributors.map((c) => c.userId)).toEqual([BOB, ALICE]);
+    expect(result.contributors[0]).toMatchObject({ actionCount: 5 });
+    expect(result.contributors[1]).toMatchObject({ actionCount: 3 });
+  });
+
+  it('2.E3: unknown event → NotFoundException', async () => {
+    const service = makeResultService(endedResultTables());
+    await expect(service.getJamResult('nope')).rejects.toThrow(
+      NotFoundException,
+    );
+    await expect(service.getJamResult('nope')).rejects.toThrow(
+      'Jam event not found',
+    );
+  });
+
+  it('2.E4: event still active → BadRequestException', async () => {
+    const service = makeResultService(
+      endedResultTables({
+        // Far-future end so `ensureStatus` cannot promote it to ended.
+        event: {
+          status: 'active',
+          ended_at: null,
+          resulting_project_id: null,
+          scheduled_end_at: '2999-01-01T00:00:00Z',
+        },
+      }),
+    );
+    await expect(service.getJamResult('event-1')).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(service.getJamResult('event-1')).rejects.toThrow(
+      'Jam event has not ended yet',
+    );
+  });
+
+  it('2.E1 (no_result): ended but flagged → hasContributions false, empty payload', async () => {
+    const service = makeResultService(
+      endedResultTables({ event: { no_result: true } }),
+    );
+    const result = await service.getJamResult('event-1');
+    expect(result.hasContributions).toBe(false);
+    expect(result.snapshot).toBeNull();
+    expect(result.contributors).toEqual([]);
+  });
+
+  it('2.E1 (no contributors): nobody edited → hasContributions false', async () => {
+    const service = makeResultService(endedResultTables({ participants: [] }));
+    const result = await service.getJamResult('event-1');
+    expect(result.hasContributions).toBe(false);
+    expect(result.snapshot).toBeNull();
+    expect(result.contributors).toEqual([]);
+  });
+
+  it('2.E1 (empty snapshot): no head commit, draft is empty → hasContributions false but contributors stay listed', async () => {
+    const emptySnapshot = {
+      schemaVersion: 3,
+      meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
+      tracks: [],
+      notes: [],
+    };
+    const service = makeResultService(
+      endedResultTables({
+        branches: [
+          {
+            id: 'br-res',
+            project_id: 'proj-result',
+            is_default: true,
+            head_commit_id: null,
+          },
+        ],
+        drafts: [
+          { branch_id: 'br-res', user_id: 'admin-1', snapshot: emptySnapshot },
+        ],
+      }),
+    );
+    const result = await service.getJamResult('event-1');
+    expect(result.hasContributions).toBe(false);
+    expect(result.snapshot).toBeNull();
+    // The two real editors are still credited even without a playable result.
+    expect(result.contributors.map((c) => c.userId)).toEqual([BOB, ALICE]);
+  });
+
+  it('draft fallback: no head commit → the default-branch draft is the frozen snapshot', async () => {
+    const service = makeResultService(
+      endedResultTables({
+        branches: [
+          {
+            id: 'br-res',
+            project_id: 'proj-result',
+            is_default: true,
+            head_commit_id: null,
+          },
+        ],
+      }),
+    );
+    const result = await service.getJamResult('event-1');
+    expect(result.hasContributions).toBe(true);
+    expect(result.snapshot?.notes.map((n) => n.id)).toEqual([JAM_SEED_NOTE.id]);
+  });
+
+  it('2.E2: DB failure while reading → InternalServerErrorException', async () => {
+    const service = makeResultService(endedResultTables(), {
+      failSelectTables: new Set(['jam_participants']),
+    });
+    await expect(service.getJamResult('event-1')).rejects.toThrow(
+      InternalServerErrorException,
+    );
+    await expect(service.getJamResult('event-1')).rejects.toThrow(
+      'Failed to load jam result',
+    );
+  });
+});
+
+// ── UC-94 — configureEvent & cancelEvent (BR-75, BR-107) ─────────────────────
+
+describe('JamService — UC-94 configureEvent & cancelEvent', () => {
+  const ADMIN_ID = 'admin-user-1';
+
+  function setupAdminService(
+    overrides: {
+      events?: Row[];
+      projects?: Row[];
+      participants?: Row[];
+    } = {},
+  ) {
+    const notifyMock = jest.fn().mockResolvedValue(undefined);
+    const mockNotifications = { notify: notifyMock };
+    const tables: Record<string, Row[]> = {
+      jam_events: overrides.events ?? [],
+      projects: overrides.projects ?? [],
+      jam_participants: overrides.participants ?? [],
+      admin_audit_log: [],
+    };
+    const supabase = createInMemorySupabase(tables);
+    const service = new JamService(supabase, mockNotifications as any);
+    return {
+      service,
+      tables,
+      state: (supabase as any)._state as Record<string, Row[]>,
+      notifyMock,
+    };
+  }
+
+  describe('configureEvent', () => {
+    it('happy path (scheduled): updates name, description, start, end, cooldown, and startingProjectId', async () => {
+      const futureStart = new Date(Date.now() + 3600 * 1000).toISOString();
+      const futureEnd = new Date(Date.now() + 7200 * 1000).toISOString();
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-1',
+        status: 'scheduled',
+        name: 'Initial Name',
+        scheduled_start_at: futureStart,
+        scheduled_end_at: futureEnd,
+      });
+      const projectRow = {
+        id: 'proj-start-1',
+        visibility: 'public',
+        archived_at: null,
+        moderation_hidden_at: null,
+      };
+
+      const { service, state } = setupAdminService({
+        events: [schedEvent],
+        projects: [projectRow],
+      });
+
+      const updatedEnd = new Date(Date.now() + 10800 * 1000).toISOString();
+      const result = await service.configureEvent(ADMIN_ID, 'ev-sched-1', {
+        name: 'Updated Name',
+        description: 'New Description',
+        scheduledEndAt: updatedEnd,
+        editCooldownSec: 10,
+        startingProjectId: 'proj-start-1',
+      });
+
+      expect(result.name).toBe('Updated Name');
+      expect(result.description).toBe('New Description');
+      expect(result.scheduled_end_at).toBe(updatedEnd);
+      expect(result.edit_cooldown_sec).toBe(10);
+      expect(state.admin_audit_log.length).toBe(1);
+      expect(state.admin_audit_log[0]).toMatchObject({
+        admin_id: ADMIN_ID,
+        action: 'jam.configure',
+        target_type: 'jam_event',
+        target_id: 'ev-sched-1',
+      });
+    });
+
+    it('happy path (active): extends end time, updates cooldown in RAM, triggers WS listener & notices', async () => {
+      const activeEv = activeEventRow({
+        id: 'ev-active-1',
+        status: 'active',
+        scheduled_end_at: new Date(Date.now() + 1800 * 1000).toISOString(),
+      });
+      const { service, state } = setupAdminService({
+        events: [activeEv],
+      });
+
+      const wsMock = jest.fn();
+      service.settleEndExtended(wsMock);
+
+      const extendedEnd = new Date(Date.now() + 3600 * 1000).toISOString();
+      const result = await service.configureEvent(ADMIN_ID, 'ev-active-1', {
+        scheduledEndAt: extendedEnd,
+        editCooldownSec: 15,
+      });
+
+      expect(result.scheduled_end_at).toBe(extendedEnd);
+      expect(result.edit_cooldown_sec).toBe(15);
+      expect(wsMock).toHaveBeenCalledWith(
+        'ev-active-1',
+        expect.objectContaining({
+          eventId: 'ev-active-1',
+          newEndAt: extendedEnd,
+        }),
+      );
+      expect(state.admin_audit_log.length).toBe(1);
+      expect(state.admin_audit_log[0].action).toBe('jam.configure');
+    });
+
+    it('2.E1: active event rejects changes to immutable fields', async () => {
+      const activeEv = activeEventRow({
+        id: 'ev-active-2',
+        status: 'active',
+      });
+      const { service } = setupAdminService({ events: [activeEv] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-active-2', {
+          name: 'Forbidden Name Change',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-active-2', {
+          name: 'Forbidden Name Change',
+        }),
+      ).rejects.toThrow('Cannot modify immutable fields while jam is active');
+    });
+
+    it('2.E2: ended event rejects any configuration', async () => {
+      const endedEv = activeEventRow({
+        id: 'ev-ended-1',
+        status: 'ended',
+        ended_at: new Date().toISOString(),
+      });
+      const { service } = setupAdminService({ events: [endedEv] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-ended-1', {
+          scheduledEndAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+        }),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-ended-1', {
+          scheduledEndAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+        }),
+      ).rejects.toThrow('Cannot configure an ended jam event');
+    });
+
+    it('3.E1: non-existent event throws NotFoundException', async () => {
+      const { service } = setupAdminService();
+      await expect(
+        service.configureEvent(
+          ADMIN_ID,
+          '00000000-0000-0000-0000-000000000099',
+          {
+            name: 'Non existent',
+          },
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('4.E1: invalid end time in the past throws BadRequestException', async () => {
+      const futureStart = new Date(Date.now() + 3600 * 1000).toISOString();
+      const futureEnd = new Date(Date.now() + 7200 * 1000).toISOString();
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-bad-time',
+        status: 'scheduled',
+        scheduled_start_at: futureStart,
+        scheduled_end_at: futureEnd,
+      });
+      const { service } = setupAdminService({ events: [schedEvent] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-bad-time', {
+          scheduledEndAt: '2020-01-01T00:00:00Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('4.E2: invalid cooldown (< 1 or > 3600) throws BadRequestException', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-bad-cd',
+        status: 'scheduled',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const { service } = setupAdminService({ events: [schedEvent] });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-bad-cd', {
+          editCooldownSec: 0,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-bad-cd', {
+          editCooldownSec: 5000,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('Pre-condition 4: private or non-existent starting project throws BadRequestException', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-proj',
+        status: 'scheduled',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const privateProj = {
+        id: 'proj-private',
+        visibility: 'private',
+        archived_at: null,
+      };
+      const { service } = setupAdminService({
+        events: [schedEvent],
+        projects: [privateProj],
+      });
+
+      // non-existent project
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-proj', {
+          startingProjectId: 'missing-proj',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // private project
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-proj', {
+          startingProjectId: 'proj-private',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cancelEvent', () => {
+    it('happy path: cancels a scheduled event, logs audit, and notifies participants', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-cancel',
+        status: 'scheduled',
+        name: 'To Be Cancelled',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const participants = [
+        { event_id: 'ev-sched-cancel', user_id: 'user-p1' },
+        { event_id: 'ev-sched-cancel', user_id: 'user-p2' },
+      ];
+      const { service, state, notifyMock } = setupAdminService({
+        events: [schedEvent],
+        participants,
+      });
+
+      await service.cancelEvent(ADMIN_ID, 'ev-sched-cancel');
+
+      expect(state.admin_audit_log.length).toBe(1);
+      expect(state.admin_audit_log[0]).toMatchObject({
+        admin_id: ADMIN_ID,
+        action: 'jam.cancel',
+        target_type: 'jam_event',
+        target_id: 'ev-sched-cancel',
+      });
+      expect(notifyMock).toHaveBeenCalledTimes(2);
+      expect(notifyMock).toHaveBeenCalledWith('user-p1', 'jam.cancelled', {
+        eventName: 'To Be Cancelled',
+      });
+    });
+
+    it('5.E1: rejects cancelling an active event', async () => {
+      const activeEv = activeEventRow({
+        id: 'ev-active-cancel',
+        status: 'active',
+      });
+      const { service } = setupAdminService({ events: [activeEv] });
+
+      await expect(
+        service.cancelEvent(ADMIN_ID, 'ev-active-cancel'),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.cancelEvent(ADMIN_ID, 'ev-active-cancel'),
+      ).rejects.toThrow('Only scheduled events can be cancelled');
+    });
+
+    it('5.E1: rejects cancelling an ended event', async () => {
+      const endedEv = activeEventRow({
+        id: 'ev-ended-cancel',
+        status: 'ended',
+        ended_at: new Date().toISOString(),
+      });
+      const { service } = setupAdminService({ events: [endedEv] });
+
+      await expect(
+        service.cancelEvent(ADMIN_ID, 'ev-ended-cancel'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('3.E1: non-existent event throws NotFoundException', async () => {
+      const { service } = setupAdminService();
+      await expect(
+        service.cancelEvent(ADMIN_ID, '00000000-0000-0000-0000-000000000099'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+});
+
+// ── UC-95 — endJamEvent (force-end: freeze + final flush + audit) ──────────
+
+describe('JamService — UC-95 endJamEvent', () => {
+  const ADMIN_ID = 'admin-user-1';
+
+  /**
+   * A clock-safe ACTIVE event that owns a jam project + default branch +
+   * draft, so `endJamEvent`'s final flush writes to `drafts` (the
+   * `projects`/`branches`/`drafts` rows are the `flushRoom` keys).
+   */
+  function setupEndService(
+    overrides: {
+      events?: Row[];
+      branches?: Row[];
+      failUpsertTables?: Set<string>;
+      failUpdateTables?: Set<string>;
+      failInsertTables?: Set<string>;
+    } = {},
+  ) {
+    const tables: Record<string, Row[]> = {
+      jam_events: overrides.events ?? [
+        activeEventRow({
+          id: 'ev-end-1',
+          jam_project_id: 'proj-end',
+        }),
+      ],
+      users: overrides.events ? [] : [userRow(ALICE)],
+      jam_participants: [],
+      admin_audit_log: [],
+      projects: [{ id: 'proj-end', owner_id: ADMIN_ID }],
+      branches: overrides.branches ?? [
+        { id: 'br-end', project_id: 'proj-end', is_default: true },
+      ],
+      drafts: [],
+    };
+    const supabase = createInMemorySupabase(tables, {
+      failUpsertTables: overrides.failUpsertTables,
+      failUpdateTables: overrides.failUpdateTables,
+      failInsertTables: overrides.failInsertTables,
+    });
+    const service = new JamService(supabase);
+    const state = (supabase as unknown as { _state: Record<string, Row[]> })
+      ._state;
+    return { service, state };
+  }
+
+  it('happy path: active event → room frozen, snapshot flushed, event ended, audit row + realtime broadcast', async () => {
+    const { service, state } = setupEndService();
+    const wsMock = jest.fn();
+    service.settleEndEventEnded(wsMock);
+
+    // A participant is in the room, with one note already in the draft.
+    state.drafts.push({
+      branch_id: 'br-end',
+      user_id: ADMIN_ID,
+      snapshot: {
+        schemaVersion: 3,
+        meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
+        tracks: [JAM_TRACK],
+        notes: [{ ...JAM_SEED_NOTE }],
+      },
+    });
+    state.jam_participants.push({
+      event_id: 'ev-end-1',
+      user_id: ALICE,
+      edit_count: 0,
+    });
+
+    const result = await service.endJamEvent('ev-end-1', ADMIN_ID);
+
+    // Response shape (the controller's 200 body).
+    expect(result).toMatchObject({
+      id: 'ev-end-1',
+      title: 'Open Jam',
+      status: 'ended',
+      totalNotes: 1,
+      projectId: 'proj-end',
+    });
+    expect(result.endedAt).toEqual(expect.any(String));
+    expect(result.message).toMatch(/kết thúc thành công/i);
+
+    // 1) the room is frozen read-only (BR-73): further edits are refused.
+    const room = service.getRoom('ev-end-1');
+    expect(room?.status).toBe('frozen');
+
+    // 2) the final flush wrote the snapshot to `drafts`.
+    const draft = state.drafts.find((d) => d.branch_id === 'br-end');
+    expect(draft).toBeDefined();
+    expect((draft!.snapshot as { notes: unknown[] }).notes).toHaveLength(1);
+
+    // 3) the event row moved to `ended` with `ended_at` stamped.
+    const event = state.jam_events.find((e) => e.id === 'ev-end-1')!;
+    expect(event.status).toBe('ended');
+    expect(event.ended_at).toBe(result.endedAt);
+    expect(event.no_result).toBe(false);
+
+    // 4) the audit row (strict 5.E1 — it must exist).
+    expect(state.admin_audit_log).toHaveLength(1);
+    expect(state.admin_audit_log[0]).toMatchObject({
+      admin_id: ADMIN_ID,
+      action: 'JAM_EVENT_ENDED',
+      target_type: 'jam_event',
+      target_id: 'ev-end-1',
+    });
+
+    // 5) the realtime fan-out reached the gateway listener.
+    expect(wsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'ev-end-1',
+        status: 'ended',
+      }),
+    );
+  });
+
+  it('no contributions: the event ends with no_result = true (duc.md 3.E1 — no commit)', async () => {
+    const { service, state } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-end-empty',
+          jam_project_id: 'proj-end',
+        }),
+      ],
+    });
+    const result = await service.endJamEvent('ev-end-empty', ADMIN_ID);
+    expect(result.totalNotes).toBe(0);
+    const event = state.jam_events.find((e) => e.id === 'ev-end-empty')!;
+    expect(event.status).toBe('ended');
+    expect(event.no_result).toBe(true);
+  });
+
+  it('3.E1: unknown event → NotFoundException (Vietnamese copy)', async () => {
+    const { service } = setupEndService();
+    await expect(
+      service.endJamEvent('00000000-0000-0000-0000-000000000099', ADMIN_ID),
+    ).rejects.toThrow(
+      new NotFoundException('Không tìm thấy sự kiện Community Jam yêu cầu.'),
+    );
+  });
+
+  it('3.E2: an already-ended event → ConflictException', async () => {
+    const { service } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-ended-95',
+          status: 'ended',
+          ended_at: '2026-01-01T00:00:00Z',
+        }),
+      ],
+    });
+    await expect(service.endJamEvent('ev-ended-95', ADMIN_ID)).rejects.toThrow(
+      new ConflictException('Sự kiện Jam này đã kết thúc trước đó.'),
+    );
+  });
+
+  it('3.E3: a cancelled event → BadRequestException', async () => {
+    const { service } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-cancelled-95',
+          status: 'cancelled',
+          ended_at: '2026-01-01T00:00:00Z',
+        }),
+      ],
+    });
+    await expect(
+      service.endJamEvent('ev-cancelled-95', ADMIN_ID),
+    ).rejects.toThrow(
+      new BadRequestException('Không thể kết thúc sự kiện Jam đã bị hủy bỏ.'),
+    );
+  });
+
+  it('4.E1: the final flush fails → 500, event stays active (admin retries)', async () => {
+    const { service, state } = setupEndService({
+      failUpsertTables: new Set(['drafts']),
+    });
+    await expect(service.endJamEvent('ev-end-1', ADMIN_ID)).rejects.toThrow(
+      new InternalServerErrorException(
+        'Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.',
+      ),
+    );
+    // The event did NOT move to `ended` and nothing was audited — a retry
+    // can still complete the pipeline.
+    expect(state.jam_events[0].status).toBe('active');
+    expect(state.admin_audit_log).toHaveLength(0);
+  });
+
+  it('5.E1: a `jam_events` update failure → 500 (status write is strict)', async () => {
+    const { service } = setupEndService({
+      failUpdateTables: new Set(['jam_events']),
+    });
+    await expect(service.endJamEvent('ev-end-1', ADMIN_ID)).rejects.toThrow(
+      'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
+    );
+  });
+
+  it('5.E1: an `admin_audit_log` insert failure → 500 (audit is strict)', async () => {
+    const { service, state } = setupEndService({
+      failInsertTables: new Set(['admin_audit_log']),
+    });
+    await expect(service.endJamEvent('ev-end-1', ADMIN_ID)).rejects.toThrow(
+      'Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.',
+    );
+    // The event row did move to `ended` before the audit failed.
+    expect(state.jam_events[0].status).toBe('ended');
+  });
+
+  it('a scheduled event may also be ended early (admin “kết thúc ngay”)', async () => {
+    const { service, state } = setupEndService({
+      events: [
+        activeEventRow({
+          id: 'ev-sched-95',
+          status: 'scheduled',
+          scheduled_start_at: new Date(Date.now() + 3600000).toISOString(),
+        }),
+      ],
+    });
+    const result = await service.endJamEvent('ev-sched-95', ADMIN_ID);
+    expect(result.status).toBe('ended');
+    expect(state.jam_events[0].status).toBe('ended');
+  });
+});

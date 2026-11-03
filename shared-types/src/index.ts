@@ -340,6 +340,21 @@ export const GM_INSTRUMENT_NAMES: string[] = GM_INSTRUMENTS.map((i) => i.name);
 // Version Control Types (UC-42, UC-43, UC-44, UC-45, UC-46)
 // =============================================================================
 
+/**
+ * UC-101/102/103: report reasons, exposed to users and stored verbatim in
+ * `reports.reason`. Shared so the frontend report dialog and the admin
+ * backend always render the same set.
+ */
+export const REPORT_REASONS = [
+  { key: 'copyright', label: 'Vi phạm bản quyền' },
+  { key: 'inappropriate', label: 'Nội dung không phù hợp' },
+  { key: 'spam', label: 'Spam hoặc lừa đảo' },
+  { key: 'harassment', label: 'Quấy rối' },
+  { key: 'other', label: 'Khác' },
+] as const;
+
+export type ReportReason = (typeof REPORT_REASONS)[number]['key'];
+
 /** Minimal commit row returned by create/restore endpoints */
 export interface CommitRow {
   id: string;
@@ -385,7 +400,50 @@ export interface PaginatedCommitHistory {
   limit: number;
 }
 
+// ── UC-67 Jam Note Helpers & Constants (BR-71, CLAUDE.md §4.2) ─────────────
+export const JAM_MAX_FLUSH_FAILURES = 3;
+
+/** `JamNoteDto` (wire) → `DraftNote` (snapshot) để áp dụng LWW vào RAM. */
+export function jamNoteToDraftNote(note: {
+  id: string;
+  trackId: string;
+  midi: number;
+  startTick: number;
+  durationTicks: number;
+  velocity: number;
+}): DraftNote {
+  return {
+    id: note.id,
+    trackId: note.trackId,
+    pitch: note.midi,
+    start: note.startTick,
+    duration: note.durationTicks,
+    velocity: note.velocity,
+  };
+}
+
+/** `DraftNote` (snapshot) → `JamNoteDto` (wire) để broadcast `jam:note_updated`. */
+export function draftNoteToJamNote(note: DraftNote): {
+  id: string;
+  trackId: string;
+  midi: number;
+  startTick: number;
+  durationTicks: number;
+  velocity: number;
+} {
+  return {
+    id: note.id,
+    trackId: note.trackId,
+    midi: note.pitch,
+    startTick: note.start,
+    durationTicks: note.duration,
+    velocity: note.velocity,
+  };
+}
+
 // Collaboration (UC-60/61/62) — shapes shared with `backend/src/collaboration/`.
 export type * from './collaboration';
 // Comments (UC-63 — pinned comment) — shapes shared with `backend/src/comments/`.
 export type * from './comments';
+// Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
+export type * from './jam';
