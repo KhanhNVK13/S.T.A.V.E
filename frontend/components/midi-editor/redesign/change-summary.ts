@@ -38,6 +38,13 @@ function noteIsEqual(a: DraftNote, b: DraftNote): boolean {
   );
 }
 
+function soundMapIsEqual(a: DraftTrack["soundMap"], b: DraftTrack["soundMap"]): boolean {
+  const left = a ?? {};
+  const right = b ?? {};
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every((key) => left[key] === right[key]);
+}
+
 function trackIsEqual(a: DraftTrack, b: DraftTrack): boolean {
   return (
     a.name === b.name &&
@@ -47,7 +54,8 @@ function trackIsEqual(a: DraftTrack, b: DraftTrack): boolean {
     a.solo === b.solo &&
     a.volume === b.volume &&
     a.pan === b.pan &&
-    a.instrument === b.instrument
+    a.instrument === b.instrument &&
+    soundMapIsEqual(a.soundMap, b.soundMap)
   );
 }
 

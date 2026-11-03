@@ -134,12 +134,15 @@ export function computeWaveformPeaks(
   bucketCount: number,
 ): number[] {
   const data = buffer.getChannelData(0);
-  const samplesPerBucket = Math.max(1, Math.floor(data.length / bucketCount));
+  const samplesPerBucket = Math.max(1, data.length / bucketCount);
   const peaks: number[] = [];
 
   for (let i = 0; i < bucketCount; i++) {
-    const start = i * samplesPerBucket;
-    const end = Math.min(data.length, start + samplesPerBucket);
+    const start = Math.floor(i * samplesPerBucket);
+    const end =
+      i === bucketCount - 1
+        ? data.length
+        : Math.min(data.length, Math.floor((i + 1) * samplesPerBucket));
     let peak = 0;
     for (let j = start; j < end; j++) {
       const value = Math.abs(data[j]);

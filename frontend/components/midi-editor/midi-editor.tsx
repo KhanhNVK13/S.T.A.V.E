@@ -874,7 +874,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     if (!copied) return;
     setClipboard(copied);
     setPatternClipboard(copied);
-    void navigator.clipboard.writeText(JSON.stringify(copied.notes)).catch(() => {});
+    void navigator.clipboard?.writeText(JSON.stringify(copied.notes)).catch(() => {});
     setEditorToast({
       message: `Đã sao chép ${copied.notes.length} nốt${copied.tracks.length > 1 ? ` từ ${copied.tracks.length} track` : ""}.`,
       variant: "success",
@@ -886,7 +886,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     if (!copied) return;
     setClipboard(copied);
     setPatternClipboard(copied);
-    void navigator.clipboard.writeText(JSON.stringify(copied.notes)).catch(() => {});
+    void navigator.clipboard?.writeText(JSON.stringify(copied.notes)).catch(() => {});
     updateSnapshot({
       ...snapshot,
       notes: snapshot.notes.filter((n) => !selectedNoteIds.has(n.id)),

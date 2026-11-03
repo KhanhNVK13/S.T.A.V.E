@@ -544,6 +544,12 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         }
         readOnlyArmedRef.current = false;
         readOnlyDownPosRef.current = null;
+        if (tool !== "pointer") {
+          onNotify?.(
+            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            "warning",
+          );
+        }
         return;
       }
 
