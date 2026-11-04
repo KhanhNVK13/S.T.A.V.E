@@ -41,7 +41,7 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`max-h-full w-full overflow-y-auto rounded-card border border-border bg-surface shadow-card outline-none ${className}`}
+        className={`max-h-full w-full overflow-y-auto rounded-card border border-border-strong bg-surface shadow-card outline-none ${className}`}
       >
         <h2 id={titleId} className={`mb-4 text-lg font-semibold ${titleClassName}`}>
           {title}

@@ -70,6 +70,7 @@
 @theme inline {
   --font-sans: var(--font-stave-sans);
   --font-mono: var(--font-stave-mono);
+  --font-display: var(--font-stave-display);
 
   /* Tên semantic — dùng cho mọi code mới */
   --color-background: var(--background);

@@ -9,10 +9,10 @@
  */
 const AVATAR_PALETTE = [
   { bg: "bg-accent-muted", text: "text-accent" },
-  { bg: "bg-success-muted", text: "text-success" },
-  { bg: "bg-warning-muted", text: "text-warning" },
+  { bg: "bg-success-muted", text: "text-success-foreground" },
+  { bg: "bg-warning-muted", text: "text-warning-foreground" },
   { bg: "bg-danger-muted", text: "text-danger" },
-  { bg: "bg-metal-muted", text: "text-metal" },
+  { bg: "bg-metal-muted", text: "text-metal-foreground" },
 ] as const;
 
 export function colorFromId(id: string): (typeof AVATAR_PALETTE)[number] {

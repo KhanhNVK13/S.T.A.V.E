@@ -47,14 +47,14 @@ export function Toast({ message, variant = "info", onDismiss, duration = 4000 }:
   return (
     <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
       <div
-        className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-card border px-4 py-3 text-sm shadow-card ${VARIANT_CLASSES[variant]}`}
+        className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-card border px-4 py-3 text-sm shadow-card backdrop-blur-sm ${VARIANT_CLASSES[variant]}`}
         role={variant === "danger" ? "alert" : "status"}
       >
         <Icon className="mt-0.5 h-4 w-4 shrink-0" />
         <p className="flex-1">{message}</p>
         <button
           onClick={onDismiss}
-          className="shrink-0 opacity-60 hover:opacity-100"
+          className="shrink-0 opacity-80 hover:opacity-100"
           aria-label={t("ui.dismissNotice")}
         >
           <X className="h-4 w-4" />
