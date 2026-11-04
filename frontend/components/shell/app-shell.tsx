@@ -147,8 +147,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-modal={drawerActive ? true : undefined}
         aria-label={t("shell.mainNav")}
         inert={hidden}
-        className={`flex w-[min(300px,86vw)] flex-col border-r border-border bg-surface/95 px-2.5 py-3.5 outline-none backdrop-blur transition-[transform,visibility] duration-300 ease-out motion-reduce:transition-none max-[899.98px]:fixed max-[899.98px]:inset-y-0 max-[899.98px]:left-0 max-[899.98px]:z-40 max-[899.98px]:shadow-card min-[900px]:w-[248px] min-[900px]:shrink-0 ${
-          hidden ? "max-[899.98px]:invisible max-[899.98px]:-translate-x-full" : ""
+        className={`flex w-[min(300px,86vw)] flex-col border-r border-border bg-surface/95 px-2.5 py-3.5 outline-none backdrop-blur transition-transform duration-300 ease-out motion-reduce:transition-none max-[899.98px]:fixed max-[899.98px]:inset-y-0 max-[899.98px]:left-0 max-[899.98px]:z-40 max-[899.98px]:shadow-card min-[900px]:w-[248px] min-[900px]:shrink-0 ${
+          hidden ? "max-[899.98px]:-translate-x-full" : ""
         }`}
       >
         <div className="mb-3.5 flex items-center justify-between px-1.5">

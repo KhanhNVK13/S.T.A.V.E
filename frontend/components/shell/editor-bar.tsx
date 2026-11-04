@@ -6,7 +6,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, Bell, ChevronDown, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../../context/auth-context";
 import { useT } from "../../context/i18n-context";
-import { getProject } from "../../lib/api-client";
 import { LanguageSwitch } from "../language-switch";
 import { Avatar } from "../ui/avatar";
 import { Logo } from "../ui/logo";
@@ -95,22 +94,6 @@ export function EditorBar({ children }: { children: ReactNode }) {
   const t = useT();
   const pathname = usePathname();
   const projectId = pathname.split("/")[2] ?? "";
-  const [named, setNamed] = useState<{ id: string; name: string } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getProject(projectId)
-      .then((data) => {
-        const name = (data as { name?: unknown } | null)?.name;
-        if (!cancelled && typeof name === "string") setNamed({ id: projectId, name });
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
-
-  const name = named?.id === projectId ? named.name : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -128,7 +111,6 @@ export function EditorBar({ children }: { children: ReactNode }) {
         </Link>
         <span aria-hidden="true" className="h-5 w-px bg-border" />
         <Logo compact />
-        {name && <p className="min-w-0 truncate text-[13px] font-semibold">{name}</p>}
         <div className="ml-auto flex items-center gap-2">
           <LanguageSwitch />
           <AccountMenu />

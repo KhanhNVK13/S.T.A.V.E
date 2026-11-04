@@ -48,7 +48,7 @@ export function PublicShell({ children, minimal = false }: PublicShellProps) {
           landing ? "border-transparent bg-transparent" : "border-border bg-surface/90 backdrop-blur"
         }`}
       >
-        <div className="mx-auto flex h-14 max-w-page items-center gap-5 px-5">
+        <div className="mx-auto flex h-14 max-w-page items-center gap-3 px-4 sm:gap-5 sm:px-5">
           <Logo />
 
           {!minimal && (
@@ -67,7 +67,7 @@ export function PublicShell({ children, minimal = false }: PublicShellProps) {
           )}
 
           <div className="ml-auto flex items-center gap-2">
-            {!authPath && <LanguageSwitch />}
+            {!authPath && <LanguageSwitch className={minimal ? "" : "max-sm:hidden"} />}
             {!minimal && (
               <>
                 <Link
@@ -116,6 +116,7 @@ export function PublicShell({ children, minimal = false }: PublicShellProps) {
                 {t(item.label)}
               </Link>
             ))}
+            {!authPath && <LanguageSwitch className="mx-3 my-1 w-max sm:hidden" />}
           </nav>
         )}
       </header>
