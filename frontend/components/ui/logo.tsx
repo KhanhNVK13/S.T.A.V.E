@@ -1,9 +1,5 @@
 import Link from "next/link";
 
-/**
- * Brand mark: khuông nhạc 5 dòng với một nốt đen, màu lấy từ token. Wordmark
- * dùng font display đã nạp ở layout.
- */
 export function Logo({ href = "/", compact = false }: { href?: string; compact?: boolean }) {
   return (
     <Link href={href} aria-label={compact ? "STAVE" : undefined} className="flex items-center gap-2.5 rounded-md">
