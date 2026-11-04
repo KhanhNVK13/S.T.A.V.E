@@ -140,9 +140,11 @@ test.describe("Note editing in the piano roll", () => {
     await page.mouse.click(p.x, p.y);
     await page.waitForTimeout(3_500);
 
+    await page.getByRole("button", { name: /^Edit/ }).click();
     await expect
-      .soft(page.getByRole("button", { name: "Copy", exact: true }))
+      .soft(page.getByRole("menuitem", { name: /^Copy/ }))
       .toBeEnabled(quick);
+    await page.keyboard.press("Escape");
     expect((await readDraft(api, id)).notes).toHaveLength(1);
   });
 
@@ -154,7 +156,7 @@ test.describe("Note editing in the piano roll", () => {
     await page.goto(`/projects/${id}/edit`);
     await expect(page.getByText(/đã được lưu trữ/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Draw", exact: true })).toHaveCount(0);
-    await expect(page.locator("canvas")).toHaveCount(0);
+    await expect(page.locator("main canvas")).toHaveCount(0);
     expect((await readDraft(api, id)).notes.map((n) => n.id)).toEqual(["n1"]);
   });
 
@@ -336,7 +338,7 @@ test.describe("Note editing in the piano roll", () => {
     );
     const commitsBefore = await api.history(branchId);
     await openEditor(page, id);
-    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    const undo = page.getByRole("button", { name: "Hoàn tác", exact: true });
     await expect(undo).toBeDisabled();
     await pickTool(page, "Select");
     const g = await scrollGrid(page, { pitch: 60 });
@@ -372,7 +374,7 @@ test.describe("Note editing in the piano roll", () => {
       .poll(async () => (await readDraft(api, id)).notes.map((n) => n.id), saved)
       .toEqual(["keep"]);
 
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await page.getByRole("button", { name: "Hoàn tác", exact: true }).click();
     await expect
       .poll(
         async () => (await readDraft(api, id)).notes.map((n) => n.id).sort(),
@@ -398,7 +400,7 @@ test.describe("Note editing in the piano roll", () => {
       .poll(async () => (await readDraft(api, id)).notes.length, saved)
       .toBe(0);
 
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await page.getByRole("button", { name: "Hoàn tác", exact: true }).click();
     await expect
       .poll(async () => (await readDraft(api, id)).notes, saved)
       .toEqual([original]);
@@ -418,7 +420,7 @@ test.describe("Note editing in the piano roll", () => {
     await page.keyboard.press("Delete");
     await page.waitForTimeout(3_500);
 
-    await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Hoàn tác", exact: true })).toBeDisabled();
     await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(0);
     expect(await readDraft(api, id)).toEqual(before);
   });

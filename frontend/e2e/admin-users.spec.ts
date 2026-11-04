@@ -63,6 +63,10 @@ async function openUsers(page: Page, search: string): Promise<void> {
   await page.getByRole("button", { name: /^Tìm$/ }).click();
 }
 
+function statusBadge(page: Page, username: string, label: string): Locator {
+  return rowOf(page, username).locator("span.rounded-full").filter({ hasText: new RegExp(`^${label}$`) });
+}
+
 function rowOf(page: Page, username: string): Locator {
   return page
     .getByText(`@${username}`, { exact: true })
@@ -150,7 +154,7 @@ test.describe("Admin - User Management", () => {
     const rowText = (await rowOf(page, b.username).innerText()) ?? "";
     expect(rowText).toContain("Name B");
     expect(rowText).not.toContain(b.user.email);
-    await expect(rowOf(page, b.username)).toContainText("Active");
+    await expect(statusBadge(page, b.username, "Hoạt động")).toBeVisible();
 
     await page.goto("/admin/users");
     await page
@@ -158,7 +162,7 @@ test.describe("Admin - User Management", () => {
       .selectOption("active");
     await expect(rowOf(page, b.username)).toBeVisible();
     await expect(
-      page.locator("div[class*='min-h-']").filter({ hasText: "Suspended" }),
+      page.locator("div[class*='min-h-'] span.rounded-full").filter({ hasText: /^Tạm khoá$/ }),
     ).toHaveCount(0);
 
     await page.locator('input[name="q"]').fill(b.username);
@@ -283,7 +287,7 @@ test.describe("Admin - User Management", () => {
     await dialog(page)
       .getByRole("button", { name: /xác nhận/i })
       .click();
-    await expect(rowOf(page, b.username)).toContainText("Suspended");
+    await expect(statusBadge(page, b.username, "Tạm khoá")).toBeVisible();
     await expect
       .soft(page.getByText(/đã hoàn tất|đã ghi|thành công/i).first())
       .toBeVisible(quick);
@@ -335,7 +339,7 @@ test.describe("Admin - User Management", () => {
     await dialog(page).locator("textarea").fill("Not sent");
     await dialog(page).getByRole("button", { name: /huỷ/i }).click();
     await expect(dialog(page)).toHaveCount(0);
-    await expect(rowOf(page, b.username)).toContainText("Active");
+    await expect(statusBadge(page, b.username, "Hoạt động")).toBeVisible();
     expect(await statusOf(b.user.id)).toBe("active");
     expect(await passwordLoginStatus(b.user.email, b.user.password)).toBe(200);
     expect(await auditRows(b.user.id)).toHaveLength(0);
@@ -466,7 +470,7 @@ test.describe("Admin - User Management", () => {
     await dialog(page)
       .getByRole("button", { name: /xác nhận/i })
       .click();
-    await expect(rowOf(page, b.username)).toContainText("Active");
+    await expect(statusBadge(page, b.username, "Hoạt động")).toBeVisible();
     await expect
       .soft(page.getByText(/đã hoàn tất|đã ghi|thành công/i).first())
       .toBeVisible(quick);
@@ -500,7 +504,7 @@ test.describe("Admin - User Management", () => {
       .click();
     await dialog(page).getByRole("button", { name: /huỷ/i }).click();
     await expect(dialog(page)).toHaveCount(0);
-    await expect(rowOf(page, b.username)).toContainText("Suspended");
+    await expect(statusBadge(page, b.username, "Tạm khoá")).toBeVisible();
     expect(await statusOf(b.user.id)).toBe("suspended");
     expect(await passwordLoginStatus(b.user.email, b.user.password)).not.toBe(
       200,
@@ -554,7 +558,7 @@ test.describe("Admin - User Management", () => {
     });
     await adminSession(page, adminActor);
     await openUsers(page, admin2.username);
-    await expect(rowOf(page, admin2.username)).toContainText("Suspended");
+    await expect(statusBadge(page, admin2.username, "Tạm khoá")).toBeVisible();
     await expect(rowOf(page, admin2.username).getByRole("button")).toHaveCount(
       0,
     );
@@ -637,7 +641,7 @@ test.describe("Admin - User Management", () => {
     await dialog(page).locator("input").fill(b.username);
     await dialog(page).getByRole("button", { name: /huỷ/i }).click();
     await expect(dialog(page)).toHaveCount(0);
-    await expect(rowOf(page, b.username)).toContainText("Active");
+    await expect(statusBadge(page, b.username, "Hoạt động")).toBeVisible();
     expect(await statusOf(b.user.id)).toBe("active");
     expect(await countProjectsOf(b.user.id)).toBe(1);
     expect(await auditRows(b.user.id)).toHaveLength(0);

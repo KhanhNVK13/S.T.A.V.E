@@ -170,9 +170,12 @@ test.describe("Version control", () => {
       await openEditor(page, id);
       await openHistory(page);
       await page.getByText("Immutable test").first().click();
-      await expect(
-        page.getByRole("button", { name: /sửa|xoá|xóa|edit|delete/i }),
-      ).toHaveCount(0);
+      const names = await page
+        .getByRole("button", { name: /sửa|xoá|xóa|edit|delete/i })
+        .evaluateAll((els) =>
+          els.map((el) => (el.getAttribute("aria-label") ?? el.textContent ?? "").trim()),
+        );
+      expect(names.filter((name) => name !== "Edit")).toEqual([]);
       await expect(
         api.call("PATCH", `/commits/${commit.id}`, { message: "x" }),
       ).rejects.toThrow();

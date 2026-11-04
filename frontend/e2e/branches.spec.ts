@@ -143,7 +143,7 @@ test.describe("Branch management", () => {
       await openBranches(page, id);
       await createViaForm(page, "too-early");
       await expect(
-        page.getByText(/chưa có commit|commit lần đầu/i),
+        page.getByText(/chưa có commit nào\. Hãy commit lần đầu/i),
       ).toBeVisible();
       expect(await api.branchNames(id)).toEqual(["main"]);
     });
