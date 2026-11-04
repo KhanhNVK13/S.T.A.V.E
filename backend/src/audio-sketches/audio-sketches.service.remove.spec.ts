@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   ForbiddenException,
   InternalServerErrorException,
@@ -119,5 +120,108 @@ describe('AudioSketchesService.purgeProjectFiles', () => {
     await expect(
       service.purgeProjectFiles([projectId]),
     ).resolves.toBeUndefined();
+  });
+
+  describe('retries and reporting', () => {
+    let errorSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      errorSpy.mockRestore();
+    });
+
+    async function run(options: SupabaseMockOptions) {
+      const made = makeService(options);
+      const done = made.service.purgeProjectFiles([projectId]);
+      await jest.runAllTimersAsync();
+      await done;
+      return made;
+    }
+
+    it('retries a failed remove and stops once it succeeds', async () => {
+      const { storage } = await run({
+        storage: {
+          'audio-sketches': {
+            list: { data: [{ name: 'a.wav' }], error: null },
+            remove: [
+              { data: null, error: { message: 'boom' } },
+              { data: [], error: null },
+            ],
+          },
+        },
+      });
+      expect(storage.from).toHaveBeenCalledTimes(3);
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('logs the full paths after 3 failed attempts', async () => {
+      const failure = { data: null, error: { message: 'storage down' } };
+      const { storage } = await run({
+        storage: {
+          'audio-sketches': {
+            list: { data: [{ name: 'a.wav' }, { name: 'b.wav' }], error: null },
+            remove: [failure, failure, failure],
+          },
+        },
+      });
+      expect(storage.from).toHaveBeenCalledTimes(4);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const message = String(errorSpy.mock.calls[0][0]);
+      expect(message).toContain(`${projectId}/a.wav`);
+      expect(message).toContain(`${projectId}/b.wav`);
+      expect(message).toContain('storage down');
+    });
+
+    it('treats a thrown remove like a failed one', async () => {
+      const { storage } = await run({
+        storage: {
+          'audio-sketches': {
+            list: { data: [{ name: 'a.wav' }], error: null },
+          },
+        },
+      });
+      expect(storage.from).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(String(errorSpy.mock.calls[0][0])).toContain(`${projectId}/a.wav`);
+    });
+
+    it('logs an error when the folder cannot be listed', async () => {
+      await run({
+        storage: {
+          'audio-sketches': { list: { data: null, error: { message: 'x' } } },
+        },
+      });
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(String(errorSpy.mock.calls[0][0])).toContain(projectId);
+    });
+
+    it('lists every page before removing', async () => {
+      const page = Array.from({ length: 1000 }, (_, i) => ({
+        name: `${i}.wav`,
+      }));
+      const { storage } = await run({
+        storage: {
+          'audio-sketches': {
+            list: [
+              { data: page, error: null },
+              { data: [{ name: 'last.wav' }], error: null },
+            ],
+            remove: Array.from({ length: 11 }, () => ({
+              data: [],
+              error: null,
+            })),
+          },
+        },
+      });
+      expect(storage.from).toHaveBeenCalledTimes(2 + 11);
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
   });
 });

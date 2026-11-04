@@ -17,6 +17,10 @@ import {
   type CreateUploadUrlDto,
 } from './dto/create-upload-url.dto';
 import type { AttachSketchDto } from './dto/attach-sketch.dto';
+import {
+  listStorageFolder,
+  removeStorageFiles,
+} from '../common/utils/storage-cleanup.util';
 
 /** Bucket private; đường dẫn quy ước `{project_id}/{sketch_id}.wav`. */
 const BUCKET = 'audio-sketches';
@@ -288,31 +292,18 @@ export class AudioSketchesService {
   }
 
   async purgeProjectFiles(projectIds: string[]): Promise<void> {
-    const pageSize = 1000;
     for (const projectId of projectIds) {
       try {
-        let more = true;
-        while (more) {
-          const { data: files } = await this.supabase.storage
-            .from(BUCKET)
-            .list(projectId, { limit: pageSize });
-          const paths = (files ?? []).map((f) => `${projectId}/${f.name}`);
-          if (paths.length > 0) {
-            const { error } = await this.supabase.storage
-              .from(BUCKET)
-              .remove(paths);
-            if (error) {
-              this.logger.warn(
-                `Could not purge audio sketch files of project ${projectId}: ${error.message}`,
-              );
-              break;
-            }
-          }
-          more = paths.length === pageSize;
-        }
+        const names = await listStorageFolder(this.supabase, BUCKET, projectId);
+        await removeStorageFiles(
+          this.supabase,
+          BUCKET,
+          names.map((name) => `${projectId}/${name}`),
+          this.logger,
+        );
       } catch (err) {
-        this.logger.warn(
-          `Could not purge audio sketch files of project ${projectId}: ${String(err)}`,
+        this.logger.error(
+          `Could not list audio sketch files of project ${projectId}, files may be orphaned: ${String(err)}`,
         );
       }
     }
