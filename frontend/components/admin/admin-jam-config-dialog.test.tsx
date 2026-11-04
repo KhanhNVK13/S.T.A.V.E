@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { AvailableJamProjectDto, JamEvent } from "@stave/shared-types";
 import { AdminJamConfigDialog } from "./admin-jam-config-dialog";
 import * as apiJam from "../../lib/api-jam";
+import { setLang } from "../../lib/i18n";
+
+beforeEach(() => setLang("vi"));
 
 afterEach(() => {
   cleanup();
