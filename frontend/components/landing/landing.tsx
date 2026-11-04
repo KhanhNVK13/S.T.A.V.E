@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { FeaturedContent } from "../../../lib/api-client";
-import { APP_LOCALE } from "../../../lib/format-date";
-import { SiteCredits } from "../../site-footer";
-import { pulseSpace, setSpaceProgress } from "../space-store";
-import { useSpaceScene } from "../use-space-scene";
+import type { FeaturedContent } from "../../lib/api-client";
+import { APP_LOCALE } from "../../lib/format-date";
+import { SiteCredits } from "../site-footer";
+import { pulseSpace, setSpaceProgress } from "../space/space-store";
+import { useSpaceScene } from "../space/use-space-scene";
 import { CommitGraph } from "./commit-graph";
 import { SAMPLE_COMMITS, buildSampleSong, diffClass, seededRandom } from "./landing-data";
 import { SampleRoll } from "./sample-roll";
@@ -29,7 +29,7 @@ function wavePeaks(): string[] {
   return Array.from({ length: 44 }, (_, i) => `scaleY(${(0.12 + Math.abs(Math.sin(i * 0.5)) * r() * 0.88).toFixed(2)})`);
 }
 
-export function Landing({ data }: { data: FeaturedContent | null }) {
+export function Landing({ data, signedIn = false }: { data: FeaturedContent | null; signedIn?: boolean }) {
   useSpaceScene("full", 0);
   const rootRef = useRef<HTMLDivElement>(null);
   const rollRef = useRef<HTMLDivElement>(null);
@@ -271,7 +271,11 @@ export function Landing({ data }: { data: FeaturedContent | null }) {
             Save each version of your track, branch off to try another arrangement, then merge the best ideas back together. Source control, tuned for music.
           </p>
           <div className="actions" data-rv>
-            <Link className="btn btn-primary" href="/register">Start for free</Link>
+            {signedIn ? (
+              <Link className="btn btn-primary" href="/">Back to your Home</Link>
+            ) : (
+              <Link className="btn btn-primary" href="/register">Start for free</Link>
+            )}
             <Link className="btn btn-line" href="/explore">Explore public projects</Link>
           </div>
         </div>
@@ -479,7 +483,7 @@ export function Landing({ data }: { data: FeaturedContent | null }) {
           <h2 id="h7" data-rv>Create your first project</h2>
           <p className="lead" data-rv>Import a MIDI file or start from a blank page. Your first commit is one click away.</p>
           <div className="actions" data-rv>
-            <Link className="btn btn-primary btn-lg" href="/register">Create your first project</Link>
+            <Link className="btn btn-primary btn-lg" href={signedIn ? "/projects/new" : "/register"}>Create your first project</Link>
             <Link className="btn btn-line btn-lg" href="/explore">Browse public projects</Link>
           </div>
           {community.length > 0 && data && (
@@ -499,12 +503,18 @@ export function Landing({ data }: { data: FeaturedContent | null }) {
           )}
         </div>
         <footer className="foot" data-rv>
-          <a className="brand" href="#s1" translate="no" aria-label="STAVE, back to the start">STAVE</a>
+          <Link className="brand" href="/" translate="no" aria-label="STAVE, home">STAVE</Link>
           <nav aria-label="Footer">
             <Link href="/explore">Explore</Link>
             <Link href="/rankings">Rankings</Link>
-            <Link href="/login">Sign in</Link>
-            <Link href="/register">Sign up</Link>
+            {signedIn ? (
+              <Link href="/">Home</Link>
+            ) : (
+              <>
+                <Link href="/login">Sign in</Link>
+                <Link href="/register">Sign up</Link>
+              </>
+            )}
           </nav>
           <p>© 2026 STAVE</p>
           <SiteCredits className="credits" />

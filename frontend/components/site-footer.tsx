@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { isLandingPath } from "./landing/landing-paths";
 
 export function SiteCredits({ className = "" }: { className?: string }) {
   return (
@@ -44,7 +45,7 @@ export function SiteCredits({ className = "" }: { className?: string }) {
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (pathname === "/" || /^\/projects\/[^/]+\/edit$/.test(pathname)) return null;
+  if (isLandingPath(pathname) || /^\/projects\/[^/]+\/edit$/.test(pathname)) return null;
 
   return (
     <footer className="border-t border-border bg-surface/90">
