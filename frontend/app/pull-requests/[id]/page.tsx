@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { GitMerge, Trash2, TriangleAlert } from "lucide-react";
+import { GitCommitHorizontal, GitMerge, Trash2, TriangleAlert } from "lucide-react";
 import { RequireAuth } from "../../../components/require-auth";
 import { useAuth } from "../../../context/auth-context";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { Tabs, TabPanel } from "../../../components/ui/tabs";
 import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
 import { INPUT_CLASS } from "../../../components/ui/form";
 import { Toast } from "../../../components/ui/toast";
@@ -36,6 +37,7 @@ function PullRequestView({ id }: { id: string }) {
   const [detail, setDetail] = useState<PullRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"changes" | "commits" | "discussion">("changes");
   const [toast, setToast] = useState<{ message: string; variant: "success" | "danger" } | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
@@ -157,15 +159,17 @@ function PullRequestView({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-5 py-8">
-        <div className="h-7 w-2/5 animate-pulse rounded bg-surface-subtle" />
+      <div role="status" aria-label={t("pullRequestsPage.detailLoading")} className="mx-auto max-w-5xl px-5 py-8">
+        <div className="h-7 w-2/5 animate-pulse rounded bg-surface-subtle motion-reduce:animate-none" />
+        <div className="mt-4 h-24 animate-pulse rounded-card bg-surface-subtle motion-reduce:animate-none" />
       </div>
     );
   }
 
   if (error || !detail) {
     return (
-      <div className="mx-auto max-w-4xl px-5 py-8">
+      <div className="mx-auto max-w-5xl px-5 py-8">
+        <h1 className="sr-only">{t("prl.title")}</h1>
         <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
           <p>{error ?? t("prd.loadFail")}</p>
           <div className="flex gap-2">
@@ -187,9 +191,17 @@ function PullRequestView({ id }: { id: string }) {
   const targetLabel = `${pr.target_project_name ?? t("pr.deletedProject")} / ${pr.target_branch_name ?? t("pr.deletedBranch")}`;
   const hasConflicts = (analysis?.conflictsCount ?? 0) > 0;
 
+  const noteStats = analysis?.summary.summary.notes;
+  const commitCount = analysis?.newCommits.length ?? 0;
+  const tabs = [
+    { id: "changes", label: t("pullRequestsPage.tabChanges") },
+    { id: "commits", label: t("pullRequestsPage.tabCommits", { n: commitCount }) },
+    { id: "discussion", label: t("pullRequestsPage.tabDiscussion", { n: detail.comments.length }) },
+  ];
+
   return (
-    <div className="mx-auto min-h-full max-w-4xl px-5 py-8">
-      <div className="mb-6">
+    <div className="mx-auto min-h-full max-w-5xl px-5 py-8">
+      <div className="mb-5">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
           <Link href="/pull-requests" className="hover:underline">
             Pull request
@@ -206,22 +218,54 @@ function PullRequestView({ id }: { id: string }) {
         {pr.description && <p className="mt-3 whitespace-pre-wrap text-sm">{pr.description}</p>}
       </div>
 
+      <dl className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border sm:grid-cols-4">
+        <div className="min-w-0 bg-surface px-4 py-3">
+          <dt className="text-xs text-muted">{t("pullRequestsPage.from")}</dt>
+          <dd className="mt-0.5 truncate font-mono text-xs" title={sourceLabel}>{sourceLabel}</dd>
+        </div>
+        <div className="min-w-0 bg-surface px-4 py-3">
+          <dt className="text-xs text-muted">{t("pullRequestsPage.into")}</dt>
+          <dd className="mt-0.5 truncate font-mono text-xs" title={targetLabel}>{targetLabel}</dd>
+        </div>
+        <div className="bg-surface px-4 py-3">
+          <dt className="text-xs text-muted">{t("pullRequestsPage.statNew")}</dt>
+          <dd className="mt-0.5 font-mono text-lg font-semibold">{commitCount}</dd>
+        </div>
+        <div className="bg-surface px-4 py-3">
+          <dt className="text-xs text-muted">{t("pullRequestsPage.statNotes")}</dt>
+          <dd className="mt-0.5 font-mono text-lg font-semibold">
+            {noteStats ? (
+              <>
+                <span className="text-success-foreground">+{noteStats.added}</span>{" "}
+                <span className="text-danger">−{noteStats.removed}</span>{" "}
+                <span className="text-warning-foreground">~{noteStats.modified}</span>
+              </>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </div>
+      </dl>
+
       {isOpen && !pr.applicable && (
         <div role="status" className="mb-5 flex items-start gap-2 rounded-card border border-warning/30 bg-warning-muted p-3 text-[13px] text-warning-foreground">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
           {t("prd.notApplicable")}
         </div>
       )}
 
       {detail.analysisError && (
-        <div role="alert" className="mb-5 rounded-card border border-danger/30 bg-danger-muted p-3 text-[13px] text-danger">
-          {t("prd.analysisError")}
+        <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-card border border-danger/30 bg-danger-muted p-3 text-[13px] text-danger">
+          <span>{t("prd.analysisError")}</span>
+          <Button variant="secondary" onClick={() => void load()}>
+            {t("ui.retry")}
+          </Button>
         </div>
       )}
 
       {isOpen && hasConflicts && (
         <div role="status" className="mb-5 flex items-start gap-2 rounded-card border border-warning/30 bg-warning-muted p-3 text-[13px] text-warning-foreground">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
           {t("prd.conflicts", { n: analysis?.conflictsCount ?? 0 })}
         </div>
       )}
@@ -235,7 +279,7 @@ function PullRequestView({ id }: { id: string }) {
                 setMergeOpen(true);
               }}
             >
-              <GitMerge className="h-3.5 w-3.5" /> {t("prd.reviewMerge")}
+              <GitMerge aria-hidden="true" className="h-3.5 w-3.5" /> {t("prd.reviewMerge")}
             </Button>
           )}
           {permissions.canClose && (
@@ -252,98 +296,115 @@ function PullRequestView({ id }: { id: string }) {
         </div>
       )}
 
-      {analysis && (
-        <>
-          <section className="mb-6">
-            <h2 className="mb-2 text-[13px] font-bold">{t("prd.proposedChanges")}</h2>
-            <PrDiffView diff={analysis.summary} />
-          </section>
+      <div role="group" aria-label={t("pullRequestsPage.tabsLabel")}>
+        <Tabs tabs={tabs} active={tab} onChange={(id) => setTab(id as typeof tab)} />
+      </div>
 
-          <section className="mb-6">
-            <h2 className="mb-2 text-[13px] font-bold">{t("prd.newCommits", { n: analysis.newCommits.length })}</h2>
+      <div className="mt-5">
+        <TabPanel hidden={tab !== "changes"}>
+          <h2 className="mb-2 text-[13px] font-bold">{t("prd.proposedChanges")}</h2>
+          {analysis ? (
+            <PrDiffView diff={analysis.summary} />
+          ) : (
+            <p className="rounded-card border border-dashed border-border-strong px-4 py-8 text-center text-[13px] text-muted">
+              {t("pullRequestsPage.noAnalysis")}
+            </p>
+          )}
+        </TabPanel>
+
+        <TabPanel hidden={tab !== "commits"}>
+          <h2 className="mb-2 text-[13px] font-bold">{t("prd.newCommits", { n: commitCount })}</h2>
+          {commitCount === 0 ? (
+            <p className="rounded-card border border-dashed border-border-strong px-4 py-8 text-center text-[13px] text-muted">
+              {t("pullRequestsPage.noCommits")}
+            </p>
+          ) : (
             <ul className="overflow-hidden rounded-card border border-border bg-surface">
-              {analysis.newCommits.map((commit) => (
-                <li key={commit.id} className="flex items-baseline justify-between gap-3 border-b border-border px-3.5 py-2.5 last:border-b-0">
-                  <span className="min-w-0 truncate text-[13px]">{commit.message}</span>
+              {analysis?.newCommits.map((commit) => (
+                <li key={commit.id} className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-2.5 last:border-b-0">
+                  <span className="flex min-w-0 items-center gap-2 text-[13px]">
+                    <GitCommitHorizontal aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
+                    <span className="truncate">{commit.message}</span>
+                  </span>
                   <span className="shrink-0 text-xs text-muted">
                     {formatAuthorName(commit.author)} · {formatRelativeTime(commit.createdAt)}
                   </span>
                 </li>
               ))}
             </ul>
-          </section>
-        </>
-      )}
+          )}
+        </TabPanel>
 
-      <section>
-        <h2 className="mb-2 text-[13px] font-bold">{t("prd.discussion", { n: detail.comments.length })}</h2>
-        {detail.comments.length === 0 ? (
-          <p className="mb-3 text-[13px] text-muted">{t("prd.noComments")}</p>
-        ) : (
-          <ul className="mb-4 flex flex-col gap-2">
-            {detail.comments.map((comment) => {
-              const canDelete = user?.id === comment.author_id || permissions.canMerge;
-              return (
-                <li key={comment.id} className="rounded-card border border-border bg-surface px-3.5 py-3">
-                  <div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted">
-                    <span>
-                      <span className="font-semibold text-foreground">{formatAuthorName(comment.author)}</span> ·{" "}
-                      {formatRelativeTime(comment.created_at)}
-                    </span>
-                    {canDelete && (
-                      <button
-                        type="button"
-                        aria-label={t("prd.deleteComment")}
-                        title={t("prd.deleteComment")}
-                        onClick={() => {
-                          setDeleteError(null);
-                          setPendingDelete(comment);
-                        }}
-                        className="rounded p-1 text-muted hover:bg-surface-subtle hover:text-danger"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <p className="whitespace-pre-wrap text-[13px]">{comment.body}</p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {permissions.canComment ? (
-          <form onSubmit={(e) => void handleComment(e)} className="flex flex-col gap-2">
-            <label className="text-xs font-semibold" htmlFor="pr-comment">
-              {t("prd.writeComment")}
-            </label>
-            <textarea
-              id="pr-comment"
-              name="comment"
-              rows={3}
-              maxLength={COMMENT_MAX}
-              value={commentBody}
-              onChange={(e) => setCommentBody(e.target.value)}
-              className={INPUT_CLASS}
-            />
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-xs text-muted">
-                {commentBody.length}/{COMMENT_MAX}
-              </span>
-              <Button type="submit" disabled={commenting || commentBody.trim().length === 0}>
-                {commenting ? t("prd.sending") : t("prd.comment")}
-              </Button>
-            </div>
-            {commentError && (
-              <p role="alert" className="text-xs text-danger">
-                {commentError}
-              </p>
+        <TabPanel hidden={tab !== "discussion"}>
+          <h2 className="mb-2 text-[13px] font-bold">{t("prd.discussion", { n: detail.comments.length })}</h2>
+            {detail.comments.length === 0 ? (
+              <p className="mb-3 text-[13px] text-muted">{t("prd.noComments")}</p>
+            ) : (
+              <ul className="mb-4 flex flex-col gap-2">
+                {detail.comments.map((comment) => {
+                  const canDelete = user?.id === comment.author_id || permissions.canMerge;
+                  return (
+                    <li key={comment.id} className="rounded-card border border-border bg-surface px-3.5 py-3">
+                      <div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted">
+                        <span>
+                          <span className="font-semibold text-foreground">{formatAuthorName(comment.author)}</span> ·{" "}
+                          {formatRelativeTime(comment.created_at)}
+                        </span>
+                        {canDelete && (
+                          <button
+                            type="button"
+                            aria-label={t("prd.deleteComment")}
+                            title={t("prd.deleteComment")}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setPendingDelete(comment);
+                            }}
+                            className="rounded p-1 text-muted hover:bg-surface-subtle hover:text-danger"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="whitespace-pre-wrap text-[13px]">{comment.body}</p>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
-          </form>
-        ) : (
-          <Badge variant="neutral">{t("prd.cannotComment")}</Badge>
-        )}
-      </section>
+
+            {permissions.canComment ? (
+              <form onSubmit={(e) => void handleComment(e)} className="flex flex-col gap-2">
+                <label className="text-xs font-semibold" htmlFor="pr-comment">
+                  {t("prd.writeComment")}
+                </label>
+                <textarea
+                  id="pr-comment"
+                  name="comment"
+                  rows={3}
+                  maxLength={COMMENT_MAX}
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-xs text-muted">
+                    {commentBody.length}/{COMMENT_MAX}
+                  </span>
+                  <Button type="submit" disabled={commenting || commentBody.trim().length === 0}>
+                    {commenting ? t("prd.sending") : t("prd.comment")}
+                  </Button>
+                </div>
+                {commentError && (
+                  <p role="alert" className="text-xs text-danger">
+                    {commentError}
+                  </p>
+                )}
+              </form>
+            ) : (
+              <Badge variant="neutral">{t("prd.cannotComment")}</Badge>
+            )}
+        </TabPanel>
+      </div>
 
       <ConfirmDialog
         open={mergeOpen}

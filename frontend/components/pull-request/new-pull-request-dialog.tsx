@@ -181,7 +181,11 @@ export function NewPullRequestDialog({
 
           <div aria-live="polite" className="rounded-card border border-border bg-surface-subtle px-3 py-2.5 text-xs">
             {previewing && <span className="text-muted">{t("pr.dlgComparing")}</span>}
-            {previewError && <span className="text-danger">{previewError}</span>}
+            {previewError && (
+              <span role="alert" className="text-danger">
+                {previewError}
+              </span>
+            )}
             {preview && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-semibold">{t("pr.dlgNewCommits", { n: preview.newCommitCount })}</span>
