@@ -66,7 +66,7 @@ export default function NewProjectPage() {
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách dự án
         </Link>
-        <PageHeader title="Tạo dự án mới" />
+        <PageHeader title="Tạo dự án mới" breadcrumbs={[{ label: "Dự án của tôi", href: "/projects" }]} />
 
         {error && (
           <div className="mb-4 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">

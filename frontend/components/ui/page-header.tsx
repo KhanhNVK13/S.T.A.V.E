@@ -18,13 +18,19 @@ interface PageHeaderProps {
  * cách bằng "/") — cùng ngôn ngữ với các màn thiết kế: "MINA PARK / PUBLIC
  * PROJECT", "ACCOUNT SETTINGS"…
  */
+const HOME_CRUMB: Crumb = { label: "Trang chủ", href: "/" };
+
 export function PageHeader({ title, description, breadcrumbs, action }: PageHeaderProps) {
+  const trail = breadcrumbs && breadcrumbs.length > 0 ? [HOME_CRUMB, ...breadcrumbs] : null;
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-7">
       <div className="min-w-0">
-        {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent">
-            {breadcrumbs.map((crumb, i) => (
+        {trail && (
+          <nav
+            aria-label="Đường dẫn"
+            className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent"
+          >
+            {trail.map((crumb, i) => (
               <span key={i} className="flex items-center gap-1.5">
                 {i > 0 && <span className="text-muted">/</span>}
                 {crumb.href ? (

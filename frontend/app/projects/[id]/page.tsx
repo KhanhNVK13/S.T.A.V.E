@@ -326,6 +326,10 @@ function ProjectOverview({ id }: { id: string }) {
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent">
+              <Link href="/" className="hover:underline">
+                Trang chủ
+              </Link>
+              <span className="text-muted">/</span>
               {data.owner ? (
                 <Link href={`/creator/${data.owner.id}`} className="hover:underline">
                   {ownerName}
