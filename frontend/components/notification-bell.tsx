@@ -9,8 +9,7 @@ import { getUnreadNotificationCount } from "../lib/api-client";
 const POLL_INTERVAL_MS = 60_000;
 export const NOTIFICATIONS_CHANGED_EVENT = "stave:notifications-changed";
 
-export function NotificationBell() {
-  const t = useT();
+export function useUnreadNotificationCount(): number {
   const [count, setCount] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -44,6 +43,13 @@ export function NotificationBell() {
       window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleChanged);
     };
   }, [refresh]);
+
+  return count;
+}
+
+export function NotificationBell() {
+  const t = useT();
+  const count = useUnreadNotificationCount();
 
   const label = count > 0 ? t("nav.notificationsUnread", { n: count }) : t("nav.notifications");
 

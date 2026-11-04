@@ -1,123 +1,6 @@
 @import "tailwindcss";
 
-/*
- * STAVE design tokens — xem CLAUDE.md 4.7 (Design system) trước khi đổi.
- *
- * Hệ token SEMANTIC (không phải bảng màu cố định kiểu `accent-600`): mỗi biến
- * mô tả VAI TRÒ của màu trong giao diện (nền, bề mặt, viền, chữ phụ, accent…).
- * Bắt buộc phải như vậy vì UC-79 (STAVE+) cho phép người dùng upload 1 ảnh và
- * toàn bộ UI đổi màu theo palette trích từ ảnh đó — chỉ đổi giá trị của các
- * biến này, không sửa 1 dòng component nào.
- *
- * Theme đổi bằng thuộc tính `data-theme` trên thẻ <html>. Layout gắn sẵn
- * data-theme="space" (mặc định cho người dùng mới); không có data-theme thì rơi
- * về preset "unleashed".
- *
- * Nguyên tắc dùng màu (rút từ bảng pha màu Gundam PG Unleashed RX-78-2):
- * - Diện tích lớn LUÔN dùng nhóm trung tính (background/surface/border).
- * - `--accent` là màu "small dose": chỉ cho CTA chính, link, trạng thái đang
- *   chọn. KHÔNG tô accent lên nền card/section/sidebar.
- */
-:root,
-[data-theme="unleashed"] {
-  /* Nền & bề mặt */
-  --background: oklch(0.976 0.004 285);
-  --surface: oklch(0.992 0.003 285);
-  --surface-subtle: oklch(0.966 0.006 285);
-  --surface-muted: oklch(0.938 0.011 278);
-
-  /* Chữ */
-  --foreground: oklch(0.26 0.038 260); /* xanh-đen, không phải đen tuyền */
-  --muted-foreground: oklch(0.5 0.02 276);
-
-  /* Viền */
-  --border: oklch(0.891 0.012 285);
-  --border-strong: oklch(0.81 0.018 280);
-
-  /* Accent — small dose */
-  --accent: oklch(0.48 0.19 270);
-  --accent-hover: oklch(0.43 0.18 270);
-  --accent-muted: oklch(0.94 0.025 270);
-  --accent-foreground: oklch(0.99 0.003 285);
-
-  /* Trạng thái */
-  --success: oklch(0.54 0.085 150);
-  --success-muted: oklch(0.94 0.025 150);
-  --success-foreground: oklch(0.47 0.085 150);
-  --warning: oklch(0.7 0.105 83);
-  --warning-muted: oklch(0.95 0.035 83);
-  --warning-foreground: oklch(0.5 0.1 70);
-  --danger: oklch(0.48 0.13 27);
-  --danger-muted: oklch(0.94 0.028 27);
-
-  /* Metal — huy hiệu/chi tiết trang trí, dùng rất hạn chế */
-  --metal: oklch(0.73 0.045 82);
-  --metal-muted: oklch(0.94 0.015 82);
-  --metal-foreground: oklch(0.5 0.05 80);
-
-  /* Màu phân biệt track trong MIDI Editor (dữ liệu, không phải chrome) */
-  --track-accent: var(--accent);
-  --track-metal: var(--metal);
-  --track-success: var(--success);
-  --track-warning: var(--warning);
-  --track-danger: var(--danger);
-
-  --radius-card: 0.5rem;
-  --shadow-card: none; /* thiết kế dùng viền 1px, không dùng đổ bóng */
-
-  /*
-   * Container chính cho trang list/content (header/footer/explore/projects/
-   * creator/rankings/home). Trang dạng form/đọc hẹp (auth, /profile,
-   * /projects/new...) KHÔNG dùng token này — xem CLAUDE.md 4.7.
-   */
-  --container-page: 105rem;
-}
-
-/*
- * Preset miễn phí (UC-78) — chỉ đổi token TRANG TRÍ.
- *
- * BR-90 (Report 3): "A theme may change decorative colours only. The colours
- * that carry system meaning — the primary blue for actions, red for warnings
- * and conflicts, and yellow for modified content — are never overridden."
- * Vì vậy các preset dưới đây KHÔNG được đụng tới `--accent*`, `--success*`,
- * `--warning*`, `--danger*`: chỉ retint nhóm nền/bề mặt/viền/chữ + `--metal`.
- * UC-79 (sinh theme từ ảnh) cũng chịu ràng buộc y hệt (POST-4).
- */
-[data-theme="moss"] {
-  --background: oklch(0.97 0.009 142);
-  --surface: oklch(0.99 0.006 142);
-  --surface-subtle: oklch(0.95 0.014 142);
-  --surface-muted: oklch(0.92 0.022 142);
-  --foreground: oklch(0.25 0.035 154);
-  --muted-foreground: oklch(0.49 0.025 154);
-  --border: oklch(0.86 0.022 142);
-  --border-strong: oklch(0.78 0.035 142);
-  --metal: oklch(0.68 0.05 80);
-  --metal-muted: oklch(0.93 0.018 80);
-}
-
-[data-theme="claret"] {
-  --background: oklch(0.97 0.008 20);
-  --surface: oklch(0.992 0.004 20);
-  --surface-subtle: oklch(0.95 0.012 20);
-  --surface-muted: oklch(0.92 0.02 20);
-  --foreground: oklch(0.24 0.04 15);
-  --muted-foreground: oklch(0.49 0.028 15);
-  --border: oklch(0.86 0.02 20);
-  --border-strong: oklch(0.78 0.035 20);
-  --metal: oklch(0.69 0.05 72);
-  --metal-muted: oklch(0.94 0.016 72);
-}
-
-/*
- * Preset "space" (Staff Universe) — nền tối, mặc định cho người dùng mới.
- * Ghi đè CÙNG bộ token semantic. accent/success/warning/danger giữ sắc và ý
- * nghĩa (xanh tím = hành động, xanh lá = ổn, vàng = đã sửa, đỏ = cảnh báo), chỉ
- * nâng độ sáng để chữ đạt >= 4.5:1 trên nền tối; viền đạt >= 3:1.
- * `--accent-foreground` là chữ TỐI đặt trên nền accent sáng.
- * Bảng tương phản đo bằng công thức WCAG nằm trong mô tả PR.
- */
-[data-theme="space"] {
+:root {
   color-scheme: dark;
 
   --background: oklch(0.14 0.022 275);
@@ -129,7 +12,7 @@
   --muted-foreground: oklch(0.83 0.03 275);
 
   --border: oklch(0.34 0.04 275);
-  --border-strong: oklch(0.5 0.05 275);
+  --border-strong: oklch(0.54 0.05 275);
 
   --accent: oklch(0.76 0.14 270);
   --accent-hover: oklch(0.8 0.13 270);
@@ -149,15 +32,23 @@
   --metal-muted: oklch(0.24 0.03 82);
   --metal-foreground: oklch(0.86 0.08 82);
 
+  --track-accent: var(--accent);
+  --track-metal: var(--metal);
+  --track-success: var(--success);
+  --track-warning: var(--warning);
+  --track-danger: var(--danger);
+
   --radius-card: 0.75rem;
   --shadow-card: 0 10px 36px oklch(0 0 0 / 0.5);
+
+  --container-page: 105rem;
 }
 
 @theme inline {
   --font-sans: var(--font-stave-sans);
   --font-mono: var(--font-stave-mono);
+  --font-display: var(--font-stave-display);
 
-  /* Tên semantic — dùng cho mọi code mới */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
@@ -194,12 +85,11 @@ body {
   color: var(--foreground);
 }
 
-[data-theme="space"] ::selection {
+::selection {
   background: var(--accent-muted);
   color: var(--foreground);
 }
 
-/* Spinner animation for MIDI editor loading state */
 @keyframes spin {
   to {
     transform: rotate(360deg);

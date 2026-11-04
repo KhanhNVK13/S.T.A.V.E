@@ -1,28 +1,21 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use } from 'react';
 import Link from 'next/link';
-import { CalendarDays, FolderOpen, Play, GitFork } from 'lucide-react';
+import { CalendarDays, FolderOpen } from 'lucide-react';
 import { getPublicUserProfile, getUserPublicProjects, PublicUserProfile, PublicProject } from '../../../lib/api-client';
-import { formatMonthYear, formatRelativeTime } from '../../../lib/format-date';
+import { formatMonthYear } from '../../../lib/format-date';
 import { useI18n } from '../../../context/i18n-context';
 import { tNow } from '../../../lib/i18n';
 import { useApiResource } from '../../../lib/use-api-resource';
 import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
 import { EmptyState } from '../../../components/ui/empty-state';
-import { Badge } from '../../../components/ui/badge';
-import { RowList, RowHeader, RowTitle, RowStat, RowTime } from '../../../components/ui/row-list';
-import { GalaxyPage } from '../../../components/galaxy/galaxy-page';
-import { GalaxyRow } from '../../../components/galaxy/galaxy-row';
-import { CreatorConstellation } from '../../../components/galaxy/creator-constellation';
+import { ProjectRows } from '../../../components/explore/project-rows';
 
 interface Props {
   params: Promise<{ id: string }>;
 }
-
-/** Tên | thể loại | lượt nghe | fork | cập nhật. */
-const COLS = 'md:grid-cols-[minmax(0,1fr)_112px_84px_84px_96px]';
 
 interface CreatorPageData {
   profile: PublicUserProfile;
@@ -44,11 +37,10 @@ export default function CreatorProfilePage({ params }: Props) {
   );
   const profile = data?.profile ?? null;
   const projects = data?.projects ?? [];
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   if (loading) {
     return (
-      <GalaxyPage>
+      <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
         <div className="animate-pulse">
           <div className="mb-8 flex items-center gap-4">
             <div className="h-20 w-20 rounded-full bg-surface-subtle" />
@@ -63,28 +55,28 @@ export default function CreatorProfilePage({ params }: Props) {
             ))}
           </div>
         </div>
-      </GalaxyPage>
+      </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <GalaxyPage>
-        <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
+      <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
+        <div role="alert" className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
           <h1 className="text-xl font-semibold text-danger">{t('cr.notFound')}</h1>
           <p className="mt-2 text-muted">{error ?? t('cr.notExist')}</p>
           <Link href="/explore">
             <Button className="mt-4">{t('cr.backExplore')}</Button>
           </Link>
         </div>
-      </GalaxyPage>
+      </div>
     );
   }
 
   const joinDate = formatMonthYear(profile.created_at);
 
   return (
-    <GalaxyPage>
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
       <div className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <Avatar
@@ -126,40 +118,12 @@ export default function CreatorProfilePage({ params }: Props) {
         </div>
       </div>
 
-      <CreatorConstellation
-        stars={projects.map((p) => ({ id: p.id, playCount: p.play_count, forkCount: p.fork_count }))}
-        activeId={hoveredId}
-      />
-
       <h2 className="mb-2.5 text-[17px] font-semibold">{t('cr.projectsHeading', { n: projects.length })}</h2>
       {projects.length === 0 ? (
         <EmptyState icon={FolderOpen} title={t('cr.empty')} />
       ) : (
-        <RowList cols={COLS}>
-          <RowHeader>
-            <span>{t('ex.colProject')}</span>
-            <span>{t('ex.colGenre')}</span>
-            <span>{t('ex.colPlays')}</span>
-            <span>Fork</span>
-            <span className="text-right">{t('ex.colUpdated')}</span>
-          </RowHeader>
-
-          {projects.map((project) => (
-            <GalaxyRow
-              key={project.id}
-              onActiveChange={(active) =>
-                setHoveredId((current) => (active ? project.id : current === project.id ? null : current))
-              }
-            >
-              <RowTitle href={`/projects/${project.id}`} name={project.name} meta={project.description ?? undefined} />
-              <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
-              <RowStat icon={Play} value={project.play_count} title={t('ex.statPlays')} />
-              <RowStat icon={GitFork} value={project.fork_count} title={t('ex.statForks')} />
-              <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
-            </GalaxyRow>
-          ))}
-        </RowList>
+        <ProjectRows projects={projects} showOwner={false} />
       )}
-    </GalaxyPage>
+    </div>
   );
 }

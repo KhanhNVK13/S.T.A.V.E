@@ -70,7 +70,7 @@ export default function NewProjectPage() {
         <PageHeader title={t("new.title")} breadcrumbs={[{ label: t("nav.projects"), href: "/projects" }]} />
 
         {error && (
-          <div className="mb-4 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">
+          <div role="alert" className="mb-4 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">
             {error}
           </div>
         )}
@@ -99,7 +99,7 @@ export default function NewProjectPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={2000}
                 rows={4}
-                className={`${INPUT_CLASS} h-[37px]`}
+                className={INPUT_CLASS}
                 placeholder={t("new.descriptionPlaceholder")}
               />
             </Field>

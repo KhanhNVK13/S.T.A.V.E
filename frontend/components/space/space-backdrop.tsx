@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { useTheme } from "../../context/theme-context";
 import { isLandingPath } from "../landing/landing-paths";
 import { readSkyColors } from "./sky-colors";
 import { createSky2D } from "./sky2d";
@@ -39,7 +38,6 @@ function routeScene(pathname: string): { mode: SpaceMode; anchor: number } {
  * và các trang thường dùng Canvas 2D rất nhẹ.
  */
 export function SpaceBackdrop() {
-  const { activePreset } = useTheme();
   const pathname = usePathname();
   const request = useSyncExternalStore(subscribeRequest, getRequest, () => null);
   const wide = useMedia("(min-width: 900px)");
@@ -48,9 +46,8 @@ export function SpaceBackdrop() {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<SkyEngine | null>(null);
 
-  const enabled = activePreset === "space";
   const scene = request ?? routeScene(pathname);
-  const want3d = enabled && scene.mode === "full" && wide && !reduce && !lost;
+  const want3d = scene.mode === "full" && wide && !reduce && !lost;
   const anchorRef = useRef(scene.anchor);
   const quiet = scene.mode === "quiet";
 
@@ -61,7 +58,7 @@ export function SpaceBackdrop() {
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!enabled || !host) return;
+    if (!host) return;
     let cancelled = false;
     let engine: SkyEngine | null = null;
     const offs: (() => void)[] = [];
@@ -126,9 +123,8 @@ export function SpaceBackdrop() {
       engineRef.current = null;
       delete host.dataset.sky;
     };
-  }, [enabled, want3d, reduce, wide, quiet]);
+  }, [want3d, reduce, wide, quiet]);
 
-  if (!enabled) return null;
   return (
     <div
       ref={hostRef}

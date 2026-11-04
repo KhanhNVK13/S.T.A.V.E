@@ -19,7 +19,7 @@ import { PageHeader } from '../../components/ui/page-header';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Tabs } from '../../components/ui/tabs';
-import { StarPrint } from '../../components/project/star-print';
+import { ProjectThumb } from '../../components/ui/project-thumb';
 import { SkyEmpty, SkyLoading } from '../../components/project/sky-state';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { Toast } from '../../components/ui/toast';
@@ -126,7 +126,7 @@ function ProjectRow({
               ? [t('projects.created', { when: formatDateTime(project.created_at) }), project.description].filter(Boolean).join(' · ')
               : (project.description ?? undefined)
           }
-          leading={<StarPrint id={project.id} size="sm" />}
+          leading={<ProjectThumb id={project.id} size="sm" />}
         />
 
         <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>

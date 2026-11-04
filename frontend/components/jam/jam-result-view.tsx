@@ -155,7 +155,7 @@ export function JamResultView({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{result.name}</h2>
+            <h1 className="text-xl font-semibold">{result.name}</h1>
             <Badge variant="neutral">{t("jam.ended")}</Badge>
           </div>
           <p className="mt-1 text-sm text-muted">

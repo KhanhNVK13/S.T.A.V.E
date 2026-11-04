@@ -675,35 +675,6 @@ export async function deleteCommitTag(commitId: string, tagName: string): Promis
 }
 
 // ============================================
-// Personalization — UC-78 (preset theme)
-// ============================================
-
-/**
- * Khoá preset phải khớp đúng các khối `[data-theme="…"]` trong `app/globals.css`
- * VÀ danh sách `PRESET_THEME_KEYS` phía backend (`users/dto/set-theme.dto.ts`).
- */
-export type PresetThemeKey = "space" | "unleashed" | "moss" | "claret";
-
-export interface ActiveTheme {
-  type: "preset" | "custom";
-  presetKey: string | null;
-  generatedPalette: Record<string, string> | null;
-}
-
-/** GET /users/me/theme — `null` nghĩa là chưa từng chọn, dùng preset mặc định. */
-export async function getMyTheme(): Promise<ActiveTheme | null> {
-  return apiFetch<ActiveTheme | null>("/users/me/theme");
-}
-
-/** PUT /users/me/theme — UC-78, lưu theo tài khoản nên bền qua mọi thiết bị (POST-3). */
-export async function setMyTheme(presetKey: PresetThemeKey): Promise<ActiveTheme> {
-  return apiFetch<ActiveTheme>("/users/me/theme", {
-    method: "PUT",
-    body: JSON.stringify({ presetKey }),
-  });
-}
-
-// ============================================
 // Audio Sketch — UC-53/54/55
 // ============================================
 

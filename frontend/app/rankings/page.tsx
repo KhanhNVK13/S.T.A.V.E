@@ -1,35 +1,21 @@
 'use client';
 
-import { Play, GitFork, Trophy } from 'lucide-react';
+import { useState } from 'react';
+import { Trophy } from 'lucide-react';
 import { getProjectRankings, PublicProject } from '../../lib/api-client';
 import { useApiResource } from '../../lib/use-api-resource';
 import { PageHeader } from '../../components/ui/page-header';
-import { Badge } from '../../components/ui/badge';
-import { RowList, RowHeader, RowItem, RowTitle } from '../../components/ui/row-list';
 import { Tabs } from '../../components/ui/tabs';
 import { EmptyState } from '../../components/ui/empty-state';
 import { Button } from '../../components/ui/button';
-import { GalaxyPage } from '../../components/galaxy/galaxy-page';
-import { Podium } from '../../components/galaxy/podium';
-import { useState } from 'react';
+import { ProjectRows, ProjectRowsSkeleton } from '../../components/explore/project-rows';
 import { useI18n } from '../../context/i18n-context';
 import { tNow } from '../../lib/i18n';
 
 type RankingType = 'trending' | 'top_forked' | 'top_played';
 
-/** Hạng | dự án | thể loại | số liệu. */
-const COLS = 'md:grid-cols-[52px_minmax(0,1fr)_112px_112px]';
-
-function RankBadge({ rank }: { rank: number }) {
-  return (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-subtle font-mono text-xs font-bold text-muted">
-      {rank}
-    </div>
-  );
-}
-
 export default function RankingsPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [type, setType] = useState<RankingType>('trending');
 
   const { data, loading, error } = useApiResource<PublicProject[]>(
@@ -38,15 +24,6 @@ export default function RankingsPage() {
     tNow('rk.loadFail'),
   );
   const projects = data ?? [];
-  const MetricIcon = type === 'top_forked' ? GitFork : Play;
-  const podium = projects.slice(0, 3).map((project) => ({
-    id: project.id,
-    name: project.name,
-    owner: project.owner.display_name ?? project.owner.username ?? t('ex.user'),
-    genre: project.genre,
-    metric: type === 'top_forked' ? project.fork_count : project.play_count,
-  }));
-  const rest = projects.slice(3);
 
   const tabs = [
     { id: 'trending', label: t('rk.trending') },
@@ -55,7 +32,7 @@ export default function RankingsPage() {
   ];
 
   return (
-    <GalaxyPage>
+    <div className="mx-auto min-h-full w-full min-w-0 max-w-page px-5 py-8">
       <PageHeader
         breadcrumbs={[{ label: t('rk.crumb') }]}
         title={t('rk.title')}
@@ -68,27 +45,14 @@ export default function RankingsPage() {
         }
       />
 
-      <div className="mb-6">
+      <div className="mb-6 min-w-0">
         <Tabs tabs={tabs} active={type} onChange={(id) => setType(id as RankingType)} />
       </div>
 
       {loading ? (
-        <RowList cols={COLS}>
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0"
-            >
-              <div className="h-7 w-7 shrink-0 rounded-full bg-surface-subtle" />
-              <div className="flex-1">
-                <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
-                <div className="h-2.5 w-1/4 rounded bg-surface-subtle" />
-              </div>
-            </div>
-          ))}
-        </RowList>
+        <ProjectRowsSkeleton rows={10} />
       ) : error ? (
-        <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
+        <div role="alert" className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
           <p className="text-[13px] text-danger">{error}</p>
           <Button variant="secondary" onClick={() => window.location.reload()} className="mt-4">
             {t('ui.retry')}
@@ -97,41 +61,8 @@ export default function RankingsPage() {
       ) : projects.length === 0 ? (
         <EmptyState icon={Trophy} title={t('rk.empty')} />
       ) : (
-        <>
-          <Podium entries={podium} metricIcon={MetricIcon} />
-          {rest.length > 0 && (
-            <RowList cols={COLS}>
-              <RowHeader>
-                <span>{t('rk.colRank')}</span>
-                <span>{t('ex.colProject')}</span>
-                <span>{t('ex.colGenre')}</span>
-                <span className="text-right">{type === 'top_forked' ? 'Fork' : t('ex.colPlays')}</span>
-              </RowHeader>
-
-              {rest.map((project, index) => {
-                const rank = index + 4;
-                const metric = type === 'top_forked' ? project.fork_count : project.play_count;
-
-                return (
-                  <RowItem key={project.id}>
-                    <RankBadge rank={rank} />
-                    <RowTitle
-                      href={`/projects/${project.id}`}
-                      name={project.name}
-                      meta={project.owner.display_name ?? project.owner.username ?? t('ex.user')}
-                    />
-                    <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
-                    <span className="flex items-center gap-1.5 font-mono text-[13px] font-bold md:justify-end">
-                      <MetricIcon className="h-3.5 w-3.5 text-muted" />
-                      {metric.toLocaleString(locale)}
-                    </span>
-                  </RowItem>
-                );
-              })}
-            </RowList>
-          )}
-        </>
+        <ProjectRows projects={projects} rankFrom={1} />
       )}
-    </GalaxyPage>
+    </div>
   );
 }

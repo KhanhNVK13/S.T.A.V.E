@@ -1,13 +1,12 @@
 "use client";
 
-import { Suspense, use, useCallback, useEffect, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   GitFork,
   Play,
   Loader2,
-  FileMusic,
   Piano,
   CircleUserRound,
   Settings as SettingsIcon,
@@ -15,13 +14,15 @@ import {
 } from "lucide-react";
 import { getPublicProject, getProject, forkProject, ApiError } from "../../../lib/api-client";
 import { listCollaborators } from "../../../lib/api-collab";
+import type { CollaboratorItem } from "@stave/shared-types";
 import { apiErrorMessage } from "../../../lib/error-message";
 import type { PublicProject } from "../../../lib/api-client";
 import { useAuth } from "../../../context/auth-context";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
-import { StarPrint } from "../../../components/project/star-print";
+import { ProjectHistory } from "../../../components/project/project-history";
+import { Tabs } from "../../../components/ui/tabs";
 import { SkyLoading } from "../../../components/project/sky-state";
 import { Toast } from "../../../components/ui/toast";
 import { CommitHistory } from "../../../components/project/commit-history";
@@ -87,8 +88,7 @@ function ProjectOverview({ id }: { id: string }) {
   const [importedMessage, setImportedMessage] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  /** UC-65: chủ dự án hoặc cộng tác viên đã CHẤP NHẬN (BR-65: pending chưa có quyền). */
-  const [collabInfo, setCollabInfo] = useState<{ projectId: string; accepted: boolean } | null>(null);
+  const [collabInfo, setCollabInfo] = useState<{ projectId: string; items: CollaboratorItem[] } | null>(null);
   const dismissToast = useCallback(() => setToastMessage(null), []);
 
   const tab = (searchParams.get("tab") ?? "overview") as TabId;
@@ -174,29 +174,16 @@ function ProjectOverview({ id }: { id: string }) {
     };
   }, [id, user, profile, authLoading]);
 
-  // UC-65: tab "Đóng góp" chỉ hiện với chủ dự án hoặc cộng tác viên đã
-  // CHẤP NHẬN (BR-65: pending chưa có quyền). Không hiện với khách.
-  // Pattern giống effect load() bên trên: không setState đồng bộ trong thân
-  // effect — chỉ set sau lần await đầu tiên (react-hooks/set-state-in-effect).
   useEffect(() => {
     let cancelled = false;
-    if (authLoading || !user || !data || data.isOwner) return;
-    const userId = user.id;
+    if (authLoading || !user || !data) return;
 
     async function loadCollab() {
       try {
         const items = await listCollaborators(id);
-        if (cancelled) return;
-        setCollabInfo({
-          projectId: id,
-          accepted: items.some(
-            (item) => item.userId === userId && item.status === "accepted",
-          ),
-        });
+        if (!cancelled) setCollabInfo({ projectId: id, items });
       } catch {
-        // Không đọc được danh sách → coi như chưa chấp nhận (tab ẩn,
-        // ContributionsView tự hiện lỗi "Thử lại" nếu được mở trực tiếp).
-        if (!cancelled) setCollabInfo({ projectId: id, accepted: false });
+        if (!cancelled) setCollabInfo({ projectId: id, items: [] });
       }
     }
 
@@ -206,11 +193,12 @@ function ProjectOverview({ id }: { id: string }) {
     };
   }, [authLoading, user, data, id]);
 
-  const isCollaborator =
-    !!user &&
-    !!collabInfo &&
-    collabInfo.projectId === id &&
-    collabInfo.accepted;
+  const accepted = useMemo(
+    () => (collabInfo && collabInfo.projectId === id ? collabInfo.items.filter((c) => c.status === "accepted") : []),
+    [collabInfo, id],
+  );
+  const isCollaborator = !!user && accepted.some((c) => c.userId === user.id);
+  const collaborators = accepted.filter((c) => c.userId !== data?.owner?.id);
 
   function switchTab(next: TabId) {
     const params = new URLSearchParams(searchParams.toString());
@@ -290,22 +278,15 @@ function ProjectOverview({ id }: { id: string }) {
 
   const ownerName = data.owner?.display_name ?? data.owner?.username ?? t("project.user");
 
-  /*
-   * Cùng MỘT trang cho mọi người xem (mô hình GitHub) — khác nhau chỉ ở hành
-   * động khả dụng. Tab "Commit" chỉ hiện với chủ dự án vì backend cũng chỉ cho
-   * chủ dự án đọc lịch sử (đúng SRS: UC-43 actor là User, UC-09 cho Guest chỉ
-   * có playback/mô tả/thống kê).
-   */
-  const tabs: { id: TabId; label: string; visible: boolean; ready: boolean }[] = [
-    { id: "overview", label: t("project.tabOverview"), visible: true, ready: true },
-    { id: "commits", label: t("project.tabCommits"), visible: data.isOwner, ready: true },
-    { id: "branches", label: t("project.tabBranches"), visible: data.isOwner, ready: true },
-    { id: "pulls", label: t("project.tabPulls"), visible: !!user && (data.isOwner || data.visibility === "public"), ready: true },
-    // UC-65: chỉ chủ dự án hoặc cộng tác viên đã chấp nhận (xem trên, BR-65).
-    { id: "contributions", label: t("project.tabContributions"), visible: data.isOwner || isCollaborator, ready: true },
+  const tabs: { id: TabId; label: string; visible: boolean }[] = [
+    { id: "overview", label: t("project.tabOverview"), visible: true },
+    { id: "commits", label: t("project.tabCommits"), visible: data.isOwner },
+    { id: "branches", label: t("project.tabBranches"), visible: data.isOwner },
+    { id: "pulls", label: t("project.tabPulls"), visible: !!user && (data.isOwner || data.visibility === "public") },
+    { id: "contributions", label: t("project.tabContributions"), visible: data.isOwner || isCollaborator },
   ];
-
-  const activeTab = tabs.find((tb) => tb.id === tab && tb.visible && tb.ready) ? tab : "overview";
+  const visibleTabs = tabs.filter((tb) => tb.visible);
+  const activeTab = visibleTabs.some((tb) => tb.id === tab) ? tab : "overview";
 
   return (
     <>
@@ -328,7 +309,10 @@ function ProjectOverview({ id }: { id: string }) {
       <div className="mx-auto max-w-page px-5 py-8">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <p className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent">
+            <nav
+              aria-label={t("ui.breadcrumb")}
+              className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent"
+            >
               <Link href="/" className="hover:underline">
                 {t("ui.home")}
               </Link>
@@ -340,16 +324,18 @@ function ProjectOverview({ id }: { id: string }) {
               ) : (
                 <span>{ownerName}</span>
               )}
-              <span className="text-muted">/</span>
-              <span>{data.visibility === "public" ? t("project.public") : t("project.private")}</span>
-            </p>
-            <h1 className="mb-1 mt-0.5 flex flex-wrap items-center gap-2 text-[26px] font-semibold leading-tight tracking-tight">
+            </nav>
+            <h1 className="mb-1 mt-1 break-words text-[28px] font-semibold leading-tight tracking-[-0.02em]">
               {data.name}
-              {data.archivedAt && <Badge variant="warning">{t("project.archived")}</Badge>}
             </h1>
-            {data.description && (
-              <p className="max-w-3xl text-sm text-muted">{data.description}</p>
-            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <Badge variant={data.visibility === "public" ? "info" : "neutral"}>
+                {data.visibility === "public" ? t("project.public") : t("project.private")}
+              </Badge>
+              {data.archivedAt && <Badge variant="warning">{t("project.archived")}</Badge>}
+              {data.genre && <Badge variant="neutral">{data.genre}</Badge>}
+              <span>{t("project.updated", { when: formatRelativeTime(data.updatedAt) })}</span>
+            </div>
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -361,22 +347,16 @@ function ProjectOverview({ id }: { id: string }) {
                   </>
                 ) : (
                   <>
-                    <GitFork className="h-3.5 w-3.5" /> Fork
+                    <GitFork className="h-3.5 w-3.5" /> {t("project.fork")}
                     {data.forkCount !== null && (
-                      <span className="font-mono">
-                        {data.forkCount.toLocaleString(locale)}
-                      </span>
+                      <span className="font-mono">{data.forkCount.toLocaleString(locale)}</span>
                     )}
                   </>
                 )}
               </Button>
             )}
 
-            <Button
-              variant="secondary"
-              disabled
-              title={t("project.previewTitle")}
-            >
+            <Button variant="secondary" disabled title={t("project.previewTitle")}>
               <Play className="h-3.5 w-3.5" /> {t("project.preview")}
             </Button>
 
@@ -402,38 +382,16 @@ function ProjectOverview({ id }: { id: string }) {
           </div>
         </div>
 
-        <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border">
-          {tabs
-            .filter((tb) => tb.visible)
-            .map((tb) =>
-              tb.ready ? (
-                <button
-                  key={tb.id}
-                  onClick={() => switchTab(tb.id)}
-                  className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
-                    activeTab === tb.id
-                      ? "border-accent font-bold text-foreground"
-                      : "border-transparent text-muted hover:text-foreground"
-                  }`}
-                >
-                  {tb.label}
-                </button>
-              ) : (
-                <span
-                  key={tb.id}
-                  title={t("project.placeholderTab")}
-                  className="-mb-px cursor-not-allowed whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-xs text-muted"
-                >
-                  {tb.label} (PLACEHOLDER)
-                </span>
-              ),
-            )}
+        <div className="mb-5">
+          <Tabs
+            tabs={visibleTabs.map(({ id: tabId, label }) => ({ id: tabId, label }))}
+            active={activeTab}
+            onChange={(next) => switchTab(next as TabId)}
+          />
         </div>
 
         {activeTab === "commits" ? (
           <CommitHistory
-            // `key` theo nhánh: bấm "Lịch sử" ở nhánh khác phải nạp lại từ đầu,
-            // không giữ lựa chọn/trang của nhánh trước.
             key={`${searchParams.get("branch") ?? "default"}-${refreshKey}`}
             projectId={data.id}
             initialBranchId={searchParams.get("branch")}
@@ -446,56 +404,37 @@ function ProjectOverview({ id }: { id: string }) {
           <ContributionsView
             key={refreshKey}
             projectId={data.id}
-            onSelectCommit={(commitId) => {
-              // UC-65 (6): mở commit trong lịch sử phiên bản — chuyển tab
-              // "Commit" kèm id để CommitHistory focus.
-              switchTab("commits");
-              void commitId;
-            }}
+            onSelectCommit={() => switchTab("commits")}
           />
         ) : (
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
-              <section className="overflow-hidden rounded-card border border-border bg-surface">
-                <div className="flex h-[52px] items-center justify-between gap-3 px-3.5">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <FileMusic className="h-4 w-4 shrink-0 text-muted" />
-                    <div className="min-w-0">
-                      <p className="truncate font-mono text-xs font-bold">{data.name}.mid</p>
-                      <p className="text-xs text-muted">
-                        {t("project.updated", { when: formatRelativeTime(data.updatedAt) })}
-                      </p>
-                    </div>
-                  </div>
-                  {data.isOwner && (
-                    <Link href={`/projects/${data.id}/edit`}>
-                      <Button variant="secondary">{t("project.openInEditor")}</Button>
-                    </Link>
-                  )}
-                </div>
-                {/*
-                  Ảnh đại diện tất định theo id — KHÔNG vẽ nốt/waveform giả cho
-                  dự án có thật (CLAUDE.md 4.7).
-                */}
-                <StarPrint id={data.id} size="lg" className="border-t border-border" />
-              </section>
+              {(data.isOwner || isCollaborator) && (
+                <ProjectHistory
+                  key={refreshKey}
+                  projectId={data.id}
+                  canEdit={data.isOwner && !data.archivedAt}
+                  canOpenHistory={data.isOwner}
+                />
+              )}
 
               {data.isOwner && <VersionSummary key={refreshKey} projectId={data.id} onOpenTab={switchTab} />}
 
-              <section className="mt-5 border-t border-border pt-4">
-                <h2 className="mb-2 text-[13px] font-semibold">{t("project.about")}</h2>
-                <p className="text-[13px] leading-relaxed text-muted">
+              <section className={data.isOwner || isCollaborator ? "mt-6 border-t border-border pt-4" : ""}>
+                <h2 className="mb-2 text-[15px] font-semibold">{t("project.about")}</h2>
+                <p className="max-w-3xl text-[13px] leading-relaxed text-muted">
                   {data.description ?? t("project.noDescription")}
                 </p>
 
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {data.genre && <Badge variant="neutral">{data.genre}</Badge>}
-                  {data.tags.map((tag) => (
-                    <Link key={tag} href={`/explore?tag=${encodeURIComponent(tag)}`}>
-                      <Badge variant="neutral">#{tag}</Badge>
-                    </Link>
-                  ))}
-                </div>
+                {data.tags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {data.tags.map((tag) => (
+                      <Link key={tag} href={`/explore?tag=${encodeURIComponent(tag)}`}>
+                        <Badge variant="neutral">#{tag}</Badge>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
 
@@ -505,30 +444,40 @@ function ProjectOverview({ id }: { id: string }) {
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
                     {t("project.author")}
                   </h3>
-                  <Link
-                    href={`/creator/${data.owner.id}`}
-                    className="flex items-center gap-3 hover:text-accent"
-                  >
-                    <Avatar
-                      id={data.owner.id}
-                      label={ownerName}
-                      imageUrl={data.owner.avatar_url}
-                    />
+                  <Link href={`/creator/${data.owner.id}`} className="flex items-center gap-3 hover:text-accent">
+                    <Avatar id={data.owner.id} label={ownerName} imageUrl={data.owner.avatar_url} />
                     <div className="min-w-0">
                       <p className="truncate text-[13px] font-semibold">{ownerName}</p>
-                      <p className="truncate font-mono text-xs text-muted">
-                        @{data.owner.username ?? "unknown"}
-                      </p>
+                      <p className="truncate font-mono text-xs text-muted">@{data.owner.username ?? "unknown"}</p>
                     </div>
                   </Link>
                 </div>
               )}
 
+              {collaborators.length > 0 && (
+                <div className="rounded-card border border-border bg-surface p-4">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
+                    {t("projectPage.collaborators")}
+                  </h3>
+                  <ul className="flex flex-col gap-2.5">
+                    {collaborators.map((c) => {
+                      const name = c.user.displayName ?? c.user.username ?? t("project.user");
+                      return (
+                        <li key={c.id}>
+                          <Link href={`/creator/${c.user.id}`} className="flex items-center gap-2.5 hover:text-accent">
+                            <Avatar id={c.user.id} label={name} imageUrl={c.user.avatarUrl} size="sm" />
+                            <span className="truncate text-[13px]">{name}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 overflow-hidden rounded-card border border-border bg-surface">
                 <div className="border-r border-border px-4 py-3">
-                  <p className="font-mono text-[17px] font-bold">
-                    {data.playCount.toLocaleString(locale)}
-                  </p>
+                  <p className="font-mono text-[17px] font-bold">{data.playCount.toLocaleString(locale)}</p>
                   <p className="text-xs text-muted">{t("project.plays")}</p>
                 </div>
                 <div className="px-4 py-3">

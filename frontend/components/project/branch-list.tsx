@@ -9,7 +9,6 @@ import {
   deleteBranch,
   getBranchDeletePreview,
   getBranchDetails,
-  getBranchHistory,
   listProjectBranches,
   mergeBranches,
   resolveMergeConflicts,
@@ -32,7 +31,8 @@ import { RowList, RowHeader, RowItem, RowTime } from "../ui/row-list";
 import { Toast } from "../ui/toast";
 import { formatRelativeTime } from "../../lib/format-date";
 import { MergeConflictDialog } from "./merge-conflict-dialog";
-import { BranchGraph } from "./branch-graph";
+import { CommitGraph } from "./commit-graph";
+import { fetchHistories } from "../../lib/project-graph";
 import { SkyLoading } from "./sky-state";
 import { apiErrorMessage } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
@@ -114,16 +114,7 @@ export function BranchList({ projectId }: { projectId: string }) {
       setDivergence(nextDivergence);
       setMerged(nextMerged);
 
-      const histories = await Promise.allSettled(list.map((b) => getBranchHistory(b.id)));
-      const byId = new Map<string, BranchHistoryCommit>();
-      let failed = false;
-      for (const h of histories) {
-        if (h.status === "fulfilled") {
-          for (const c of h.value.commits) byId.set(c.id, c);
-        } else {
-          failed = true;
-        }
-      }
+      const { commits: byId, failed } = await fetchHistories(list);
       setCommitsById(byId);
       setGraphState(failed ? "error" : "ready");
     } catch (err) {
@@ -390,7 +381,7 @@ export function BranchList({ projectId }: { projectId: string }) {
                 {t("blist.graphPartial")}
               </p>
             )}
-            <BranchGraph projectId={projectId} branches={branches} commits={commitsById} />
+            <CommitGraph projectId={projectId} branches={branches} commits={commitsById} />
           </>
         )}
       </section>
