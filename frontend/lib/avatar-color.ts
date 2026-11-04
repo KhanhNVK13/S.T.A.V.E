@@ -2,10 +2,9 @@
  * Màu avatar suy ra tất định từ id (hash đơn giản) — không dùng Math.random(),
  * để cùng 1 người/project luôn ra cùng 1 màu ở mọi lần render (CLAUDE.md 4.7).
  *
- * Chỉ dùng token semantic (accent/success/warning/danger/metal) thay vì bảng
- * màu Tailwind cố định: avatar phải đổi màu theo theme người dùng chọn
- * (preset hoặc palette trích từ ảnh — UC-79), không được neo vào 1 gam màu
- * riêng nằm ngoài hệ token.
+ * Chỉ dùng token semantic (accent/success/warning/danger/metal), chữ trên nền
+ * muted dùng bản -foreground để đạt tương phản >= 4.5:1; không dùng bảng màu
+ * Tailwind cố định.
  */
 const AVATAR_PALETTE = [
   { bg: "bg-accent-muted", text: "text-accent" },
