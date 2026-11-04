@@ -7,6 +7,8 @@ import type { PresenceUser } from "@stave/shared-types";
 import { Avatar } from "../ui/avatar";
 import { Toast } from "../ui/toast";
 import { usePresence } from "./use-presence";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 /**
  * UC-64 — the "who else is looking at this project right now" stack, used
@@ -48,9 +50,9 @@ function avatarLabel(u: PresenceUser): string {
 
 /** Vietnamese tooltip for one avatar (spec IV.2). */
 function tooltipFor(u: PresenceUser, myId: string | null): string {
-  const name = u.displayName?.trim() || u.username?.trim() || "Người dùng";
+  const name = u.displayName?.trim() || u.username?.trim() || tNow("col.user");
   const handle = u.username ? ` (@${u.username})` : "";
-  const self = myId && u.id === myId ? " (Bạn)" : "";
+  const self = myId && u.id === myId ? tNow("pres.you") : "";
   return `${name}${handle}${self}`;
 }
 
@@ -59,6 +61,7 @@ export function PresenceAvatars({
   myId,
   onBranchMoved,
 }: PresenceAvatarsProps) {
+  const { t } = useI18n();
   const { users, status, statusMessage, accessRevoked } = usePresence(
     projectId,
     { onBranchMoved },
@@ -98,11 +101,11 @@ export function PresenceAvatars({
     <div
       className="relative flex items-center"
       role="group"
-      aria-label="Người đang xem dự án này"
+      aria-label={t("pres.group")}
     >
       {accessRevoked && (
         <Toast
-          message="Quyền truy cập dự án của bạn đã kết thúc."
+          message={t("pres.revoked")}
           variant="warning"
           onDismiss={() => router.replace("/projects")}
           duration={4000}
@@ -157,8 +160,8 @@ export function PresenceAvatars({
           {overflow > 0 && (
             <span
               className="inline-flex items-center justify-center rounded-full border border-border bg-surface-muted text-xs font-semibold text-muted"
-              title={`Và ${overflow} người khác đang cùng xem dự án`}
-              aria-label={`Và ${overflow} người khác đang cùng xem dự án`}
+              title={t("pres.overflow", { n: overflow })}
+              aria-label={t("pres.overflow", { n: overflow })}
               style={{ width: 20, height: 20, marginLeft: -8 }}
             >
               +{overflow}
