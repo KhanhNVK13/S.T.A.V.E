@@ -16,6 +16,10 @@ import {
   MAX_SOUND_SIZE_BYTES,
 } from './dto/create-upload-url.dto';
 import type { CustomSoundSource } from './dto/confirm-custom-sound.dto';
+import {
+  listStorageFolder,
+  removeStorageFiles,
+} from '../common/utils/storage-cleanup.util';
 import { readWavInfo } from './wav-info';
 
 export const CUSTOM_SOUNDS_BUCKET = 'custom-sounds';
@@ -299,6 +303,7 @@ export class CustomSoundsService {
     }
     if (error || !data) {
       this.logger.error(`Insert custom sound failed: ${error?.message}`);
+      await this.removeUnsavedUpload(payload.soundId, path);
       throw new InternalServerErrorException('Could not save custom sound');
     }
 
@@ -481,26 +486,48 @@ export class CustomSoundsService {
   }
 
   async removeAllFilesOf(ownerId: string): Promise<void> {
-    const { data, error } = await this.supabase.storage
-      .from(CUSTOM_SOUNDS_BUCKET)
-      .list(ownerId, { limit: 1000 });
-    if (error) {
-      this.logger.error(`List custom sound files failed: ${error.message}`);
+    let names: string[];
+    try {
+      names = await listStorageFolder(
+        this.supabase,
+        CUSTOM_SOUNDS_BUCKET,
+        ownerId,
+      );
+    } catch (err) {
+      this.logger.error(
+        `List custom sound files of ${ownerId} failed, files may be orphaned: ${String(err)}`,
+      );
       return;
     }
-    await this.removeFiles((data ?? []).map((f) => `${ownerId}/${f.name}`));
+    await this.removeFiles(names.map((name) => `${ownerId}/${name}`));
+  }
+
+  private async removeUnsavedUpload(
+    soundId: string,
+    path: string,
+  ): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('custom_sounds')
+      .select('id')
+      .eq('id', soundId)
+      .maybeSingle<{ id: string }>();
+    if (error) {
+      this.logger.error(
+        `Could not check whether custom sound ${soundId} was saved, file left in place: ${path}`,
+      );
+      return;
+    }
+    if (data) return;
+    await this.removeFiles([path]);
   }
 
   private async removeFiles(paths: string[]): Promise<void> {
-    for (let i = 0; i < paths.length; i += 100) {
-      const chunk = paths.slice(i, i + 100);
-      const { error } = await this.supabase.storage
-        .from(CUSTOM_SOUNDS_BUCKET)
-        .remove(chunk);
-      if (error) {
-        this.logger.error(`Remove custom sound files failed: ${error.message}`);
-      }
-    }
+    await removeStorageFiles(
+      this.supabase,
+      CUSTOM_SOUNDS_BUCKET,
+      paths,
+      this.logger,
+    );
   }
 
   async signPlayback(path: string): Promise<string | null> {
