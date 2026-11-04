@@ -10,8 +10,8 @@
  */
 "use client";
 
-import React from "react";
-import { GitCommitHorizontal } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { GitCommitHorizontal, RefreshCw } from "lucide-react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../../../lib/api-client";
 import { summarizeChanges } from "./change-summary";
@@ -32,6 +32,13 @@ interface CommitDialogProps {
   onMessageChange: (message: string) => void;
   onSubmit: (message: string) => void;
   onClose: () => void;
+  /**
+   * UC-70: có nên tự gọi AI khi hộp mở không (chỉ khi có commit trước đó
+   * để so). Người gọi tự huỷ request trong khi hộp đóng (AbortSignal).
+   */
+  aiEnabled?: boolean;
+  /** UC-70: lấy gợi ý commit message; null = bỏ qua AI (lỗi/không có khoá/trần tần suất). */
+  onSuggestCommitMessage?: (signal: AbortSignal) => Promise<string | null>;
 }
 
 function countLabel(count: ChangeCount): string {
@@ -51,6 +58,8 @@ export function CommitDialog({
   onMessageChange,
   onSubmit,
   onClose,
+  aiEnabled = false,
+  onSuggestCommitMessage,
 }: CommitDialogProps) {
   const { t } = useI18n();
   const summary = headSnapshot ? summarizeChanges(headSnapshot, snapshot) : null;
@@ -60,6 +69,59 @@ export function CommitDialog({
     trimmed.length > 0 &&
     message.length <= COMMIT_MESSAGE_MAX_LENGTH &&
     !submitting;
+
+  // ── UC-70: gợi ý commit message bằng AI ─────────────────────────
+  // Hộp mở lần đầu + ô trống → gọi AI một lần; có gợi ý thì điền vào kèm
+  // nhãn "Gợi ý bởi AI" + nút "Tạo lại". Người dùng đã gõ gì thì KHÔNG ghi
+  // đè (5.1). Lỗi / không có gợi ý / hộp đóng → im lặng, không chặn commit
+  // (BR-79). Component chỉ được mount khi hộp mở (editor render điều kiện),
+  // nên effect chạy đúng 1 lần = khi hộp mở; huỷ request khi unmount.
+  const [aiBusy, setAiBusy] = useState(
+    () => aiEnabled && !!onSuggestCommitMessage && message.trim().length === 0,
+  );
+  /** Gợi ý AI cuối cùng đã điền — dùng để biết nội dung hiện tại còn là của AI. */
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const controllerRef = useRef<AbortController | null>(null);
+  // Ô nhập có nội dung người dùng tự gõ không? Dùng ref để lúc gợi ý về
+  // kiểm tra được trạng thái MỚI NHẤT (state trong closure có thể cũ).
+  const userTypedRef = useRef(message.trim().length > 0);
+
+  /**
+   * `refill=false` → gợi ý tự động khi hộp mở (aiBusy đã có từ state khởi
+   * tạo, chỉ gọi request); `refill=true` → nút "Tạo lại", ghi đè ô nhập.
+   */
+  function runSuggestion(refill: boolean) {
+    if (!onSuggestCommitMessage) return;
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    if (refill) setAiBusy(true);
+    void onSuggestCommitMessage(controller.signal)
+      .then((suggestion) => {
+        if (suggestion === null || controller.signal.aborted) return;
+        // Người dùng đã gõ tay → không ghi đè (5.1). "Tạo lại" là hành vi
+        // explicit nên ghi đè.
+        if (refill || !userTypedRef.current) {
+          onMessageChange(suggestion);
+          setAiSuggestion(suggestion);
+        }
+      })
+      .catch(() => {
+        // Lỗi mạng/AI: bỏ qua, không hiện cảnh báo (BR-79).
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAiBusy(false);
+      });
+  }
+
+  useEffect(() => {
+    // Chỉ chạy khi hộp vừa mở (component mới mount), AI khả dụng và ô trống.
+    if (!aiEnabled || !onSuggestCommitMessage) return;
+    if (!userTypedRef.current) runSuggestion(false);
+    // Hộp đóng (unmount) → huỷ request đang chờ.
+    return () => controllerRef.current?.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Modal title="Commit Changes" onClose={onClose} closeDisabled={submitting}>
@@ -127,7 +189,13 @@ export function CommitDialog({
           rows={3}
           placeholder={t("cd.placeholder")}
           aria-describedby="commit-message-hint"
-          onChange={(e) => onMessageChange(e.target.value)}
+          onChange={(e) => {
+            // Người dùng tự gõ → gợi ý AI không được ghi đè, và nhãn
+            // "Gợi ý bởi AI" không còn đúng nữa (5.1).
+            userTypedRef.current = true;
+            setAiSuggestion(null);
+            onMessageChange(e.target.value);
+          }}
           onKeyDown={(e) => {
             // Ctrl/Cmd+Enter gửi nhanh; Enter thường vẫn xuống dòng.
             if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSubmit) {
@@ -136,15 +204,49 @@ export function CommitDialog({
           }}
           style={styles.textarea}
         />
-        {trimmed.length === 0 && message.length > 0 ? (
+        {aiBusy ? (
+          <div id="commit-message-hint" style={styles.helper}>
+            {t("cd.aiBusy")}
+          </div>
+        ) : trimmed.length === 0 && message.length > 0 ? (
           <div id="commit-message-hint" style={styles.hint}>
             {t("cd.required")}
           </div>
         ) : (
           <div id="commit-message-hint" style={styles.helper}>
-            {trimmed.length === 0
-              ? t("cd.hintEmpty")
-              : t("cd.hintKeys")}
+            {/* UC-70: nút AI chỉ hiện khi AI khả dụng (branch đã có commit để
+                so). Ô đang chứa gợi ý của AI → nhãn + nút "Tạo lại"; người dùng
+                tự gõ → chỉ còn nút xin gợi ý mới. */}
+            {aiEnabled && onSuggestCommitMessage && aiSuggestion === message ? (
+              <>
+                {t("cd.aiLabel")}{" "}
+                <button
+                  type="button"
+                  onClick={() => runSuggestion(true)}
+                  style={styles.retryBtn}
+                >
+                  <RefreshCw size={12} className="mr-0.5 inline" />
+                  {t("cd.aiRegenerate")}
+                </button>
+              </>
+            ) : (
+              <>
+                {aiEnabled && onSuggestCommitMessage && (
+                  <button
+                    type="button"
+                    onClick={() => runSuggestion(true)}
+                    style={styles.retryBtn}
+                  >
+                    <RefreshCw size={12} className="mr-0.5 inline" />
+                    {t("cd.aiSuggest")}
+                  </button>
+                )}
+                {aiEnabled && onSuggestCommitMessage && " "}
+                {trimmed.length === 0
+                  ? t("cd.hintEmpty")
+                  : t("cd.hintKeys")}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -233,4 +335,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hint: { marginTop: 6, fontSize: 12, color: DC.danger, fontWeight: 600 },
   helper: { marginTop: 6, fontSize: 12, color: DC.textMuted },
+  retryBtn: {
+    background: "none",
+    border: "none",
+    color: DC.accent,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: "pointer",
+    padding: 2,
+    marginLeft: 4,
+    borderRadius: 4,
+  },
 };

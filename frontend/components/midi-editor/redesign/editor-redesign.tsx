@@ -59,6 +59,7 @@ import {
 import Link from "next/link";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { CommitWithAuthor, ResolvedCustomSound } from "../../../lib/api-client";
+import { suggestCommitMessage as suggestCommitMessageApi } from "../../../lib/api-client";
 import type { GridDivision, ToolMode } from "../piano-roll";
 import { PianoRoll } from "../piano-roll";
 import type { PianoRollHandle } from "../piano-roll";
@@ -385,6 +386,25 @@ export function EditorRedesign(props: EditorRedesignProps) {
     if (ok) {
       setCommitOpen(false);
       setCommitMessage("");
+    }
+  }
+
+  /**
+   * UC-70: xin gợi ý commit message từ AI.
+   *
+   * Server tự tính tóm tắt thay đổi (đừng gửi tóm tắt từ trình duyệt), nên
+   * ở đây chỉ gửi projectId + branchId. Lỗi AI / không có khoá / hết hạn
+   * mức → endpoint trả `suggestion: null` → ô nhập để trống, không báo lỗi.
+   */
+  async function suggestCommitMessage(signal: AbortSignal) {
+    try {
+      const res = await suggestCommitMessageApi(
+        { projectId, branchId: vc.branch?.id },
+        signal,
+      );
+      return res.suggestion ?? null;
+    } catch {
+      return null;
     }
   }
 
@@ -1146,6 +1166,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onMessageChange={setCommitMessage}
           onSubmit={(message) => void submitCommit(message)}
           onClose={() => setCommitOpen(false)}
+          aiEnabled={vc.headCommit !== null}
+          onSuggestCommitMessage={suggestCommitMessage}
         />
       )}
 

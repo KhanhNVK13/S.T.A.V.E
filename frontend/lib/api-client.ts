@@ -536,6 +536,26 @@ export async function getCommit(commitId: string): Promise<CommitWithAuthor> {
   return apiFetch<CommitWithAuthor>(`/commits/${commitId}`);
 }
 
+/**
+ * POST /ai/commit-message — UC-70, gợi ý 1 câu commit message từ Gemini.
+ * `suggestion` là `null` khi AI bị bỏ qua (không có đủ dữ liệu, không có
+ * thay đổi, chạm trần tần suất, lỗi/quá hạn AI) — UI để ô trống, không lỗi.
+ * `signal` để huỷ khi hộp Commit đóng. Không bao giờ chặn nút Commit.
+ */
+export async function suggestCommitMessage(
+  payload: {
+    projectId: string;
+    branchId?: string;
+  },
+  signal?: AbortSignal,
+): Promise<{ suggestion: string | null }> {
+  return apiFetch<{ suggestion: string | null }>("/ai/commit-message", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // UC-45 Compare versions — hình dạng lấy đúng từ `backend/src/commits/diff.service.ts`
 // ---------------------------------------------------------------------------

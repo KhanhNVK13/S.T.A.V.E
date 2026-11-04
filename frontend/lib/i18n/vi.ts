@@ -1158,6 +1158,11 @@ export const vi: Record<keyof typeof en, string> = {
   "cd.hintKeys": "Ctrl+Enter để tạo commit nhanh.",
   "cd.committing": "Đang commit…",
   "cd.create": "Tạo commit",
+  // UC-70 — gợi ý commit message bằng AI.
+  "cd.aiBusy": "Đang gợi ý…",
+  "cd.aiLabel": "Gợi ý bởi AI.",
+  "cd.aiSuggest": "Gợi ý bởi AI",
+  "cd.aiRegenerate": "Tạo lại",
   "help.title": "Trợ giúp",
   "help.concepts": "Khái niệm",
   "help.shortcuts": "Phím tắt",

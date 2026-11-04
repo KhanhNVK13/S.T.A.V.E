@@ -1156,6 +1156,11 @@ export const en = {
   "cd.hintKeys": "Ctrl+Enter to commit quickly.",
   "cd.committing": "Committing…",
   "cd.create": "Create commit",
+  // UC-70 — gợi ý commit message bằng AI.
+  "cd.aiBusy": "Generating a suggestion…",
+  "cd.aiLabel": "Suggested by AI.",
+  "cd.aiSuggest": "Suggest with AI",
+  "cd.aiRegenerate": "Regenerate",
   "help.title": "Help",
   "help.concepts": "Concepts",
   "help.shortcuts": "Shortcuts",
