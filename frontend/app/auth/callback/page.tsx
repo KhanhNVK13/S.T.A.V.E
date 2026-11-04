@@ -8,6 +8,7 @@ import { useAuth } from "../../../context/auth-context";
 import { authErrorMessage } from "../../../lib/error-message";
 import { supabase } from "../../../lib/supabase-browser";
 import { setFlashToast } from "../../../lib/flash-toast";
+import { safeRedirectPath } from "../../../lib/safe-redirect";
 import { validateEmail } from "../../../lib/validation";
 import { AUTH_INPUT_CLASS } from "../../../components/auth-card";
 import { Button } from "../../../components/ui/button";
@@ -123,7 +124,7 @@ export default function AuthCallbackPage() {
       if (type === "signup" || type === "email") {
         setFlashToast("Email đã được xác nhận. Chào mừng bạn đến với STAVE!");
       }
-      router.replace("/projects");
+      router.replace(safeRedirectPath(new URLSearchParams(window.location.search).get("next")));
     }
   }, [loading, session, router]);
 

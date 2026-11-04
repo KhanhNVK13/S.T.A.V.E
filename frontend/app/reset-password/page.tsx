@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase-browser";
 import { authErrorMessage } from "../../lib/error-message";
 import { apiFetch, setStoredSessionId } from "../../lib/api-client";
 import { setFlashToast } from "../../lib/flash-toast";
+import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
 import {REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
 import { useAuth } from "../../context/auth-context";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
@@ -74,7 +75,7 @@ export default function ResetPasswordPage() {
         : "Đã đặt mật khẩu mới, nhưng chưa đăng xuất được các thiết bị khác. Hãy vào Cài đặt > Bảo mật > Thiết bị đang đăng nhập để kiểm tra.",
       othersSignedOut ? "success" : "warning",
     );
-    router.push("/projects");
+    router.push(DEFAULT_AFTER_LOGIN_PATH);
   }
 
   if (loading || (!session && !waited)) {

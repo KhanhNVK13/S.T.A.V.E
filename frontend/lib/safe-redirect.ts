@@ -1,4 +1,4 @@
-export const DEFAULT_AFTER_LOGIN_PATH = "/projects";
+export const DEFAULT_AFTER_LOGIN_PATH = "/";
 
 export function safeRedirectPath(value: string | null | undefined): string {
   if (

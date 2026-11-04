@@ -53,7 +53,8 @@ export default function LoginPage() {
       setUnconfirmed(signInError.code === "email_not_confirmed");
       return;
     }
-    router.push(safeRedirectPath(new URLSearchParams(window.location.search).get("redirect")));
+    const params = new URLSearchParams(window.location.search);
+    router.push(safeRedirectPath(params.get("next") ?? params.get("redirect")));
   }
 
   async function handleResend() {
