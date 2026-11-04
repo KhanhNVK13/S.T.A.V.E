@@ -30,7 +30,6 @@ function useMedia(query: string): boolean {
 
 function routeScene(pathname: string): { mode: SpaceMode; anchor: number } {
   if (isLandingPath(pathname)) return { mode: "full", anchor: 0 };
-  if (pathname === "/explore") return { mode: "full", anchor: 1 };
   return { mode: "quiet", anchor: 0 };
 }
 

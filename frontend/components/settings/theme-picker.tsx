@@ -7,7 +7,8 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
 const PRESETS: { key: PresetThemeKey; name: string; description: string }[] = [
-  { key: "unleashed", name: "Unleashed", description: "Trung tính tím-xám, mặc định" },
+  { key: "space", name: "Space", description: "Nền tối vũ trụ, mặc định" },
+  { key: "unleashed", name: "Unleashed", description: "Trung tính tím-xám, sáng" },
   { key: "moss", name: "Moss Circuit", description: "Nền ngả xanh rêu, dịu mắt" },
   { key: "claret", name: "Claret Studio", description: "Nền ngả đỏ rượu, ấm" },
 ];
@@ -35,7 +36,7 @@ function ThemeSwatch({ preset }: { preset: PresetThemeKey }) {
  * UC-78 — chọn preset theme (miễn phí mọi gói, BR-83).
  *
  * BR-90: preset chỉ đổi màu TRANG TRÍ; accent xanh cho hành động, đỏ cảnh báo,
- * vàng "đã sửa đổi" giữ nguyên ở mọi theme — vì thế 3 ô xem trước bên dưới chỉ
+ * vàng "đã sửa đổi" giữ nguyên ở mọi theme — vì thế các ô xem trước bên dưới chỉ
  * khác nhau ở tông nền/viền/chữ, còn thanh accent thì giống hệt nhau. Đó là
  * đúng thiết kế, không phải lỗi.
  */
@@ -60,7 +61,7 @@ export function ThemePicker() {
         Theme có sẵn
       </h3>
 
-      <div className="grid gap-2.5 sm:grid-cols-3">
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {PRESETS.map((item) => {
           const selected = activePreset === item.key;
           return (
@@ -76,7 +77,7 @@ export function ThemePicker() {
               <div className="flex items-center justify-between gap-2 px-1 pb-0.5 pt-2">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold">{item.name}</p>
-                  <p className="truncate text-xs text-muted">{item.description}</p>
+                  <p className="text-xs text-muted">{item.description}</p>
                 </div>
                 {savedPreset === item.key && (
                   <span className="flex shrink-0 items-center gap-1 text-xs text-muted">
