@@ -278,6 +278,7 @@ function AdminJamManager() {
                   </span>
                 </div>
                 <span className="font-mono text-xs tabular-nums text-muted">
+                  <span className="font-sans md:hidden">{t("aj.colJoined")}: </span>
                   {e.currentParticipantCount}
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5 md:justify-end">

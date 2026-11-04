@@ -343,7 +343,10 @@ function AdminUsersTable() {
                 </div>
               </div>
               <span className="truncate font-mono text-xs text-muted">{user.maskedEmail}</span>
-              <span className="font-mono text-xs tabular-nums text-muted">{user.projectCount}</span>
+              <span className="font-mono text-xs tabular-nums text-muted">
+                <span className="font-sans md:hidden">{t("au.colProjects")}: </span>
+                {user.projectCount}
+              </span>
               <span>
                 <StatusBadge status={user.status} />
               </span>
