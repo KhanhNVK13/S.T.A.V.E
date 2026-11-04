@@ -209,7 +209,7 @@ export function JamSession({ event }: { event: JamEvent }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{event.name || t("jam.room")}</h2>
+            <h1 className="text-xl font-semibold">{event.name || t("jam.room")}</h1>
             {event.status === "active" && (
               <Badge variant="success">{t("jam.live")}</Badge>
             )}
@@ -228,9 +228,6 @@ export function JamSession({ event }: { event: JamEvent }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* UC-94 (BR-75) — the LIVE end time: the socket's `endsAt` is the
-              source of truth (an admin's `jam:end_extended` rewrite lands
-              here); the HTTP `scheduled_end_at` is only the cold-start value. */}
           <JamCountdownTimer
             endsAt={
               event.status === "active"
@@ -257,9 +254,6 @@ export function JamSession({ event }: { event: JamEvent }) {
         </Card>
       ) : socket.state ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-          {/* UC-67: the collaborative live editor (shared canvas + velocity
-              lane). Read-only when the room froze (BR-70). No commit /
-              branch / merge / history controls — BR-74. */}
           <Card className="flex h-[320px] min-h-[320px] flex-col overflow-hidden lg:h-[460px]">
             <JamLiveEditor
               notes={notes}
@@ -312,10 +306,6 @@ export function JamSession({ event }: { event: JamEvent }) {
         </Card>
       )}
 
-      {/* UC-95 / BR-70 — the event ended: either it was already `ended` on
-          load (`isEnded`) or the server just broadcast `jam:ended` /
-          `jam:event_ended` while we were in the room (`endedByServer`).
-          The room is frozen read-only; the banner steers to the result. */}
       {isEnded || socket.endedByServer ? (
         <JamFrozenBanner eventId={event.id} />
       ) : null}

@@ -14,15 +14,6 @@ import { JamSession } from "../../../components/jam/jam-session";
 import { useI18n } from "../../../context/i18n-context";
 import { tNow } from "../../../lib/i18n";
 
-/**
- * UC-66 — the shared room for one event (`/jam/[id]`).
- *
- * 1.E1: not signed in → redirect to `/login` with a return URL. 2.E1 (ended
- * event): the room still renders as read-only and points at the result view
- * (UC-68). 3.E1 (socket failure) is handled inside `JamSession` with a
- * "Không vào được phiên" + retry, never a silently blank roll.
- */
-
 function JamRoomContent({ id }: { id: string }) {
   const { t } = useI18n();
   const { user, loading } = useAuth();
@@ -32,18 +23,12 @@ function JamRoomContent({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // 1.E1 — unauthenticated: go to login and come back here. The login page
-  // reads the `redirect` search param (see `app/login/page.tsx`), matching
-  // the `projects/[id]` gate, so the user lands back on this room.
   useEffect(() => {
     if (!loading && !user) {
       router.replace(`/login?redirect=${encodeURIComponent(`/jam/${id}`)}`);
     }
   }, [loading, user, router, id]);
 
-  // Load the event (and on every "Thử lại"). No synchronous setState in the
-  // effect body: the async function only sets state after the first await —
-  // same rule this codebase applies in `projects/[id]`.
   useEffect(() => {
     let cancelled = false;
     if (loading || !user) return;
@@ -120,7 +105,7 @@ interface Props {
 export default function JamRoomPage({ params }: Props) {
   const { id } = use(params);
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
       <JamRoomContent id={id} />
     </div>
   );
