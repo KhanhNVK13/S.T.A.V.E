@@ -73,7 +73,9 @@ export function ProjectRows({
               }
             />
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 md:contents">
-              <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
+              <span className={project.genre ? undefined : "hidden md:block"}>
+                {project.genre && <Badge variant="neutral">{project.genre}</Badge>}
+              </span>
               <RowStat icon={Play} value={project.play_count} title={t("ex.statPlays")} />
               <RowStat icon={GitFork} value={project.fork_count} title={t("ex.statForks")} />
               <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
