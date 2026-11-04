@@ -493,7 +493,7 @@ export const en = {
   "profile.deleteConfirm": "Confirm permanent deletion",
   "profile.eyebrow": "Account settings",
   "profile.myProfile": "My profile",
-  "profile.lead": "Manage your public profile, account security and workspace appearance.",
+  "profile.lead": "Manage your public profile and account security.",
   "profile.securityLead": "Protect your account and control which devices have access.",
   "profile.devices": "Signed-in devices",
   "profile.devicesDesc": "See and sign out each device that has access to your account.",

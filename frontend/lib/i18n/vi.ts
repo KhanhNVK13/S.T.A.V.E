@@ -495,7 +495,7 @@ export const vi: Record<keyof typeof en, string> = {
   "profile.deleteConfirm": "Xác nhận xoá vĩnh viễn",
   "profile.eyebrow": "Cài đặt tài khoản",
   "profile.myProfile": "Hồ sơ của tôi",
-  "profile.lead": "Quản lý hồ sơ công khai, bảo mật tài khoản và giao diện làm việc.",
+  "profile.lead": "Quản lý hồ sơ công khai và bảo mật tài khoản.",
   "profile.securityLead": "Bảo vệ tài khoản và kiểm soát các thiết bị đang truy cập.",
   "profile.devices": "Thiết bị đang đăng nhập",
   "profile.devicesDesc": "Xem và đăng xuất từng thiết bị đang truy cập tài khoản.",
