@@ -18,6 +18,8 @@ import { summarizeChanges } from "./change-summary";
 import type { ChangeCount } from "./change-summary";
 import { Modal, ModalActions, ModalError, modalButtonStyles } from "./modal";
 import { DC } from "./tokens";
+import { useI18n } from "../../../context/i18n-context";
+import { tNow } from "../../../lib/i18n";
 
 interface CommitDialogProps {
   /** Bản nháp đang mở trên editor — đúng thứ sắp được ghi thành commit. */
@@ -34,10 +36,10 @@ interface CommitDialogProps {
 
 function countLabel(count: ChangeCount): string {
   const parts: string[] = [];
-  if (count.added) parts.push(`+${count.added} thêm`);
-  if (count.removed) parts.push(`−${count.removed} xoá`);
-  if (count.modified) parts.push(`${count.modified} sửa`);
-  return parts.length > 0 ? parts.join(" · ") : "không đổi";
+  if (count.added) parts.push(tNow("cd.added", { n: count.added }));
+  if (count.removed) parts.push(tNow("cd.removed", { n: count.removed }));
+  if (count.modified) parts.push(tNow("cd.modified", { n: count.modified }));
+  return parts.length > 0 ? parts.join(" · ") : tNow("cd.unchanged");
 }
 
 export function CommitDialog({
@@ -50,6 +52,7 @@ export function CommitDialog({
   onSubmit,
   onClose,
 }: CommitDialogProps) {
+  const { t } = useI18n();
   const summary = headSnapshot ? summarizeChanges(headSnapshot, snapshot) : null;
   const trimmed = message.trim();
   // BR-39: 1–200 ký tự. Server vẫn validate lại; chặn ở đây chỉ để đỡ 1 vòng mạng.
@@ -64,16 +67,14 @@ export function CommitDialog({
       <div style={styles.summaryBox}>
         {summary === null ? (
           <>
-            <div style={styles.summaryTitle}>Bản ghi phiên bản đầu tiên</div>
+            <div style={styles.summaryTitle}>{t("cd.firstTitle")}</div>
             <div style={styles.summaryLine}>
-              Branch này chưa có commit nào — toàn bộ bản nháp hiện tại
-              ({snapshot.tracks.length} track · {snapshot.notes.length} note)
-              sẽ được ghi lại làm mốc đầu tiên.
+              {t("cd.firstBody", { tracks: snapshot.tracks.length, notes: snapshot.notes.length })}
             </div>
           </>
         ) : (
           <>
-            <div style={styles.summaryTitle}>Thay đổi so với commit gần nhất</div>
+            <div style={styles.summaryTitle}>{t("cd.changesTitle")}</div>
             <div style={styles.summaryRow}>
               <span style={styles.summaryKey}>Note</span>
               <span style={styles.summaryValue}>{countLabel(summary.notes)}</span>
@@ -84,18 +85,16 @@ export function CommitDialog({
             </div>
             {summary.metaChanged && (
               <div style={styles.summaryRow}>
-                <span style={styles.summaryKey}>Nhịp/Tempo</span>
-                <span style={styles.summaryValue}>có thay đổi</span>
+                <span style={styles.summaryKey}>{t("cd.timeTempo")}</span>
+                <span style={styles.summaryValue}>{t("cd.hasChanges")}</span>
               </div>
             )}
             <div style={styles.summaryTotal}>
-              Tổng {summary.total} thay đổi · bản nháp hiện có{" "}
-              {snapshot.tracks.length} track · {snapshot.notes.length} note
+              {t("cd.total", { total: summary.total, tracks: snapshot.tracks.length, notes: snapshot.notes.length })}
             </div>
             {summary.total === 0 && (
               <div style={styles.summaryWarn}>
-                Bản nháp chưa có thay đổi nào so với commit gần nhất — hãy sửa
-                bản nhạc trước khi commit.
+                {t("cd.noChanges")}
               </div>
             )}
           </>
@@ -106,7 +105,7 @@ export function CommitDialog({
       <div>
         <div style={styles.labelRow}>
           <label htmlFor="commit-message" style={styles.label}>
-            Nội dung commit
+            {t("cd.message")}
           </label>
           <span
             style={{
@@ -126,7 +125,7 @@ export function CommitDialog({
           value={message}
           maxLength={COMMIT_MESSAGE_MAX_LENGTH}
           rows={3}
-          placeholder="Mô tả thay đổi của phiên bản này…"
+          placeholder={t("cd.placeholder")}
           aria-describedby="commit-message-hint"
           onChange={(e) => onMessageChange(e.target.value)}
           onKeyDown={(e) => {
@@ -139,13 +138,13 @@ export function CommitDialog({
         />
         {trimmed.length === 0 && message.length > 0 ? (
           <div id="commit-message-hint" style={styles.hint}>
-            Nội dung commit không được để trống.
+            {t("cd.required")}
           </div>
         ) : (
           <div id="commit-message-hint" style={styles.helper}>
             {trimmed.length === 0
-              ? "Nhập nội dung để bật nút Tạo commit."
-              : "Ctrl+Enter để tạo commit nhanh."}
+              ? t("cd.hintEmpty")
+              : t("cd.hintKeys")}
           </div>
         )}
       </div>
@@ -164,7 +163,7 @@ export function CommitDialog({
             cursor: submitting ? "not-allowed" : "pointer",
           }}
         >
-          Huỷ
+          {t("ui.cancel")}
         </button>
         <button
           type="button"
@@ -177,7 +176,7 @@ export function CommitDialog({
           }}
         >
           <GitCommitHorizontal size={15} />
-          {submitting ? "Đang commit…" : "Tạo commit"}
+          {submitting ? t("cd.committing") : t("cd.create")}
         </button>
       </ModalActions>
     </Modal>

@@ -24,6 +24,8 @@ import { formatRelativeTime } from "../../../lib/format-date";
 import { DC, DC_SIZE } from "./tokens";
 import type { VersionControl } from "./use-version-control";
 import { formatAuthorName } from "../../../lib/format-name";
+import { useI18n } from "../../../context/i18n-context";
+import type { TKey } from "../../../lib/i18n";
 
 interface HistoryPanelProps {
   /** Tên branch đang thao tác — lấy từ branch mặc định thật của project. */
@@ -36,11 +38,11 @@ interface HistoryPanelProps {
   onRequestRestore: (commit: CommitWithAuthor) => void;
 }
 
-const SAVE_LABEL: Record<HistoryPanelProps["saveStatus"], string> = {
-  saved: "Đã lưu nháp",
-  saving: "Đang lưu…",
-  unsaved: "Có thay đổi chưa lưu",
-  error: "Không lưu được",
+const SAVE_LABEL: Record<HistoryPanelProps["saveStatus"], TKey> = {
+  saved: "hp.saved",
+  saving: "hp.saving",
+  unsaved: "hp.unsaved",
+  error: "hp.error",
 };
 
 const SAVE_COLOR: Record<HistoryPanelProps["saveStatus"], string> = {
@@ -62,6 +64,7 @@ export function HistoryPanel({
   vc,
   onRequestRestore,
 }: HistoryPanelProps) {
+  const { t, tx } = useI18n();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [taggingId, setTaggingId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
@@ -98,7 +101,7 @@ export function HistoryPanel({
       <div style={styles.header}>
         <div style={styles.title}>Project History</div>
         {/* Branch Management (UC-47+) chưa xây → chip tĩnh, không làm dropdown giả. */}
-        <div style={styles.branchChip} title="Branch mặc định của project">
+        <div style={styles.branchChip} title={t("hp.branchTitle")}>
           <GitBranch size={15} color={DC.accent} />
           <span style={styles.branchName}>{branchName}</span>
         </div>
@@ -111,10 +114,10 @@ export function HistoryPanel({
         <div style={styles.draftCard}>
           <div style={styles.draftCardHead}>
             <span style={{ ...styles.statusDot, background: SAVE_COLOR[saveStatus] }} />
-            <span style={styles.draftCardTitle}>Bản nháp hiện tại</span>
+            <span style={styles.draftCardTitle}>{t("hp.draft")}</span>
           </div>
           <div style={styles.draftCardMeta}>
-            {SAVE_LABEL[saveStatus]} · {trackCount} track · {noteCount} note
+            {t("hp.draftMeta", { status: t(SAVE_LABEL[saveStatus]), tracks: trackCount, notes: noteCount })}
           </div>
         </div>
       </div>
@@ -123,19 +126,19 @@ export function HistoryPanel({
       <div style={styles.listWrap}>
         {vc.branchError ? (
           <div style={styles.stateBox}>
-            <div style={styles.stateTitle}>Không tải được branch</div>
+            <div style={styles.stateTitle}>{t("hp.branchFail")}</div>
             <p style={styles.stateText}>{vc.branchError}</p>
           </div>
         ) : vc.branchLoading || (vc.historyLoading && vc.commits.length === 0) ? (
           <div style={styles.stateBox}>
-            <p style={styles.stateText}>Đang tải lịch sử phiên bản…</p>
+            <p style={styles.stateText}>{t("hp.loading")}</p>
           </div>
         ) : vc.historyError ? (
           <div style={styles.stateBox}>
-            <div style={styles.stateTitle}>Không tải được lịch sử</div>
+            <div style={styles.stateTitle}>{t("hp.historyFail")}</div>
             <p style={styles.stateText}>{vc.historyError}</p>
             <button onClick={vc.reloadHistory} style={styles.retryBtn}>
-              Thử lại
+              {t("ui.retry")}
             </button>
           </div>
         ) : vc.commits.length === 0 ? (
@@ -143,11 +146,9 @@ export function HistoryPanel({
             <div style={styles.emptyIcon}>
               <GitCommitVertical size={22} color={DC.textMuted} />
             </div>
-            <div style={styles.emptyTitle}>Chưa có phiên bản nào</div>
+            <div style={styles.emptyTitle}>{t("hp.emptyTitle")}</div>
             <p style={styles.emptyText}>
-              Bấm <strong>Commit Changes</strong> ở thanh trên để ghi lại phiên
-              bản đầu tiên của bản nháp này. Mỗi commit là một mốc bạn có thể
-              quay lại bất cứ lúc nào.
+              {tx("hp.emptyBody", { commit: <strong>Commit Changes</strong> })}
             </p>
           </div>
         ) : (
@@ -169,11 +170,11 @@ export function HistoryPanel({
                   <button
                     onClick={() => setExpandedId(expanded ? null : commit.id)}
                     style={styles.commitHeadBtn}
-                    title="Xem chi tiết phiên bản"
+                    title={t("hp.detailsTitle")}
                   >
                     <div style={styles.commitTopRow}>
                       <span style={styles.commitMessage}>{commit.message}</span>
-                      {isHead && <span style={styles.headBadge}>HIỆN TẠI</span>}
+                      {isHead && <span style={styles.headBadge}>{t("hp.current")}</span>}
                     </div>
                     <div style={styles.commitMeta}>
                       <span>{authorLabel(commit)}</span>
@@ -197,11 +198,9 @@ export function HistoryPanel({
                         </span>
                       </div>
                       <div style={styles.detailRow}>
-                        <span style={styles.detailKey}>NỘI DUNG</span>
+                        <span style={styles.detailKey}>{t("hp.contents")}</span>
                         <span style={styles.detailValue}>
-                          {commit.snapshot.tracks.length} track ·{" "}
-                          {commit.snapshot.notes.length} note ·{" "}
-                          {commit.snapshot.meta.tempo} BPM
+                          {t("hp.contentsValue", { tracks: commit.snapshot.tracks.length, notes: commit.snapshot.notes.length, tempo: commit.snapshot.meta.tempo })}
                         </span>
                       </div>
 
@@ -232,7 +231,7 @@ export function HistoryPanel({
                           )}
                           <div style={styles.tagActions}>
                             <button onClick={closeTagInput} style={styles.smallGhostBtn}>
-                              Huỷ
+                              {t("ui.cancel")}
                             </button>
                             <button
                               onClick={() => void submitTag(commit.id)}
@@ -243,7 +242,7 @@ export function HistoryPanel({
                                   vc.tagging || tagDraft.trim().length === 0 ? 0.5 : 1,
                               }}
                             >
-                              {vc.tagging ? "Đang lưu…" : "Lưu tag"}
+                              {vc.tagging ? t("hp.saving") : t("hp.saveTag")}
                             </button>
                           </div>
                         </div>
@@ -252,10 +251,10 @@ export function HistoryPanel({
                           <button
                             onClick={() => openTagInput(commit)}
                             style={styles.smallGhostBtn}
-                            title="Đặt tên gợi nhớ cho phiên bản này"
+                            title={t("hp.tagTitle")}
                           >
                             <Tag size={12} />
-                            {tagName ? "Đổi tag" : "Gắn tag"}
+                            {tagName ? t("hp.renameTag") : t("hp.addTag")}
                           </button>
                           <button
                             onClick={() => onRequestRestore(commit)}
@@ -267,12 +266,12 @@ export function HistoryPanel({
                             }}
                             title={
                               isHead
-                                ? "Đây đang là phiên bản hiện tại của branch"
-                                : "Khôi phục bản nháp về phiên bản này"
+                                ? t("hp.isCurrent")
+                                : t("hp.restoreTitle")
                             }
                           >
                             <History size={12} />
-                            Khôi phục
+                            {t("chist.restore")}
                           </button>
                         </div>
                       )}
@@ -284,8 +283,7 @@ export function HistoryPanel({
 
             {vc.total > vc.commits.length && (
               <div style={styles.moreNote}>
-                Đang hiện {vc.commits.length} phiên bản mới nhất trên tổng số{" "}
-                {vc.total}.
+                {t("hp.showingLatest", { n: vc.commits.length, total: vc.total })}
               </div>
             )}
           </div>

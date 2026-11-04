@@ -15,6 +15,7 @@ import type { CommitWithAuthor } from "../../../lib/api-client";
 import { formatRelativeTime } from "../../../lib/format-date";
 import { Modal, ModalActions, ModalError, modalButtonStyles } from "./modal";
 import { DC } from "./tokens";
+import { useI18n } from "../../../context/i18n-context";
 
 interface RestoreDialogProps {
   commit: CommitWithAuthor;
@@ -36,9 +37,10 @@ export function RestoreDialog({
   onConfirm,
   onClose,
 }: RestoreDialogProps) {
+  const { t, tx } = useI18n();
   return (
     <Modal
-      title="Khôi phục phiên bản này?"
+      title={t("rd.title")}
       onClose={onClose}
       closeDisabled={submitting}
     >
@@ -50,28 +52,26 @@ export function RestoreDialog({
           <span>{formatRelativeTime(commit.created_at)}</span>
           <span>·</span>
           <span>
-            {commit.snapshot.tracks.length} track · {commit.snapshot.notes.length} note
+            {t("rd.meta", { tracks: commit.snapshot.tracks.length, notes: commit.snapshot.notes.length })}
           </span>
         </div>
       </div>
 
       <ul style={styles.list}>
         <li>
-          Lịch sử <strong>không bị xoá</strong>: hệ thống tạo thêm 1 commit mới
-          mang đúng nội dung của phiên bản này.
+          {tx("rd.keep", { strong: <strong>{t("rd.keepStrong")}</strong> })}
         </li>
         <li>
-          Bản nháp đang mở sẽ được thay bằng nội dung của phiên bản này.
+          {t("rd.replace")}
         </li>
       </ul>
 
       {(hasUnsavedChanges || uncommittedCount > 0) && (
         <div role="alert" style={styles.warn}>
           {uncommittedCount > 0
-            ? `Bản nháp đang có ${uncommittedCount} thay đổi chưa commit`
-            : "Bản nháp đang có thay đổi chưa lưu"}{" "}
-          — khôi phục sẽ ghi đè và những thay đổi này không lấy lại được. Muốn
-          giữ lại, hãy huỷ và commit trước.
+            ? t("rd.warnUncommitted", { n: uncommittedCount })
+            : t("rd.warnUnsaved")}{" "}
+          {t("rd.warnTail")}
         </div>
       )}
 
@@ -88,7 +88,7 @@ export function RestoreDialog({
             cursor: submitting ? "not-allowed" : "pointer",
           }}
         >
-          Huỷ
+          {t("ui.cancel")}
         </button>
         <button
           type="button"
@@ -101,7 +101,7 @@ export function RestoreDialog({
           }}
         >
           <History size={15} />
-          {submitting ? "Đang khôi phục…" : "Khôi phục"}
+          {submitting ? t("rd.restoring") : t("chist.restore")}
         </button>
       </ModalActions>
     </Modal>

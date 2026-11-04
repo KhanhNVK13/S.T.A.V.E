@@ -13,6 +13,7 @@
  * CHƯA làm ở đây (cố ý): UC-45 Compare/Diff. UC-47/49/51/52/86 (tạo, xem,
  * merge, xoá nhánh) nằm ở trang tổng quan project, không nằm trong editor.
  */
+import { tNow } from "../../../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import {
@@ -169,7 +170,7 @@ export function useVersionControl({
       setTotal(page.total);
     } catch (err) {
       if (!mountedRef.current) return;
-      setHistoryError(apiErrorMessage(err, "Không tải được lịch sử phiên bản"));
+      setHistoryError(apiErrorMessage(err, tNow("vc.historyFail")));
     } finally {
       if (mountedRef.current) setHistoryLoading(false);
     }
@@ -196,7 +197,7 @@ export function useVersionControl({
           list[0] ??
           null;
         if (!target) {
-          setBranchError("Project chưa có branch nào");
+          setBranchError(tNow("vc.noBranch"));
           return;
         }
         setBranch(target);
@@ -205,7 +206,7 @@ export function useVersionControl({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setBranchError(apiErrorMessage(err, "Không tải được thông tin branch"));
+        setBranchError(apiErrorMessage(err, tNow("vc.branchFail")));
       })
       .finally(() => {
         if (!cancelled) setBranchLoading(false);
@@ -242,7 +243,7 @@ export function useVersionControl({
   const commit = useCallback(
     async (message: string): Promise<boolean> => {
       if (!branch) {
-        setCommitError("Chưa xác định được branch của project");
+        setCommitError(tNow("vc.branchUnknown"));
         return false;
       }
       setCommitting(true);
@@ -265,7 +266,7 @@ export function useVersionControl({
           );
         }
         await loadHistory(branch.id);
-        showNotice("Đã tạo commit mới");
+        showNotice(tNow("vc.committed"));
         return true;
       } catch (err) {
         if (err instanceof ApiError && err.status === 409) {
@@ -274,7 +275,7 @@ export function useVersionControl({
           await loadHistory(branch.id);
         }
         if (mountedRef.current) {
-          setCommitError(apiErrorMessage(err, "Không tạo được commit"));
+          setCommitError(apiErrorMessage(err, tNow("vc.commitFail")));
         }
         return false;
       } finally {
@@ -298,11 +299,11 @@ export function useVersionControl({
             prev.map((c) => (c.id === commitId ? { ...c, tags: [created] } : c)),
           );
         }
-        showNotice("Đã gắn tag " + created.name);
+        showNotice(tNow("vc.tagged", { name: created.name }));
         return true;
       } catch (err) {
         if (mountedRef.current) {
-          setTagError(apiErrorMessage(err, "Không gắn được tag"));
+          setTagError(apiErrorMessage(err, tNow("vc.tagFail")));
         }
         return false;
       } finally {
@@ -316,7 +317,7 @@ export function useVersionControl({
   const restore = useCallback(
     async (commitId: string): Promise<boolean> => {
       if (!branch) {
-        setRestoreError("Chưa xác định được branch của project");
+        setRestoreError(tNow("vc.branchUnknown"));
         return false;
       }
       setRestoring(true);
@@ -334,11 +335,11 @@ export function useVersionControl({
         // (RPC create_commit_atomic) — đồng bộ editor theo response thật.
         onSnapshotRestored(created.snapshot);
         await loadHistory(branch.id);
-        showNotice("Đã khôi phục — tạo commit mới, lịch sử cũ giữ nguyên");
+        showNotice(tNow("vc.restored"));
         return true;
       } catch (err) {
         if (mountedRef.current) {
-          setRestoreError(apiErrorMessage(err, "Không khôi phục được phiên bản này"));
+          setRestoreError(apiErrorMessage(err, tNow("vc.restoreFail")));
         }
         return false;
       } finally {
@@ -352,7 +353,7 @@ export function useVersionControl({
   const switchTo = useCallback(
     async (targetBranchId: string): Promise<boolean> => {
       if (!branch) {
-        setSwitchError("Chưa xác định được branch hiện tại");
+        setSwitchError(tNow("vc.currentBranchUnknown"));
         return false;
       }
       // Đã ở đúng branch đó — không gọi API (backend cũng sẽ lưu đè draft một
@@ -397,13 +398,13 @@ export function useVersionControl({
           );
         }
         await loadHistory(targetBranchId);
-        showNotice(`Đã chuyển sang nhánh ${result.branch.name}`);
+        showNotice(tNow("vc.switched", { name: result.branch.name }));
         return true;
       } catch (err) {
         if (isDraftStaleError(err)) onDraftStale();
         else resyncDraftVersion();
         if (mountedRef.current) {
-          setSwitchError(apiErrorMessage(err, "Không chuyển được nhánh"));
+          setSwitchError(apiErrorMessage(err, tNow("vc.switchFail")));
         }
         return false;
       } finally {

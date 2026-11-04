@@ -3,28 +3,15 @@
 import React from "react";
 import { Modal } from "./modal";
 import { DC } from "./tokens";
+import { useI18n } from "../../../context/i18n-context";
+import type { TKey } from "../../../lib/i18n";
 
-const CONCEPTS: { term: string; text: string }[] = [
-  {
-    term: "Bản nháp",
-    text: "Bản nhạc bạn đang sửa. Tự lưu sau vài giây, nhưng chưa phải là một phiên bản.",
-  },
-  {
-    term: "Commit",
-    text: "Chụp lại bản nháp thành một phiên bản có tên, giống \"đặt tên phiên bản\" trong Google Docs. Có thể quay lại bất cứ lúc nào.",
-  },
-  {
-    term: "Nhánh",
-    text: "Một bản làm thử song song với main — ví dụ thử phối bè bass khác mà không đụng vào bản chính.",
-  },
-  {
-    term: "Hợp nhất",
-    text: "Đưa các commit của một nhánh vào main khi bạn hài lòng. Nếu cùng một nốt bị sửa khác nhau ở hai nhánh, bạn chọn giữ bên nào.",
-  },
-  {
-    term: "Khôi phục",
-    text: "Đưa bản nháp về một phiên bản cũ bằng cách tạo commit mới — lịch sử không bị xoá.",
-  },
+const CONCEPTS: { term: TKey | "Commit"; text: TKey }[] = [
+  { term: "help.draft", text: "help.draftText" },
+  { term: "Commit", text: "help.commitText" },
+  { term: "help.branch", text: "help.branchText" },
+  { term: "help.merge", text: "help.mergeText" },
+  { term: "help.restore", text: "help.restoreText" },
 ];
 
 function isMac() {
@@ -32,38 +19,39 @@ function isMac() {
 }
 
 export function HelpDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
   const mod = isMac() ? "⌘" : "Ctrl";
   const shortcuts: { keys: string[][]; action: string }[] = [
-    { keys: [["Space"]], action: "Phát / tạm dừng" },
-    { keys: [["Delete"], ["Backspace"]], action: "Xoá các nốt đang chọn" },
-    { keys: [["Esc"]], action: "Bỏ chọn nốt, đóng hộp thoại" },
-    { keys: [[mod, "Z"]], action: "Hoàn tác" },
-    { keys: [[mod, "Shift", "Z"], [mod, "Y"]], action: "Làm lại" },
-    { keys: [[mod, "A"]], action: "Chọn tất cả nốt" },
-    { keys: [[mod, "C"], [mod, "X"], [mod, "V"]], action: "Sao chép / cắt / dán nốt" },
-    { keys: [["Shift", "bấm"]], action: "Thêm hoặc bớt một nốt khỏi vùng chọn" },
-    { keys: [["Chuột phải"]], action: "Xoá nốt dưới con trỏ" },
-    { keys: [["↑"], ["↓"]], action: "Tăng / giảm BPM khi đang ở ô BPM" },
-    { keys: [[mod, "Enter"]], action: "Tạo commit (trong hộp Commit)" },
-    { keys: [["?"]], action: "Mở trợ giúp này" },
+    { keys: [["Space"]], action: t("help.sc.play") },
+    { keys: [["Delete"], ["Backspace"]], action: t("help.sc.delete") },
+    { keys: [["Esc"]], action: t("help.sc.esc") },
+    { keys: [[mod, "Z"]], action: t("help.sc.undo") },
+    { keys: [[mod, "Shift", "Z"], [mod, "Y"]], action: t("help.sc.redo") },
+    { keys: [[mod, "A"]], action: t("help.sc.selectAll") },
+    { keys: [[mod, "C"], [mod, "X"], [mod, "V"]], action: t("help.sc.clipboard") },
+    { keys: [["Shift", t("help.keyClick")]], action: t("help.sc.shiftClick") },
+    { keys: [[t("help.keyRightClick")]], action: t("help.sc.rightClick") },
+    { keys: [["↑"], ["↓"]], action: t("help.sc.bpm") },
+    { keys: [[mod, "Enter"]], action: t("help.sc.commit") },
+    { keys: [["?"]], action: t("help.sc.help") },
   ];
 
   return (
-    <Modal title="Trợ giúp" width={620} onClose={onClose}>
+    <Modal title={t("help.title")} width={620} onClose={onClose}>
       <section>
-        <h3 style={styles.sectionTitle}>Khái niệm</h3>
+        <h3 style={styles.sectionTitle}>{t("help.concepts")}</h3>
         <dl style={styles.concepts}>
           {CONCEPTS.map((c) => (
             <div key={c.term} style={styles.conceptRow}>
-              <dt style={styles.term}>{c.term}</dt>
-              <dd style={styles.def}>{c.text}</dd>
+              <dt style={styles.term}>{c.term === "Commit" ? c.term : t(c.term)}</dt>
+              <dd style={styles.def}>{t(c.text)}</dd>
             </div>
           ))}
         </dl>
       </section>
 
       <section>
-        <h3 style={styles.sectionTitle}>Phím tắt</h3>
+        <h3 style={styles.sectionTitle}>{t("help.shortcuts")}</h3>
         <table style={styles.table}>
           <tbody>
             {shortcuts.map((s) => (
@@ -71,7 +59,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 <td style={styles.keysCell}>
                   {s.keys.map((combo, i) => (
                     <React.Fragment key={i}>
-                      {i > 0 && <span style={styles.or}>hoặc</span>}
+                      {i > 0 && <span style={styles.or}>{t("help.or")}</span>}
                       {combo.map((k, j) => (
                         <React.Fragment key={k}>
                           {j > 0 && <span style={styles.plus}>+</span>}
