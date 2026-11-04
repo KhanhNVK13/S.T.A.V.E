@@ -151,7 +151,7 @@ interface Props {
 export default function JamResultPage({ params }: Props) {
   const { id } = use(params);
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
       <ResultContent id={id} />
     </div>
   );

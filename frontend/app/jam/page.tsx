@@ -10,6 +10,7 @@ import type {
 import { getJamEvents } from "../../lib/api-jam";
 import { useApiResource } from "../../lib/use-api-resource";
 import { formatDateTime } from "../../lib/format-date";
+import { RowHeader, RowItem, RowList } from "../../components/ui/row-list";
 import { PageHeader } from "../../components/ui/page-header";
 import { EmptyState } from "../../components/ui/empty-state";
 import { Badge } from "../../components/ui/badge";
@@ -17,14 +18,9 @@ import { Button } from "../../components/ui/button";
 import { Tabs } from "../../components/ui/tabs";
 import { useI18n } from "../../context/i18n-context";
 
-/**
- * UC-66 — the Community Jam listing. Events are grouped into "Đang diễn ra"
- * (active), "Sắp diễn ra" (scheduled) and "Đã kết thúc" (ended/cancelled).
- * A card carries the name, a countdown / opening time, the live participant
- * count, and a "Tham gia ngay" entry into the shared room.
- */
-
 type Group = "active" | "scheduled" | "ended";
+
+const COLS = "md:grid-cols-[minmax(0,1fr)_minmax(0,220px)_120px_auto]";
 
 function groupOf(event: JamEventListItem): Group {
   const s = event.status as JamEventStatus;
@@ -33,83 +29,66 @@ function groupOf(event: JamEventListItem): Group {
   return "ended";
 }
 
-function EventCard({ event }: { event: JamEventListItem }) {
+function EventRow({ event }: { event: JamEventListItem }) {
   const { t } = useI18n();
-  const joined =
-    event.currentParticipantCount > 0 ? (
-      <span className="flex items-center gap-1.5 text-sm text-muted">
-        <Users className="h-4 w-4" />
-        {event.currentParticipantCount}
-        <span>/ {event.max_participants}</span>
-      </span>
+  const group = groupOf(event);
+
+  const statusBadge =
+    group === "active" ? (
+      <Badge variant="success">
+        {event.scheduled_end_at
+          ? t("jam.endsAt", { when: formatDateTime(event.scheduled_end_at) })
+          : t("jam.live")}
+      </Badge>
+    ) : group === "scheduled" ? (
+      <Badge variant="info">
+        <CalendarClock aria-hidden="true" className="h-3.5 w-3.5" />
+        {event.scheduled_start_at
+          ? t("jam.opensAt", { when: formatDateTime(event.scheduled_start_at) })
+          : t("jam.upcoming")}
+      </Badge>
     ) : (
-      <span className="flex items-center gap-1.5 text-sm text-muted">
-        <Users className="h-4 w-4" />
-        {t("jam.waiting")}
-      </span>
+      <Badge variant="neutral">{t("jam.ended")}</Badge>
     );
 
-  const statusLine = (() => {
-    if (groupOf(event) === "active") {
-      return (
-        <Badge variant="success">
-          {event.scheduled_end_at
-            ? t("jam.endsAt", { when: formatDateTime(event.scheduled_end_at) })
-            : t("jam.live")}
-        </Badge>
-      );
-    }
-    if (groupOf(event) === "scheduled") {
-      return (
-        <Badge variant="info">
-          <CalendarClock className="h-3.5 w-3.5" />
-          {event.scheduled_start_at
-            ? t("jam.opensAt", { when: formatDateTime(event.scheduled_start_at) })
-            : t("jam.upcoming")}
-        </Badge>
-      );
-    }
-    return <Badge variant="neutral">{t("jam.ended")}</Badge>;
-  })();
-
   return (
-    <div className="flex flex-col gap-3 overflow-hidden rounded-card border border-border bg-surface p-4">
-      <div
-        aria-hidden="true"
-        className="-mx-4 -mt-4 h-[21px] bg-[repeating-linear-gradient(to_bottom,transparent_0_4px,var(--border)_4px_5px)]"
-      />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-base font-semibold">
-            {event.name || t("jam.room")}
-          </span>
-          {statusLine}
-        </div>
-      </div>
-
-      {event.description && (
-        <p className="line-clamp-2 text-sm text-muted">{event.description}</p>
-      )}
-
-      <div className="mt-auto flex items-center justify-between gap-2">
-        {joined}
-        <Link href={`/jam/${event.id}`}>
-          <Button>{t("jam.joinNow")}</Button>
+    <RowItem>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <Link
+          href={`/jam/${event.id}`}
+          className="truncate text-[13px] font-semibold hover:text-accent hover:underline"
+        >
+          {event.name || t("jam.room")}
         </Link>
+        {event.description && <span className="line-clamp-2 text-xs text-muted">{event.description}</span>}
       </div>
-    </div>
+      <div className="min-w-0">{statusBadge}</div>
+      <span className="flex items-center gap-1.5 font-mono text-xs text-muted">
+        <Users aria-hidden="true" className="h-3.5 w-3.5" />
+        {event.currentParticipantCount > 0
+          ? `${event.currentParticipantCount} / ${event.max_participants}`
+          : t("jam.waiting")}
+      </span>
+      <Link href={`/jam/${event.id}`} className="md:justify-self-end">
+        <Button variant={group === "active" ? "primary" : "secondary"}>{t("jam.joinNow")}</Button>
+      </Link>
+    </RowItem>
   );
 }
 
-function SkeletonCard() {
+function ListSkeleton() {
   return (
-    <div className="animate-pulse rounded-card border border-border bg-surface p-4">
-      <div className="mb-3 h-4 w-1/2 rounded bg-surface-subtle" />
-      <div className="h-3 w-2/3 rounded bg-surface-subtle" />
-      <div className="mt-5 flex justify-end">
-        <div className="h-8 w-28 rounded-md bg-surface-subtle" />
-      </div>
-    </div>
+    <RowList>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex min-h-[68px] animate-pulse flex-col justify-center gap-1.5 border-b border-border px-3.5 py-3 last:border-b-0"
+        >
+          <div className="h-3 w-1/3 rounded bg-surface-subtle" />
+          <div className="h-2.5 w-1/2 rounded bg-surface-subtle" />
+        </div>
+      ))}
+    </RowList>
   );
 }
 
@@ -118,9 +97,6 @@ export function JamListContent() {
   const [tab, setTab] = useState<Group>("active");
   const [nonce, setNonce] = useState(0);
 
-  // `useApiResource` derives `loading` without any setState in an effect body
-  // (the `react-hooks/set-state-in-effect` rule). Bumping `nonce` is the retry
-  // lever: "Thử lại" / "Làm mới" just bump it and the resource re-fetches.
   const { data: items, loading, error } = useApiResource<JamEventListItem[]>(
     () => getJamEvents(),
     [nonce],
@@ -136,7 +112,7 @@ export function JamListContent() {
   const visible = list.filter((e) => groupOf(e) === tab);
 
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
       <PageHeader
         breadcrumbs={[{ label: t("jam.crumb") }]}
         title={t("jam.title")}
@@ -153,16 +129,12 @@ export function JamListContent() {
             description={error}
             action={
               <Button variant="secondary" onClick={() => setNonce((n) => n + 1)}>
-                <RefreshCw className="h-3.5 w-3.5" /> {t("ui.retry")}
+                <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> {t("ui.retry")}
               </Button>
             }
           />
         ) : loading ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
+          <ListSkeleton />
         ) : visible.length === 0 ? (
           <EmptyState
             icon={Music4}
@@ -170,16 +142,22 @@ export function JamListContent() {
             description={t("jam.noneBody")}
             action={
               <Button variant="ghost" onClick={() => setNonce((n) => n + 1)}>
-                <RefreshCw className="h-3.5 w-3.5" /> {t("jam.refresh")}
+                <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> {t("jam.refresh")}
               </Button>
             }
           />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <RowList cols={COLS}>
+            <RowHeader>
+              <span>{t("jamPage.colEvent")}</span>
+              <span>{t("jamPage.colStatus")}</span>
+              <span>{t("jamPage.colPeople")}</span>
+              <span />
+            </RowHeader>
             {visible.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventRow key={event.id} event={event} />
             ))}
-          </div>
+          </RowList>
         )}
       </div>
     </div>
