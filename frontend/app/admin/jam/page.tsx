@@ -35,7 +35,7 @@ import { tNow, type TKey } from "../../../lib/i18n";
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: JamEventStatus }) {
-  const { t, tx } = useI18n();
+  const { t } = useI18n();
   if (status === "active")
     return <Badge variant="success">{t("aj.live")}</Badge>;
   if (status === "scheduled")
@@ -118,7 +118,7 @@ function CancelJamDialog({
 const JAM_COLS = "md:grid-cols-[minmax(0,1fr)_120px_190px_88px_auto]";
 
 function AdminJamManager() {
-  const { t, tx } = useI18n();
+  const { t } = useI18n();
   const [tab, setTab] = useState<JamEventStatus | "">("");
   const [events, setEvents] = useState<JamEventListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,7 +379,7 @@ function AdminJamManager() {
 }
 
 export default function AdminJamPage() {
-  const { t, tx } = useI18n();
+  const { t } = useI18n();
   const { profile, loading } = useAuth();
 
   return (

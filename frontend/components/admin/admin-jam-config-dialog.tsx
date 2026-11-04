@@ -67,7 +67,7 @@ export function AdminJamConfigDialog({
     if (!startingProjectId) return t("ac.noProject");
     const found = projects.find((p) => p.id === startingProjectId);
     return found ? found.name : startingProjectId.slice(0, 8);
-  }, [startingProjectId, projects]);
+  }, [startingProjectId, projects, t]);
 
   const validate = (): boolean => {
     const nextErrors: Record<string, string> = {};

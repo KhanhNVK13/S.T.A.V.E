@@ -50,9 +50,10 @@ const SUSPEND_CATEGORIES = [
 ] as const satisfies readonly { id: string; label: TKey }[];
 
 function StatusBadge({ status }: { status: AdminUserRow["status"] }) {
-  if (status === "active") return <Badge variant="success">Active</Badge>;
-  if (status === "suspended") return <Badge variant="warning">Suspended</Badge>;
-  return <Badge variant="danger">Removed</Badge>;
+  const { t } = useI18n();
+  if (status === "active") return <Badge variant="success">{t("au.stActive")}</Badge>;
+  if (status === "suspended") return <Badge variant="warning">{t("au.stSuspended")}</Badge>;
+  return <Badge variant="danger">{t("au.stRemoved")}</Badge>;
 }
 
 function ActionPanel({
@@ -298,8 +299,8 @@ function AdminUsersTable() {
           className={`${INPUT_CLASS} h-[34px]`}
         >
           <option value="">{t("au.allStatuses")}</option>
-          <option value="active">Active</option>
-          <option value="suspended">Suspended</option>
+          <option value="active">{t("au.stActive")}</option>
+          <option value="suspended">{t("au.stSuspended")}</option>
         </select>
         <Button type="submit" variant="secondary">
           {t("au.search")}
@@ -348,9 +349,9 @@ function AdminUsersTable() {
               </span>
               <span>
                 {user.role === "admin" ? (
-                  <Badge variant="info">Admin</Badge>
+                  <Badge variant="info">{t("au.roleAdmin")}</Badge>
                 ) : (
-                  <Badge variant="neutral">User</Badge>
+                  <Badge variant="neutral">{t("au.roleUser")}</Badge>
                 )}
               </span>
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
@@ -425,7 +426,7 @@ function AdminUsersTable() {
 }
 
 export default function AdminUsersPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   // require-auth và kiểm quyền admin do layout /admin đảm nhiệm (cùng auth
   // context — không thêm network, không nhấp nháy). Bố cục (menu + khung) do
   // layout cung cấp, trang chỉ render nội dung bên phải.

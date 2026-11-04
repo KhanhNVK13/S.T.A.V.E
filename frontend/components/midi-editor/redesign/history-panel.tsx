@@ -99,7 +99,7 @@ export function HistoryPanel({
   return (
     <aside style={styles.root}>
       <div style={styles.header}>
-        <div style={styles.title}>Project History</div>
+        <div style={styles.title}>{t("hp.heading")}</div>
         {/* Branch Management (UC-47+) chưa xây → chip tĩnh, không làm dropdown giả. */}
         <div style={styles.branchChip} title={t("hp.branchTitle")}>
           <GitBranch size={15} color={DC.accent} />
