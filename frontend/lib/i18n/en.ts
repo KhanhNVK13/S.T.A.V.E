@@ -1761,7 +1761,7 @@ export const en = {
   "projectPage.graphFlagActive": ", the branch open in the editor",
   "projectPage.graphActiveTitle": "Open in the editor",
   "projectPage.graphHead": "HEAD",
-  "projectPage.graphHint": "Pick a commit to see its details. Larger ringed dots are branch heads; hollow dots are merge commits joined by a dashed line.",
+  "projectPage.graphHint": "Pick a commit to see its details. Larger ringed dots are branch heads; hollow dots are merge commits joined by a dashed line. Scroll sideways for earlier commits.",
   "projectPage.graphCompare": "Compare with previous",
   "projectPage.graphCompareTitle": "Compare this commit with the one before it",
   "projectPage.graphCompareNone": "No earlier commit is available to compare with",

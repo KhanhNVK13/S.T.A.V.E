@@ -1763,7 +1763,7 @@ export const vi: Record<keyof typeof en, string> = {
   "projectPage.graphFlagActive": ", nhánh đang mở trong trình soạn nhạc",
   "projectPage.graphActiveTitle": "Đang mở trong trình soạn nhạc",
   "projectPage.graphHead": "HEAD",
-  "projectPage.graphHint": "Chọn một commit để xem chi tiết. Chấm lớn có vòng là đầu nhánh; chấm rỗng là commit hợp nhất, nối bằng nét đứt.",
+  "projectPage.graphHint": "Chọn một commit để xem chi tiết. Chấm lớn có vòng là đầu nhánh; chấm rỗng là commit hợp nhất, nối bằng nét đứt. Cuộn ngang để xem các commit cũ hơn.",
   "projectPage.graphCompare": "So sánh với bản trước",
   "projectPage.graphCompareTitle": "So sánh commit này với commit ngay trước nó",
   "projectPage.graphCompareNone": "Không có commit trước đó để so sánh",
