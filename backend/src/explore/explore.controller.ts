@@ -31,6 +31,12 @@ export class ExploreController {
     return this.exploreService.getPublicProject(id);
   }
 
+  /** Public commit graph (no auth, public projects only) — 404 otherwise. */
+  @Get('projects/:id/graph')
+  getPublicProjectGraph(@Param('id') id: string) {
+    return this.exploreService.getPublicProjectGraph(id);
+  }
+
   @Post('projects/:id/play')
   @UseGuards(JwtAuthGuard, SessionAuthGuard)
   recordPlay(

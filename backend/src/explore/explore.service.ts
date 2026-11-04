@@ -9,6 +9,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   PublicProjectCard,
   PublicFeaturedContent,
+  PublicGraphCommit,
+  PublicProjectGraph,
 } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { PublicProjectsQueryDto } from '../projects/dto/public-projects-query.dto';
@@ -54,6 +56,39 @@ export type FeaturedResult = PublicFeaturedContent;
 /** Columns shared by every query that returns a `PublicProjectCard` — keep in sync with `ProjectCardRow`. */
 const PROJECT_CARD_COLUMNS = `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
    owner:owner_id!inner (id, username, display_name, avatar_url, status)`;
+
+/** Max commits returned by the public graph endpoint (newest kept). */
+const PUBLIC_GRAPH_COMMIT_LIMIT = 1000;
+
+interface GraphCommitRow {
+  id: string;
+  branch_id: string;
+  author_id: string | null;
+  message: string;
+  created_at: string;
+  parent_commit_id: string | null;
+  merged_from_commit_id: string | null;
+}
+
+/**
+ * The ONLY place that decides which commit fields become public.
+ * To stop exposing commit messages, delete the `message` line here and in
+ * `PublicGraphCommit` (shared-types).
+ */
+function toPublicGraphCommit(
+  row: GraphCommitRow,
+  author: PublicGraphCommit['author'],
+): PublicGraphCommit {
+  return {
+    id: row.id,
+    branch_id: row.branch_id,
+    parent_commit_id: row.parent_commit_id,
+    merged_from_commit_id: row.merged_from_commit_id,
+    message: row.message,
+    created_at: row.created_at,
+    author,
+  };
+}
 
 @Injectable()
 export class ExploreService {
@@ -155,6 +190,114 @@ export class ExploreService {
 
     const cards = await this.enrichProjectCards([data]);
     return cards[0];
+  }
+
+  /** Public read-only commit graph (metadata only). Same visibility rules as getPublicProject. */
+  async getPublicProjectGraph(id: string): Promise<PublicProjectGraph> {
+    const { data: project, error: projectError } = await this.supabase
+      .from('projects')
+      .select('id, owner:owner_id!inner (status)')
+      .eq('owner.status', 'active')
+      .eq('id', id)
+      .eq('visibility', 'public')
+      .is('archived_at', null)
+      .is('moderation_hidden_at', null)
+      .maybeSingle<{ id: string }>();
+
+    if (projectError || !project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    const { data: branchRows, error: branchError } = await this.supabase
+      .from('branches')
+      .select('id, name, is_default, head_commit_id')
+      .eq('project_id', id)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true });
+    if (branchError) {
+      throw new InternalServerErrorException('Could not load project graph');
+    }
+    const branches = (branchRows ?? []).map(
+      (b: {
+        id: string;
+        name: string;
+        is_default: boolean;
+        head_commit_id: string | null;
+      }) => ({
+        id: b.id,
+        name: b.name,
+        is_default: b.is_default,
+        head_commit_id: b.head_commit_id ?? null,
+      }),
+    );
+    if (branches.length === 0) {
+      return { branches, commits: [], total: 0 };
+    }
+
+    // One query for the whole project (not per branch): newest window, one page.
+    const {
+      data: commitRows,
+      error: commitError,
+      count,
+    } = await this.supabase
+      .from('commits')
+      .select(
+        'id, branch_id, author_id, message, created_at, parent_commit_id, merged_from_commit_id',
+        { count: 'exact' },
+      )
+      .in(
+        'branch_id',
+        branches.map((b) => b.id),
+      )
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, PUBLIC_GRAPH_COMMIT_LIMIT - 1);
+    if (commitError) {
+      throw new InternalServerErrorException('Could not load project graph');
+    }
+
+    const rows = ((commitRows ?? []) as GraphCommitRow[]).reverse();
+    const authors = await this.loadGraphAuthors(rows);
+    const commits = rows.map((row) =>
+      toPublicGraphCommit(
+        row,
+        (row.author_id ? authors.get(row.author_id) : undefined) ?? {
+          id: row.author_id ?? '',
+          username: null,
+          display_name: null,
+          avatar_url: null,
+        },
+      ),
+    );
+
+    return { branches, commits, total: Math.max(count ?? 0, commits.length) };
+  }
+
+  private async loadGraphAuthors(
+    rows: GraphCommitRow[],
+  ): Promise<Map<string, PublicGraphCommit['author']>> {
+    const ids = [
+      ...new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
+    ];
+    const map = new Map<string, PublicGraphCommit['author']>();
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data, error } = await this.supabase
+        .from('users')
+        .select('id, username, display_name, avatar_url')
+        .in('id', ids.slice(i, i + 100));
+      if (error) {
+        throw new InternalServerErrorException('Could not load project graph');
+      }
+      for (const u of (data ?? []) as PublicGraphCommit['author'][]) {
+        map.set(u.id, {
+          id: u.id,
+          username: u.username ?? null,
+          display_name: u.display_name ?? null,
+          avatar_url: u.avatar_url ?? null,
+        });
+      }
+    }
+    return map;
   }
 
   async recordPlay(
