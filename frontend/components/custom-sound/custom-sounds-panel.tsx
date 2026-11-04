@@ -9,6 +9,7 @@ import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { INPUT_CLASS } from "../ui/form";
 import { SoundLibraryPanel } from "./sound-library-panel";
+import { useI18n } from "../../context/i18n-context";
 
 const PITCHES = Array.from({ length: 128 }, (_, i) => 127 - i);
 
@@ -32,27 +33,28 @@ function MappingRow({
   libraryName: string | undefined;
   onRemove: () => void;
 }) {
+  const { t } = useI18n();
   const name = resolved?.name ?? libraryName;
   const broken = resolved && !resolved.playable;
   return (
     <li className="flex items-center gap-3 rounded-card border border-border bg-surface px-3 py-2">
       <span className="w-12 shrink-0 font-mono text-xs font-semibold tabular-nums">{pitchName(pitch)}</span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px]">{name ?? (resolved ? "Âm thanh không còn tồn tại" : "Đang kiểm tra…")}</div>
+        <div className="truncate text-[13px]">{name ?? (resolved ? t("cs.gone") : t("cs.checking"))}</div>
         {broken && (
           <div className="flex items-center gap-1 text-xs text-warning-foreground">
             <AlertTriangle size={12} aria-hidden />
             {resolved.reason === "deleted"
-              ? "Đã xoá khỏi thư viện — nốt này phát bằng nhạc cụ của track"
-              : "Không phát được — nốt này phát bằng nhạc cụ của track"}
+              ? t("cs.deleted")
+              : t("cs.unplayable")}
           </div>
         )}
       </div>
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Bỏ gán âm thanh cho nốt ${pitchName(pitch)}`}
-        title="Bỏ gán"
+        aria-label={t("cs.unassignLabel", { pitch: pitchName(pitch) })}
+        title={t("cs.unassign")}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
       >
         <X size={14} />
@@ -69,6 +71,7 @@ export function CustomSoundsPanel({
   onSetSoundMapping,
   onLibraryChange,
 }: CustomSoundsPanelProps) {
+  const { t, tx } = useI18n();
   const [pitch, setPitch] = useState(defaultPitch);
   const [libraryNames, setLibraryNames] = useState<Map<string, string>>(new Map());
   const [pendingReplace, setPendingReplace] = useState<{
@@ -85,17 +88,17 @@ export function CustomSoundsPanel({
     <div className="flex flex-col gap-5">
       <section aria-labelledby="sound-mapping-heading" className="flex flex-col gap-3">
         <h3 id="sound-mapping-heading" className="text-[13px] font-semibold">
-          {track ? `Âm thanh riêng của track “${track.name}”` : "Gán âm thanh cho nốt"}
+          {track ? t("cs.titleTrack", { name: track.name }) : t("cs.title")}
         </h3>
         {!track ? (
-          <p className="text-xs text-muted">Chọn một track ở panel Tracks để gán âm thanh cho từng nốt của track đó.</p>
+          <p className="text-xs text-muted">{t("cs.pickTrack")}</p>
         ) : (
           <>
             <p className="text-xs text-muted">
-              Mỗi nốt được gán sẽ phát nguyên âm thanh đó (như pad trống) thay cho nhạc cụ của track. Thay đổi được lưu vào bản nháp và đi theo commit.
+              {t("cs.explain")}
             </p>
             <label className="flex items-center gap-2 text-xs font-semibold">
-              Nốt cần gán
+              {t("cs.notePick")}
               <select
                 name="sound-pitch"
                 value={pitch}
@@ -128,7 +131,7 @@ export function CustomSoundsPanel({
       </section>
 
       <section aria-labelledby="sound-library-heading" className="flex flex-col gap-3">
-        <h3 id="sound-library-heading" className="text-[13px] font-semibold">Thư viện của bạn</h3>
+        <h3 id="sound-library-heading" className="text-[13px] font-semibold">{t("cs.library")}</h3>
         <SoundLibraryPanel
           mappedIds={mappedIds}
           onLibraryChange={(library) => {
@@ -152,14 +155,14 @@ export function CustomSoundsPanel({
                             oldName:
                               customSounds.get(existingId)?.name ??
                               libraryNames.get(existingId) ??
-                              "âm thanh hiện tại",
+                              t("cs.currentSound"),
                           });
                           return;
                         }
                         onSetSoundMapping(track.id, pitch, sound.id);
                       }}
                     >
-                      {current ? `Đang gán ${pitchName(pitch)}` : `Gán vào ${pitchName(pitch)}`}
+                      {current ? t("cs.assigned", { pitch: pitchName(pitch) }) : t("cs.assignTo", { pitch: pitchName(pitch) })}
                     </Button>
                   );
                 }
@@ -170,14 +173,13 @@ export function CustomSoundsPanel({
 
       <ConfirmDialog
         open={!!pendingReplace && !!track}
-        title={`Thay âm thanh của nốt ${pitchName(pitch)}?`}
+        title={t("cs.replaceTitle", { pitch: pitchName(pitch) })}
         message={
           <>
-            Nốt {pitchName(pitch)} đang gán <strong className="text-foreground">{pendingReplace?.oldName}</strong>.
-            Thay bằng <strong className="text-foreground">{pendingReplace?.soundName}</strong>?
+            {tx("cs.replaceBody", { pitch: pitchName(pitch), old: <strong className="text-foreground">{pendingReplace?.oldName}</strong>, new: <strong className="text-foreground">{pendingReplace?.soundName}</strong> })}
           </>
         }
-        confirmLabel="Thay âm thanh"
+        confirmLabel={t("cs.replaceConfirm")}
         onConfirm={() => {
           if (pendingReplace && track) onSetSoundMapping(track.id, pitch, pendingReplace.soundId);
           setPendingReplace(null);

@@ -7,6 +7,7 @@ import { Dialog, DialogActions, DialogError } from "../../ui/dialog";
 import { Button } from "../../ui/button";
 import { adminEndJamEvent } from "../../../lib/api-jam";
 import { apiErrorMessage } from "../../../lib/error-message";
+import { useI18n } from "../../../context/i18n-context";
 
 export interface EndJamConfirmModalProps {
   event: JamEvent;
@@ -28,6 +29,7 @@ export function EndJamConfirmModal({
   onClosed,
   onEnded,
 }: EndJamConfirmModalProps) {
+  const { t, tx } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,14 +41,14 @@ export function EndJamConfirmModal({
       onEnded(event.id);
     } catch (err) {
       // Hiển thị nguyên văn thông báo tiếng Việt (error-message.ts).
-      setError(apiErrorMessage(err, "Không kết thúc được sự kiện."));
+      setError(apiErrorMessage(err, t("aj.endFail")));
       setSubmitting(false);
     }
   }
 
   return (
     <Dialog
-      title="Xác nhận kết thúc sự kiện Jam"
+      title={t("aj.endTitle")}
       titleClassName="text-foreground text-base"
       onClose={onClosed}
       closeDisabled={submitting}
@@ -58,19 +60,16 @@ export function EndJamConfirmModal({
       </p>
       {participantCount > 0 && (
         <p className="mt-2 text-xs text-muted">
-          Đang có <strong className="text-foreground">{participantCount}</strong>{" "}
-          người tham gia trong phòng.
+          {tx("aj.endPeople", { n: <strong className="text-foreground">{participantCount}</strong> })}
         </p>
       )}
       <div className="mt-3 rounded-card border border-danger/40 bg-danger-muted p-3 text-xs text-danger">
-        Cảnh báo: Hành động này sẽ lập tức đóng băng phòng Jam, lưu trữ bản
-        nhạc hiện tại và khóa quyền chỉnh sửa của tất cả người tham gia. Hành
-        động này không thể hoàn tác.
+        {t("aj.endWarn")}
       </div>
       <DialogError message={error} />
       <DialogActions>
         <Button variant="secondary" onClick={onClosed} disabled={submitting}>
-          Hủy bỏ
+          {t("aj.endBack")}
         </Button>
         <Button
           variant="danger"
@@ -78,7 +77,7 @@ export function EndJamConfirmModal({
           disabled={submitting}
         >
           {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {submitting ? "Đang kết thúc sự kiện..." : "Xác nhận kết thúc"}
+          {submitting ? t("aj.ending") : t("aj.endConfirm")}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,4 +1,5 @@
 import { Users, type LucideIcon } from "lucide-react";
+import type { TKey } from "../../lib/i18n";
 
 /**
  * Single source of truth for the admin sidebar (foundation, 25/10).
@@ -12,8 +13,8 @@ import { Users, type LucideIcon } from "lucide-react";
  */
 export const ADMIN_NAV_ITEMS: {
   href: string;
-  label: string;
+  label: TKey;
   icon: LucideIcon;
 }[] = [
-  { href: "/admin/users", label: "Người dùng", icon: Users },
+  { href: "/admin/users", label: "adm.navUsers", icon: Users },
 ];

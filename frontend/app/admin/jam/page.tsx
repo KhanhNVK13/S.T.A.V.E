@@ -29,25 +29,28 @@ import { EmptyState } from "../../../components/ui/empty-state";
 import { Dialog, DialogActions, DialogError } from "../../../components/ui/dialog";
 import { Toast } from "../../../components/ui/toast";
 import { formatDateTime } from "../../../lib/format-date";
+import { useI18n } from "../../../context/i18n-context";
+import { tNow, type TKey } from "../../../lib/i18n";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: JamEventStatus }) {
+  const { t } = useI18n();
   if (status === "active")
-    return <Badge variant="success">Đang diễn ra</Badge>;
+    return <Badge variant="success">{t("aj.live")}</Badge>;
   if (status === "scheduled")
-    return <Badge variant="info">Sắp diễn ra</Badge>;
+    return <Badge variant="info">{t("aj.upcoming")}</Badge>;
   if (status === "cancelled")
-    return <Badge variant="danger">Đã huỷ</Badge>;
-  return <Badge variant="neutral">Đã kết thúc</Badge>;
+    return <Badge variant="danger">{t("aj.cancelled")}</Badge>;
+  return <Badge variant="neutral">{t("aj.ended")}</Badge>;
 }
 
-const STATUS_TABS: { key: JamEventStatus | ""; label: string }[] = [
-  { key: "", label: "Tất cả" },
-  { key: "scheduled", label: "Sắp diễn ra" },
-  { key: "active", label: "Đang diễn ra" },
-  { key: "ended", label: "Đã kết thúc" },
-  { key: "cancelled", label: "Đã huỷ" },
+const STATUS_TABS: { key: JamEventStatus | ""; label: TKey }[] = [
+  { key: "", label: "aj.all" },
+  { key: "scheduled", label: "aj.upcoming" },
+  { key: "active", label: "aj.live" },
+  { key: "ended", label: "aj.ended" },
+  { key: "cancelled", label: "aj.cancelled" },
 ];
 
 // ── cancel confirm dialog ───────────────────────────────────────────────────
@@ -61,6 +64,7 @@ function CancelJamDialog({
   onClose: () => void;
   onCancelled: (message: string) => void;
 }) {
+  const { t, tx } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,11 +74,11 @@ function CancelJamDialog({
     try {
       await adminCancelJamEvent(event.id);
       onCancelled(
-        `Đã hủy sự kiện “${event.name}”. Hệ thống đã gửi thông báo đến người tham gia.`,
+        t("aj.cancelDone", { name: event.name }),
       );
       onClose();
     } catch (err) {
-      setError(apiErrorMessage(err, "Không hủy được sự kiện."));
+      setError(apiErrorMessage(err, t("aj.cancelFail")));
     } finally {
       setSubmitting(false);
     }
@@ -82,7 +86,7 @@ function CancelJamDialog({
 
   return (
     <Dialog
-      title={`Hủy “${event.name}”?`}
+      title={t("aj.cancelTitle", { name: event.name })}
       titleClassName="text-foreground text-base"
       onClose={onClose}
       closeDisabled={submitting}
@@ -90,21 +94,19 @@ function CancelJamDialog({
       className="max-w-sm p-6"
     >
       <p className="mb-3 text-[13px] text-muted">
-        Sự kiện sẽ chuyển sang trạng thái <strong>Đã hủy</strong> và mọi
-        người đăng ký nhận thông báo <em>jam.cancelled</em>. Thao tác được
-        ghi vào nhật ký quản trị.
+        {tx("aj.cancelBody", { cancelled: <strong>{t("aj.cancelledWord")}</strong>, code: <em>jam.cancelled</em> })}
       </p>
       <DialogError message={error} />
       <DialogActions>
         <Button variant="secondary" onClick={onClose} disabled={submitting}>
-          Đóng
+          {t("aj.close")}
         </Button>
         <Button
           variant="danger"
           onClick={() => void handleConfirm()}
           disabled={submitting}
         >
-          {submitting ? "Đang hủy…" : "Hủy sự kiện"}
+          {submitting ? t("aj.cancelling") : t("aj.cancelEvent")}
         </Button>
       </DialogActions>
     </Dialog>
@@ -116,6 +118,7 @@ function CancelJamDialog({
 const JAM_COLS = "md:grid-cols-[minmax(0,1fr)_120px_190px_88px_auto]";
 
 function AdminJamManager() {
+  const { t } = useI18n();
   const [tab, setTab] = useState<JamEventStatus | "">("");
   const [events, setEvents] = useState<JamEventListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +137,7 @@ function AdminJamManager() {
       const data = await adminListJamEvents(status || undefined);
       setEvents(data);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được danh sách sự kiện."));
+      setError(apiErrorMessage(err, tNow("aj.listFail")));
     } finally {
       setLoading(false);
     }
@@ -151,7 +154,7 @@ function AdminJamManager() {
         }
       } catch (err) {
         if (active) {
-          setError(apiErrorMessage(err, "Không tải được danh sách sự kiện."));
+          setError(apiErrorMessage(err, tNow("aj.listFail")));
         }
       } finally {
         if (active) {
@@ -185,7 +188,7 @@ function AdminJamManager() {
     try {
       setConfiguring(await adminGetJamEvent(row.id));
     } catch (err) {
-      setToast(apiErrorMessage(err, "Không tải được sự kiện."));
+      setToast(apiErrorMessage(err, tNow("aj.eventFail")));
     }
   };
 
@@ -197,7 +200,7 @@ function AdminJamManager() {
       setEnding(detail);
       setEndingCount(row.currentParticipantCount ?? 0);
     } catch (err) {
-      setToast(apiErrorMessage(err, "Không tải được sự kiện."));
+      setToast(apiErrorMessage(err, tNow("aj.eventFail")));
     }
   };
 
@@ -209,19 +212,19 @@ function AdminJamManager() {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-1.5" role="tablist">
-        {STATUS_TABS.map((t) => (
+        {STATUS_TABS.map((st) => (
           <button
-            key={t.key || "all"}
+            key={st.key || "all"}
             role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
+            aria-selected={tab === st.key}
+            onClick={() => setTab(st.key)}
             className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
-              tab === t.key
+              tab === st.key
                 ? "bg-accent-muted text-accent"
                 : "text-muted hover:bg-surface-subtle"
             }`}
           >
-            {t.label}
+            {t(st.label)}
           </button>
         ))}
       </div>
@@ -234,7 +237,7 @@ function AdminJamManager() {
         >
           <span>{error}</span>
           <Button variant="secondary" onClick={() => void load(tab)}>
-            Thử lại
+            {t("ui.retry")}
           </Button>
         </div>
       )}
@@ -242,20 +245,20 @@ function AdminJamManager() {
       <div className="mt-3">
         <RowList cols={JAM_COLS}>
           <RowHeader>
-            <span>Sự kiện</span>
-            <span>Trạng thái</span>
-            <span>Khung giờ</span>
-            <span>Tham gia</span>
+            <span>{t("aj.colEvent")}</span>
+            <span>{t("aj.colStatus")}</span>
+            <span>{t("aj.colWindow")}</span>
+            <span>{t("aj.colJoined")}</span>
             <span />
           </RowHeader>
 
           {loading ? (
             <p className="px-4 py-8 text-center text-[13px] text-muted">
-              Đang tải…
+              {t("ui.loading")}
             </p>
           ) : visible.length === 0 ? (
             <p className="px-4 py-8 text-center text-[13px] text-muted">
-              Không có sự kiện nào ở trạng thái này.
+              {t("aj.noneInStatus")}
             </p>
           ) : (
             visible.map((e) => (
@@ -282,7 +285,7 @@ function AdminJamManager() {
                     {" → "}
                     {e.scheduled_end_at
                       ? formatDateTime(e.scheduled_end_at)
-                      : "mở"}
+                      : t("aj.open")}
                   </span>
                 </div>
                 <span className="font-mono text-xs tabular-nums text-muted">
@@ -290,16 +293,16 @@ function AdminJamManager() {
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
                   <Link href={`/jam/${e.id}`} className="text-xs text-accent hover:underline">
-                    Xem
+                    {t("aj.view")}
                   </Link>
                   {(e.status === "scheduled" || e.status === "active") && (
                     <>
                       <Button variant="ghost" onClick={() => void openConfigure(e)}>
-                        Cấu hình
+                        {t("aj.configure")}
                       </Button>
                       {e.status === "scheduled" && (
                         <Button variant="danger" onClick={() => setCancelling(e)}>
-                          Huỷ
+                          {t("aj.cancel")}
                         </Button>
                       )}
                       {e.status === "active" && (
@@ -307,7 +310,7 @@ function AdminJamManager() {
                           variant="danger"
                           onClick={() => void openEnd(e)}
                         >
-                          Kết thúc sự kiện
+                          {t("aj.endEvent")}
                         </Button>
                       )}
                     </>
@@ -315,14 +318,14 @@ function AdminJamManager() {
                   {e.status === "ended" && (
                     <>
                       <Button variant="ghost" onClick={() => void openConfigure(e)}>
-                        Chi tiết
+                        {t("aj.details")}
                       </Button>
                       {e.resulting_project_id && (
                         <Link
                           href={`/projects/${e.resulting_project_id}`}
                           className="text-xs text-muted hover:underline"
                         >
-                          Kết quả
+                          {t("aj.result")}
                         </Link>
                       )}
                     </>
@@ -366,7 +369,7 @@ function AdminJamManager() {
           onClosed={() => setEnding(null)}
           onEnded={() => {
             setEnding(null);
-            setToast("Sự kiện Jam đã được kết thúc thành công.");
+            setToast(t("aj.endedToast"));
             void load(tab);
           }}
         />
@@ -376,23 +379,24 @@ function AdminJamManager() {
 }
 
 export default function AdminJamPage() {
+  const { t } = useI18n();
   const { profile, loading } = useAuth();
 
   return (
     <RequireAuth>
       <div className="mx-auto max-w-page px-5 py-8">
         <PageHeader
-          breadcrumbs={[{ label: "Quản trị" }]}
-          title="Quản lý sự kiện Community Jam"
-          description="Cấu hình khung giờ, dự án khởi đầu, thời gian chờ — hoặc huỷ sự kiện sắp diễn ra. Mọi thao tác được ghi vào nhật ký quản trị."
+          breadcrumbs={[{ label: t("aj.crumb") }]}
+          title={t("aj.title")}
+          description={t("aj.description")}
         />
         {loading ? (
-          <p className="text-sm text-muted">Đang tải…</p>
+          <p className="text-sm text-muted">{t("ui.loading")}</p>
         ) : profile?.role !== "admin" ? (
           <EmptyState
             icon={ShieldAlert}
-            title="Không có quyền truy cập"
-            description="Bạn không có quyền truy cập trang này."
+            title={t("aj.noAccessTitle")}
+            description={t("aj.noAccessBody")}
           />
         ) : (
           <AdminJamManager />

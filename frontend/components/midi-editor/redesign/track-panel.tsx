@@ -13,6 +13,7 @@ import type { DraftTrack } from "@stave/shared-types";
 import { GM_INSTRUMENTS } from "../../../lib/instruments";
 import { DC, DC_SIZE } from "./tokens";
 import { TRACK_COLOR_PALETTE } from "../../../lib/track-colors";
+import { useI18n } from "../../../context/i18n-context";
 
 // UC-35 exception 4.E2 — giữ đúng giới hạn của UI gốc.
 const MAX_LABEL_LENGTH = 50;
@@ -51,6 +52,7 @@ export function TrackPanel({
   canAddTrack,
   maxTracks,
 }: TrackPanelProps) {
+  const { t } = useI18n();
   const [openInstrumentFor, setOpenInstrumentFor] = useState<string | null>(null);
   // Tìm nhạc cụ — 128 nhạc cụ cuộn tay trong hộp nhỏ rất mất thời gian; lọc
   // theo tên/nhóm nhạc cụ khi gõ. Xoá khi đóng/mở lại dropdown.
@@ -101,7 +103,7 @@ export function TrackPanel({
       </div>
 
       <div style={styles.list}>
-        {tracks.length === 0 && <div style={styles.empty}>Chưa có track nào</div>}
+        {tracks.length === 0 && <div style={styles.empty}>{t("tp.empty")}</div>}
 
         {tracks.map((track) => {
           const selected = track.id === selectedTrackId;
@@ -130,7 +132,7 @@ export function TrackPanel({
                       e.stopPropagation();
                       setOpenColorFor(openColorFor === track.id ? null : track.id);
                     }}
-                    title="Đổi màu track"
+                    title={t("tp.color")}
                     style={{ ...styles.colorDot, background: track.color }}
                   />
 
@@ -165,7 +167,7 @@ export function TrackPanel({
                         setLabelDraft(track.name);
                         setEditingLabelFor(track.id);
                       }}
-                      title="Đổi tên track"
+                      title={t("tp.rename")}
                       style={styles.trackName}
                     >
                       {track.name}
@@ -177,7 +179,7 @@ export function TrackPanel({
                       e.stopPropagation();
                       onToggleMute(track.id);
                     }}
-                    title={track.muted ? "Bỏ tắt tiếng" : "Tắt tiếng track"}
+                    title={track.muted ? t("tp.unmute") : t("tp.mute")}
                     style={{
                       ...styles.msBtn,
                       background: track.muted ? DC.warning : DC.surface,
@@ -192,7 +194,7 @@ export function TrackPanel({
                       e.stopPropagation();
                       onToggleSolo(track.id);
                     }}
-                    title={track.solo ? "Bỏ solo" : "Solo track"}
+                    title={track.solo ? t("tp.unsolo") : t("tp.solo")}
                     style={{
                       ...styles.msBtn,
                       background: track.solo ? DC.success : DC.surface,
@@ -207,7 +209,7 @@ export function TrackPanel({
                       e.stopPropagation();
                       onDeleteTrack(track.id);
                     }}
-                    title="Xoá track"
+                    title={t("tp.delete")}
                     style={{
                       ...styles.deleteBtn,
                       cursor: "pointer",
@@ -225,10 +227,10 @@ export function TrackPanel({
                     setInstrumentSearch("");
                     setOpenInstrumentFor(openInstrumentFor === track.id ? null : track.id);
                   }}
-                  title={track.instrument ?? "Gán nhạc cụ cho track"}
+                  title={track.instrument ?? t("tp.assign")}
                   style={styles.instrumentChip}
                 >
-                  {track.instrument ?? "Chưa gán nhạc cụ"}
+                  {track.instrument ?? t("tp.noInstrument")}
                 </button>
 
                 {/* Hàng 3 — VOL (mockup dòng 216–223) */}
@@ -246,7 +248,7 @@ export function TrackPanel({
                       max={100}
                       value={volumePct}
                       onChange={(e) => onSetTrackVolume(track.id, Number(e.target.value) / 100)}
-                      aria-label={`Âm lượng track ${track.name}`}
+                      aria-label={t("tp.volume", { name: track.name })}
                       style={styles.volInput}
                     />
                   </span>
@@ -288,7 +290,7 @@ export function TrackPanel({
                 return (
                   <div style={styles.dropdown}>
                     <div style={styles.dropdownHead}>
-                      <span style={styles.dropdownTitle}>CHỌN NHẠC CỤ</span>
+                      <span style={styles.dropdownTitle}>{t("tp.pickInstrument")}</span>
                       <button onClick={() => setOpenInstrumentFor(null)} style={styles.dropdownClose}>
                         ✕
                       </button>
@@ -309,7 +311,7 @@ export function TrackPanel({
                             setOpenInstrumentFor(null);
                           }
                         }}
-                        placeholder="Tìm nhạc cụ…"
+                        placeholder={t("tp.searchInstrument")}
                         style={styles.instrumentSearchInput}
                       />
                     </div>
@@ -324,7 +326,7 @@ export function TrackPanel({
                           ...(track.instrument === null ? styles.instrumentOptionActive : {}),
                         }}
                       >
-                        Không gán (mặc định)
+                        {t("tp.unassign")}
                       </button>
                     )}
                     {categories.map((category) => (
@@ -350,7 +352,7 @@ export function TrackPanel({
                       </div>
                     ))}
                     {query && filtered.length === 0 && (
-                      <div style={styles.instrumentSearchEmpty}>Không tìm thấy nhạc cụ nào</div>
+                      <div style={styles.instrumentSearchEmpty}>{t("tp.noInstrumentFound")}</div>
                     )}
                   </div>
                 );
@@ -360,7 +362,7 @@ export function TrackPanel({
               {openColorFor === track.id && (
                 <div style={styles.dropdown}>
                   <div style={styles.dropdownHead}>
-                    <span style={styles.dropdownTitle}>MÀU TRACK</span>
+                    <span style={styles.dropdownTitle}>{t("tp.trackColor")}</span>
                     <button onClick={() => setOpenColorFor(null)} style={styles.dropdownClose}>
                       ✕
                     </button>
@@ -392,7 +394,7 @@ export function TrackPanel({
       <button
         onClick={onAddTrack}
         aria-disabled={!canAddTrack || undefined}
-        title={canAddTrack ? "Thêm track mới" : `Đã đạt tối đa ${maxTracks} track`}
+        title={canAddTrack ? t("tp.addTrack") : t("tp.maxTracks", { n: maxTracks })}
         style={{
           ...styles.addBtn,
           cursor: canAddTrack ? "pointer" : "not-allowed",

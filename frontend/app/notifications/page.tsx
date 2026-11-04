@@ -18,27 +18,20 @@ import {
 } from "../../lib/api-client";
 import type { NotificationFilter, NotificationItem } from "../../lib/api-client";
 import { apiErrorMessage } from "../../lib/error-message";
-import { APP_LOCALE, formatRelativeTime } from "../../lib/format-date";
+import { appLocale, formatRelativeTime } from "../../lib/format-date";
+import { tNow, type TKey } from "../../lib/i18n";
+import { useI18n } from "../../context/i18n-context";
 
-const FILTER_TABS: Array<{ id: NotificationFilter; label: string }> = [
-  { id: "all", label: "Tất cả" },
-  { id: "unread", label: "Chưa đọc" },
-  { id: "mentions", label: "Nhắc đến bạn" },
+const FILTER_TABS: Array<{ id: NotificationFilter; label: TKey }> = [
+  { id: "all", label: "nt.tabAll" },
+  { id: "unread", label: "nt.tabUnread" },
+  { id: "mentions", label: "nt.tabMentions" },
 ];
 
-const EMPTY_TEXT: Record<NotificationFilter, { title: string; description: string }> = {
-  all: {
-    title: "Chưa có thông báo nào.",
-    description: "Khi có người mời cộng tác, bình luận hay fork dự án của bạn, thông báo sẽ hiện ở đây.",
-  },
-  unread: {
-    title: "Bạn đã đọc hết thông báo.",
-    description: "Thông báo mới sẽ xuất hiện ở đây.",
-  },
-  mentions: {
-    title: "Chưa có ai nhắc đến bạn.",
-    description: "Câu trả lời cho bình luận của bạn sẽ hiện ở đây.",
-  },
+const EMPTY_TEXT: Record<NotificationFilter, { title: TKey; description: TKey }> = {
+  all: { title: "nt.emptyAllTitle", description: "nt.emptyAllBody" },
+  unread: { title: "nt.emptyUnreadTitle", description: "nt.emptyUnreadBody" },
+  mentions: { title: "nt.emptyMentionsTitle", description: "nt.emptyMentionsBody" },
 };
 
 function dayKey(iso: string): string {
@@ -51,9 +44,9 @@ function dayLabel(iso: string): string {
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
-  if (dayKey(iso) === dayKey(today.toISOString())) return "Hôm nay";
-  if (dayKey(iso) === dayKey(yesterday.toISOString())) return "Hôm qua";
-  return date.toLocaleDateString(APP_LOCALE, { day: "2-digit", month: "2-digit", year: "numeric" });
+  if (dayKey(iso) === dayKey(today.toISOString())) return tNow("nt.today");
+  if (dayKey(iso) === dayKey(yesterday.toISOString())) return tNow("nt.yesterday");
+  return date.toLocaleDateString(appLocale(), { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function groupByDay(items: NotificationItem[]): Array<{ key: string; label: string; items: NotificationItem[] }> {
@@ -68,6 +61,7 @@ function groupByDay(items: NotificationItem[]): Array<{ key: string; label: stri
 }
 
 function NotificationsView() {
+  const { t } = useI18n();
   const router = useRouter();
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -93,7 +87,7 @@ function NotificationsView() {
       setMissing(new Set());
     } catch (err) {
       if (request !== requestRef.current) return;
-      setError(apiErrorMessage(err, "Không tải được thông báo."));
+      setError(apiErrorMessage(err, tNow("nt.loadFail")));
     } finally {
       if (request === requestRef.current) setLoading(false);
     }
@@ -112,7 +106,7 @@ function NotificationsView() {
       setItems((current) => [...current, ...page.items]);
       setNextCursor(page.nextCursor);
     } catch (err) {
-      setToast(apiErrorMessage(err, "Không tải thêm được thông báo."));
+      setToast(apiErrorMessage(err, tNow("nt.moreFail")));
     } finally {
       setLoadingMore(false);
     }
@@ -133,7 +127,7 @@ function NotificationsView() {
       }
       if (result.href) router.push(result.href);
     } catch (err) {
-      setToast(apiErrorMessage(err, "Không mở được thông báo."));
+      setToast(apiErrorMessage(err, tNow("nt.openFail")));
     }
   }
 
@@ -145,7 +139,7 @@ function NotificationsView() {
       setItems((current) => current.map((entry) => (entry.read_at ? entry : { ...entry, read_at: now })));
       window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
     } catch (err) {
-      setToast(apiErrorMessage(err, "Không đánh dấu được các thông báo."));
+      setToast(apiErrorMessage(err, tNow("home.markFail")));
     } finally {
       setMarkingAll(false);
     }
@@ -157,18 +151,18 @@ function NotificationsView() {
   return (
     <div className="mx-auto min-h-full max-w-3xl px-5 py-8">
       <PageHeader
-        title="Thông báo"
-        breadcrumbs={[{ label: "Tài khoản" }]}
+        title={t("nt.title")}
+        breadcrumbs={[{ label: t("nt.crumb") }]}
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={() => void markAllRead()} disabled={markingAll || !hasUnread}>
               <CheckCheck className="h-3.5 w-3.5" />
-              {markingAll ? "Đang xử lý…" : "Đánh dấu tất cả đã đọc"}
+              {markingAll ? t("ui.processing") : t("nt.markAll")}
             </Button>
             <Link
               href="/notifications/settings"
-              aria-label="Cài đặt thông báo"
-              title="Cài đặt thông báo"
+              aria-label={t("nt.settings")}
+              title={t("nt.settings")}
               className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
             >
               <SettingsIcon className="h-4 w-4" />
@@ -177,7 +171,7 @@ function NotificationsView() {
         }
       />
 
-      <Tabs tabs={FILTER_TABS} active={filter} onChange={(id) => setFilter(id as NotificationFilter)} />
+      <Tabs tabs={FILTER_TABS.map((tb) => ({ id: tb.id, label: t(tb.label) }))} active={filter} onChange={(id) => setFilter(id as NotificationFilter)} />
 
       <div className="mt-5">
         {loading && <div className="h-16 animate-pulse rounded-card border border-border bg-surface-subtle" />}
@@ -186,13 +180,13 @@ function NotificationsView() {
           <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
             <p>{error}</p>
             <Button variant="secondary" onClick={() => void load()}>
-              Thử lại
+              {t("ui.retry")}
             </Button>
           </div>
         )}
 
         {!loading && !error && items.length === 0 && (
-          <EmptyState icon={Bell} title={EMPTY_TEXT[filter].title} description={EMPTY_TEXT[filter].description} />
+          <EmptyState icon={Bell} title={t(EMPTY_TEXT[filter].title)} description={t(EMPTY_TEXT[filter].description)} />
         )}
 
         {!loading && !error && items.length > 0 && (
@@ -227,7 +221,7 @@ function NotificationsView() {
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline justify-between gap-3">
                               <span className={`truncate text-[13px] ${unread ? "font-bold" : "font-semibold"}`}>
-                                {item.payload.title ?? "Thông báo"}
+                                {item.payload.title ?? t("nt.fallback")}
                               </span>
                               <span className="shrink-0 font-mono text-xs text-muted">
                                 {formatRelativeTime(item.created_at)}
@@ -236,10 +230,10 @@ function NotificationsView() {
                             {item.payload.body && (
                               <span className="mt-0.5 block text-[13px] text-muted">{item.payload.body}</span>
                             )}
-                            {unread && <span className="sr-only">Chưa đọc</span>}
+                            {unread && <span className="sr-only">{t("nt.unreadSr")}</span>}
                             {missing.has(item.id) && (
                               <span role="status" className="mt-1 block text-xs font-semibold text-warning-foreground">
-                                Mục này không còn tồn tại.
+                                {t("nt.gone")}
                               </span>
                             )}
                           </span>
@@ -254,7 +248,7 @@ function NotificationsView() {
             {nextCursor && (
               <div className="flex justify-center">
                 <Button variant="secondary" onClick={() => void loadMore()} disabled={loadingMore}>
-                  {loadingMore ? "Đang tải…" : "Tải thêm"}
+                  {loadingMore ? t("ui.loading") : t("nt.loadMore")}
                 </Button>
               </div>
             )}

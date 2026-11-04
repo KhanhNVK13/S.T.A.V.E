@@ -8,6 +8,7 @@
  */
 "use client";
 
+import { tNow } from "../../lib/i18n";
 import React, {
   useRef,
   useEffect,
@@ -223,7 +224,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         if (e.key === "Delete" || e.key === "Backspace") {
           e.preventDefault();
           onNotify?.(
-            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            tNow("pr.readonly"),
             "warning",
           );
         }
@@ -530,7 +531,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         }
         if (e.button === 2) {
           onNotify?.(
-            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            tNow("pr.readonly"),
             "warning",
           );
           return;
@@ -546,7 +547,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         readOnlyDownPosRef.current = null;
         if (tool !== "pointer") {
           onNotify?.(
-            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            tNow("pr.readonly"),
             "warning",
           );
         }
@@ -678,7 +679,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         const down = readOnlyDownPosRef.current;
         if (Math.hypot(cx - down.x, cy - down.y) > 4) {
           onNotify?.(
-            "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+            tNow("pr.readonly"),
             "warning",
           );
           readOnlyArmedRef.current = false;
@@ -741,7 +742,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
           !single && (minPitch + requestedPitch < 0 || maxPitch + requestedPitch > 127);
         if (outOfRange && !pitchRejectNotedRef.current) {
           pitchRejectNotedRef.current = true;
-          onNotify?.("Các nốt giữ nguyên cao độ vì sẽ vượt ngoài khoảng 0 đến 127.", "warning");
+          onNotify?.(tNow("pr.pitchRange"), "warning");
         }
         const deltaPitch = outOfRange
           ? 0
@@ -829,10 +830,10 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         if (touched > 0) {
           onNotesChange([...resolved.notes, ...moving]);
           const detail: string[] = [];
-          if (resolved.trimmed > 0) detail.push(`cắt bớt ${resolved.trimmed} nốt`);
-          if (resolved.split > 0) detail.push(`tách ${resolved.split} nốt`);
-          if (resolved.removed > 0) detail.push(`xoá ${resolved.removed} nốt bị phủ hoàn toàn`);
-          onNotify?.(`Các nốt cùng cao độ bị chồng nên đã ${detail.join(", ")}.`, "warning");
+          if (resolved.trimmed > 0) detail.push(tNow("lib.pasteTrimmed", { n: resolved.trimmed }));
+          if (resolved.split > 0) detail.push(tNow("lib.pasteSplit", { n: resolved.split }));
+          if (resolved.removed > 0) detail.push(tNow("lib.pasteRemoved", { n: resolved.removed }));
+          onNotify?.(tNow("lib.pasteOverlap", { detail: detail.join(", ") }), "warning");
         }
       }
       pitchRejectNotedRef.current = false;
@@ -880,7 +881,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
                 const { cx } = canvasCoords(e);
                 if (cx >= KEY_WIDTH) {
                   onNotify?.(
-                    "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+                    tNow("pr.readonly"),
                     "warning",
                   );
                 }

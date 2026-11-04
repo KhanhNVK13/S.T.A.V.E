@@ -38,11 +38,15 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 }
 
 const FALLBACK: I18n = {
-  lang: "en",
-  locale: LOCALES.en,
+  get lang() {
+    return getLang();
+  },
+  get locale() {
+    return LOCALES[getLang()];
+  },
   setLang,
-  t: (key, vars) => tFor("en", key, vars),
-  tx: (key, _nodes, vars) => tFor("en", key, vars),
+  t: (key, vars) => tFor(getLang(), key, vars),
+  tx: (key, _nodes, vars) => tFor(getLang(), key, vars),
 };
 
 export function useI18n(): I18n {

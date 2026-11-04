@@ -10,17 +10,19 @@ import { Button } from "../../ui/button";
 import { EmptyState } from "../../ui/empty-state";
 import { formatDateTime } from "../../../lib/format-date";
 import { EndJamConfirmModal } from "./end-jam-confirm-modal";
+import { useI18n } from "../../../context/i18n-context";
+import { tNow } from "../../../lib/i18n";
 
 export function JamStatusBadge({ status }: { status: JamEventStatus }) {
   switch (status) {
     case "active":
-      return <Badge variant="success">Đang diễn ra</Badge>;
+      return <Badge variant="success">{tNow("aj.live")}</Badge>;
     case "scheduled":
-      return <Badge variant="info">Đã lên lịch</Badge>;
+      return <Badge variant="info">{tNow("aj.scheduled")}</Badge>;
     case "cancelled":
-      return <Badge variant="danger">Đã huỷ</Badge>;
+      return <Badge variant="danger">{tNow("aj.cancelled")}</Badge>;
     default:
-      return <Badge variant="neutral">Đã kết thúc</Badge>;
+      return <Badge variant="neutral">{tNow("aj.ended")}</Badge>;
   }
 }
 
@@ -47,6 +49,7 @@ export function JamEventControlPanel({
   loading,
   onEnded,
 }: JamEventControlPanelProps) {
+  const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
   const canEnd =
     event !== null &&
@@ -57,7 +60,7 @@ export function JamEventControlPanel({
       <Card className="flex min-h-[200px] items-center justify-center">
         <div className="flex items-center gap-2 text-sm text-muted">
           <Loader2 className="h-4 w-4 animate-spin text-accent" />
-          Đang tải thông tin sự kiện…
+          {t("aj.ctlLoading")}
         </div>
       </Card>
     );
@@ -82,11 +85,11 @@ export function JamEventControlPanel({
       <Card className="p-8">
         <EmptyState
           icon={TriangleAlert}
-          title="Không tìm thấy thông tin sự kiện Jam."
-          description="Sự kiện có thể đã bị gỡ hoặc liên kết không còn tồn tại."
+          title={t("aj.ctlNotFound")}
+          description={t("aj.ctlNotFoundBody")}
           action={
             <Link href="/admin/jam" className="inline-block">
-              <Button variant="secondary">Quay lại danh sách</Button>
+              <Button variant="secondary">{t("aj.backToList")}</Button>
             </Link>
           }
         />
@@ -112,7 +115,7 @@ export function JamEventControlPanel({
           </div>
           {canEnd && (
             <Button variant="danger" onClick={() => setConfirming(true)}>
-              Kết thúc sự kiện
+              {t("aj.endEvent")}
             </Button>
           )}
         </div>
@@ -120,7 +123,7 @@ export function JamEventControlPanel({
         <dl className="grid gap-3 text-[13px] sm:grid-cols-2">
           <div>
             <dt className="flex items-center gap-1.5 text-muted">
-              <CalendarClock className="h-3.5 w-3.5" /> Khung giờ
+              <CalendarClock className="h-3.5 w-3.5" /> {t("aj.ctlWindow")}
             </dt>
             <dd className="mt-1 tabular-nums text-foreground">
               {event.scheduled_start_at
@@ -130,13 +133,13 @@ export function JamEventControlPanel({
               {event.scheduled_end_at
                 ? formatDateTime(event.scheduled_end_at)
                 : event.status === "ended" && event.ended_at
-                  ? `kết thúc lúc ${formatDateTime(event.ended_at)}`
-                  : "mở"}
+                  ? t("aj.endsAtLower", { when: formatDateTime(event.ended_at) })
+                  : t("aj.open")}
             </dd>
           </div>
           <div>
             <dt className="flex items-center gap-1.5 text-muted">
-              <Users className="h-3.5 w-3.5" /> Người online
+              <Users className="h-3.5 w-3.5" /> {t("aj.online")}
             </dt>
             <dd className="mt-1 font-mono tabular-nums text-foreground">
               {typeof online === "number" ? online : "—"}
@@ -144,7 +147,7 @@ export function JamEventControlPanel({
           </div>
           {event.status === "ended" && event.ended_at && (
             <div>
-              <dt className="text-muted">Thời điểm kết thúc</dt>
+              <dt className="text-muted">{t("aj.endedAtLabel")}</dt>
               <dd className="mt-1 tabular-nums text-foreground">
                 {formatDateTime(event.ended_at)}
               </dd>
@@ -152,13 +155,13 @@ export function JamEventControlPanel({
           )}
           {event.resulting_project_id && (
             <div>
-              <dt className="text-muted">Dự án kết quả</dt>
+              <dt className="text-muted">{t("aj.resultProject")}</dt>
               <dd className="mt-1">
                 <Link
                   href={`/projects/${event.resulting_project_id}`}
                   className="text-accent hover:underline"
                 >
-                  Xem dự án
+                  {t("aj.viewProject")}
                 </Link>
               </dd>
             </div>

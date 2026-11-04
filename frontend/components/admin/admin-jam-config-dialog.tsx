@@ -12,6 +12,7 @@ import { Button } from "../ui/button";
 import { FieldError, INPUT_CLASS } from "../ui/form";
 import { adminCancelJamEvent, adminConfigureJamEvent } from "../../lib/api-jam";
 import { apiErrorMessage } from "../../lib/error-message";
+import { useI18n } from "../../context/i18n-context";
 
 export interface AdminJamConfigDialogProps {
   event: JamEvent;
@@ -39,6 +40,7 @@ export function AdminJamConfigDialog({
   onSaved,
   onCancelled,
 }: AdminJamConfigDialogProps) {
+  const { t, tx } = useI18n();
   const isActive = event.status === "active";
   const isScheduled = event.status === "scheduled";
   const isEndedOrCancelled =
@@ -62,48 +64,45 @@ export function AdminJamConfigDialog({
   const [cancelling, setCancelling] = useState(false);
 
   const selectedProjectName = useMemo(() => {
-    if (!startingProjectId) return "Không chọn (bắt đầu trống)";
+    if (!startingProjectId) return t("ac.noProject");
     const found = projects.find((p) => p.id === startingProjectId);
     return found ? found.name : startingProjectId.slice(0, 8);
-  }, [startingProjectId, projects]);
+  }, [startingProjectId, projects, t]);
 
   const validate = (): boolean => {
     const nextErrors: Record<string, string> = {};
 
     if (!isActive && !name.trim()) {
-      nextErrors.name = "Tên sự kiện không được để trống.";
+      nextErrors.name = t("ac.nameRequired");
     }
 
     if (endAt) {
       const endMs = new Date(endAt).getTime();
       if (Number.isNaN(endMs)) {
-        nextErrors.end = "Thời gian kết thúc không hợp lệ.";
+        nextErrors.end = t("ac.endInvalid");
       } else if (endMs <= Date.now()) {
-        nextErrors.end =
-          "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.";
+        nextErrors.end = t("ac.endTooEarly");
       } else if (!isActive && startAt) {
         const startMs = new Date(startAt).getTime();
         if (!Number.isNaN(startMs) && endMs <= startMs) {
-          nextErrors.end =
-            "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.";
+          nextErrors.end = t("ac.endTooEarly");
         }
       }
     } else {
-      nextErrors.end = "Vui lòng chọn thời gian kết thúc.";
+      nextErrors.end = t("ac.endRequired");
     }
 
     if (!isActive && startAt) {
       const startMs = new Date(startAt).getTime();
       if (Number.isNaN(startMs)) {
-        nextErrors.start = "Thời gian bắt đầu không hợp lệ.";
+        nextErrors.start = t("ac.startInvalid");
       }
     }
 
     if (cooldown !== "") {
       const c = Number(cooldown);
       if (!Number.isInteger(c) || c < 1 || c > 3600) {
-        nextErrors.cooldown =
-          "Thời gian chờ cooldown không hợp lệ. Giá trị phải từ 1 đến 3600 giây.";
+        nextErrors.cooldown = t("ac.cooldownInvalid");
       }
     }
 
@@ -132,10 +131,10 @@ export function AdminJamConfigDialog({
     setSubmitting(true);
     try {
       await adminConfigureJamEvent(event.id, patch);
-      onSaved("Cập nhật cấu hình sự kiện Jam thành công.");
+      onSaved(t("ac.saved"));
       onClose();
     } catch (err) {
-      setError(apiErrorMessage(err, "Không lưu được cấu hình sự kiện."));
+      setError(apiErrorMessage(err, t("ac.saveFail")));
     } finally {
       setSubmitting(false);
     }
@@ -147,11 +146,11 @@ export function AdminJamConfigDialog({
     try {
       await adminCancelJamEvent(event.id);
       onCancelled?.(
-        `Đã hủy sự kiện “${event.name}”. Hệ thống đã gửi thông báo đến người tham gia.`,
+        t("aj.cancelDone", { name: event.name }),
       );
       onClose();
     } catch (err) {
-      setError(apiErrorMessage(err, "Không hủy được sự kiện Jam."));
+      setError(apiErrorMessage(err, t("ac.cancelFail")));
     } finally {
       setCancelling(false);
     }
@@ -162,7 +161,7 @@ export function AdminJamConfigDialog({
       title={
         <div className="flex items-center justify-between gap-3 pr-6">
           <div className="flex items-center gap-2">
-            <span>Cấu hình sự kiện Community Jam</span>
+            <span>{t("ac.title")}</span>
           </div>
           <span className="truncate text-xs font-normal text-muted">
             {event.name}
@@ -177,14 +176,10 @@ export function AdminJamConfigDialog({
       {isEndedOrCancelled ? (
         <div className="rounded-card border border-border bg-surface-subtle p-4 text-sm text-muted">
           <p className="font-medium text-foreground">
-            Sự kiện đã kết thúc, không thể thay đổi cấu hình.
+            {t("ac.endedNoChange")}
           </p>
           <p className="mt-1 text-xs">
-            Trạng thái hiện tại:{" "}
-            <strong>
-              {event.status === "ended" ? "Đã kết thúc" : "Đã hủy"}
-            </strong>
-            . Bạn có thể xem lại kết quả đóng góp hoặc tạo một sự kiện mới.
+            {tx("ac.currentStatus", { status: <strong>{event.status === "ended" ? t("aj.ended") : t("aj.cancelledWord")}</strong> })}
           </p>
         </div>
       ) : (
@@ -198,12 +193,10 @@ export function AdminJamConfigDialog({
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
                 <p className="font-semibold text-warning">
-                  Sự kiện đang diễn ra
+                  {t("ac.liveTitle")}
                 </p>
                 <p className="mt-0.5 text-muted">
-                  Sự kiện đang diễn ra. Tên sự kiện và dự án khởi đầu đã được
-                  khóa và không thể thay đổi. Bạn chỉ có thể kéo dài thời gian
-                  kết thúc hoặc điều chỉnh thời gian chờ cooldown.
+                  {t("ac.liveBody")}
                 </p>
               </div>
             </div>
@@ -214,10 +207,10 @@ export function AdminJamConfigDialog({
             {/* Tên sự kiện */}
             <label className="flex flex-col gap-1.5 text-[13px]">
               <span className="flex items-center justify-between font-medium">
-                <span>Tên sự kiện</span>
+                <span>{t("ac.name")}</span>
                 {isActive && (
                   <span className="flex items-center gap-1 text-xs text-muted">
-                    <Lock className="h-3 w-3" /> Đã khóa
+                    <Lock className="h-3 w-3" /> {t("ac.locked")}
                   </span>
                 )}
               </span>
@@ -228,7 +221,8 @@ export function AdminJamConfigDialog({
                 onChange={(e) => setName(e.target.value)}
                 maxLength={120}
                 disabled={isActive}
-                placeholder="Nhập tên sự kiện Jam..."
+                placeholder={t("ac.namePlaceholder")}
+                aria-label={t("ac.name")}
                 className={`${INPUT_CLASS} w-full ${
                   isActive ? "cursor-not-allowed opacity-60 bg-surface-subtle" : ""
                 }`}
@@ -239,10 +233,10 @@ export function AdminJamConfigDialog({
             {/* Mô tả (tuỳ chọn) */}
             <label className="flex flex-col gap-1.5 text-[13px]">
               <span className="flex items-center justify-between font-medium">
-                <span>Mô tả sự kiện</span>
+                <span>{t("ac.desc")}</span>
                 {isActive && (
                   <span className="flex items-center gap-1 text-xs text-muted">
-                    <Lock className="h-3 w-3" /> Đã khóa
+                    <Lock className="h-3 w-3" /> {t("ac.locked")}
                   </span>
                 )}
               </span>
@@ -253,7 +247,7 @@ export function AdminJamConfigDialog({
                 rows={2}
                 maxLength={2000}
                 disabled={isActive}
-                placeholder="Mô tả chủ đề, phong cách âm nhạc hoặc gợi ý cho người tham gia..."
+                placeholder={t("ac.descPlaceholder")}
                 className={`${INPUT_CLASS} w-full resize-y ${
                   isActive ? "cursor-not-allowed opacity-60 bg-surface-subtle" : ""
                 }`}
@@ -264,10 +258,10 @@ export function AdminJamConfigDialog({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 text-[13px]">
                 <span className="flex items-center justify-between font-medium">
-                  <span>Thời gian bắt đầu</span>
+                  <span>{t("ac.start")}</span>
                   {isActive && (
                     <span className="flex items-center gap-1 text-xs text-muted">
-                      <Lock className="h-3 w-3" /> Đã bắt đầu
+                      <Lock className="h-3 w-3" /> {t("ac.started")}
                     </span>
                   )}
                 </span>
@@ -290,9 +284,9 @@ export function AdminJamConfigDialog({
               <label className="flex flex-col gap-1.5 text-[13px]">
                 <span className="flex items-center justify-between font-medium">
                   <span>
-                    {isActive ? "Kéo dài thời gian kết thúc" : "Thời gian kết thúc"}
+                    {isActive ? t("ac.extendEnd") : t("ac.end")}
                   </span>
-                  <span className="text-xs text-accent">Mở khóa</span>
+                  <span className="text-xs text-accent">{t("ac.unlocked")}</span>
                 </span>
                 <input
                   name="jam-end"
@@ -309,10 +303,10 @@ export function AdminJamConfigDialog({
             {/* Dự án khởi đầu */}
             <label className="flex flex-col gap-1.5 text-[13px]">
               <span className="flex items-center justify-between font-medium">
-                <span>Dự án khởi đầu</span>
+                <span>{t("ac.startProject")}</span>
                 {isActive && (
                   <span className="flex items-center gap-1 text-xs text-muted">
-                    <Lock className="h-3 w-3" /> Đã khóa
+                    <Lock className="h-3 w-3" /> {t("ac.locked")}
                   </span>
                 )}
               </span>
@@ -325,7 +319,7 @@ export function AdminJamConfigDialog({
                   isActive ? "cursor-not-allowed opacity-60 bg-surface-subtle" : ""
                 }`}
               >
-                <option value="">— Bắt đầu từ dự án trống —</option>
+                <option value="">{t("ac.emptyOption")}</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -333,16 +327,15 @@ export function AdminJamConfigDialog({
                 ))}
               </select>
               <span className="text-xs text-muted">
-                Dự án mẫu công khai được sao chép khi sự kiện mở màn. Đang chọn:{" "}
-                <strong>{selectedProjectName}</strong>
+                {tx("ac.projectHint", { name: <strong>{selectedProjectName}</strong> })}
               </span>
             </label>
 
             {/* Cooldown */}
             <label className="flex flex-col gap-1.5 text-[13px]">
               <span className="flex items-center justify-between font-medium">
-                <span>Thời gian chờ mỗi lượt sửa (giây)</span>
-                <span className="text-xs text-accent">Mở khóa</span>
+                <span>{t("ac.cooldown")}</span>
+                <span className="text-xs text-accent">{t("ac.unlocked")}</span>
               </span>
               <input
                 name="jam-cooldown"
@@ -359,8 +352,7 @@ export function AdminJamConfigDialog({
                 <FieldError>{fieldErrors.cooldown}</FieldError>
               )}
               <span className="text-xs text-muted">
-                Giá trị hợp lệ: từ 1 đến 3600 giây (mặc định 5s). Áp dụng tức thì
-                cho các lượt sửa tiếp theo.
+                {t("ac.cooldownHint")}
               </span>
             </label>
           </div>
@@ -371,8 +363,8 @@ export function AdminJamConfigDialog({
               {!confirmCancel ? (
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-xs text-muted">
-                    <p className="font-semibold text-danger">Hủy sự kiện Jam</p>
-                    <p>Sự kiện chưa bắt đầu có thể hủy bỏ và thông báo người đăng ký.</p>
+                    <p className="font-semibold text-danger">{t("ac.cancelHead")}</p>
+                    <p>{t("ac.cancelHint")}</p>
                   </div>
                   <Button
                     type="button"
@@ -382,18 +374,16 @@ export function AdminJamConfigDialog({
                     disabled={submitting || cancelling}
                   >
                     <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                    Hủy sự kiện này
+                    {t("ac.cancelThis")}
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-2 text-xs">
                   <p className="font-semibold text-danger">
-                    Xác nhận hủy sự kiện “{event.name}”?
+                    {t("ac.confirmCancel", { name: event.name })}
                   </p>
                   <p className="text-muted">
-                    Sự kiện sẽ chuyển sang trạng thái <strong>Đã hủy</strong>. Mọi
-                    người dùng đã đăng ký sẽ nhận được thông báo in-app. Thao tác
-                    này được lưu vào nhật ký kiểm toán.
+                    {tx("ac.confirmCancelBody", { cancelled: <strong>{t("aj.cancelledWord")}</strong> })}
                   </p>
                   <div className="flex items-center gap-2 pt-1">
                     <Button
@@ -406,10 +396,10 @@ export function AdminJamConfigDialog({
                       {cancelling ? (
                         <>
                           <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          Đang hủy...
+                          {t("ac.cancellingDots")}
                         </>
                       ) : (
-                        "Chắc chắn hủy"
+                        t("ac.sure")
                       )}
                     </Button>
                     <Button
@@ -419,7 +409,7 @@ export function AdminJamConfigDialog({
                       onClick={() => setConfirmCancel(false)}
                       disabled={cancelling}
                     >
-                      Không, giữ lại
+                      {t("ac.keep")}
                     </Button>
                   </div>
                 </div>
@@ -446,7 +436,7 @@ export function AdminJamConfigDialog({
             onClick={() => void handleSave()}
             disabled={submitting}
           >
-            Thử lại
+            {t("ui.retry")}
           </Button>
         </div>
       )}
@@ -460,7 +450,7 @@ export function AdminJamConfigDialog({
             onClick={onClose}
             disabled={submitting || cancelling}
           >
-            Đóng
+            {t("aj.close")}
           </Button>
           {!isEndedOrCancelled && (
             <Button
@@ -472,10 +462,10 @@ export function AdminJamConfigDialog({
               {submitting ? (
                 <>
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  Đang lưu...
+                  {t("ac.savingDots")}
                 </>
               ) : (
-                "Lưu thay đổi"
+                t("ac.saveChanges")
               )}
             </Button>
           )}

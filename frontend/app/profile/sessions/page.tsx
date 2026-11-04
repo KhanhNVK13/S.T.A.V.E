@@ -10,9 +10,12 @@ import { Card } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { apiErrorMessage } from "../../../lib/error-message";
-import { APP_LOCALE } from "../../../lib/format-date";
+import { appLocale } from "../../../lib/format-date";
+import { useI18n } from "../../../context/i18n-context";
+import { tNow } from "../../../lib/i18n";
 
 function SessionsList() {
+  const { t } = useI18n();
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -24,7 +27,7 @@ function SessionsList() {
       setSessions(data);
       setLoadError(null);
     } catch (err) {
-      setLoadError(apiErrorMessage(err, "Không tải được danh sách thiết bị."));
+      setLoadError(apiErrorMessage(err, tNow("ses.loadFail")));
     }
   }
 
@@ -40,7 +43,7 @@ function SessionsList() {
       await apiFetch(`/auth/sessions/${id}`, { method: "DELETE" });
       await load();
     } catch (err) {
-      setActionError(apiErrorMessage(err, "Không thu hồi được thiết bị."));
+      setActionError(apiErrorMessage(err, tNow("ses.revokeFail")));
     } finally {
       setRevokingId(null);
     }
@@ -51,7 +54,7 @@ function SessionsList() {
       <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-danger">
         {loadError}
         <Button variant="secondary" onClick={() => void load()}>
-          Thử lại
+          {t("ui.retry")}
         </Button>
       </div>
     );
@@ -75,7 +78,7 @@ function SessionsList() {
       )}
       {sessions.length === 1 && (
         <p className="mb-3 text-sm text-muted">
-          Đây là phiên đăng nhập duy nhất đang hoạt động của tài khoản.
+          {t("ses.only")}
         </p>
       )}
       <Card className="divide-y divide-border">
@@ -87,18 +90,17 @@ function SessionsList() {
               </span>
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-[13px] font-semibold">
-                  {session.device_label ?? "Thiết bị không xác định"}
-                  {session.isCurrent && <Badge variant="success">Thiết bị này</Badge>}
+                  {session.device_label ?? t("ses.unknown")}
+                  {session.isCurrent && <Badge variant="success">{t("ses.current")}</Badge>}
                 </p>
                 <p className="mt-0.5 font-mono text-xs text-muted">
-                  IP: {session.ip_address ?? "?"} · Hoạt động gần nhất:{" "}
-                  {new Date(session.last_active_at).toLocaleString(APP_LOCALE)}
+                  {t("ses.meta", { ip: session.ip_address ?? "?", when: new Date(session.last_active_at).toLocaleString(appLocale()) })}
                 </p>
               </div>
             </div>
             {session.isCurrent ? (
               <p className="max-w-[220px] text-xs text-muted">
-                Để đăng xuất thiết bị này, hãy dùng nút Đăng xuất ở menu tài khoản.
+                {t("ses.signOutHint")}
               </p>
             ) : (
               <Button
@@ -107,7 +109,7 @@ function SessionsList() {
                 disabled={revokingId === session.id}
                 className="shrink-0"
               >
-                {revokingId === session.id ? "Đang xoá…" : "Đăng xuất"}
+                {revokingId === session.id ? t("ses.removing") : t("ses.signOut")}
               </Button>
             )}
           </div>
@@ -118,13 +120,14 @@ function SessionsList() {
 }
 
 export default function SessionsPage() {
+  const { t } = useI18n();
   return (
     <RequireAuth>
       <div className="mx-auto max-w-3xl px-5 py-8">
         <PageHeader
-          title="Thiết bị đang đăng nhập"
-          description="Danh sách phiên đăng nhập của bạn. Có thể đăng xuất từng thiết bị cụ thể."
-          breadcrumbs={[{ label: "Hồ sơ", href: "/profile" }, { label: "Thiết bị" }]}
+          title={t("ses.title")}
+          description={t("ses.description")}
+          breadcrumbs={[{ label: t("profile.tabProfile"), href: "/profile" }, { label: t("ses.crumbDevices") }]}
         />
         <SessionsList />
       </div>

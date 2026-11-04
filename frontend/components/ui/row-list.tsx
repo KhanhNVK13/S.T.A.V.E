@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { APP_LOCALE } from "../../lib/format-date";
+import { appLocale } from "../../lib/format-date";
 
 /**
  * Danh sách dạng hàng kiểu GitHub (repo list) — dùng cho MỌI danh sách project
@@ -98,7 +98,7 @@ export function RowStat({
   return (
     <span title={title} className="flex items-center gap-1.5 font-mono text-xs text-muted">
       <Icon className="h-3.5 w-3.5" />
-      {value.toLocaleString(APP_LOCALE)}
+      {value.toLocaleString(appLocale())}
     </span>
   );
 }

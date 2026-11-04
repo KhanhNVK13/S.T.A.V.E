@@ -23,6 +23,7 @@ import type { DraftMeta, DraftNote, DraftTrack } from "@stave/shared-types";
 import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import { analyze, ticksPerBar, type Insight } from "../../../lib/music-theory";
 import { DC } from "./tokens";
+import { useI18n } from "../../../context/i18n-context";
 
 interface InsightPanelProps {
   projectId: string;
@@ -80,6 +81,7 @@ function InsightRow({
   onDismiss: (id: string) => void;
   onJumpToBar: (bar: number) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div style={styles.card}>
       <div style={styles.cardHead}>
@@ -87,8 +89,8 @@ function InsightRow({
         <button
           style={styles.dismissBtn}
           onClick={() => onDismiss(insight.id)}
-          title="Bỏ insight này cho dự án hiện tại"
-          aria-label={`Bỏ ${insight.title}`}
+          title={t("ins.dismissTitle")}
+          aria-label={t("ins.dismissAria", { title: insight.title })}
         >
           <X size={11} />
         </button>
@@ -96,7 +98,7 @@ function InsightRow({
       <p style={styles.cardDesc}>{insight.description}</p>
       {insight.alternatives && insight.alternatives.length > 0 && (
         <p style={styles.cardAlt}>
-          Khả năng khác: {insight.alternatives.join(" hoặc ")}
+          {t("ins.alternatives", { list: insight.alternatives.join(t("ins.or")) })}
         </p>
       )}
       {insight.fromBar !== null && insight.toBar !== null && (
@@ -105,12 +107,12 @@ function InsightRow({
           onClick={() => onJumpToBar(insight.fromBar!)}
           title={
             insight.fromBar === insight.toBar
-              ? `Đưa đầu phát tới ô nhịp ${insight.fromBar}`
-              : `Đưa đầu phát tới ô nhịp ${insight.fromBar} (vùng ${insight.fromBar}–${insight.toBar})`
+              ? t("ins.jumpBar", { bar: insight.fromBar })
+              : t("ins.jumpRange", { bar: insight.fromBar, from: insight.fromBar, to: insight.toBar })
           }
         >
           <MapPin size={12} />
-          Đi tới ô nhịp {insight.fromBar === insight.toBar ? insight.fromBar : `${insight.fromBar}–${insight.toBar}`}
+          {t("ins.goTo", { range: insight.fromBar === insight.toBar ? insight.fromBar : `${insight.fromBar}–${insight.toBar}` })}
         </button>
       )}
     </div>
@@ -118,6 +120,7 @@ function InsightRow({
 }
 
 export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpToBar }: InsightPanelProps) {
+  const { t, lang } = useI18n();
   // Editor tạo object meta mới ở mỗi lần render (kể cả khi đang phát nhạc);
   // khoá theo giá trị để debounce 500 ms không bị reset liên tục.
   const { tempo, ppq } = metaProp;
@@ -152,7 +155,7 @@ export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpT
       });
     }, 500);
     return () => clearTimeout(t);
-  }, [notes, tracks, meta, projectId]);
+  }, [notes, tracks, meta, projectId, lang]);
 
   function dismiss(id: string) {
     setDismissed((prev) => {
@@ -187,33 +190,30 @@ export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpT
           <Lightbulb size={15} color={DC.accent} /> Insight
         </div>
         <p style={styles.subtitle}>
-          Nhận diện tông, tiến trình hợp âm và kết trong bản nhạc — chỉ mô tả
-          những gì đã có, không gợi ý sửa.
+          {t("ins.subtitle")}
         </p>
       </div>
 
       <div style={styles.body}>
         {result === null ? (
           stale ? (
-            <p style={styles.stateText}>Đang cập nhật…</p>
+            <p style={styles.stateText}>{t("ins.updating")}</p>
           ) : (
-            <p style={styles.stateText}>Đang phân tích…</p>
+            <p style={styles.stateText}>{t("ins.analyzing")}</p>
           )
         ) : result.insufficient ? (
           <div style={styles.stateBox}>
             <Lightbulb size={20} color={DC.textMuted} />
-            <p style={styles.stateTitle}>Chưa đủ nốt để nhận diện</p>
+            <p style={styles.stateTitle}>{t("ins.notEnoughTitle")}</p>
             <p style={styles.stateText}>
-              Thêm nốt vào ít nhất 2 ô nhịp để panel chỉ ra tông, tiến trình
-              hợp âm và kết.
+              {t("ins.notEnoughBody")}
             </p>
           </div>
         ) : (
           <>
             {lowConfidence && (
               <div style={styles.confidenceNote}>
-                Đoạn mới {noteBarCount} ô nhịp (dưới {CONFIDENT_NOTE_BARS}) — nhận
-                tông có thể chưa chắc.
+                {t("ins.lowConfidence", { n: noteBarCount, min: CONFIDENT_NOTE_BARS })}
               </div>
             )}
 
@@ -222,19 +222,19 @@ export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpT
                 insight={{
                   ...keyInsight,
                   // Kết quả nhận tông không khẳng định — nói "có vẻ là".
-                  title: keyInsight.title.replace(/^Tông: /, "Tông: có vẻ là "),
+                  title: t("theory.keyMaybe", { key: keyInsight.title.replace(/^[^:]+: /, "") }),
                 }}
                 onDismiss={dismiss}
                 onJumpToBar={onJumpToBar}
               />
             ) : (
-              <p style={styles.stateText}>Chưa nhận ra tông nào rõ ràng.</p>
+              <p style={styles.stateText}>{t("ins.noKey")}</p>
             )}
 
-            <div style={styles.sectionLabel}>Tiến trình hợp âm</div>
+            <div style={styles.sectionLabel}>{t("ins.progressions")}</div>
             {progressions.length === 0 ? (
               <p style={styles.stateText}>
-                Chưa nhận ra mẫu nào (I–V–vi–IV, vi–IV–I–V, ii–V–I…).
+                {t("ins.noProgressions")}
               </p>
             ) : (
               progressions.map((i) => (
@@ -242,10 +242,10 @@ export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpT
               ))
             )}
 
-            <div style={styles.sectionLabel}>Kết (cadence)</div>
+            <div style={styles.sectionLabel}>{t("ins.cadences")}</div>
             {cadences.length === 0 ? (
               <p style={styles.stateText}>
-                Không thấy kết điển hình (V–I, IV–I, V–vi) ở cuối.
+                {t("ins.noCadences")}
               </p>
             ) : (
               cadences.map((i) => (

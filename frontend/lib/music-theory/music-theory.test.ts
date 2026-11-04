@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
+import { setLang } from "../i18n";
+
+beforeEach(() => setLang("vi"));
 import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import {

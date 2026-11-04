@@ -15,6 +15,7 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Tabs } from "../../components/ui/tabs";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-66 — the Community Jam listing. Events are grouped into "Đang diễn ra"
@@ -25,12 +26,6 @@ import { Tabs } from "../../components/ui/tabs";
 
 type Group = "active" | "scheduled" | "ended";
 
-const TABS: { id: Group; label: string }[] = [
-  { id: "active", label: "Đang diễn ra" },
-  { id: "scheduled", label: "Sắp diễn ra" },
-  { id: "ended", label: "Đã kết thúc" },
-];
-
 function groupOf(event: JamEventListItem): Group {
   const s = event.status as JamEventStatus;
   if (s === "active") return "active";
@@ -39,6 +34,7 @@ function groupOf(event: JamEventListItem): Group {
 }
 
 function EventCard({ event }: { event: JamEventListItem }) {
+  const { t } = useI18n();
   const joined =
     event.currentParticipantCount > 0 ? (
       <span className="flex items-center gap-1.5 text-sm text-muted">
@@ -49,7 +45,7 @@ function EventCard({ event }: { event: JamEventListItem }) {
     ) : (
       <span className="flex items-center gap-1.5 text-sm text-muted">
         <Users className="h-4 w-4" />
-        Chờ người tham gia
+        {t("jam.waiting")}
       </span>
     );
 
@@ -58,8 +54,8 @@ function EventCard({ event }: { event: JamEventListItem }) {
       return (
         <Badge variant="success">
           {event.scheduled_end_at
-            ? `Kết thúc ${formatDateTime(event.scheduled_end_at)}`
-            : "Đang diễn ra"}
+            ? t("jam.endsAt", { when: formatDateTime(event.scheduled_end_at) })
+            : t("jam.live")}
         </Badge>
       );
     }
@@ -68,12 +64,12 @@ function EventCard({ event }: { event: JamEventListItem }) {
         <Badge variant="info">
           <CalendarClock className="h-3.5 w-3.5" />
           {event.scheduled_start_at
-            ? `Mở ${formatDateTime(event.scheduled_start_at)}`
-            : "Sắp diễn ra"}
+            ? t("jam.opensAt", { when: formatDateTime(event.scheduled_start_at) })
+            : t("jam.upcoming")}
         </Badge>
       );
     }
-    return <Badge variant="neutral">Đã kết thúc</Badge>;
+    return <Badge variant="neutral">{t("jam.ended")}</Badge>;
   })();
 
   return (
@@ -85,7 +81,7 @@ function EventCard({ event }: { event: JamEventListItem }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-base font-semibold">
-            {event.name || "Phòng Jam"}
+            {event.name || t("jam.room")}
           </span>
           {statusLine}
         </div>
@@ -98,7 +94,7 @@ function EventCard({ event }: { event: JamEventListItem }) {
       <div className="mt-auto flex items-center justify-between gap-2">
         {joined}
         <Link href={`/jam/${event.id}`}>
-          <Button>Tham gia ngay</Button>
+          <Button>{t("jam.joinNow")}</Button>
         </Link>
       </div>
     </div>
@@ -118,6 +114,7 @@ function SkeletonCard() {
 }
 
 export function JamListContent() {
+  const { t } = useI18n();
   const [tab, setTab] = useState<Group>("active");
   const [nonce, setNonce] = useState(0);
 
@@ -127,31 +124,36 @@ export function JamListContent() {
   const { data: items, loading, error } = useApiResource<JamEventListItem[]>(
     () => getJamEvents(),
     [nonce],
-    "Không thể tải danh sách sự kiện Jam.",
+    t("jam.loadListFail"),
   );
 
+  const tabs: { id: Group; label: string }[] = [
+    { id: "active", label: t("jam.tabActive") },
+    { id: "scheduled", label: t("jam.tabScheduled") },
+    { id: "ended", label: t("jam.tabEnded") },
+  ];
   const list = items ?? [];
   const visible = list.filter((e) => groupOf(e) === tab);
 
   return (
     <div className="mx-auto max-w-page px-5 py-8">
       <PageHeader
-        breadcrumbs={[{ label: "Community" }]}
-        title="Community Jam"
-        description="Phòng nhạc chung — nhiều người cùng góp nốt trong một bản."
+        breadcrumbs={[{ label: t("jam.crumb") }]}
+        title={t("jam.title")}
+        description={t("jam.description")}
       />
 
-      <Tabs tabs={TABS} active={tab} onChange={(id) => setTab(id as Group)} />
+      <Tabs tabs={tabs} active={tab} onChange={(id) => setTab(id as Group)} />
 
       <div className="mt-4">
         {error ? (
           <EmptyState
             icon={Music4}
-            title="Không tải được danh sách sự kiện"
+            title={t("jam.listFailTitle")}
             description={error}
             action={
               <Button variant="secondary" onClick={() => setNonce((n) => n + 1)}>
-                <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+                <RefreshCw className="h-3.5 w-3.5" /> {t("ui.retry")}
               </Button>
             }
           />
@@ -164,11 +166,11 @@ export function JamListContent() {
         ) : visible.length === 0 ? (
           <EmptyState
             icon={Music4}
-            title="Hiện chưa có sự kiện Community Jam nào trong nhóm này"
-            description="Hãy quay lại sau!"
+            title={t("jam.noneTitle")}
+            description={t("jam.noneBody")}
             action={
               <Button variant="ghost" onClick={() => setNonce((n) => n + 1)}>
-                <RefreshCw className="h-3.5 w-3.5" /> Làm mới
+                <RefreshCw className="h-3.5 w-3.5" /> {t("jam.refresh")}
               </Button>
             }
           />

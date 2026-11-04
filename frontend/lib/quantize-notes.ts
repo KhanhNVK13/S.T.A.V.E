@@ -1,3 +1,4 @@
+import { tNow } from "./i18n";
 import type { DraftNote } from "@stave/shared-types";
 
 export interface QuantizeResult {
@@ -53,12 +54,12 @@ export function describeQuantize(result: QuantizeResult, scopeLabel: string): {
   variant: "success" | "warning" | "info";
 } {
   if (result.moved === 0 && result.collisions === 0) {
-    return { message: `Không có nốt nào cần căn (${scopeLabel} đã nằm đúng lưới).`, variant: "info" };
+    return { message: tNow("lib.quantizeNone", { scope: scopeLabel }), variant: "info" };
   }
-  const parts = [`Đã căn ${result.moved} nốt vào lưới (${scopeLabel}).`];
+  const parts = [tNow("lib.quantizeDone", { n: result.moved, scope: scopeLabel })];
   if (result.collisions > 0) {
     parts.push(
-      `${result.collisions} nốt được giữ nguyên vị trí vì sẽ trùng một nốt cùng cao độ đã có ở vị trí đó.`,
+      tNow("lib.quantizeCollisions", { n: result.collisions }),
     );
   }
   return { message: parts.join(" "), variant: result.collisions > 0 ? "warning" : "success" };

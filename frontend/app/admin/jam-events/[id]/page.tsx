@@ -17,6 +17,8 @@ import { Toast } from "../../../../components/ui/toast";
 import {
   JamEventControlPanel,
 } from "../../../../components/admin/jam/jam-event-control-panel";
+import { useI18n } from "../../../../context/i18n-context";
+import { tNow } from "../../../../lib/i18n";
 
 /**
  * UC-95 — trang điều khiển quản trị 1 sự kiện Jam (admin-only phía
@@ -41,6 +43,7 @@ function AdminJamEventContent({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { t } = useI18n();
   const { id } = use(params);
   const { profile, loading } = useAuth();
 
@@ -65,7 +68,7 @@ function AdminJamEventContent({
     } catch (err) {
       // 3.E1 (404): sự kiện không tồn tại → empty state "Quay lại danh sách".
       setEvent(null);
-      setLoadError(apiErrorMessage(err, "Không tải được thông tin sự kiện."));
+      setLoadError(apiErrorMessage(err, tNow("aj.ctlLoadFail")));
     } finally {
       setLoadingEvent(false);
     }
@@ -77,7 +80,7 @@ function AdminJamEventContent({
   }, [load]);
 
   const handleEnded = useCallback((endedId: string) => {
-    setDoneMessage("Sự kiện Community Jam đã kết thúc thành công.");
+    setDoneMessage(tNow("aj.ctlEnded"));
     setEvent((prev) =>
       prev && prev.id === endedId
         ? {
@@ -92,17 +95,17 @@ function AdminJamEventContent({
   return (
     <div className="mx-auto max-w-page px-5 py-8">
       <PageHeader
-        breadcrumbs={[{ label: "Quản trị" }, { label: "Community Jam" }]}
-        title="Điều khiển sự kiện Jam"
-        description="Xem trạng thái và kết thúc sự kiện khi cần."
+        breadcrumbs={[{ label: t("aj.crumb") }, { label: t("aj.ctlCrumb") }]}
+        title={t("aj.ctlTitle")}
+        description={t("aj.ctlDescription")}
       />
       {loading ? (
-        <p className="text-sm text-muted">Đang tải…</p>
+        <p className="text-sm text-muted">{t("ui.loading")}</p>
       ) : profile?.role !== "admin" ? (
         <EmptyState
           icon={ShieldAlert}
-          title="Bạn không có quyền truy cập"
-          description="Bạn không có quyền quản trị để thực hiện thao tác này."
+          title={t("aj.noAdminTitle")}
+          description={t("aj.noAdminBody")}
         />
       ) : (
         <JamEventControlPanel

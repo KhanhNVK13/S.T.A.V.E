@@ -18,7 +18,8 @@ import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Dialog, DialogError } from "../ui/dialog";
 import { INPUT_CLASS } from "../ui/form";
-import { CollaboratorPermissionSelect, collaboratorDisplayName, PERMISSION_LABELS } from "./collaborator-controls";
+import { CollaboratorPermissionSelect, collaboratorDisplayName, PERMISSION_KEYS } from "./collaborator-controls";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-60/61/62 — hộp thoại "Cộng tác viên", mở từ toolbar editor (chủ dự án)
@@ -43,6 +44,7 @@ export function CollaboratorsDialog({
   projectName: string;
   isOwner: boolean;
 }) {
+  const { t, tx } = useI18n();
   const [attempt, setAttempt] = useState(0);
 
   // UC-60: form mời.
@@ -70,14 +72,14 @@ export function CollaboratorsDialog({
         ? listCollaborators(projectId)
         : Promise.resolve([]),
     [open, attempt, projectId],
-    "Không tải được danh sách cộng tác viên.",
+    t("col.loadFail"),
   );
   const items = fetched ?? [];
 
   async function handleInvite() {
     const trimmed = identifier.trim();
     if (!trimmed) {
-      setInviteError("Nhập username hoặc email của người bạn muốn mời.");
+      setInviteError(t("col.inviteRequired"));
       return;
     }
     setInviting(true);
@@ -87,11 +89,11 @@ export function CollaboratorsDialog({
       const created = await inviteCollaborator(projectId, { identifier: trimmed, permissionLevel: permission });
       setIdentifier("");
       setInviteSuccess(
-        `Đã mời ${created.user.displayName ?? created.user.username ?? "cộng tác viên"}. Họ cần chấp nhận lời mời mới có quyền truy cập.`,
+        t("col.invited", { name: created.user.displayName ?? created.user.username ?? t("col.collaborator") }),
       );
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setInviteError(apiErrorMessage(err, "Không mời được cộng tác viên."));
+      setInviteError(apiErrorMessage(err, t("col.inviteFail")));
     } finally {
       setInviting(false);
     }
@@ -106,7 +108,7 @@ export function CollaboratorsDialog({
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
       // 3.E2: giữ quyền cũ — không refetch nên dropdown tự hoàn về giá trị cũ.
-      setPermissionError(apiErrorMessage(err, "Không đổi được quyền. Giá trị cũ được giữ lại."));
+      setPermissionError(apiErrorMessage(err, t("col.permissionFail")));
     } finally {
       setPermissionBusy(null);
     }
@@ -121,7 +123,7 @@ export function CollaboratorsDialog({
       setRemoveTarget(null);
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setRemoveError(apiErrorMessage(err, "Không gỡ được cộng tác viên."));
+      setRemoveError(apiErrorMessage(err, t("col.removeFail")));
     } finally {
       setRemoving(false);
     }
@@ -132,11 +134,11 @@ export function CollaboratorsDialog({
       <Dialog
         open={open}
         onClose={onClose}
-        title="Cộng tác viên"
+        title={t("col.title")}
         className="max-w-lg p-6"
       >
         <p className="-mt-2 mb-4 text-[13px] text-muted">
-          Dự án &ldquo;{projectName}&rdquo;{isOwner ? "" : " — bạn đang xem với quyền cộng tác viên"}
+          {t("col.projectLine", { name: projectName, suffix: isOwner ? "" : t("col.viewerSuffix") })}
         </p>
 
         {listError ? (
@@ -148,16 +150,16 @@ export function CollaboratorsDialog({
               className="mt-2 h-7 text-xs"
               onClick={() => setAttempt((n) => n + 1)}
             >
-              Thử lại
+              {t("ui.retry")}
             </Button>
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-muted">
-            <Loader2 className="h-4 w-4 animate-spin text-accent" /> Đang tải danh sách…
+            <Loader2 className="h-4 w-4 animate-spin text-accent" /> {t("col.loading")}
           </div>
         ) : items.length === 0 ? (
           <p className="rounded-card bg-surface-subtle px-3 py-2.5 text-[13px] text-muted">
-            Chưa có cộng tác viên nào trong dự án.
+            {t("col.empty")}
           </p>
         ) : (
           <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
@@ -169,9 +171,9 @@ export function CollaboratorsDialog({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-[13px] font-semibold">{collaboratorDisplayName(item)}</span>
-                      {item.status === "pending" && <Badge variant="warning">Đang chờ</Badge>}
+                      {item.status === "pending" && <Badge variant="warning">{t("col.pending")}</Badge>}
                     </div>
-                    <p className="text-xs text-muted">Mời bởi {item.user.username ?? "người dùng"} · {formatRelativeTime(item.createdAt)}</p>
+                    <p className="text-xs text-muted">{t("col.invitedBy", { name: item.user.username ?? t("col.user"), when: formatRelativeTime(item.createdAt) })}</p>
                   </div>
 
                   {isOwner ? (
@@ -184,15 +186,15 @@ export function CollaboratorsDialog({
                     />
                   ) : (
                     <span className="text-xs text-muted">
-                      {PERMISSION_LABELS[item.permissionLevel]}
+                      {t(PERMISSION_KEYS[item.permissionLevel])}
                     </span>
                   )}
 
                   {isOwner && (
                     <button
                       type="button"
-                      aria-label={`Gỡ ${collaboratorDisplayName(item)} khỏi dự án`}
-                      title={item.status === "pending" ? "Rút lời mời" : "Gỡ quyền cộng tác viên"}
+                      aria-label={t("col.removeLabel", { name: collaboratorDisplayName(item) })}
+                      title={item.status === "pending" ? t("col.withdraw") : t("col.removeCollab")}
                       className="shrink-0 rounded-md p-1.5 text-muted transition-colors hover:bg-danger-muted hover:text-danger"
                       onClick={() => {
                         setRemoveError(null);
@@ -217,7 +219,7 @@ export function CollaboratorsDialog({
         {/* UC-60: mời — chỉ chủ dự án thấy form (non-owner: dropdown chỉ đọc). */}
         {isOwner && !listError && (
           <div className="mt-5 border-t border-border pt-4">
-            <p className="mb-2.5 text-xs font-semibold text-muted">Mời cộng tác viên mới</p>
+            <p className="mb-2.5 text-xs font-semibold text-muted">{t("col.inviteNew")}</p>
             <DialogError message={inviteError} />
             {inviteSuccess && (
               <p className="mb-3 rounded-card bg-success-muted px-3 py-2 text-[13px] text-success-foreground">{inviteSuccess}</p>
@@ -227,7 +229,7 @@ export function CollaboratorsDialog({
                 type="text"
                 name="collaborator-identifier"
                 autoComplete="off"
-                placeholder="username hoặc email"
+                placeholder={t("col.invitePlaceholder")}
                 className={`${INPUT_CLASS} flex-1`}
                 value={identifier}
                 onChange={(e) => {
@@ -248,44 +250,38 @@ export function CollaboratorsDialog({
                 className="gap-1.5"
               >
                 {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus size={14} />}
-                {inviting ? "Đang mời…" : "Mời"}
+                {inviting ? t("col.inviting") : t("col.invite")}
               </Button>
             </div>
             <p className="mt-2 text-xs text-muted">
-              Người được mời cần chấp nhận lời mời (trong trang{" "}
-              <a href="/invitations" className="font-semibold text-accent hover:underline">
-                Lời mời
-              </a>
-              ) mới có quyền truy cập dự án.
+              {tx("col.inviteNote", { link: <a href="/invitations" className="font-semibold text-accent hover:underline">{t("col.invitationsLink")}</a> })}
             </p>
           </div>
         )}
         {!isOwner && (
-          <p className="mt-4 text-xs text-muted">Bạn đang xem với quyền của cộng tác viên — danh sách chỉ đọc.</p>
+          <p className="mt-4 text-xs text-muted">{t("col.readonly")}</p>
         )}
       </Dialog>
 
       {/* UC-62: xác nhận gỡ. */}
       <ConfirmDialog
         open={removeTarget !== null}
-        title={removeTarget?.status === "pending" ? "Rút lời mời" : "Gỡ cộng tác viên"}
+        title={removeTarget?.status === "pending" ? t("col.withdraw") : t("col.removeDialogTitle")}
         message={
           removeTarget ? (
             removeTarget.status === "pending" ? (
               <span>
-                Rút lời mời đang chờ của <strong>{collaboratorDisplayName(removeTarget)}</strong>? Người này chưa
-                chấp nhận nên không mất quyền truy cập nào.
+                {tx("col.withdrawBody", { name: <strong>{collaboratorDisplayName(removeTarget)}</strong> })}
               </span>
             ) : (
               <span>
-                Gỡ <strong>{collaboratorDisplayName(removeTarget)}</strong> khỏi dự án? Họ sẽ mất quyền truy cập
-                ngay. Đóng góp của họ (commit, bình luận) <strong>vẫn được giữ</strong> trong lịch sử dự án.
+                {tx("col.removeBody", { name: <strong>{collaboratorDisplayName(removeTarget)}</strong>, keep: <strong>{t("col.keepStrong")}</strong> })}
               </span>
             )
           ) : null
         }
-        confirmLabel="Xác nhận"
-        cancelLabel="Huỷ"
+        confirmLabel={t("ui.confirm")}
+        cancelLabel={t("ui.cancel")}
         danger={removeTarget?.status !== "pending"}
         loading={removing}
         error={removeError}
@@ -309,12 +305,13 @@ export function CollaboratorsButton({
   projectName: string;
   isOwner: boolean;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button variant="ghost" onClick={() => setOpen(true)} className="gap-1.5" aria-haspopup="dialog">
         <Users size={15} />
-        Cộng tác viên
+        {t("col.title")}
       </Button>
       <CollaboratorsDialog
         open={open}

@@ -1,3 +1,4 @@
+import { tNow } from "../i18n";
 import type { DraftMeta } from "@stave/shared-types";
 import {
   KEY_AMBIGUITY_THRESHOLD,
@@ -30,7 +31,7 @@ export interface KeyResult {
 }
 
 function keyLabel(root: number, isMinor: boolean): string {
-  return `${PITCH_CLASS_NAMES[root]} ${isMinor ? "thứ" : "trưởng"}`;
+  return `${PITCH_CLASS_NAMES[root]} ${isMinor ? tNow("theory.minor") : tNow("theory.major")}`;
 }
 
 /**

@@ -10,6 +10,8 @@ import { apiErrorMessage } from "../../../../lib/error-message";
 import { Card } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import { JamResultView } from "../../../../components/jam/jam-result-view";
+import { useI18n } from "../../../../context/i18n-context";
+import { tNow } from "../../../../lib/i18n";
 
 /**
  * UC-68 — the frozen result of one ended Community Jam (`/jam/[id]/result`).
@@ -21,6 +23,7 @@ import { JamResultView } from "../../../../components/jam/jam-result-view";
  */
 
 function ResultContent({ id }: { id: string }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [result, setResult] = useState<JamResultResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,7 @@ function ResultContent({ id }: { id: string }) {
           // 2.E4 — still running: bounce back to the live room.
           setRedirecting(true);
           setError(
-            "Sự kiện Jam này vẫn đang diễn ra. Đang chuyển hướng bạn đến phòng Jam...",
+            tNow("jam.stillRunningRedirect"),
           );
           setTimeout(() => {
             if (!cancelled) router.replace(`/jam/${id}`);
@@ -52,11 +55,11 @@ function ResultContent({ id }: { id: string }) {
         // 2.E3 — the id does not exist: exact spec copy (the 404 message in
         // `error-message.ts` belongs to UC-66 and must stay untouched).
         if (err instanceof ApiError && err.status === 404) {
-          setError("Sự kiện Jam không tồn tại hoặc đã bị xóa.");
+          setError(tNow("jam.notFound"));
           return;
         }
         // 2.E2 — everything else is a real server/DB failure.
-        setError(apiErrorMessage(err, "Không thể tải kết quả sự kiện Jam. Vui lòng thử lại."));
+        setError(apiErrorMessage(err, tNow("jam.resultFail")));
       }
     }
 
@@ -73,9 +76,9 @@ function ResultContent({ id }: { id: string }) {
         <div className="flex flex-col items-center gap-3 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-accent" />
           <p className="text-sm text-muted">
-            Sự kiện Jam này vẫn đang diễn ra.
+            {t("jam.stillRunning")}
             <br />
-            Đang chuyển hướng bạn đến phòng Jam...
+            {t("jam.redirecting")}
           </p>
         </div>
       </Card>
@@ -100,7 +103,7 @@ function ResultContent({ id }: { id: string }) {
               setRefreshKey((n) => n + 1);
             }}
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+            <RefreshCw className="h-3.5 w-3.5" /> {t("ui.retry")}
           </Button>
         </div>
       </Card>
@@ -118,7 +121,7 @@ function ResultContent({ id }: { id: string }) {
         onClick={() => router.push(`/jam/${id}`)}
         className="-ml-2"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Quay lại phòng Jam
+        <ArrowLeft className="h-3.5 w-3.5" /> {t("jam.backToRoom")}
       </Button>
       <JamResultView result={result} />
     </div>

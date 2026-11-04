@@ -9,6 +9,8 @@ import { Toast } from "../../../components/ui/toast";
 import { getNotificationPreferences, setNotificationPreference } from "../../../lib/api-client";
 import type { NotificationChannel, NotificationPreference } from "../../../lib/api-client";
 import { apiErrorMessage } from "../../../lib/error-message";
+import { useI18n } from "../../../context/i18n-context";
+import { tNow } from "../../../lib/i18n";
 
 const MANDATORY_CATEGORY = "Bảo mật và thanh toán";
 
@@ -46,6 +48,7 @@ function Switch({
 }
 
 function SettingsView() {
+  const { t } = useI18n();
   const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ function SettingsView() {
     try {
       setPreferences(await getNotificationPreferences());
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được cài đặt thông báo."));
+      setError(apiErrorMessage(err, tNow("nts.loadFail")));
     } finally {
       setLoading(false);
     }
@@ -87,7 +90,7 @@ function SettingsView() {
       await setNotificationPreference({ type: preference.type, channel, enabled });
     } catch (err) {
       setLocal(preference.type, channel, !enabled);
-      setToast(apiErrorMessage(err, "Không lưu được thay đổi. Cài đặt đã được trả về như cũ."));
+      setToast(apiErrorMessage(err, tNow("nts.saveFail")));
     } finally {
       setPending((current) => {
         const next = new Set(current);
@@ -105,9 +108,9 @@ function SettingsView() {
   return (
     <div className="mx-auto min-h-full max-w-3xl px-5 py-8">
       <PageHeader
-        title="Cài đặt thông báo"
-        description="Chọn loại thông báo bạn muốn nhận. Thay đổi được lưu ngay và không ảnh hưởng thông báo đã nhận."
-        breadcrumbs={[{ label: "Thông báo", href: "/notifications" }, { label: "Cài đặt" }]}
+        title={t("nt.settings")}
+        description={t("nts.description")}
+        breadcrumbs={[{ label: t("nt.title"), href: "/notifications" }, { label: t("nts.crumb") }]}
       />
 
       {loading && <div className="h-24 animate-pulse rounded-card border border-border bg-surface-subtle" />}
@@ -116,7 +119,7 @@ function SettingsView() {
         <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
           <p>{error}</p>
           <Button variant="secondary" onClick={() => void load()}>
-            Thử lại
+            {t("ui.retry")}
           </Button>
         </div>
       )}
@@ -132,15 +135,14 @@ function SettingsView() {
                 {mandatory && (
                   <p className="mb-2 flex items-start gap-1.5 text-xs text-muted">
                     <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    Thông báo về bảo mật và thanh toán luôn được gửi để bạn không bỏ lỡ thông tin quan trọng về tài
-                    khoản, nên không thể tắt.
+                    {t("nts.mandatory")}
                   </p>
                 )}
                 <div className="overflow-hidden rounded-card border border-border bg-surface">
                   <div className="hidden items-center gap-4 border-b border-border bg-surface-subtle px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-muted sm:flex">
-                    <span className="flex-1">Loại thông báo</span>
-                    <span className="w-24 text-center">Trong ứng dụng</span>
-                    <span className="w-32 text-center">Email (PLACEHOLDER)</span>
+                    <span className="flex-1">{t("nts.colType")}</span>
+                    <span className="w-24 text-center">{t("nts.colInApp")}</span>
+                    <span className="w-32 text-center">{t("nts.colEmail")}</span>
                   </div>
                   {rows.map((preference) => (
                     <div
@@ -149,20 +151,20 @@ function SettingsView() {
                     >
                       <span className="min-w-0 flex-1 text-[13px] font-semibold">{preference.label}</span>
                       <span className="flex w-24 items-center justify-center gap-2">
-                        <span className="text-xs text-muted sm:hidden">Trong ứng dụng</span>
+                        <span className="text-xs text-muted sm:hidden">{t("nts.colInApp")}</span>
                         <Switch
                           checked={preference.channels.in_app}
                           disabled={preference.mandatory}
-                          label={`${preference.label}: nhận trong ứng dụng`}
+                          label={t("nts.inAppLabel", { label: preference.label })}
                           onChange={(next) => void toggle(preference, "in_app", next)}
                         />
                       </span>
                       <span className="flex w-32 items-center justify-center gap-2">
-                        <span className="text-xs text-muted sm:hidden">Email (PLACEHOLDER)</span>
+                        <span className="text-xs text-muted sm:hidden">{t("nts.colEmail")}</span>
                         <Switch
                           checked={preference.channels.email}
                           disabled={preference.mandatory}
-                          label={`${preference.label}: nhận qua email (PLACEHOLDER, chưa gửi email thật)`}
+                          label={t("nts.emailLabel", { label: preference.label })}
                           onChange={(next) => void toggle(preference, "email", next)}
                         />
                       </span>
@@ -173,7 +175,7 @@ function SettingsView() {
             );
           })}
           <p className="text-xs text-muted">
-            PLACEHOLDER — hệ thống chưa gửi email thật; lựa chọn email vẫn được lưu cho khi tính năng này sẵn sàng.
+            {t("nts.placeholder")}
           </p>
         </div>
       )}

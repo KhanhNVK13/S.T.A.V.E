@@ -12,12 +12,6 @@ import { tNow } from "../../lib/i18n";
 
 const COLS = "md:grid-cols-[minmax(0,1fr)_112px_96px_96px]";
 
-export const STATUS_LABEL: Record<PullRequestStatus, string> = {
-  open: "Đang mở",
-  merged: "Đã hợp nhất",
-  closed: "Đã đóng",
-};
-
 const STATUS_VARIANT: Record<PullRequestStatus, "success" | "info" | "neutral"> = {
   open: "success",
   merged: "info",

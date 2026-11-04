@@ -7,6 +7,7 @@ import { RequireAuth } from "../../components/require-auth";
 import { useAuth } from "../../context/auth-context";
 import { EmptyState } from "../../components/ui/empty-state";
 import { ADMIN_NAV_ITEMS } from "../../components/admin/admin-nav-items";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * Khung trang quản trị (nền tảng 25/10): menu bên trái (đọc từ
@@ -16,13 +17,14 @@ import { ADMIN_NAV_ITEMS } from "../../components/admin/admin-nav-items";
  * kiểm đăng nhập và vai trò ở client (quyền thật do backend AdminGuard đảm bảo).
  */
 function AdminSidebar({ pathname }: { pathname: string }) {
+  const { t } = useI18n();
   return (
     <nav
-      aria-label="Trang quản trị"
+      aria-label={t("adm.nav")}
       className="flex shrink-0 flex-col gap-1 border-b border-border pb-3 md:sticky md:top-0 md:w-[200px] md:border-b-0 md:border-r md:py-6 md:pr-4"
     >
       <p className="mb-2 px-2 text-xs font-bold uppercase tracking-[0.12em] text-muted">
-        Quản trị
+        {t("adm.navTitle")}
       </p>
       {ADMIN_NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active =
@@ -39,7 +41,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
             }`}
           >
             <Icon className="h-4 w-4 shrink-0" />
-            {label}
+            {t(label)}
           </Link>
         );
       })}
@@ -48,6 +50,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   const { profile, loading } = useAuth();
   const pathname = usePathname() ?? "";
 
@@ -56,13 +59,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="mx-auto flex max-w-page flex-col px-5 py-8 md:flex-row">
         {loading ? (
           <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted">
-            <Loader2 className="h-4 w-4 animate-spin text-accent" /> Đang tải…
+            <Loader2 className="h-4 w-4 animate-spin text-accent" /> {t("ui.loading")}
           </div>
         ) : profile?.role !== "admin" ? (
           <EmptyState
             icon={ShieldAlert}
-            title="Chỉ quản trị viên mới xem được trang này"
-            description="Tài khoản của bạn không có quyền truy cập khu vực quản trị."
+            title={t("adm.onlyAdmin")}
+            description={t("adm.noAccess")}
           />
         ) : (
           <>

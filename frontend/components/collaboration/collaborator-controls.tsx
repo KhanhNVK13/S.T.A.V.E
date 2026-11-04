@@ -2,11 +2,13 @@
 
 import type { CollaboratorItem, CollaboratorPermissionLevel } from "@stave/shared-types";
 import { INPUT_CLASS } from "../ui/form";
+import { useI18n } from "../../context/i18n-context";
+import { tNow, type TKey } from "../../lib/i18n";
 
-/** Nhãn tiếng Việt cho 2 mức quyền — dùng ở cả dialog lẫn trang lời mời. */
-export const PERMISSION_LABELS: Record<CollaboratorPermissionLevel, string> = {
-  view: "Xem",
-  edit: "Chỉnh sửa",
+/** Khoá nhãn cho 2 mức quyền — dùng ở cả dialog lẫn trang lời mời. */
+export const PERMISSION_KEYS: Record<CollaboratorPermissionLevel, TKey> = {
+  view: "perm.view",
+  edit: "perm.edit",
 };
 
 /** Tên hiển thị của một cộng tác viên (display_name → username → fallback). */
@@ -16,7 +18,7 @@ export function collaboratorDisplayName(
   return (
     item.user.displayName?.trim() ||
     item.user.username?.trim() ||
-    "Người dùng"
+    tNow("col.user")
   );
 }
 
@@ -43,6 +45,7 @@ export function CollaboratorPermissionSelect({
   pending?: boolean;
   className?: string;
 }) {
+  const { t } = useI18n();
   const levels: CollaboratorPermissionLevel[] = ["view", "edit"];
   return (
     <select
@@ -50,13 +53,13 @@ export function CollaboratorPermissionSelect({
       value={value}
       disabled={disabled || busy}
       onChange={(e) => onChange(e.target.value as CollaboratorPermissionLevel)}
-      aria-label="Quyền"
-      title={pending ? "Quyền sẽ được cấp khi người này chấp nhận lời mời" : "Quyền"}
+      aria-label={t("perm.label")}
+      title={pending ? t("perm.pendingTitle") : t("perm.label")}
       className={`${INPUT_CLASS} w-32 py-1.5 sm:py-1 text-xs ${busy ? "opacity-50" : ""} ${className}`}
     >
       {levels.map((level) => (
         <option key={level} value={level}>
-          {PERMISSION_LABELS[level]}
+          {t(PERMISSION_KEYS[level])}
         </option>
       ))}
     </select>

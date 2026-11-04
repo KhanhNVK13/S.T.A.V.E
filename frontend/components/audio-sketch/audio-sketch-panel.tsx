@@ -25,6 +25,8 @@ import { EmptyState } from "../ui/empty-state";
 import { INPUT_CLASS } from "../ui/form";
 import { apiErrorMessage } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 const BUCKET = "audio-sketches";
 /** BR-56 — nâng từ 10MB lên 20MB ngày 16/09/2026, xem PROJECT_STATE §33. */
@@ -50,6 +52,7 @@ function TrimmableWaveform({
   trimEnd: number;
   onChange: (next: { start: number; end: number }) => void;
 }) {
+  const { t } = useI18n();
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<"start" | "end" | null>(null);
 
@@ -124,7 +127,7 @@ function TrimmableWaveform({
         <button
           key={handle}
           type="button"
-          aria-label={handle === "start" ? "Điểm bắt đầu" : "Điểm kết thúc"}
+          aria-label={handle === "start" ? t("sk.handleStart") : t("sk.handleEnd")}
           onPointerDown={() => {
             draggingRef.current = handle;
           }}
@@ -154,6 +157,7 @@ export function AudioSketchPanel({
   projectId: string;
   onStateChange?: (state: AudioSketchState) => void;
 }) {
+  const { t, tx } = useI18n();
   const recorder = useAudioRecorder();
 
   const [sketches, setSketches] = useState<AudioSketch[]>([]);
@@ -182,7 +186,7 @@ export function AudioSketchPanel({
       setSketches(await listAudioSketches(projectId));
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được danh sách audio sketch."));
+      setError(apiErrorMessage(err, tNow("sk.loadFail")));
     } finally {
       setLoading(false);
     }
@@ -200,9 +204,9 @@ export function AudioSketchPanel({
       }
       setSketches((current) => current.filter((s) => s.id !== pendingDelete.id));
       setPendingDelete(null);
-      setNotice("Đã xoá audio sketch.");
+      setNotice(tNow("sk.deleted"));
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, "Không xoá được audio sketch. Bản ghi vẫn còn nguyên."));
+      setDeleteError(apiErrorMessage(err, tNow("sk.deleteFail")));
     } finally {
       setDeleting(false);
     }
@@ -236,7 +240,7 @@ export function AudioSketchPanel({
           })}`,
         );
       } catch {
-        if (!cancelled) setError("Không đọc được bản ghi vừa thu.");
+        if (!cancelled) setError(tNow("sk.unreadable"));
       }
     })();
 
@@ -284,7 +288,7 @@ export function AudioSketchPanel({
         // UC-53 ngoại lệ 6.E1 — báo rõ giới hạn, giữ nguyên bản ghi để người
         // dùng cắt ngắn rồi thử lại.
         setError(
-          `Bản ghi ${(wav.size / 1024 / 1024).toFixed(1)}MB, vượt giới hạn 20MB. Hãy ghi ngắn hơn rồi thử lại.`,
+          tNow("sk.tooBig", { size: (wav.size / 1024 / 1024).toFixed(1) }),
         );
         return;
       }
@@ -300,7 +304,7 @@ export function AudioSketchPanel({
 
       if (uploadError) {
         // UC-55 ngoại lệ 4.E1 — giữ nguyên bản ghi trong trình soạn để thử lại.
-        throw new Error("Tải lên thất bại. Hãy kiểm tra mạng rồi thử lại.");
+        throw new Error(tNow("sk.uploadFail"));
       }
 
       await attachAudioSketch(projectId, {
@@ -316,7 +320,7 @@ export function AudioSketchPanel({
       discardRecording();
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, "Không đính kèm được audio sketch."));
+      setError(apiErrorMessage(err, tNow("sk.attachFail")));
     } finally {
       setAttaching(false);
     }
@@ -416,16 +420,15 @@ export function AudioSketchPanel({
               </span>
 
               <Button onClick={recorder.stop}>
-                <Square className="h-3.5 w-3.5" /> Dừng
+                <Square className="h-3.5 w-3.5" /> {t("sk.stop")}
               </Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[13px] font-semibold">Ghi nhanh một ý tưởng</p>
+                <p className="text-[13px] font-semibold">{t("sk.quick")}</p>
                 <p className="mt-0.5 text-xs text-muted">
-                  Tối đa 3 phút. Bản ghi là tư liệu tham chiếu, không trộn vào bản phối và
-                  không nằm trong bản xuất.
+                  {t("sk.quickHint")}
                 </p>
               </div>
               <Button
@@ -434,11 +437,11 @@ export function AudioSketchPanel({
               >
                 {recorder.status === "requesting" ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang xin quyền micro…
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("sk.requesting")}
                   </>
                 ) : (
                   <>
-                    <Mic className="h-3.5 w-3.5" /> Ghi âm
+                    <Mic className="h-3.5 w-3.5" /> {t("sk.record")}
                   </>
                 )}
               </Button>
@@ -451,9 +454,9 @@ export function AudioSketchPanel({
       {reviewing && buffer && (
         <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[13px] font-semibold">Cắt đầu/cuối rồi đính kèm</p>
+            <p className="text-[13px] font-semibold">{t("sk.trimTitle")}</p>
             <span className="font-mono text-xs text-muted">
-              Giữ lại {formatTime(trim.end - trim.start)} / {formatTime(buffer.duration)}
+              {t("sk.keeping", { kept: formatTime(trim.end - trim.start), total: formatTime(buffer.duration) })}
             </span>
           </div>
 
@@ -466,13 +469,12 @@ export function AudioSketchPanel({
           />
 
           <p className="text-xs text-muted">
-            Kéo 2 thanh dọc để chọn đoạn giữ lại. Bản ghi gốc vẫn được lưu nguyên vẹn nên
-            có thể chỉnh lại điểm cắt sau.
+            {t("sk.trimHint")}
           </p>
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex min-w-[220px] flex-1 flex-col gap-1.5">
-              <span className="text-xs font-semibold">Tên sketch</span>
+              <span className="text-xs font-semibold">{t("sk.name")}</span>
               <input
                 name="sketchName"
                 autoComplete="off"
@@ -483,19 +485,19 @@ export function AudioSketchPanel({
               />
             </label>
             <Button variant="secondary" onClick={previewTrimmed}>
-              <Play className="h-3.5 w-3.5" /> Nghe thử đoạn đã cắt
+              <Play className="h-3.5 w-3.5" /> {t("sk.previewTrim")}
             </Button>
             <Button onClick={() => void handleAttach()} disabled={attaching}>
               {attaching ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tải lên…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("sk.uploading")}
                 </>
               ) : (
-                "Đính kèm vào dự án"
+                t("sk.attach")
               )}
             </Button>
             <Button variant="ghost" onClick={discardRecording} disabled={attaching}>
-              <Trash2 className="h-3.5 w-3.5" /> Bỏ bản ghi
+              <Trash2 className="h-3.5 w-3.5" /> {t("sk.discard")}
             </Button>
           </div>
         </div>
@@ -507,8 +509,8 @@ export function AudioSketchPanel({
       ) : sketches.length === 0 ? (
         <EmptyState
           icon={AudioWaveform}
-          title="Chưa có audio sketch nào."
-          description="Ghi nhanh một đoạn hát hoặc đàn để giữ lại ý tưởng trước khi nó trôi mất."
+          title={t("sk.emptyTitle")}
+          description={t("sk.emptyBody")}
         />
       ) : (
         <div className="overflow-hidden rounded-card border border-border bg-surface">
@@ -525,7 +527,7 @@ export function AudioSketchPanel({
                   variant="secondary"
                   onClick={() => playSketch(sketch)}
                   disabled={!sketch.playbackUrl}
-                  title={sketch.playbackUrl ? undefined : "Không tạo được link nghe"}
+                  title={sketch.playbackUrl ? undefined : t("sk.noLink")}
                 >
                   {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                 </Button>
@@ -538,7 +540,7 @@ export function AudioSketchPanel({
                 </div>
 
                 {sketch.trim_start_sec > 0 || sketch.trim_end_sec != null ? (
-                  <Badge variant="neutral">Đã cắt</Badge>
+                  <Badge variant="neutral">{t("sk.trimmed")}</Badge>
                 ) : null}
 
                 <Button
@@ -547,8 +549,8 @@ export function AudioSketchPanel({
                     setDeleteError(null);
                     setPendingDelete(sketch);
                   }}
-                  aria-label={`Xoá audio sketch ${sketch.name}`}
-                  title="Xoá"
+                  aria-label={t("sk.deleteLabel", { name: sketch.name })}
+                  title={t("sk.delete")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -559,14 +561,13 @@ export function AudioSketchPanel({
       )}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Xoá audio sketch?"
+        title={t("sk.deleteTitle")}
         message={
           <>
-            Xoá <strong>&quot;{pendingDelete?.name}&quot;</strong>? Bản ghi sẽ bị xoá vĩnh
-            viễn và không thể khôi phục. Các phiên bản (commit) của dự án không bị ảnh hưởng.
+            {tx("sk.deleteBody", { name: <strong>&quot;{pendingDelete?.name}&quot;</strong> })}
           </>
         }
-        confirmLabel="Xoá vĩnh viễn"
+        confirmLabel={t("sk.deleteConfirm")}
         danger
         loading={deleting}
         error={deleteError}

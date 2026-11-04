@@ -1,3 +1,4 @@
+import type { TKey } from "../i18n";
 /**
  * UC-72 (Music Theory Insight) — hằng số cho module thuần chạy trong trình
  * duyệt. Rule: module CHỈ mô tả những gì đã có trong bản nhạc (BR-82),
@@ -92,7 +93,7 @@ export interface ProgressionPattern {
   /** Số La Mã theo bậc (so với tông đã chọn), khớp chính xác từng vị trí. */
   numerals: string[];
   /** Mô tả tiếng Việt: tên, là gì, thường xuất hiện thế nào — CHỈ mô tả. */
-  description: string;
+  description: TKey;
 }
 
 export const PROGRESSION_PATTERNS: ProgressionPattern[] = [
@@ -100,37 +101,37 @@ export const PROGRESSION_PATTERNS: ProgressionPattern[] = [
     id: "i-v-vi-iv",
     numerals: ["I", "V", "vi", "IV"],
     description:
-      "Hành trình 4 hợp âm của nhạc pop: chủ (I) → hợp âm 5 (V) → hợp âm 6 thứ (vi) → hợp âm 4 (IV). Rất phổ biến, âm hưởng ổn định và gần gũi.",
+      "theory.prog.i-v-vi-iv",
   },
   {
     id: "vi-iv-i-v",
     numerals: ["vi", "IV", "I", "V"],
     description:
-      "Mở ở hợp âm 6 (vi) rồi qua hợp âm 4 (IV), về chủ (I) và khép bằng hợp âm 5 (V) — cảm giác chuyển động, chờ được giải quyết.",
+      "theory.prog.vi-iv-i-v",
   },
   {
     id: "i-vi-iv-v",
     numerals: ["I", "vi", "IV", "V"],
     description:
-      "Tuần tự 4 hợp âm của thập niên 50 (I–vi–IV–V), âm hưởng rock & roll.",
+      "theory.prog.i-vi-iv-v",
   },
   {
     id: "ii-v-i",
     numerals: ["ii", "V", "I"],
     description:
-      "Mạch giải quyết chuẩn: hợp âm 2 (ii) tiến lên hợp âm 5 (V) rồi về chủ (I), điển hình trong jazz và pop.",
+      "theory.prog.ii-v-i",
   },
   {
     id: "i-iv-v",
     numerals: ["I", "IV", "V"],
     description:
-      "Khung 3 hợp âm chủ đạo (I–IV–V), nền tảng quen thuộc của folk và country.",
+      "theory.prog.i-iv-v",
   },
   {
     id: "blues-12",
     numerals: ["I", "I", "I", "I", "IV", "IV", "I", "I", "V", "IV", "I", "I"],
     description:
-      "Mẫu blues 12 ô nhịp: I I I I IV IV I I V IV I I — đi từ chủ, qua hợp âm 4, hợp âm 5 rồi về chủ.",
+      "theory.prog.blues-12",
   },
 ];
 
@@ -138,8 +139,8 @@ export interface CadenceSpec {
   id: string;
   from: string;
   to: string;
-  title: string;
-  description: string;
+  title: TKey;
+  description: TKey;
 }
 
 /** 6: kết (cadence) ở cuối câu — so 2 hợp âm cuối. */
@@ -148,25 +149,25 @@ export const CADENCE_SPECS: CadenceSpec[] = [
     id: "authentic",
     from: "V",
     to: "I",
-    title: "Kết trọn",
+    title: "theory.cad.authentic.title",
     description:
-      "Hợp âm 5 về chủ (V → I) ở cuối câu — nghe trọn vẹn, chắc chắn.",
+      "theory.cad.authentic.desc",
   },
   {
     id: "plagal",
     from: "IV",
     to: "I",
-    title: "Kết plagal",
+    title: "theory.cad.plagal.title",
     description:
-      "Hợp âm 4 về chủ (IV → I) — kết nhẹ nhàng kiểu “amen”, thường ở khúc cuối.",
+      "theory.cad.plagal.desc",
   },
   {
     id: "deceptive",
     from: "V",
     to: "vi",
-    title: "Kết lừa",
+    title: "theory.cad.deceptive.title",
     description:
-      "Hợp âm 5 về hợp âm 6 (V → vi) — nghe như kết nhưng lại rẽ đi, tạo bất ngờ.",
+      "theory.cad.deceptive.desc",
   },
 ];
 

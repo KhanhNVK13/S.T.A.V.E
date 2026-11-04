@@ -31,7 +31,9 @@ import { getDraft, getDraftRecovery, isDraftStaleError, putDraft, resolveProject
 import type { ResolvedCustomSound } from "../../lib/api-client";
 import { collectSoundIds, loadCustomSoundBuffers } from "../../lib/custom-sound-buffers";
 import { isDialogOpen } from "../../lib/use-dialog";
-import { APP_LOCALE } from "../../lib/format-date";
+import { appLocale } from "../../lib/format-date";
+import { tNow } from "../../lib/i18n";
+import { useI18n } from "../../context/i18n-context";
 import { parseMidiBuffer } from "../../lib/midi-parser";
 import { startNoteScheduler } from "../../lib/note-scheduler";
 import { exportMidiFile } from "../../lib/midi-exporter";
@@ -73,6 +75,7 @@ interface MidiEditorProps {
 }
 
 export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
+  const { t, tx, locale } = useI18n();
   // ── State ───────────────────────────────────────────────────
   const [snapshot, setSnapshot] = useState<DraftSnapshot>({
     schemaVersion: DRAFT_SCHEMA_VERSION,
@@ -292,9 +295,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
           setSelectedTrackId(snap.tracks[0].id);
         }
         if (recovery.recovered && recovery.savedAt) {
-          const savedAt = new Date(recovery.savedAt).toLocaleString(APP_LOCALE);
+          const savedAt = new Date(recovery.savedAt).toLocaleString(appLocale());
           setEditorToast({
-            message: `Đã khôi phục các thay đổi chưa commit, lưu lúc ${savedAt}.`,
+            message: tNow("edc.recovered", { time: savedAt }),
             variant: "info",
           });
         }
@@ -303,7 +306,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         if (cancelled) return;
         console.error(err);
         setLoadError(
-          err instanceof Error && err.message ? err.message : "Lỗi không xác định",
+          err instanceof Error && err.message ? err.message : tNow("edc.unknownError"),
         );
       })
       .finally(() => {
@@ -558,7 +561,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       setSaveStatus("saved");
       clearDraftConflict();
     } catch (err) {
-      setConflictError(apiErrorMessage(err, "Không ghi đè được bản nháp."));
+      setConflictError(apiErrorMessage(err, tNow("edc.overwriteFail")));
     } finally {
       setConflictBusy(false);
     }
@@ -727,7 +730,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       applyRestoredSnapshot(snap);
       setDraftReloadNonce((n) => n + 1);
     } catch (err) {
-      setConflictError(apiErrorMessage(err, "Không nạp lại được bản nháp."));
+      setConflictError(apiErrorMessage(err, tNow("edc.reloadFail")));
     } finally {
       setConflictBusy(false);
     }
@@ -788,7 +791,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   async function handleAssignInstrument(id: string, instrument: string | null) {
     if (instrument && !(await probeInstrumentSamples(instrument))) {
       setEditorToast({
-        message: `Không tải được âm thanh của nhạc cụ "${instrument}". Track giữ nguyên nhạc cụ hiện tại.`,
+        message: tNow("edc.instrumentFail", { name: instrument }),
         variant: "danger",
       });
       return;
@@ -876,7 +879,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     setPatternClipboard(copied);
     void navigator.clipboard?.writeText(JSON.stringify(copied.notes)).catch(() => {});
     setEditorToast({
-      message: `Đã sao chép ${copied.notes.length} nốt${copied.tracks.length > 1 ? ` từ ${copied.tracks.length} track` : ""}.`,
+      message: copied.tracks.length > 1 ? tNow("edc.copiedTracks", { n: copied.notes.length, tracks: copied.tracks.length }) : tNow("edc.copied", { n: copied.notes.length }),
       variant: "success",
     });
   }
@@ -893,7 +896,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     });
     setSelectedNoteIds(new Set());
     setEditorToast({
-      message: `Đã cắt ${copied.notes.length} nốt. Dán lại bằng Ctrl+V hoặc hoàn tác bằng Ctrl+Z.`,
+      message: tNow("edc.cut", { n: copied.notes.length }),
       variant: "success",
     });
   }
@@ -933,7 +936,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   // cầu người dùng) — cả 2 UI đã có empty-state "chưa có track nào" sẵn để
   // xử lý đúng trường hợp 0 track.
   function handleDeleteTrack(id: string) {
-    const trackName = snapshot.tracks.find((t) => t.id === id)?.name ?? "track này";
+    const trackName = snapshot.tracks.find((t) => t.id === id)?.name ?? tNow("edc.thisTrack");
     const noteCount = snapshot.notes.filter((n) => n.trackId === id).length;
     if (noteCount === 0) {
       removeTrack(id);
@@ -981,15 +984,15 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   function handleQuantize() {
     const step = snapshot.meta.ppq / (gridDivision / 4);
     let targetIds: Set<string> | null = null;
-    let scopeLabel = "toàn bộ dự án";
+    let scopeLabel = tNow("edc.scopeProject");
     if (selectedNoteIds.size > 0) {
       targetIds = selectedNoteIds;
-      scopeLabel = "các nốt đang chọn";
+      scopeLabel = tNow("edc.scopeNotes");
     } else if (selectedTrackId) {
       targetIds = new Set(
         snapshot.notes.filter((n) => n.trackId === selectedTrackId).map((n) => n.id),
       );
-      scopeLabel = "track đang chọn";
+      scopeLabel = tNow("edc.scopeTrack");
     }
     const result = quantizeNotes(snapshot.notes, step, targetIds);
     if (result.moved > 0) updateSnapshot({ ...snapshot, notes: result.notes });
@@ -1007,12 +1010,12 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     if (!file) return;
     try {
       if (!/\.(mid|midi)$/i.test(file.name)) {
-        setEditorToast({ message: "Chỉ nhận file .mid hoặc .midi.", variant: "danger" });
+        setEditorToast({ message: tNow("edc.importBadType"), variant: "danger" });
         return;
       }
       if (file.size > MAX_MIDI_IMPORT_BYTES) {
         setEditorToast({
-          message: "File MIDI lớn hơn 5 MB nên không nhập được. Hãy chọn file nhỏ hơn.",
+          message: tNow("edc.importTooBig"),
           variant: "danger",
         });
         return;
@@ -1022,14 +1025,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         merged = parseMidiBuffer(await file.arrayBuffer(), snapshot);
       } catch {
         setEditorToast({
-          message: "Không đọc được file MIDI này. File có thể bị hỏng hoặc không đúng định dạng.",
+          message: tNow("edc.importUnreadable"),
           variant: "danger",
         });
         return;
       }
       const addedTracks = merged.tracks.length - snapshot.tracks.length;
       if (addedTracks === 0) {
-        setEditorToast({ message: "File MIDI này không có nốt nào để nhập.", variant: "warning" });
+        setEditorToast({ message: tNow("edc.importEmpty"), variant: "warning" });
         return;
       }
       updateSnapshot(merged);
@@ -1037,7 +1040,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         setSelectedTrackId(merged.tracks[0].id);
       }
       setEditorToast({
-        message: `Đã nhập ${addedTracks} track, ${merged.notes.length - snapshot.notes.length} nốt từ "${file.name}".`,
+        message: tNow("edc.imported", { tracks: addedTracks, notes: merged.notes.length - snapshot.notes.length, file: file.name }),
         variant: "success",
       });
     } finally {
@@ -1066,7 +1069,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         tracks: snapshot.tracks.filter((t) => usedTrackIds.has(t.id)),
         notes: picked.map((n) => ({ ...n, start: n.start - origin })),
       },
-      " (vùng chọn)",
+      tNow("edc.selectionSuffix"),
     );
   }
 
@@ -1087,7 +1090,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch {
       setEditorToast({
-        message: "Xuất file MIDI không thành công, chưa có file nào được tải xuống. Hãy thử lại.",
+        message: tNow("edc.exportFail"),
         variant: "danger",
       });
     }
@@ -1427,7 +1430,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     return (
       <div style={styles.loading}>
         <div style={styles.spinner} />
-        <p>Đang tải bản nháp…</p>
+        <p>{t("edc.loadingDraft")}</p>
       </div>
     );
   }
@@ -1435,13 +1438,12 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   if (loadError) {
     return (
       <div style={styles.loading} role="alert">
-        <p style={styles.loadErrorTitle}>Không tải được bản nháp</p>
+        <p style={styles.loadErrorTitle}>{t("edc.loadFailTitle")}</p>
         <p style={styles.loadErrorText}>
-          Editor chưa mở để tránh lưu đè bản nháp đang có trên máy chủ. Kiểm tra
-          kết nối mạng rồi thử lại.
+          {t("edc.loadFailBody")}
         </p>
         <button type="button" onClick={retryLoad} style={styles.retryButton}>
-          Thử lại
+          {t("ui.retry")}
         </button>
       </div>
     );
@@ -1548,54 +1550,50 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       )}
       <Dialog
         open={conflictDialogOpen}
-        title="Bản nháp đã thay đổi ở tab khác"
+        title={t("edc.conflictTitle")}
         onClose={() => setConflictDialogOpen(false)}
         closeDisabled={conflictBusy}
       >
         <p className="mb-4 text-sm text-muted">
-          Bản nháp của nhánh này vừa được lưu từ một tab hoặc cửa sổ khác. Tự lưu đã tạm dừng để
-          không ghi đè lên nhau. Bạn chọn một trong hai cách:
+          {t("edc.conflictBody")}
         </p>
         <ul className="mb-4 list-disc space-y-1 pl-5 text-sm text-muted">
           <li>
-            <strong className="text-foreground">Nạp lại bản mới</strong>: lấy bản nháp từ máy chủ;
-            các thay đổi chưa lưu ở tab này sẽ mất.
+            <strong className="text-foreground">{t("edc.reloadLabel")}</strong>{t("edc.reloadBody")}
           </li>
           <li>
-            <strong className="text-foreground">Ghi đè bằng bản của tôi</strong>: giữ bản ở tab này;
-            các thay đổi vừa lưu ở tab kia sẽ mất.
+            <strong className="text-foreground">{t("edc.overwriteLabel")}</strong>{t("edc.overwriteBody")}
           </li>
         </ul>
         <DialogError message={conflictError} />
         <DialogActions>
           <Button variant="secondary" disabled={conflictBusy} onClick={() => void reloadDraftFromServer()}>
-            Nạp lại bản mới
+            {t("edc.reloadLabel")}
           </Button>
           <Button variant="danger" disabled={conflictBusy} onClick={() => void overwriteWithMine()}>
-            Ghi đè bằng bản của tôi
+            {t("edc.overwriteLabel")}
           </Button>
         </DialogActions>
       </Dialog>
       <ConfirmDialog
         open={confirmEmptyExport}
-        title="Xuất file MIDI trống?"
-        message="Dự án chưa có nốt nào nên file .mid xuất ra sẽ trống. Bạn vẫn muốn tải xuống?"
-        confirmLabel="Vẫn xuất file"
+        title={t("edc.emptyExportTitle")}
+        message={t("edc.emptyExportBody")}
+        confirmLabel={t("edc.emptyExportConfirm")}
         onConfirm={() => runExportMidi()}
         onCancel={() => setConfirmEmptyExport(false)}
       />
       <ConfirmDialog
         open={pendingDeleteTrack !== null}
-        title="Xoá track?"
+        title={t("edc.deleteTrackTitle")}
         message={
           <>
-            Xoá track <strong>&quot;{pendingDeleteTrack?.name}&quot;</strong>?
+            {tx("edc.deleteTrackBody", { name: <strong>&quot;{pendingDeleteTrack?.name}&quot;</strong> })}
             <br />
-            {pendingDeleteTrack?.noteCount.toLocaleString(APP_LOCALE)} note trong track này cũng sẽ bị
-            xoá. Bạn có thể hoàn tác bằng Ctrl+Z.
+            {t("edc.deleteTrackNotes", { n: (pendingDeleteTrack?.noteCount ?? 0).toLocaleString(locale) })}
           </>
         }
-        confirmLabel="Xoá track"
+        confirmLabel={t("edc.deleteTrackConfirm")}
         danger
         onConfirm={confirmDeleteTrack}
         onCancel={cancelDeleteTrack}

@@ -33,6 +33,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { INPUT_CLASS } from "../ui/form";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-63 — panel "Bình luận ghim" trong editor.
@@ -71,6 +72,7 @@ export function CommentsPanel({
   onSeek,
   onClose,
 }: CommentsPanelProps) {
+  const { t, tx } = useI18n();
   const { user } = useAuth();
   const myId = user?.id ?? null;
 
@@ -93,7 +95,7 @@ export function CommentsPanel({
   const { data: fetched, loading, error: listError } = useApiResource(
     () => getComments(projectId),
     [projectId, refreshTick],
-    "Không tải được danh sách bình luận.",
+    t("cm.loadFail"),
   );
   const items = useMemo(() => (fetched ?? []) as CommentItem[], [fetched]);
 
@@ -157,7 +159,7 @@ export function CommentsPanel({
       setAnchorNoteId(null);
       refresh();
     } catch (err) {
-      setSendError(apiErrorMessage(err, "Không đăng được bình luận."));
+      setSendError(apiErrorMessage(err, t("cm.postFail")));
     } finally {
       setSending(false);
     }
@@ -178,7 +180,7 @@ export function CommentsPanel({
       setReplyBody("");
       refresh();
     } catch (err) {
-      setReplyError(apiErrorMessage(err, "Không trả lời được bình luận."));
+      setReplyError(apiErrorMessage(err, t("cm.replyFail")));
     } finally {
       setReplySending(false);
     }
@@ -193,7 +195,7 @@ export function CommentsPanel({
       setDeleteTarget(null);
       refresh();
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, "Không xoá được bình luận."));
+      setDeleteError(apiErrorMessage(err, t("cm.deleteFail")));
     } finally {
       setDeleting(false);
     }
@@ -233,8 +235,8 @@ export function CommentsPanel({
   }
 
   function trackName(trackId: string | null | undefined): string {
-    if (!trackId) return "Toàn dự án";
-    return tracks.find((t) => t.id === trackId)?.name ?? "track";
+    if (!trackId) return t("cm.wholeProject");
+    return tracks.find((tr) => tr.id === trackId)?.name ?? t("cm.track");
   }
 
   const hasAnchor = Boolean(anchorNoteId || anchorTrackId || anchorBar);
@@ -243,13 +245,13 @@ export function CommentsPanel({
     <div
       className="absolute inset-y-0 right-0 z-30 flex w-[340px] flex-col border-l border-border bg-surface shadow-card"
       role="region"
-      aria-label="Bình luận"
+      aria-label={t("cm.aria")}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <MessageSquare size={15} className="text-accent" />
-          <h2 className="text-[13px] font-semibold">Bình luận</h2>
+          <h2 className="text-[13px] font-semibold">{t("cm.title")}</h2>
           {items.length > 0 && (
             <span className="text-xs text-muted">({items.length})</span>
           )}
@@ -257,8 +259,8 @@ export function CommentsPanel({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Đóng panel bình luận"
-          title="Đóng"
+          aria-label={t("cm.closeAria")}
+          title={t("ui.close")}
           className="rounded-md p-1.5 text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
         >
           <X size={15} />
@@ -281,17 +283,17 @@ export function CommentsPanel({
               className="mt-2 h-7 text-xs"
               onClick={refresh}
             >
-              Thử lại
+              {t("ui.retry")}
             </Button>
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-muted">
             <Loader2 className="h-4 w-4 animate-spin text-accent" />
-            Đang tải bình luận…
+            {t("cm.loading")}
           </div>
         ) : items.length === 0 ? (
           <p className="rounded-card bg-surface-subtle px-3 py-6 text-center text-[13px] text-muted">
-            Chưa có bình luận nào. Viết bình luận đầu tiên bên dưới.
+            {t("cm.empty")}
           </p>
         ) : (
           <div className="flex flex-col gap-4">
@@ -305,7 +307,7 @@ export function CommentsPanel({
                     <div className="mb-2 flex items-center justify-between">
                       <span className="flex items-center gap-1 text-xs font-semibold text-muted">
                         <MapPin size={12} />
-                        Ô nhịp {String(barKey)}
+                        {t("cm.bar", { n: String(barKey) })}
                         {g.roots[0]?.trackId && (
                           <span className="font-normal">
                             · {trackName(g.roots[0].trackId)}
@@ -319,12 +321,12 @@ export function CommentsPanel({
                         }
                         className="rounded-md px-2 py-0.5 text-xs font-semibold text-accent transition-colors hover:bg-accent-muted"
                       >
-                        Đi tới ô nhịp
+                        {t("cm.goToBar")}
                       </button>
                     </div>
                   ) : (
                     <p className="mb-2 text-xs font-semibold text-muted">
-                      Toàn dự án
+                      {t("cm.wholeProject")}
                     </p>
                   )}
 
@@ -385,7 +387,7 @@ export function CommentsPanel({
                                 name={`reply-${r.id}`}
                                 rows={1}
                                 maxLength={COMMENT_BODY_MAX_LENGTH}
-                                placeholder="Trả lời…"
+                                placeholder={t("cm.replyPlaceholder")}
                                 autoFocus
                                 value={replyBody}
                                 onChange={(e) => setReplyBody(e.target.value)}
@@ -406,7 +408,7 @@ export function CommentsPanel({
                                   ) : (
                                     <CornerDownRight size={13} />
                                   )}
-                                  Trả lời
+                                  {t("cm.reply")}
                                 </Button>
                                 <Button
                                   type="button"
@@ -419,7 +421,7 @@ export function CommentsPanel({
                                   disabled={replySending}
                                   className="h-7 text-xs"
                                 >
-                                  Huỷ
+                                  {t("ui.cancel")}
                                 </Button>
                                 <span className="ml-auto text-xs text-muted">
                                   {replyBody.length}/{COMMENT_BODY_MAX_LENGTH}
@@ -452,12 +454,15 @@ export function CommentsPanel({
         {hasAnchor && (
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <Badge variant="info">
-              Gắn:{" "}
-              {anchorNoteId
-                ? `nốt ${anchorNoteId.slice(0, 6)}`
-                : anchorTrackId
-                  ? `${trackName(anchorTrackId)}${anchorBar ? ` · nhịp ${anchorBar}` : ""}`
-                  : `nhịp ${anchorBar}`}
+              {t("cm.attached", {
+                what: anchorNoteId
+                  ? t("cm.attachedNote", { id: anchorNoteId.slice(0, 6) })
+                  : anchorTrackId
+                    ? anchorBar
+                      ? t("cm.attachedTrackBar", { track: trackName(anchorTrackId), bar: anchorBar })
+                      : trackName(anchorTrackId)
+                    : t("cm.attachedBar", { bar: anchorBar }),
+              })}
             </Badge>
             <button
               type="button"
@@ -468,7 +473,7 @@ export function CommentsPanel({
               }}
               className="text-xs font-semibold text-muted hover:text-danger"
             >
-              Xoá vị trí
+              {t("cm.clearAnchor")}
             </button>
           </div>
         )}
@@ -483,8 +488,7 @@ export function CommentsPanel({
             }}
             className="mb-2 w-full rounded-card border border-border bg-surface-subtle px-2.5 py-1.5 text-left text-[12px] text-muted transition-colors hover:border-accent/40 hover:text-foreground"
           >
-            Gắn vào nốt đang chọn (nhịp{" "}
-            {tickToBar(prefillNote.start, ppq, timeSignature)})
+            {t("cm.attachSelected", { bar: tickToBar(prefillNote.start, ppq, timeSignature) })}
           </button>
         )}
 
@@ -493,7 +497,7 @@ export function CommentsPanel({
           autoComplete="off"
           rows={2}
           maxLength={COMMENT_BODY_MAX_LENGTH}
-          placeholder="Viết bình luận…"
+          placeholder={t("cm.placeholder")}
           value={body}
           onChange={(e) => {
             setBody(e.target.value);
@@ -505,7 +509,7 @@ export function CommentsPanel({
         <div className="mt-2 flex items-center gap-2">
           <select
             name="comment-track"
-            aria-label="Track (tuỳ chọn)"
+            aria-label={t("cm.trackAria")}
             value={
               anchorNoteId
                 ? (notes.find((n) => n.id === anchorNoteId)?.trackId ?? "")
@@ -514,7 +518,7 @@ export function CommentsPanel({
             onChange={(e) => setAnchorTrackId(e.target.value)}
             className={`${INPUT_CLASS} h-7 min-w-0 flex-1 py-0 text-xs`}
           >
-            <option value="">Track…</option>
+            <option value="">{t("cm.trackOption")}</option>
             {tracks.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -525,8 +529,8 @@ export function CommentsPanel({
             type="text"
             inputMode="numeric"
             name="comment-bar"
-            aria-label="Ô nhịp (tuỳ chọn)"
-            placeholder="Nhịp"
+            aria-label={t("cm.barAria")}
+            placeholder={t("cm.barPlaceholder")}
             value={anchorBar}
             onChange={(e) =>
               setAnchorBar(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))
@@ -554,7 +558,7 @@ export function CommentsPanel({
             ) : (
               <Send size={13} />
             )}
-            {sending ? "Đang gửi…" : "Bình luận"}
+            {sending ? t("cm.sending") : t("cm.send")}
           </Button>
         </div>
       </div>
@@ -562,20 +566,14 @@ export function CommentsPanel({
       {/* Delete confirmation */}
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Xoá bình luận"
+        title={t("cm.deleteTitle")}
         message={
           <span>
-            Xoá bình luận của{" "}
-            <strong>
-              {deleteTarget?.author.displayName?.trim() ||
-                deleteTarget?.author.username?.trim() ||
-                "người dùng"}
-            </strong>
-            ? Các trả lời (nếu có) cũng sẽ bị xoá cùng.
+            {tx("cm.deleteBody", { name: <strong>{deleteTarget?.author.displayName?.trim() || deleteTarget?.author.username?.trim() || t("cm.someone")}</strong> })}
           </span>
         }
-        confirmLabel="Xoá"
-        cancelLabel="Huỷ"
+        confirmLabel={t("cm.delete")}
+        cancelLabel={t("ui.cancel")}
         danger
         loading={deleting}
         error={deleteError}
@@ -612,8 +610,9 @@ function CommentRow({
   timeSignature?: TimeSig;
   tracks?: DraftTrack[];
 }) {
+  const { t } = useI18n();
   const authorName =
-    c.author.displayName?.trim() || c.author.username?.trim() || "Người dùng";
+    c.author.displayName?.trim() || c.author.username?.trim() || t("col.user");
 
   return (
     <article
@@ -634,15 +633,15 @@ function CommentRow({
             <span className="text-xs text-muted">
               {formatRelativeTime(c.createdAt)}
             </span>
-            {c.bar !== null && <Badge variant="neutral">Nhịp {String(c.bar)}</Badge>}
+            {c.bar !== null && <Badge variant="neutral">{t("cm.barBadge", { n: String(c.bar) })}</Badge>}
             {c.trackId && tracks && (
               <Badge variant="neutral">
                 {tracks.find((t) => t.id === c.trackId)?.name ?? c.trackId}
               </Badge>
             )}
-            {c.noteId && <Badge variant="neutral">Gắn nốt</Badge>}
+            {c.noteId && <Badge variant="neutral">{t("cm.noteBadge")}</Badge>}
             {c.noteMissing && (
-              <Badge variant="warning">Nốt này không còn tồn tại</Badge>
+              <Badge variant="warning">{t("cm.noteGone")}</Badge>
             )}
           </div>
           <p className="mt-1 break-words text-[13px] leading-snug text-foreground">
@@ -661,7 +660,7 @@ function CommentRow({
                   }
                   className="flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
                 >
-                  <MapPin size={11} /> Đi tới ô nhịp
+                  <MapPin size={11} /> {t("cm.goToBar")}
                 </button>
               )}
             {!isReply && onReply && (
@@ -670,7 +669,7 @@ function CommentRow({
                 onClick={onReply}
                 className="flex items-center gap-1 text-xs font-semibold text-muted hover:text-foreground"
               >
-                <CornerDownRight size={11} /> Trả lời
+                <CornerDownRight size={11} /> {t("cm.reply")}
               </button>
             )}
             {canDelete && onDelete && (
@@ -679,7 +678,7 @@ function CommentRow({
                 onClick={onDelete}
                 className="ml-auto flex items-center gap-1 text-xs font-semibold text-muted transition-colors hover:text-danger"
               >
-                <Trash2 size={11} /> Xoá
+                <Trash2 size={11} /> {t("cm.delete")}
               </button>
             )}
           </div>
