@@ -27,7 +27,7 @@ export interface CompareSide {
 }
 
 /** Bề ngang 1 nốt đen trên lưới (px) và chiều cao 1 cao độ (px). */
-const PX_PER_QUARTER = 20;
+const PX_PER_QUARTER = 32;
 const ROW_H = 8;
 
 const KIND_CLASS: Record<NoteKind, string> = {
@@ -333,7 +333,7 @@ export function CommitCompare({
               <Stat label={tt("comparePage.statRemoved")} value={`−${diff.summary.notes.removed}`} tone="text-danger" />
               <Stat label={tt("comparePage.statModified")} value={`~${diff.summary.notes.modified}`} tone="text-warning-foreground" />
               <Stat label={tt("comparePage.statBars")} value={String(affected.bars)} />
-              <Stat label={tt("comparePage.statTracks")} value={String(affected.tracks)} />
+              <Stat label={tt("comparePage.statTracks")} value={String(affected.tracks)} className="col-span-2 sm:col-span-1" />
             </dl>
 
             {nothingReported && <p className="text-xs text-muted">{tt("cmp.internalOnly")}</p>}
@@ -509,9 +509,9 @@ export function CommitCompare({
   );
 }
 
-function Stat({ label, value, tone = "text-foreground" }: { label: string; value: string; tone?: string }) {
+function Stat({ label, value, tone = "text-foreground", className = "" }: { label: string; value: string; tone?: string; className?: string }) {
   return (
-    <div className="bg-surface px-4 py-3">
+    <div className={`bg-surface px-4 py-3 ${className}`}>
       <dt className="text-xs text-muted">{label}</dt>
       <dd className={`mt-0.5 font-mono text-2xl font-semibold ${tone}`}>{value}</dd>
     </div>
@@ -521,10 +521,10 @@ function Stat({ label, value, tone = "text-foreground" }: { label: string; value
 function VersionChip({ label, side }: { label: string; side: CompareSide }) {
   return (
     <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-border bg-surface-subtle px-2 py-1">
-      <span className="text-xs font-bold uppercase tracking-wide text-muted">{label}</span>
+      <span className="whitespace-nowrap text-xs font-bold uppercase tracking-wide text-muted">{label}</span>
       <span className="font-mono text-accent">{side.id.slice(0, 7)}</span>
       <span className="truncate">{side.message}</span>
-      <span className="font-mono text-xs text-muted">{formatTime(side.created_at)}</span>
+      <span className="whitespace-nowrap font-mono text-xs text-muted">{formatTime(side.created_at)}</span>
     </span>
   );
 }

@@ -64,14 +64,12 @@ export function MergeConflictDialog({
   }
 
   const header = (
-    <>
-      <p className="mt-1 text-xs text-muted">
-        {tx("mc.lead", {
-          source: <span className="font-mono text-foreground">{sourceName}</span>,
-          target: <span className="font-mono text-foreground">{targetName}</span>,
-        })}
-      </p>
-    </>
+    <p className="mt-1 text-xs text-muted">
+      {tx("mc.lead", {
+        source: <span className="font-mono text-foreground">{sourceName}</span>,
+        target: <span className="font-mono text-foreground">{targetName}</span>,
+      })}
+    </p>
   );
 
   const footer = (
@@ -153,9 +151,9 @@ export function MergeConflictDialog({
                     const noteLabel = `${conflict.baseNote ? pitchName(conflict.baseNote.pitch) : t("mc.newNote")} · ${conflict.noteId.slice(0, 8)}`;
 
                     return (
-                      <fieldset key={conflict.noteId} disabled={submitting} className="min-w-0 px-4 py-3">
-                        <legend className="mb-2 font-mono text-xs text-muted">{noteLabel}</legend>
-                        <div className="grid gap-2.5 md:grid-cols-2">
+                      <fieldset key={conflict.noteId} disabled={submitting} className="min-w-0">
+                        <legend className="w-full px-4 pb-2 pt-3 font-mono text-xs text-muted">{noteLabel}</legend>
+                        <div className="grid gap-2.5 px-4 pb-3 md:grid-cols-2">
                           <Option
                             name={`conflict-${conflict.noteId}`}
                             checked={choice === "PICK_TARGET"}
