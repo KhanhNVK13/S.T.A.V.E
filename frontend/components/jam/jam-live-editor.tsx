@@ -21,6 +21,8 @@ import type {
 } from "../midi-editor/piano-roll";
 import { PianoRoll } from "../midi-editor/piano-roll";
 import { VelocityLane } from "../midi-editor/velocity-lane";
+import { useI18n } from "../../context/i18n-context";
+import type { TKey } from "../../lib/i18n";
 
 /**
  * UC-67 — the collaborative live editor. Re-uses the project's real
@@ -95,10 +97,10 @@ function diffNotes(before: DraftNote[], after: DraftNote[]): NoteOp[] {
   return ops;
 }
 
-const TOOLS: Array<{ id: ToolMode; icon: LucideIcon; label: string }> = [
-  { id: "pointer", icon: MousePointer, label: "Chọn (P)" },
-  { id: "pencil", icon: Pencil, label: "Vẽ nốt (B)" },
-  { id: "eraser", icon: Eraser, label: "Xoá nốt (E)" },
+const TOOLS: Array<{ id: ToolMode; icon: LucideIcon; label: TKey }> = [
+  { id: "pointer", icon: MousePointer, label: "jam.toolSelect" },
+  { id: "pencil", icon: Pencil, label: "jam.toolDraw" },
+  { id: "eraser", icon: Eraser, label: "jam.toolErase" },
 ];
 
 export function JamLiveEditor({
@@ -109,6 +111,7 @@ export function JamLiveEditor({
   cooldownRemainingMs,
   callbacks,
 }: JamLiveEditorProps) {
+  const { t } = useI18n();
   const [tool, setTool] = useState<ToolMode>("pencil");
   const [zoom, setZoom] = useState(1);
   const [gridDivision] = useState<GridDivision>(16);
@@ -158,8 +161,8 @@ export function JamLiveEditor({
             <button
               key={id}
               type="button"
-              title={label}
-              aria-label={label}
+              title={t(label)}
+              aria-label={t(label)}
               disabled={isReadOnly}
               onClick={() => setTool(id)}
               className={`rounded px-2 py-1.5 text-xs transition ${
@@ -179,7 +182,7 @@ export function JamLiveEditor({
           value={effectiveTrack ?? ""}
           onChange={(e) => setSelectedTrackId(e.target.value || null)}
           disabled={isReadOnly}
-          aria-label="Chọn track"
+          aria-label={t("jam.pickTrack")}
         >
           {tracks.map((t) => (
             <option key={t.id} value={t.id}>
@@ -192,7 +195,7 @@ export function JamLiveEditor({
           <button
             className="rounded border border-border px-2 py-1"
             onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
-            aria-label="Thu nhỏ"
+            aria-label={t("jam.zoomOut")}
           >
             −
           </button>
@@ -200,17 +203,17 @@ export function JamLiveEditor({
           <button
             className="rounded border border-border px-2 py-1"
             onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))}
-            aria-label="Phóng to"
+            aria-label={t("jam.zoomIn")}
           >
             +
           </button>
           {isReadOnly && (
             <span className="inline-flex items-center gap-1 text-danger">
-              <Lock className="h-3.5 w-3.5" /> Chỉ đọc
+              <Lock className="h-3.5 w-3.5" /> {t("jam.readOnly")}
             </span>
           )}
           {!isReadOnly && cooldownSec > 0 && (
-            <span className="text-warning-foreground">Chỉnh: {cooldownSec}s</span>
+            <span className="text-warning-foreground">{t("jam.cooldown", { n: cooldownSec })}</span>
           )}
         </div>
       </div>

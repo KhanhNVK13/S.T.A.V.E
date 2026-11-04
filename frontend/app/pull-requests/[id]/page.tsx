@@ -25,10 +25,13 @@ import type { ConflictChoice, MergeConflictResult, PullRequestComment, PullReque
 import { apiErrorMessage } from "../../../lib/error-message";
 import { formatRelativeTime } from "../../../lib/format-date";
 import { formatAuthorName } from "../../../lib/format-name";
+import { useI18n } from "../../../context/i18n-context";
+import { tNow } from "../../../lib/i18n";
 
 const COMMENT_MAX = 2000;
 
 function PullRequestView({ id }: { id: string }) {
+  const { t, tx } = useI18n();
   const { user } = useAuth();
   const [detail, setDetail] = useState<PullRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +62,7 @@ function PullRequestView({ id }: { id: string }) {
       setDetail(await getPullRequest(id));
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được pull request."));
+      setError(apiErrorMessage(err, tNow("prd.loadFail")));
     } finally {
       setLoading(false);
     }
@@ -80,10 +83,10 @@ function PullRequestView({ id }: { id: string }) {
         setConflicts(result);
         return;
       }
-      setToast({ message: "Đã hợp nhất pull request.", variant: "success" });
+      setToast({ message: tNow("prd.merged"), variant: "success" });
       await load();
     } catch (err) {
-      setMergeError(apiErrorMessage(err, "Không hợp nhất được pull request."));
+      setMergeError(apiErrorMessage(err, tNow("prd.mergeFail")));
     } finally {
       setMerging(false);
     }
@@ -95,10 +98,10 @@ function PullRequestView({ id }: { id: string }) {
     try {
       await resolvePullRequestConflicts(id, resolutions);
       setConflicts(null);
-      setToast({ message: "Đã giải quyết xung đột và hợp nhất pull request.", variant: "success" });
+      setToast({ message: tNow("prd.resolved"), variant: "success" });
       await load();
     } catch (err) {
-      setResolveError(apiErrorMessage(err, "Không hoàn tất được việc hợp nhất."));
+      setResolveError(apiErrorMessage(err, tNow("blist.resolveFail")));
     } finally {
       setMerging(false);
     }
@@ -111,10 +114,10 @@ function PullRequestView({ id }: { id: string }) {
       await closePullRequest(id, closeComment.trim() || undefined);
       setCloseOpen(false);
       setCloseComment("");
-      setToast({ message: "Đã đóng pull request.", variant: "success" });
+      setToast({ message: tNow("prd.closed"), variant: "success" });
       await load();
     } catch (err) {
-      setCloseError(apiErrorMessage(err, "Không đóng được pull request."));
+      setCloseError(apiErrorMessage(err, tNow("prd.closeFail")));
     } finally {
       setClosing(false);
     }
@@ -131,7 +134,7 @@ function PullRequestView({ id }: { id: string }) {
       setCommentBody("");
       await load();
     } catch (err) {
-      setCommentError(apiErrorMessage(err, "Không gửi được bình luận. Nội dung của bạn vẫn được giữ lại."));
+      setCommentError(apiErrorMessage(err, tNow("prd.commentFail")));
     } finally {
       setCommenting(false);
     }
@@ -146,7 +149,7 @@ function PullRequestView({ id }: { id: string }) {
       setPendingDelete(null);
       await load();
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, "Không xoá được bình luận."));
+      setDeleteError(apiErrorMessage(err, tNow("prd.deleteFail")));
     } finally {
       setDeleting(false);
     }
@@ -164,13 +167,13 @@ function PullRequestView({ id }: { id: string }) {
     return (
       <div className="mx-auto max-w-4xl px-5 py-8">
         <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
-          <p>{error ?? "Không tải được pull request."}</p>
+          <p>{error ?? t("prd.loadFail")}</p>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => void load()}>
-              Thử lại
+              {t("ui.retry")}
             </Button>
             <Link href="/pull-requests">
-              <Button variant="ghost">Về danh sách pull request</Button>
+              <Button variant="ghost">{t("prd.backToList")}</Button>
             </Link>
           </div>
         </div>
@@ -180,8 +183,8 @@ function PullRequestView({ id }: { id: string }) {
 
   const { pullRequest: pr, analysis, permissions } = detail;
   const isOpen = pr.status === "open";
-  const sourceLabel = `${pr.source_project_name ?? "dự án đã xoá"} / ${pr.source_branch_name ?? "nhánh đã xoá"}`;
-  const targetLabel = `${pr.target_project_name ?? "dự án đã xoá"} / ${pr.target_branch_name ?? "nhánh đã xoá"}`;
+  const sourceLabel = `${pr.source_project_name ?? t("pr.deletedProject")} / ${pr.source_branch_name ?? t("pr.deletedBranch")}`;
+  const targetLabel = `${pr.target_project_name ?? t("pr.deletedProject")} / ${pr.target_branch_name ?? t("pr.deletedBranch")}`;
   const hasConflicts = (analysis?.conflictsCount ?? 0) > 0;
 
   return (
@@ -198,8 +201,7 @@ function PullRequestView({ id }: { id: string }) {
           <PullRequestStatusBadge status={pr.status} />
         </h1>
         <p className="text-sm text-muted">
-          {formatAuthorName(pr.author)} đề xuất đưa <span className="font-mono text-foreground">{sourceLabel}</span> vào{" "}
-          <span className="font-mono text-foreground">{targetLabel}</span> · {formatRelativeTime(pr.created_at)}
+          {tx("prd.proposes", { author: formatAuthorName(pr.author), source: <span className="font-mono text-foreground">{sourceLabel}</span>, target: <span className="font-mono text-foreground">{targetLabel}</span>, when: formatRelativeTime(pr.created_at) })}
         </p>
         {pr.description && <p className="mt-3 whitespace-pre-wrap text-sm">{pr.description}</p>}
       </div>
@@ -207,20 +209,20 @@ function PullRequestView({ id }: { id: string }) {
       {isOpen && !pr.applicable && (
         <div role="status" className="mb-5 flex items-start gap-2 rounded-card border border-warning/30 bg-warning-muted p-3 text-[13px] text-warning-foreground">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          Pull request này không thể hợp nhất nữa vì dự án hoặc nhánh liên quan không còn tồn tại. Bản ghi và thảo luận vẫn được giữ lại.
+          {t("prd.notApplicable")}
         </div>
       )}
 
       {detail.analysisError && (
         <div role="alert" className="mb-5 rounded-card border border-danger/30 bg-danger-muted p-3 text-[13px] text-danger">
-          Không so sánh được hai nhánh lúc này. Hãy tải lại trang.
+          {t("prd.analysisError")}
         </div>
       )}
 
       {isOpen && hasConflicts && (
         <div role="status" className="mb-5 flex items-start gap-2 rounded-card border border-warning/30 bg-warning-muted p-3 text-[13px] text-warning-foreground">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          Có {analysis?.conflictsCount} nốt xung đột. Cần chọn giữ bên nào cho từng nốt trước khi hợp nhất.
+          {t("prd.conflicts", { n: analysis?.conflictsCount ?? 0 })}
         </div>
       )}
 
@@ -233,7 +235,7 @@ function PullRequestView({ id }: { id: string }) {
                 setMergeOpen(true);
               }}
             >
-              <GitMerge className="h-3.5 w-3.5" /> Duyệt và hợp nhất
+              <GitMerge className="h-3.5 w-3.5" /> {t("prd.reviewMerge")}
             </Button>
           )}
           {permissions.canClose && (
@@ -244,7 +246,7 @@ function PullRequestView({ id }: { id: string }) {
                 setCloseOpen(true);
               }}
             >
-              {user?.id === detail.pullRequest.author?.id && !permissions.canMerge ? "Rút lại" : "Đóng không hợp nhất"}
+              {user?.id === detail.pullRequest.author?.id && !permissions.canMerge ? t("prd.withdraw") : t("prd.closeNoMerge")}
             </Button>
           )}
         </div>
@@ -253,12 +255,12 @@ function PullRequestView({ id }: { id: string }) {
       {analysis && (
         <>
           <section className="mb-6">
-            <h2 className="mb-2 text-[13px] font-bold">Thay đổi được đề xuất</h2>
+            <h2 className="mb-2 text-[13px] font-bold">{t("prd.proposedChanges")}</h2>
             <PrDiffView diff={analysis.summary} />
           </section>
 
           <section className="mb-6">
-            <h2 className="mb-2 text-[13px] font-bold">{analysis.newCommits.length} commit mới</h2>
+            <h2 className="mb-2 text-[13px] font-bold">{t("prd.newCommits", { n: analysis.newCommits.length })}</h2>
             <ul className="overflow-hidden rounded-card border border-border bg-surface">
               {analysis.newCommits.map((commit) => (
                 <li key={commit.id} className="flex items-baseline justify-between gap-3 border-b border-border px-3.5 py-2.5 last:border-b-0">
@@ -274,9 +276,9 @@ function PullRequestView({ id }: { id: string }) {
       )}
 
       <section>
-        <h2 className="mb-2 text-[13px] font-bold">Thảo luận ({detail.comments.length})</h2>
+        <h2 className="mb-2 text-[13px] font-bold">{t("prd.discussion", { n: detail.comments.length })}</h2>
         {detail.comments.length === 0 ? (
-          <p className="mb-3 text-[13px] text-muted">Chưa có bình luận nào.</p>
+          <p className="mb-3 text-[13px] text-muted">{t("prd.noComments")}</p>
         ) : (
           <ul className="mb-4 flex flex-col gap-2">
             {detail.comments.map((comment) => {
@@ -291,8 +293,8 @@ function PullRequestView({ id }: { id: string }) {
                     {canDelete && (
                       <button
                         type="button"
-                        aria-label="Xoá bình luận"
-                        title="Xoá bình luận"
+                        aria-label={t("prd.deleteComment")}
+                        title={t("prd.deleteComment")}
                         onClick={() => {
                           setDeleteError(null);
                           setPendingDelete(comment);
@@ -313,7 +315,7 @@ function PullRequestView({ id }: { id: string }) {
         {permissions.canComment ? (
           <form onSubmit={(e) => void handleComment(e)} className="flex flex-col gap-2">
             <label className="text-xs font-semibold" htmlFor="pr-comment">
-              Viết bình luận
+              {t("prd.writeComment")}
             </label>
             <textarea
               id="pr-comment"
@@ -329,7 +331,7 @@ function PullRequestView({ id }: { id: string }) {
                 {commentBody.length}/{COMMENT_MAX}
               </span>
               <Button type="submit" disabled={commenting || commentBody.trim().length === 0}>
-                {commenting ? "Đang gửi…" : "Bình luận"}
+                {commenting ? t("prd.sending") : t("prd.comment")}
               </Button>
             </div>
             {commentError && (
@@ -339,21 +341,20 @@ function PullRequestView({ id }: { id: string }) {
             )}
           </form>
         ) : (
-          <Badge variant="neutral">Bạn không thể bình luận trong pull request này</Badge>
+          <Badge variant="neutral">{t("prd.cannotComment")}</Badge>
         )}
       </section>
 
       <ConfirmDialog
         open={mergeOpen}
-        title="Hợp nhất pull request?"
+        title={t("prd.mergeTitle")}
         message={
           <>
-            {analysis?.newCommits.length ?? 0} commit mới sẽ được đưa vào <strong>{targetLabel}</strong>, giữ nguyên tác giả
-            của từng commit. Bản fork không bị thay đổi.
-            {hasConflicts && " Có xung đột nên bạn sẽ được yêu cầu chọn giữ bên nào cho từng nốt."}
+            {tx("prd.mergeBody", { n: analysis?.newCommits.length ?? 0, target: <strong>{targetLabel}</strong> })}
+            {hasConflicts && t("prd.mergeConflictsNote")}
           </>
         }
-        confirmLabel="Hợp nhất"
+        confirmLabel={t("blist.mergeConfirm")}
         loading={merging}
         error={mergeError}
         onConfirm={() => void handleMerge()}
@@ -362,12 +363,12 @@ function PullRequestView({ id }: { id: string }) {
 
       <ConfirmDialog
         open={closeOpen}
-        title="Đóng pull request?"
+        title={t("prd.closeTitle")}
         message={
           <>
-            Hai dự án sẽ không thay đổi. Pull request đã đóng không thể mở lại; muốn đề xuất lại phải tạo pull request mới.
+            {t("prd.closeBody")}
             <label htmlFor="pr-close-comment" className="mt-3 block text-xs font-semibold text-foreground">
-              Bình luận (tuỳ chọn)
+              {t("prd.closeComment")}
             </label>
             <textarea
               id="pr-close-comment"
@@ -380,7 +381,7 @@ function PullRequestView({ id }: { id: string }) {
             />
           </>
         }
-        confirmLabel="Đóng pull request"
+        confirmLabel={t("prd.closeConfirm")}
         danger
         loading={closing}
         error={closeError}
@@ -390,9 +391,9 @@ function PullRequestView({ id }: { id: string }) {
 
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Xoá bình luận?"
-        message="Bình luận sẽ bị xoá vĩnh viễn."
-        confirmLabel="Xoá"
+        title={t("prd.deleteTitle")}
+        message={t("prd.deleteBody")}
+        confirmLabel={t("cm.delete")}
         danger
         loading={deleting}
         error={deleteError}

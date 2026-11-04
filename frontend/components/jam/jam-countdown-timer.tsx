@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-66 — the remaining-time clock for a running jam. Ticks every second
@@ -24,6 +25,7 @@ export function JamCountdownTimer({
 }: {
   endsAt: string | null;
 }) {
+  const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
 
   const target = endsAt ? new Date(endsAt).getTime() : null;
@@ -46,13 +48,13 @@ export function JamCountdownTimer({
     <span
       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-sm font-semibold tabular-nums"
       role="timer"
-      aria-label={isOver ? "Sự kiện đã kết thúc" : `Còn ${formatRemaining(remaining)}`}
+      aria-label={isOver ? t("jam.timerOver") : t("jam.timerLeft", { time: formatRemaining(remaining) })}
     >
       {isOver ? (
-        <span className="text-muted">Đã kết thúc</span>
+        <span className="text-muted">{t("jam.timerOverShort")}</span>
       ) : (
         <>
-          <span className="text-xs font-normal text-muted">Còn</span>
+          <span className="text-xs font-normal text-muted">{t("jam.timerLeftShort")}</span>
           <span className="text-accent">{formatRemaining(remaining)}</span>
         </>
       )}

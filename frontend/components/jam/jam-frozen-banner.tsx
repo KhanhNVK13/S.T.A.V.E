@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Snowflake } from "lucide-react";
 import { Button } from "../ui/button";
+import { useI18n } from "../../context/i18n-context";
 
 export interface JamFrozenBannerProps {
   eventId: string;
@@ -15,6 +16,7 @@ export interface JamFrozenBannerProps {
  * quả (UC-68: nghe lại hoặc Fork).
  */
 export function JamFrozenBanner({ eventId }: JamFrozenBannerProps) {
+  const { t } = useI18n();
   return (
     <div
       role="alert"
@@ -22,11 +24,10 @@ export function JamFrozenBanner({ eventId }: JamFrozenBannerProps) {
     >
       <span className="flex items-center gap-2 text-sm">
         <Snowflake className="h-4 w-4 text-accent" />
-        Sự kiện Jam đã kết thúc! Bản nhạc đã được đóng băng. Bạn có thể nghe
-        lại tác phẩm hoặc Fork về không gian cá nhân.
+        {t("jam.frozen")}
       </span>
       <Link href={`/jam/${eventId}/result`}>
-        <Button variant="secondary">Xem kết quả Jam</Button>
+        <Button variant="secondary">{t("jam.viewResult")}</Button>
       </Link>
     </div>
   );

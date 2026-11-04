@@ -29,6 +29,7 @@ import { Badge } from "../ui/badge";
 import { EmptyState } from "../ui/empty-state";
 import { Toast, type ToastVariant } from "../ui/toast";
 import { JamContributorsList } from "./jam-contributors-list";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-68 — the read-only result of an ended Community Jam.
@@ -43,6 +44,7 @@ export function JamResultView({
 }: {
   result: JamResultResponseDto;
 }) {
+  const { t } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
   const [toast, setToast] = useState<{
@@ -104,13 +106,13 @@ export function JamResultView({
         setPlaying(false),
       );
       if (!started) {
-        setPlayError("Bản nhạc này chưa có nốt nào để nghe.");
+        setPlayError(t("jam.noPlay"));
       } else {
         setPlaying(true);
       }
     } catch {
       setPlayError(
-        "Không thể tải mẫu âm thanh để phát thử. Vui lòng kiểm tra lại kết nối mạng.",
+        t("jam.noSamples"),
       );
     } finally {
       setPlayBusy(false);
@@ -120,7 +122,7 @@ export function JamResultView({
   /** 1.E1 (BR-12): guests are sent to login and come straight back. */
   async function handleFork() {
     if (!user) {
-      notify("Vui lòng đăng nhập để sao chép kết quả Jam về tài khoản của bạn.");
+      notify(t("jam.loginToCopy"));
       router.push(
         `/login?redirect=${encodeURIComponent(`/jam/${result.eventId}/result`)}`,
       );
@@ -131,10 +133,10 @@ export function JamResultView({
     setForkError(null);
     try {
       const created = await forkProject(result.resultingProjectId);
-      setFlashToast("Đã sao chép kết quả Jam về dự án của bạn.");
+      setFlashToast(t("jam.copied"));
       router.push(`/projects/${created.id}/edit`);
     } catch (err) {
-      setForkError(apiErrorMessage(err, "Không sao chép được dự án."));
+      setForkError(apiErrorMessage(err, t("jam.copyFail")));
       setForking(false);
     }
   }
@@ -154,12 +156,12 @@ export function JamResultView({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-semibold">{result.name}</h2>
-            <Badge variant="neutral">Đã kết thúc</Badge>
+            <Badge variant="neutral">{t("jam.ended")}</Badge>
           </div>
           <p className="mt-1 text-sm text-muted">
             {result.startedAt && result.endedAt
-              ? `Diễn ra từ ${formatDateTime(result.startedAt)} đến ${formatDateTime(result.endedAt)}.`
-              : "Sự kiện đã kết thúc."}
+              ? t("jam.ranBetween", { from: formatDateTime(result.startedAt), to: formatDateTime(result.endedAt) })
+              : t("jam.eventEnded")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -172,7 +174,7 @@ export function JamResultView({
               ) : (
                 <Play className="h-3.5 w-3.5" />
               )}
-              {playing ? "Tạm dừng" : "Nghe thử"}
+              {playing ? t("jam.pause") : t("jam.preview")}
             </Button>
           )}
           <Button
@@ -185,10 +187,10 @@ export function JamResultView({
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
-            Sao chép về dự án của tôi
+            {t("jam.copyToMine")}
           </Button>
           <Button variant="ghost" onClick={() => router.push("/jam")}>
-            Quay lại Khám phá
+            {t("jam.backExplore")}
           </Button>
         </div>
       </div>
@@ -229,8 +231,8 @@ export function JamResultView({
         <Card className="p-6">
           <EmptyState
             icon={Music4}
-            title="Không có đóng góp"
-            description="Sự kiện đã kết thúc mà không có đóng góp nào."
+            title={t("jam.noContribTitle")}
+            description={t("jam.noContribBody")}
           />
           {result.contributors.length > 0 && (
             <div className="mt-4">

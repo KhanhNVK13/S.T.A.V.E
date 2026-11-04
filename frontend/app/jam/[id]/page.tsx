@@ -11,6 +11,8 @@ import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { JamSession } from "../../../components/jam/jam-session";
+import { useI18n } from "../../../context/i18n-context";
+import { tNow } from "../../../lib/i18n";
 
 /**
  * UC-66 — the shared room for one event (`/jam/[id]`).
@@ -22,6 +24,7 @@ import { JamSession } from "../../../components/jam/jam-session";
  */
 
 function JamRoomContent({ id }: { id: string }) {
+  const { t } = useI18n();
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -52,7 +55,7 @@ function JamRoomContent({ id }: { id: string }) {
         setEvent(data);
       } catch (err) {
         if (cancelled) return;
-        setError(apiErrorMessage(err, "Không thể tải sự kiện này."));
+        setError(apiErrorMessage(err, tNow("jam.eventLoadFail")));
       }
     }
 
@@ -67,7 +70,7 @@ function JamRoomContent({ id }: { id: string }) {
     return (
       <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted">
         <Loader2 className="h-4 w-4 animate-spin text-accent" />
-        Đang tải…
+        {t("ui.loading")}
       </div>
     );
   }
@@ -77,7 +80,7 @@ function JamRoomContent({ id }: { id: string }) {
       <Card className="p-8">
         <EmptyState
           icon={TriangleAlert}
-          title="Không tải được sự kiện"
+          title={t("jam.eventFailTitle")}
           description={error}
           action={
             <Button
@@ -88,7 +91,7 @@ function JamRoomContent({ id }: { id: string }) {
                 setRefreshKey((n) => n + 1);
               }}
             >
-              <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+              <RefreshCw className="h-3.5 w-3.5" /> {t("ui.retry")}
             </Button>
           }
         />
@@ -101,7 +104,7 @@ function JamRoomContent({ id }: { id: string }) {
       <Card className="flex min-h-[240px] items-center justify-center">
         <div className="flex items-center gap-2 text-sm text-muted">
           <Loader2 className="h-4 w-4 animate-spin text-accent" />
-          Đang tải sự kiện…
+          {t("jam.eventLoading")}
         </div>
       </Card>
     );

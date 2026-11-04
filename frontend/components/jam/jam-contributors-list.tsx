@@ -5,6 +5,7 @@ import type { JamContributorDto } from "@stave/shared-types";
 import { Avatar } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { EmptyState } from "../ui/empty-state";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-68 — danh sách nghệ sĩ đã đóng góp vào sự kiện Jam đã kết thúc
@@ -15,23 +16,24 @@ export function JamContributorsList({
 }: {
   contributors: JamContributorDto[];
 }) {
+  const { t } = useI18n();
   if (contributors.length === 0) {
     return (
       <EmptyState
         icon={Music4}
-        title="Không có đóng góp"
-        description="Sự kiện đã kết thúc mà không có đóng góp nào."
+        title={t("jam.noContribTitle")}
+        description={t("jam.noContribBody")}
       />
     );
   }
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Nghệ sĩ tham gia đóng góp</h3>
+      <h3 className="text-sm font-semibold">{t("jam.contributors")}</h3>
       <ul className="space-y-2">
         {contributors.map((c) => {
           const name =
-            c.displayName?.trim() || c.username?.trim() || "Người dùng";
+            c.displayName?.trim() || c.username?.trim() || t("jam.user");
           return (
             <li
               key={c.userId}
@@ -49,7 +51,7 @@ export function JamContributorsList({
                   <p className="truncate text-xs text-muted">@{c.username}</p>
                 )}
               </div>
-              <Badge variant="info">{c.actionCount} thao tác</Badge>
+              <Badge variant="info">{t("jam.actions", { n: c.actionCount })}</Badge>
             </li>
           );
         })}

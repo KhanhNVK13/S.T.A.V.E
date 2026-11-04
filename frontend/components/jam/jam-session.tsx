@@ -22,6 +22,8 @@ import { JamFrozenBanner } from "./jam-frozen-banner";
 import { useJamSocket } from "./use-jam-socket";
 import { PIANO_ROLL_FALLBACK_NOTES } from "./jam-piano-roll";
 import { JamLiveEditor } from "./jam-live-editor";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 /**
  * UC-66 — the shared jam room. The note view is a READ-ONLY re-use of the
@@ -35,22 +37,24 @@ import { JamLiveEditor } from "./jam-live-editor";
  */
 
 function activityLabel(item: JamActivityItem): string {
-  const who = item.displayName?.trim() || "Người dùng";
+  const who = item.displayName?.trim() || tNow("jam.user");
+  const detail = item.detail ? ` (${item.detail})` : "";
   switch (item.op) {
     case "join":
-      return `${who} đã vào phòng`;
+      return tNow("jam.actJoin", { who });
     case "leave":
-      return `${who} đã rời phòng`;
+      return tNow("jam.actLeave", { who });
     case "add":
-      return `${who} thêm nốt${item.detail ? ` (${item.detail})` : ""}`;
+      return tNow("jam.actAdd", { who }) + detail;
     case "remove":
-      return `${who} xoá nốt${item.detail ? ` (${item.detail})` : ""}`;
+      return tNow("jam.actRemove", { who }) + detail;
     default:
-      return `${who} chỉnh nốt${item.detail ? ` (${item.detail})` : ""}`;
+      return tNow("jam.actEdit", { who }) + detail;
   }
 }
 
 export function JamSession({ event }: { event: JamEvent }) {
+  const { t, tx } = useI18n();
   const { user } = useAuth();
   const myId = user?.id ?? null;
 
@@ -105,33 +109,33 @@ export function JamSession({ event }: { event: JamEvent }) {
   if (socket.joinError) {
     const codeText: Record<string, string> = {
       EVENT_NOT_STARTED:
-        "Sự kiện Community Jam chưa bắt đầu. Vui lòng quay lại sau.",
+        t("jam.code.EVENT_NOT_STARTED"),
       EVENT_COMPLETED:
-        "Sự kiện Community Jam đã kết thúc. Bạn chỉ có thể xem lại bản nhạc hoặc tạo bản sao (Fork).",
+        t("jam.code.EVENT_COMPLETED"),
       ROOM_FULL:
-        "Phòng Jam hiện đã đạt giới hạn số lượng người tham gia tối đa (50 người). Vui lòng thử lại sau ít phút.",
+        t("jam.code.ROOM_FULL"),
       ACCOUNT_NOT_ACTIVE:
-        "Tài khoản của bạn hiện đang bị giới hạn tính năng cộng đồng. Không thể tham gia phòng Jam.",
+        t("jam.code.ACCOUNT_NOT_ACTIVE"),
       EVENT_NOT_FOUND:
-        "Sự kiện Community Jam không tồn tại hoặc đã bị gỡ bỏ.",
+        t("jam.code.EVENT_NOT_FOUND"),
       JAM_CONNECTION_FAILED:
-        "Không vào được phiên Jam. Vui lòng thử lại.",
+        t("jam.code.JAM_CONNECTION_FAILED"),
     };
     return (
       <Card className="p-8">
         <EmptyState
           icon={TriangleAlert}
-          title="Không vào được phiên Jam"
+          title={t("jam.joinFailTitle")}
           description={
             codeText[socket.joinError.code] ??
             apiErrorMessage(
               new Error(socket.joinError.message),
-              "Không thể kết nối phòng Jam. Vui lòng thử lại.",
+              t("jam.connectFail"),
             )
           }
           action={
             <Button variant="secondary" onClick={socket.retry}>
-              <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+              <RefreshCw className="h-3.5 w-3.5" /> {t("ui.retry")}
             </Button>
           }
         />
@@ -150,13 +154,13 @@ export function JamSession({ event }: { event: JamEvent }) {
         >
           <span className="flex items-center gap-2">
             <TriangleAlert className="h-4 w-4" />
-            Mất kết nối tới phòng Jam. Đang thử kết nối lại…
+            {t("jam.reconnecting")}
           </span>
           <button
             className="text-xs font-semibold underline"
             onClick={() => setShowBanner(false)}
           >
-            Bỏ qua
+            {t("jam.dismiss")}
           </button>
         </div>
       )}
@@ -168,10 +172,10 @@ export function JamSession({ event }: { event: JamEvent }) {
         >
           <span className="flex items-center gap-2">
             <TriangleAlert className="h-4 w-4" />
-            Không kết nối được phòng Jam. Hãy kiểm tra mạng rồi thử lại.
+            {t("jam.failed")}
           </span>
           <Button variant="secondary" onClick={socket.retry}>
-            <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+            <RefreshCw className="h-3.5 w-3.5" /> {t("ui.retry")}
           </Button>
         </div>
       )}
@@ -186,8 +190,7 @@ export function JamSession({ event }: { event: JamEvent }) {
         >
           <span className="flex items-center gap-2">
             <TriangleAlert className="h-4 w-4" />
-            Không thể lưu bản nhạc chung tạm thời — các thay đổi vẫn đang
-            được giữ an toàn trên máy chủ.
+            {t("jam.storage")}
           </span>
         </div>
       )}
@@ -199,27 +202,23 @@ export function JamSession({ event }: { event: JamEvent }) {
           role="status"
           className="rounded-card border border-accent/30 bg-accent-muted px-3 py-1.5 text-xs text-accent"
         >
-          Nốt nhạc vừa được ghi đè bởi{" "}
-          <span className="font-semibold">
-            {remoteNote.displayName?.trim() || "một người khác"}
-          </span>
-          .
+          {tx("jam.overwritten", { who: <span className="font-semibold">{remoteNote.displayName?.trim() || t("jam.someoneElse")}</span> })}
         </div>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{event.name || "Phòng Jam"}</h2>
+            <h2 className="text-xl font-semibold">{event.name || t("jam.room")}</h2>
             {event.status === "active" && (
-              <Badge variant="success">Đang diễn ra</Badge>
+              <Badge variant="success">{t("jam.live")}</Badge>
             )}
-            {isEnded && <Badge variant="neutral">Đã kết thúc</Badge>}
+            {isEnded && <Badge variant="neutral">{t("jam.ended")}</Badge>}
             {event.status === "scheduled" && (
               <Badge variant="info">
                 {event.scheduled_start_at
-                  ? `Mở lúc ${formatDateTime(event.scheduled_start_at)}`
-                  : "Sắp diễn ra"}
+                  ? t("jam.opensAtLong", { when: formatDateTime(event.scheduled_start_at) })
+                  : t("jam.upcoming")}
               </Badge>
             )}
           </div>
@@ -248,11 +247,11 @@ export function JamSession({ event }: { event: JamEvent }) {
         <Card className="p-8">
           <EmptyState
             icon={Loader2}
-            title="Sự kiện chưa bắt đầu"
+            title={t("jam.notStartedTitle")}
             description={
               event.scheduled_start_at
-                ? `Phòng mở lúc ${formatDateTime(event.scheduled_start_at)}. Bản nhạc chung sẽ hiện tại đây khi sự kiện bắt đầu.`
-                : "Phòng sẽ mở khi đến giờ diễn ra. Bản nhạc chung sẽ hiện tại đây."
+                ? t("jam.notStartedAt", { when: formatDateTime(event.scheduled_start_at) })
+                : t("jam.notStarted")
             }
           />
         </Card>
@@ -274,11 +273,11 @@ export function JamSession({ event }: { event: JamEvent }) {
 
           <Card className="flex max-h-[420px] flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-2.5 text-sm font-semibold">
-              Hoạt động gần đây
+              {t("jam.recent")}
             </div>
             {socket.activity.length === 0 ? (
               <p className="px-4 py-6 text-sm text-muted">
-                Chưa có hoạt động nào.
+                {t("jam.noActivity")}
               </p>
             ) : (
               <ol className="flex-1 space-y-1.5 overflow-y-auto px-4 py-3">
@@ -296,18 +295,18 @@ export function JamSession({ event }: { event: JamEvent }) {
           {socket.failed ? (
             <EmptyState
               icon={Music4}
-              title="Chưa tải được bản nhạc"
-              description="Không thể kết nối tới phòng Jam lúc này."
+              title={t("jam.trackFailTitle")}
+              description={t("jam.trackFailBody")}
               action={
                 <Button variant="secondary" onClick={socket.retry}>
-                  <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+                  <RefreshCw className="h-3.5 w-3.5" /> {t("ui.retry")}
                 </Button>
               }
             />
           ) : (
             <div className="flex items-center gap-2 text-sm text-muted">
               <Loader2 className="h-4 w-4 animate-spin text-accent" />
-              Đang tải bản nhạc chung…
+              {t("jam.trackLoading")}
             </div>
           )}
         </Card>
