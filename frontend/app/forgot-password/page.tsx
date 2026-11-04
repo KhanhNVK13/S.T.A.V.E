@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
           <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted">
             <MailCheck className="h-5 w-5 text-accent" />
           </span>
-          <h2 className="mb-2 text-lg font-semibold text-foreground">{t("auth.checkEmail")}</h2>
+          <h1 className="mb-2 text-lg font-semibold text-foreground">{t("auth.checkEmail")}</h1>
           <p className="text-sm text-muted">
             {tx("auth.forgot.sentBody", { email: <span className="font-mono text-foreground">{email}</span> })}
           </p>

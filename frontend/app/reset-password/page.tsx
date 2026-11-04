@@ -84,8 +84,8 @@ export default function ResetPasswordPage() {
     return (
       <AuthCard>
         <div className="flex flex-col items-center gap-2 py-4 text-sm text-muted">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
-          {t("auth.reset.processing")}
+          <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-accent" />
+          <h1 className="text-sm font-normal">{t("auth.reset.processing")}</h1>
         </div>
       </AuthCard>
     );
