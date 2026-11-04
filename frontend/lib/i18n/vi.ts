@@ -1760,4 +1760,5 @@ export const vi: Record<keyof typeof en, string> = {
   "jamPage.colEvent": "Sự kiện",
   "jamPage.colStatus": "Trạng thái",
   "jamPage.colPeople": "Người tham gia",
+  "explorePage.featuredFail": "Không tải được các dự án nổi bật. Vui lòng thử lại.",
 };

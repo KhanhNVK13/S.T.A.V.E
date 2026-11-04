@@ -55,8 +55,14 @@ function ExploreContent() {
     tNow('ex.loadFail'),
   );
 
-  const { data: featured } = useApiResource<FeaturedContent>(() => getFeaturedContent(), []);
-  const featuredProjects = !filtered && page === 1 ? (featured?.featured_projects ?? []) : [];
+  const [featuredTry, setFeaturedTry] = useState(0);
+  const { data: featured, error: featuredError } = useApiResource<FeaturedContent>(
+    () => getFeaturedContent(),
+    [featuredTry],
+    tNow('explorePage.featuredFail'),
+  );
+  const showFeatured = !filtered && page === 1;
+  const featuredProjects = showFeatured ? (featured?.featured_projects ?? []) : [];
 
   function updateParams(newParams: Record<string, string | null>) {
     const params = new URLSearchParams(window.location.search);
@@ -164,12 +170,24 @@ function ExploreContent() {
         ))}
       </div>
 
-      {featuredProjects.length > 0 && (
+      {showFeatured && (featuredProjects.length > 0 || featuredError) && (
         <section aria-labelledby="explore-featured" className="mb-8">
           <h2 id="explore-featured" className="mb-2.5 text-[17px] font-semibold">
             {t('explorePage.featured')}
           </h2>
-          <ProjectRows projects={featuredProjects} />
+          {featuredError ? (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-danger/20 bg-danger-muted px-4 py-3"
+            >
+              <p className="text-[13px] text-danger">{featuredError}</p>
+              <Button variant="secondary" onClick={() => setFeaturedTry((n) => n + 1)}>
+                {t('ui.retry')}
+              </Button>
+            </div>
+          ) : (
+            <ProjectRows projects={featuredProjects} />
+          )}
         </section>
       )}
 

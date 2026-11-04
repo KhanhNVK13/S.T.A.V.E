@@ -1758,4 +1758,5 @@ export const en = {
   "jamPage.colEvent": "Event",
   "jamPage.colStatus": "Status",
   "jamPage.colPeople": "People",
+  "explorePage.featuredFail": "Couldn't load the featured projects. Please try again.",
 } as const satisfies Record<string, string>;
