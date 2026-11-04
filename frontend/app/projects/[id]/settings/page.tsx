@@ -24,12 +24,11 @@ import { Field, INPUT_CLASS } from "../../../../components/ui/form";
 import { Dialog, DialogActions, DialogError } from "../../../../components/ui/dialog";
 import { ConfirmDialog } from "../../../../components/ui/confirm-dialog";
 import { apiErrorMessage } from "../../../../lib/error-message";
-import { APP_LOCALE } from "../../../../lib/format-date";
+import { useI18n } from "../../../../context/i18n-context";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../../lib/validation";
 import { SkyLoading } from "../../../../components/project/sky-state";
 
 const NAME_MAX = 100;
-const NAME_REQUIRED = "Vui lòng nhập tên dự án.";
 
 interface Project {
   id: string;
@@ -49,6 +48,7 @@ function ProjectInfoCard({
   project: Project;
   onSaved: (updated: Pick<Project, "name" | "description" | "genre">) => void;
 }) {
+  const { t, locale } = useI18n();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const [genre, setGenre] = useState(project.genre ?? "");
@@ -67,7 +67,7 @@ function ProjectInfoCard({
     if (isArchived) return;
     const form = e.currentTarget;
     const invalid =
-      validateRequired(name, NAME_REQUIRED) ?? validateMaxLength(name, NAME_MAX, "Tên dự án");
+      validateRequired(name, t("new.nameRequired")) ?? validateMaxLength(name, NAME_MAX, t("new.nameLabel"));
     setNameError(invalid);
     if (invalid) {
       focusFirstInvalid(form);
@@ -81,7 +81,7 @@ function ProjectInfoCard({
       onSaved({ name: name.trim(), description: description || null, genre: genre || null });
       setSaved(true);
     } catch (err) {
-      setSaveError(apiErrorMessage(err, "Không lưu được thông tin dự án."));
+      setSaveError(apiErrorMessage(err, t("pset.saveFail")));
     } finally {
       setSaving(false);
     }
@@ -89,15 +89,15 @@ function ProjectInfoCard({
 
   return (
     <Card className="p-6">
-      <h2 className="mb-4 text-base font-semibold text-foreground">Thông tin dự án</h2>
+      <h2 className="mb-4 text-base font-semibold text-foreground">{t("pset.infoTitle")}</h2>
       {isArchived && (
         <p className="mb-4 flex items-start gap-2 text-sm text-muted">
           <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-          Dự án đã lưu trữ nên chỉ xem được. Khôi phục dự án ở cuối trang để chỉnh sửa lại.
+          {t("pset.archivedNote")}
         </p>
       )}
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-        <Field label="Tên dự án *" error={nameError}>
+        <Field label={t("new.nameField")} error={nameError}>
           <input
             name="name"
             autoComplete="off"
@@ -112,7 +112,7 @@ function ProjectInfoCard({
             className={INPUT_CLASS}
           />
         </Field>
-        <Field label="Mô tả">
+        <Field label={t("new.description")}>
           <textarea
             name="description"
             value={description}
@@ -124,10 +124,10 @@ function ProjectInfoCard({
             maxLength={2000}
             disabled={isArchived}
             className={INPUT_CLASS}
-            placeholder="Mô tả ngắn về dự án của bạn"
+            placeholder={t("new.descriptionPlaceholder")}
           />
         </Field>
-        <Field label="Thể loại">
+        <Field label={t("new.genre")}>
           <input
             name="genre"
             autoComplete="off"
@@ -140,21 +140,21 @@ function ProjectInfoCard({
             }}
             disabled={isArchived}
             className={INPUT_CLASS}
-            placeholder="Ví dụ: Lo-Fi, Jazz,…"
+            placeholder={t("pset.genrePlaceholder")}
           />
         </Field>
         <dl className="grid grid-cols-3 gap-y-2 text-sm">
-          <dt className="text-muted">Trạng thái</dt>
+          <dt className="text-muted">{t("pset.status")}</dt>
           <dd className="col-span-2">
             {isArchived ? (
-              <Badge variant="warning">Đã lưu trữ</Badge>
+              <Badge variant="warning">{t("project.archived")}</Badge>
             ) : (
-              <Badge variant="success">Đang hoạt động</Badge>
+              <Badge variant="success">{t("pset.statusActive")}</Badge>
             )}
           </dd>
-          <dt className="text-muted">Ngày tạo</dt>
+          <dt className="text-muted">{t("pset.createdOn")}</dt>
           <dd className="col-span-2 font-mono text-xs text-foreground">
-            {new Date(project.created_at).toLocaleDateString(APP_LOCALE)}
+            {new Date(project.created_at).toLocaleDateString(locale)}
           </dd>
         </dl>
         {saveError && (
@@ -165,7 +165,7 @@ function ProjectInfoCard({
         {!isArchived && (
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={saving || !dirty}>
-              {saving ? "Đang lưu…" : "Lưu thay đổi"}
+              {saving ? t("pset.saving") : t("pset.save")}
             </Button>
             <Button
               type="button"
@@ -179,11 +179,11 @@ function ProjectInfoCard({
                 setSaveError(null);
               }}
             >
-              Huỷ thay đổi
+              {t("pset.discard")}
             </Button>
             {saved && (
               <span role="status" className="text-sm text-success-foreground">
-                Đã lưu.
+                {t("pset.saved")}
               </span>
             )}
           </div>
@@ -194,6 +194,7 @@ function ProjectInfoCard({
 }
 
 export default function ProjectSettingsPage() {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
@@ -223,7 +224,7 @@ export default function ProjectSettingsPage() {
         const data = (await getProject(projectId)) as Project;
         setProject(data);
       } catch (err) {
-        setError(apiErrorMessage(err, "Không tải được thông tin dự án."));
+        setError(apiErrorMessage(err, t("pset.loadFail")));
       } finally {
         setLoading(false);
       }
@@ -240,7 +241,7 @@ export default function ProjectSettingsPage() {
       setShowDeleteConfirm(false);
       setArchiveNotice("archived");
     } catch (err) {
-      setError(apiErrorMessage(err, "Không lưu trữ được dự án."));
+      setError(apiErrorMessage(err, t("pset.archiveFail")));
     } finally {
       setArchiving(false);
     }
@@ -255,7 +256,7 @@ export default function ProjectSettingsPage() {
       setShowUnarchiveConfirm(false);
       setArchiveNotice("restored");
     } catch (err) {
-      setError(apiErrorMessage(err, "Không khôi phục được dự án."));
+      setError(apiErrorMessage(err, t("pset.restoreFail")));
     } finally {
       setUnarchiving(false);
     }
@@ -268,7 +269,7 @@ export default function ProjectSettingsPage() {
       await deleteProject(projectId);
       router.push("/projects");
     } catch (err) {
-      setError(apiErrorMessage(err, "Không xoá được dự án."));
+      setError(apiErrorMessage(err, t("pset.deleteFail")));
       setDeleting(false);
     }
   }
@@ -290,7 +291,7 @@ export default function ProjectSettingsPage() {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2500);
     } catch {
-      setError("Không sao chép được liên kết. Hãy chọn và sao chép thủ công.");
+      setError(t("pset.copyFail"));
     }
   }
 
@@ -303,13 +304,13 @@ export default function ProjectSettingsPage() {
       setProject((prev) => (prev ? { ...prev, visibility: updated.visibility } : prev));
       const msg =
         visibility === 'public'
-          ? "Dự án đã được đặt thành công khai."
-          : "Dự án đã được đặt thành riêng tư.";
+          ? t("pset.madePublic")
+          : t("pset.madePrivate");
       setVisibilitySuccess(msg);
       // Auto-dismiss success banner after 4 seconds
       setTimeout(() => setVisibilitySuccess(null), 4000);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không đổi được chế độ hiển thị."));
+      setError(apiErrorMessage(err, t("pset.visibilityFail")));
     } finally {
       setSettingVisibility(false);
       setPendingVisibility(null);
@@ -325,15 +326,15 @@ export default function ProjectSettingsPage() {
           href="/projects"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-accent hover:underline"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách dự án
+          <ArrowLeft className="h-3.5 w-3.5" /> {t("new.back")}
         </Link>
         <PageHeader
-          title="Cài đặt dự án"
+          title={t("pset.title")}
           description={project?.name}
-          breadcrumbs={[{ label: "Dự án của tôi", href: "/projects" }, { label: "Dự án", href: `/projects/${projectId}` }]}
+          breadcrumbs={[{ label: t("nav.projects"), href: "/projects" }, { label: t("pset.crumbProject"), href: `/projects/${projectId}` }]}
         />
 
-        {loading && <SkyLoading label="Đang tải thông tin dự án…" />}
+        {loading && <SkyLoading label={t("pset.loading")} />}
 
         {error && !loading && (
           <div
@@ -349,7 +350,7 @@ export default function ProjectSettingsPage() {
                   setLoadAttempt((n) => n + 1);
                 }}
               >
-                Thử lại
+                {t("ui.retry")}
               </Button>
             )}
           </div>
@@ -362,8 +363,8 @@ export default function ProjectSettingsPage() {
           >
             <span>
               {archiveNotice === "archived"
-                ? "Đã lưu trữ dự án. Bạn có thể khôi phục bất cứ lúc nào."
-                : "Đã khôi phục dự án."}
+                ? t("pset.archivedNotice")
+                : t("pset.restoredNotice")}
             </span>
             {archiveNotice === "archived" && (
               <Button
@@ -371,7 +372,7 @@ export default function ProjectSettingsPage() {
                 onClick={() => void handleUnarchive()}
                 disabled={unarchiving}
               >
-                {unarchiving ? "Đang hoàn tác…" : "Hoàn tác"}
+                {unarchiving ? t("pset.undoing") : t("pset.undo")}
               </Button>
             )}
           </div>
@@ -385,8 +386,8 @@ export default function ProjectSettingsPage() {
             />
 
             <Card className="p-6">
-              <h2 className="mb-1 text-base font-semibold text-foreground">Hiển thị dự án</h2>
-              <p className="mb-4 text-sm text-muted">Chọn ai có thể xem và truy cập dự án này.</p>
+              <h2 className="mb-1 text-base font-semibold text-foreground">{t("pset.visibilityTitle")}</h2>
+              <p className="mb-4 text-sm text-muted">{t("pset.visibilityLead")}</p>
 
               {visibilitySuccess && (
                 <div className="mb-4 rounded-card border border-success/20 bg-success-muted p-3 text-sm text-success-foreground">
@@ -408,11 +409,11 @@ export default function ProjectSettingsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <Lock className="h-4 w-4 text-muted" />
-                      <span className="font-medium text-foreground">Riêng tư</span>
-                      {project.visibility === "private" && <Badge variant="neutral">Hiện tại</Badge>}
+                      <span className="font-medium text-foreground">{t("common.private")}</span>
+                      {project.visibility === "private" && <Badge variant="neutral">{t("pset.current")}</Badge>}
                     </div>
                     <p className="mt-1 text-sm text-muted">
-                      Chỉ chủ dự án và cộng tác viên được mời mới có quyền xem và chỉnh sửa.
+                      {t("pset.privateDesc")}
                     </p>
                   </div>
                 </label>
@@ -430,27 +431,26 @@ export default function ProjectSettingsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <Globe2 className="h-4 w-4 text-muted" />
-                      <span className="font-medium text-foreground">Công khai</span>
-                      {project.visibility === "public" && <Badge variant="info">Hiện tại</Badge>}
+                      <span className="font-medium text-foreground">{t("common.public")}</span>
+                      {project.visibility === "public" && <Badge variant="info">{t("pset.current")}</Badge>}
                     </div>
                     <p className="mt-1 text-sm text-muted">
-                      Dự án xuất hiện trên trang Explore, cho phép cộng đồng nghe thử và xem chi
-                      tiết.
+                      {t("pset.publicDesc")}
                     </p>
                   </div>
                 </label>
               </div>
 
-              {settingVisibility && <p className="mt-3 text-sm text-muted">Đang cập nhật…</p>}
+              {settingVisibility && <p className="mt-3 text-sm text-muted">{t("pset.updating")}</p>}
 
               {project.visibility === "public" && (
                 <div className="mt-4 flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface-subtle p-3">
-                  <span className="text-xs text-muted">Liên kết chia sẻ:</span>
+                  <span className="text-xs text-muted">{t("pset.shareLink")}</span>
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
                     {typeof window !== "undefined" ? window.location.origin : ""}/projects/{project.id}
                   </span>
                   <Button variant="secondary" onClick={() => void copyShareLink()}>
-                    {linkCopied ? "Đã sao chép" : "Sao chép liên kết"}
+                    {linkCopied ? t("pset.copied") : t("pset.copyLink")}
                   </Button>
                 </div>
               )}
@@ -459,11 +459,10 @@ export default function ProjectSettingsPage() {
             <Card className="border-danger/20 p-6">
               <div className="mb-2 flex items-center gap-2">
                 <TriangleAlert className="h-5 w-5 text-danger" />
-                <h2 className="text-base font-semibold text-foreground">Vùng nguy hiểm</h2>
+                <h2 className="text-base font-semibold text-foreground">{t("pset.dangerTitle")}</h2>
               </div>
               <p className="mb-4 text-sm text-muted">
-                Lưu trữ dự án sẽ ẩn dự án khỏi danh sách chính. Bạn vẫn có thể khôi phục dự án
-                từ đây.
+                {t("pset.dangerLead")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {project.archived_at ? (
@@ -473,7 +472,7 @@ export default function ProjectSettingsPage() {
                     disabled={unarchiving}
                     className="gap-1.5 border-warning text-warning-foreground hover:bg-warning-muted"
                   >
-                    <Undo2 className="h-4 w-4" /> {unarchiving ? "Đang khôi phục…" : "Khôi phục dự án"}
+                    <Undo2 className="h-4 w-4" /> {unarchiving ? t("pset.restoring") : t("pset.restoreProject")}
                   </Button>
                 ) : (
                   <Button
@@ -482,7 +481,7 @@ export default function ProjectSettingsPage() {
                     disabled={archiving}
                     className="gap-1.5 border-danger text-danger hover:bg-danger-muted"
                   >
-                    <Archive className="h-4 w-4" /> {archiving ? "Đang lưu trữ…" : "Lưu trữ dự án"}
+                    <Archive className="h-4 w-4" /> {archiving ? t("pset.archiving") : t("pset.archiveProject")}
                   </Button>
                 )}
                 <Button
@@ -490,7 +489,7 @@ export default function ProjectSettingsPage() {
                   onClick={() => void openDeleteDialog()}
                   className="gap-1.5 border-danger text-danger hover:bg-danger-muted"
                 >
-                  <Trash2 className="h-4 w-4" /> Xóa dự án
+                  <Trash2 className="h-4 w-4" /> {t("pset.deleteProject")}
                 </Button>
               </div>
             </Card>
@@ -500,7 +499,7 @@ export default function ProjectSettingsPage() {
 
       <Dialog
         open={showUnarchiveConfirm}
-        title="Khôi phục dự án"
+        title={t("pset.restoreDialogTitle")}
         onClose={() => {
           setShowUnarchiveConfirm(false);
           setError(null);
@@ -508,8 +507,7 @@ export default function ProjectSettingsPage() {
         closeDisabled={unarchiving}
       >
         <p className="mb-6 text-sm text-muted">
-          Dự án &quot;{project?.name}&quot; sẽ được khôi phục và hiển thị lại trong danh sách dự
-          án chính.
+          {t("pset.restoreDialogBody", { name: project?.name ?? "" })}
         </p>
         <DialogError message={error} />
         <DialogActions>
@@ -521,17 +519,18 @@ export default function ProjectSettingsPage() {
             }}
             disabled={unarchiving}
           >
-            Huỷ
+            {t("ui.cancel")}
+
           </Button>
           <Button onClick={() => void handleUnarchive()} disabled={unarchiving}>
-            {unarchiving ? "Đang khôi phục…" : "Khôi phục"}
+            {unarchiving ? t("pset.restoring") : t("pset.restoreConfirm")}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog
         open={showArchiveConfirm}
-        title="Xác nhận lưu trữ dự án"
+        title={t("pset.archiveDialogTitle")}
         onClose={() => {
           setShowArchiveConfirm(false);
           setError(null);
@@ -540,9 +539,7 @@ export default function ProjectSettingsPage() {
         role="alertdialog"
       >
         <p className="mb-6 text-sm text-muted">
-          Bạn có chắc chắn muốn lưu trữ dự án &quot;{project?.name}&quot;? Dự án sẽ được chuyển
-          sang phần dự án đã lưu trữ và không còn xuất hiện trong danh sách chính. Bạn có thể khôi
-          phục dự án bất cứ lúc nào, và hoàn tác ngay sau khi lưu trữ.
+          {t("pset.archiveDialogBody", { name: project?.name ?? "" })}
         </p>
         <DialogError message={error} />
         <DialogActions>
@@ -554,17 +551,18 @@ export default function ProjectSettingsPage() {
             }}
             disabled={archiving}
           >
-            Huỷ
+            {t("ui.cancel")}
+
           </Button>
           <Button variant="danger" onClick={() => void handleArchive()} disabled={archiving}>
-            {archiving ? "Đang xử lý…" : "Xác nhận lưu trữ"}
+            {archiving ? t("pset.processing") : t("pset.archiveConfirm")}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog
         open={showDeleteConfirm}
-        title="Xóa dự án vĩnh viễn"
+        title={t("pset.deleteDialogTitle")}
         titleClassName="text-danger"
         onClose={() => {
           setShowDeleteConfirm(false);
@@ -575,19 +573,18 @@ export default function ProjectSettingsPage() {
         role="alertdialog"
       >
         <p className="mb-3 text-sm text-muted">
-          Hành động này không thể hoàn tác. Tất cả dữ liệu bao gồm lịch sử phiên bản, các bản
-          nháp và thành viên của dự án &quot;{project?.name}&quot; sẽ bị xóa vĩnh viễn.
+          {t("pset.deleteDialogBody", { name: project?.name ?? "" })}
         </p>
         <p className="mb-4 rounded-card border border-border bg-surface-subtle px-3 py-2 text-sm text-foreground">
           {deletePreview === null
-            ? "Đang đếm commit và nhánh…"
+            ? t("pset.counting")
             : deletePreview === "error"
-              ? "Không đếm được số commit và nhánh sẽ mất."
-              : `Sẽ mất ${deletePreview.commitCount.toLocaleString(APP_LOCALE)} commit và ${deletePreview.branchCount.toLocaleString(APP_LOCALE)} nhánh.`}
+              ? t("pset.countFail")
+              : t("pset.willLose", { commits: deletePreview.commitCount.toLocaleString(locale), branches: deletePreview.branchCount.toLocaleString(locale) })}
         </p>
         {!project?.archived_at && (
           <p className="mb-4 text-sm text-muted">
-            Chưa chắc chắn?{" "}
+            {t("pset.notSure")}{" "}
             <button
               type="button"
               className="text-accent hover:underline"
@@ -596,14 +593,14 @@ export default function ProjectSettingsPage() {
                 setShowArchiveConfirm(true);
               }}
             >
-              Lưu trữ dự án thay vì xoá
+              {t("pset.archiveInstead")}
             </button>{" "}
-            để giữ lại toàn bộ lịch sử và khôi phục sau.
+            {t("pset.keepHistory")}
           </p>
         )}
         <label className="mb-4 flex flex-col gap-2 text-sm">
           <span className="font-medium text-foreground">
-            Để xác nhận, hãy nhập tên dự án:{" "}
+            {t("pset.typeName")}{" "}
             <span className="font-semibold text-foreground">{project?.name}</span>
           </span>
           <input
@@ -628,10 +625,11 @@ export default function ProjectSettingsPage() {
             }}
             disabled={deleting}
           >
-            Huỷ
+            {t("ui.cancel")}
+
           </Button>
           <Button variant="danger" onClick={() => void handleDelete()} disabled={!canDelete || deleting}>
-            {deleting ? "Đang xóa…" : "Xóa vĩnh viễn"}
+            {deleting ? t("pset.deleting") : t("pset.deleteForever")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -639,14 +637,14 @@ export default function ProjectSettingsPage() {
       <ConfirmDialog
         open={!!pendingVisibility}
         title={
-          pendingVisibility === "public" ? "Công khai dự án?" : "Chuyển dự án về riêng tư?"
+          pendingVisibility === "public" ? t("pset.makePublicTitle") : t("pset.makePrivateTitle")
         }
         message={
           pendingVisibility === "public"
-            ? "Dự án sẽ xuất hiện trên trang Explore. Mọi người có thể xem, nghe thử và fork dự án này. Bạn có thể chuyển về riêng tư bất cứ lúc nào."
-            : "Dự án sẽ biến mất khỏi Explore. Chỉ bạn và cộng tác viên được mời xem được."
+            ? t("pset.makePublicBody")
+            : t("pset.makePrivateBody")
         }
-        confirmLabel={pendingVisibility === "public" ? "Công khai" : "Chuyển về riêng tư"}
+        confirmLabel={pendingVisibility === "public" ? t("pset.makePublicConfirm") : t("pset.makePrivateConfirm")}
         loading={settingVisibility}
         onConfirm={() => pendingVisibility && void handleSetVisibility(pendingVisibility)}
         onCancel={() => setPendingVisibility(null)}
