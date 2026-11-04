@@ -1086,7 +1086,10 @@ describe('BE-SND CustomSoundsService', () => {
         },
         tables: {
           platform_settings: [{ data: { value: 52428800 } }],
-          custom_sounds: [{ error: { code: '50000', message: 'fatal' } }],
+          custom_sounds: [
+            { error: { code: '50000', message: 'fatal' } },
+            { data: null },
+          ],
         },
       });
 

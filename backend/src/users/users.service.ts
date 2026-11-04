@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -13,6 +14,7 @@ import {
   AVATAR_MAX_BYTES,
   purgeUserAvatars,
 } from '../common/utils/avatar-storage.util';
+import { removeStorageFiles } from '../common/utils/storage-cleanup.util';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 import type { PresetThemeKey } from './dto/set-theme.dto';
@@ -43,6 +45,8 @@ const AVATAR_EXTENSIONS = {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
@@ -65,17 +69,6 @@ export class UsersService {
     userId: string,
     contentType: 'image/jpeg' | 'image/png' | 'image/webp',
   ): Promise<{ path: string; token: string }> {
-    const { data: profile } = await this.supabase
-      .from('users')
-      .select('avatar_url')
-      .eq('id', userId)
-      .maybeSingle<{ avatar_url: string | null }>();
-    await purgeUserAvatars(
-      this.supabase,
-      userId,
-      this.ownAvatarFileName(userId, profile?.avatar_url ?? null),
-    );
-
     const extension = AVATAR_EXTENSIONS[contentType];
     const path = `${userId}/${randomUUID()}.${extension}`;
     const { data, error } = await this.supabase.storage
@@ -104,7 +97,12 @@ export class UsersService {
       (file.metadata as { size?: number } | null | undefined)?.size ?? 0,
     );
     if (size > AVATAR_MAX_BYTES) {
-      await this.supabase.storage.from(AVATARS_BUCKET).remove([path]);
+      await removeStorageFiles(
+        this.supabase,
+        AVATARS_BUCKET,
+        [path],
+        this.logger,
+      );
       throw new BadRequestException('Avatar file is too large');
     }
 

@@ -228,7 +228,7 @@ test.describe("Branch management, further cases", () => {
     await expect(page.getByText("-1", { exact: true }).first()).toBeVisible();
     const graph = page.getByRole("region", { name: "Đồ thị nhánh" });
     await expect(graph).toContainText("alt-chorus");
-    await expect(graph).toContainText("Bridge idea");
+    await expect(graph).toContainText("main");
     await page
       .getByRole("button", { name: /xem chi tiết nhánh alt-chorus/i })
       .click();

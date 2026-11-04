@@ -266,7 +266,7 @@ test.describe("Track editing", () => {
         true,
       );
       expect(await isSelected(page, "Lead")).toBe(true);
-      await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Hoàn tác", exact: true })).toBeEnabled();
       const history = await api.history(branchId);
       expect(history.map((c) => c.id)).toEqual([head.id]);
       const snap = await api.commitSnapshot(head.id);
@@ -288,7 +288,7 @@ test.describe("Track editing", () => {
       expect(await readDraft(api, id)).toEqual(before);
       await expect(nameButton(page, "Bass")).toBeVisible();
       expect(await isSelected(page, "Lead")).toBe(true);
-      await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Hoàn tác", exact: true })).toBeDisabled();
     });
 
     test("EDT-038 undo restores a removed track and its notes with their identifiers", async ({
@@ -303,7 +303,7 @@ test.describe("Track editing", () => {
         .poll(async () => (await readDraft(api, id)).tracks.length, saved)
         .toBe(1);
 
-      await page.getByRole("button", { name: "Undo", exact: true }).click();
+      await page.getByRole("button", { name: "Hoàn tác", exact: true }).click();
       await expect.poll(async () => readDraft(api, id), saved).toEqual(before);
       await expect(nameButton(page, "Bass")).toBeVisible();
     });

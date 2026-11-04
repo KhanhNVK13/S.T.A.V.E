@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { listStorageFolder, removeStorageFiles } from './storage-cleanup.util';
 
 export const AVATARS_BUCKET = 'avatars';
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
@@ -12,27 +13,14 @@ export async function purgeUserAvatars(
   keepFileName?: string,
 ): Promise<void> {
   try {
-    const { data: files, error } = await supabase.storage
-      .from(AVATARS_BUCKET)
-      .list(userId, { limit: 100 });
-    if (error) {
-      logger.error(`Could not list avatars of ${userId}: ${error.message}`);
-      return;
-    }
-    const stale = (files ?? [])
-      .map((file) => file.name)
+    const names = await listStorageFolder(supabase, AVATARS_BUCKET, userId);
+    const stale = names
       .filter((name) => name !== keepFileName)
       .map((name) => `${userId}/${name}`);
-    if (stale.length === 0) return;
-    const { error: removeError } = await supabase.storage
-      .from(AVATARS_BUCKET)
-      .remove(stale);
-    if (removeError) {
-      logger.error(
-        `Could not remove avatars of ${userId}: ${removeError.message}`,
-      );
-    }
+    await removeStorageFiles(supabase, AVATARS_BUCKET, stale, logger);
   } catch (err) {
-    logger.error(`Avatar cleanup failed for ${userId}: ${String(err)}`);
+    logger.error(
+      `Could not list avatars of ${userId}, old files may remain: ${String(err)}`,
+    );
   }
 }

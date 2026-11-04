@@ -8,9 +8,12 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
+import { UserThrottlerGuard } from '../common/guards/user-throttler.guard';
+import { RecoverySessionGuard } from '../common/guards/recovery-session.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { RegisterSessionDto } from './dto/register-session.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -56,7 +59,7 @@ export class AuthController {
     return { success: true };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RecoverySessionGuard)
   @Post('sessions/reset')
   resetSessions(
     @Req() req: AuthenticatedRequest,
@@ -81,7 +84,8 @@ export class AuthController {
     return { success: true };
   }
 
-  @UseGuards(JwtAuthGuard, SessionAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionAuthGuard, UserThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
   @Post('change-password')
   async changePassword(
     @Req() req: AuthenticatedRequest,
@@ -98,7 +102,8 @@ export class AuthController {
     return { success: true };
   }
 
-  @UseGuards(JwtAuthGuard, SessionAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionAuthGuard, UserThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
   @Delete('account')
   async deleteAccount(
     @Req() req: AuthenticatedRequest,

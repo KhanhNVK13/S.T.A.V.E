@@ -1,4 +1,6 @@
 import {
+  Allow,
+  IsArray,
   IsUUID,
   IsNotEmpty,
   IsOptional,
@@ -8,7 +10,55 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import {
+  sanitizeTrackName,
+  TRACK_NAME_MAX_LENGTH,
+} from '../../common/utils/sanitize-track-name.util';
+
+/**
+ * Mọi trường của track phải được khai (`@Allow`) vì `whitelist: true` xoá âm
+ * thầm trường không có decorator trong đối tượng lồng.
+ */
+export class SwitchBranchTrackDto {
+  @Allow()
+  id?: string;
+
+  @Transform(({ value }: { value: unknown }) => sanitizeTrackName(value))
+  @IsString()
+  @MaxLength(TRACK_NAME_MAX_LENGTH)
+  name!: string;
+
+  @Allow()
+  order!: number;
+
+  @Allow()
+  color!: string;
+
+  @Allow()
+  volume!: number;
+
+  @Allow()
+  pan!: number;
+
+  @Allow()
+  muted?: boolean;
+
+  @Allow()
+  solo?: boolean;
+
+  @Allow()
+  isMuted?: boolean;
+
+  @Allow()
+  isSolo?: boolean;
+
+  @Allow()
+  instrument?: string | null;
+
+  @Allow()
+  soundMap?: unknown;
+}
 
 /**
  * Draft snapshot structure for switching branches
@@ -33,20 +83,10 @@ export class DraftSnapshotDto {
    * chuyển nhánh. `isMuted`/`isSolo` giữ lại chỉ để không vỡ payload cũ.
    */
   @IsOptional()
-  tracks?: Array<{
-    id?: string;
-    name: string;
-    order: number;
-    color: string;
-    volume: number;
-    pan: number;
-    muted?: boolean;
-    solo?: boolean;
-    isMuted?: boolean;
-    isSolo?: boolean;
-    instrument?: string | null;
-    soundMap?: unknown;
-  }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SwitchBranchTrackDto)
+  tracks?: SwitchBranchTrackDto[];
 
   @IsOptional()
   notes?: Array<{
