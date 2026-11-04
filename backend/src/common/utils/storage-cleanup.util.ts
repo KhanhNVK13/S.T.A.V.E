@@ -17,16 +17,21 @@ function messageOf(err: unknown): string {
   return String(err);
 }
 
+export interface StorageFileInfo {
+  name: string;
+  createdAt: string | null;
+}
+
 /**
- * Lists every file name directly under `folder`, page by page. Throws when a
- * page cannot be read so the caller never mistakes a partial list for all of it.
+ * Lists every file directly under `folder`, page by page. Throws when a page
+ * cannot be read so the caller never mistakes a partial list for all of it.
  */
-export async function listStorageFolder(
+export async function listStorageFiles(
   supabase: SupabaseClient,
   bucket: string,
   folder: string,
-): Promise<string[]> {
-  const names: string[] = [];
+): Promise<StorageFileInfo[]> {
+  const files: StorageFileInfo[] = [];
   for (let offset = 0; ; offset += STORAGE_LIST_PAGE) {
     const { data, error } = await supabase.storage.from(bucket).list(folder, {
       limit: STORAGE_LIST_PAGE,
@@ -35,9 +40,23 @@ export async function listStorageFolder(
     });
     if (error) throw new Error(messageOf(error));
     const page = data ?? [];
-    names.push(...page.map((file) => file.name));
-    if (page.length < STORAGE_LIST_PAGE) return names;
+    files.push(
+      ...page.map((file) => ({
+        name: file.name,
+        createdAt: file.created_at ?? null,
+      })),
+    );
+    if (page.length < STORAGE_LIST_PAGE) return files;
   }
+}
+
+export async function listStorageFolder(
+  supabase: SupabaseClient,
+  bucket: string,
+  folder: string,
+): Promise<string[]> {
+  const files = await listStorageFiles(supabase, bucket, folder);
+  return files.map((file) => file.name);
 }
 
 /**

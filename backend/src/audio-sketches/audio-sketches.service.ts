@@ -18,6 +18,7 @@ import {
 } from './dto/create-upload-url.dto';
 import type { AttachSketchDto } from './dto/attach-sketch.dto';
 import {
+  listStorageFiles,
   listStorageFolder,
   removeStorageFiles,
 } from '../common/utils/storage-cleanup.util';
@@ -27,6 +28,11 @@ const BUCKET = 'audio-sketches';
 
 /** Thời hạn link nghe lại. Đủ dài để nghe hết 1 sketch, đủ ngắn để link rò ra ngoài cũng chóng hết hạn. */
 const PLAYBACK_URL_TTL_SEC = 60 * 60;
+
+/** File chưa gắn vào sketch nào quá lâu thì coi là mồ côi (upload bỏ dở). */
+const UNATTACHED_UPLOAD_MAX_AGE_MS = 60 * 60 * 1000;
+const SKETCH_FILE_PATTERN = /^[0-9a-f-]{36}\.wav$/i;
+const REFERENCE_LOOKUP_CHUNK = 100;
 
 /** 1 dòng của bảng `audio_sketches` (cột thật, đã tra information_schema). */
 export interface AudioSketchRow {
@@ -145,6 +151,8 @@ export class AudioSketchesService {
       throw new BadRequestException('Audio sketch tối đa 3 phút và 20MB');
     }
 
+    await this.removeStaleUnattachedUploads(projectId);
+
     const sketchId = randomUUID();
     const path = `${projectId}/${sketchId}.wav`;
 
@@ -157,6 +165,44 @@ export class AudioSketchesService {
     }
 
     return { sketchId, path, token: data.token };
+  }
+
+  /**
+   * Xin URL mà không bao giờ gọi attach để lại file mồ côi. Storage không ghi
+   * ai đã upload nên chỉ dọn theo project: file `{uuid}.wav` quá 1 giờ và không
+   * có dòng `audio_sketches` nào trỏ tới. Lỗi dọn dẹp không chặn việc cấp URL.
+   */
+  private async removeStaleUnattachedUploads(projectId: string): Promise<void> {
+    try {
+      const files = await listStorageFiles(this.supabase, BUCKET, projectId);
+      const cutoff = Date.now() - UNATTACHED_UPLOAD_MAX_AGE_MS;
+      const stale = files
+        .filter((file) => {
+          const createdAt = file.createdAt ? Date.parse(file.createdAt) : NaN;
+          return SKETCH_FILE_PATTERN.test(file.name) && createdAt < cutoff;
+        })
+        .map((file) => `${projectId}/${file.name}`);
+
+      const referenced = new Set<string>();
+      for (let i = 0; i < stale.length; i += REFERENCE_LOOKUP_CHUNK) {
+        const { data, error } = await this.supabase
+          .from('audio_sketches')
+          .select('file_url')
+          .eq('project_id', projectId)
+          .in('file_url', stale.slice(i, i + REFERENCE_LOOKUP_CHUNK))
+          .returns<{ file_url: string }[]>();
+        if (error) throw new Error(error.message);
+        (data ?? []).forEach((row) => referenced.add(row.file_url));
+      }
+
+      const orphans = stale.filter((path) => !referenced.has(path));
+      if (orphans.length === 0) return;
+      await removeStorageFiles(this.supabase, BUCKET, orphans, this.logger);
+    } catch (err) {
+      this.logger.error(
+        `Could not clean unattached audio sketch uploads of project ${projectId}: ${String(err)}`,
+      );
+    }
   }
 
   /**
