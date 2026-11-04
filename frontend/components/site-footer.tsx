@@ -46,7 +46,7 @@ export function SiteCredits({ className = "" }: { className?: string }) {
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (isLandingPath(pathname) || /^\/projects\/[^/]+\/edit$/.test(pathname)) return null;
+  if (isLandingPath(pathname)) return null;
 
   return (
     <footer className="border-t border-border bg-surface/90">
