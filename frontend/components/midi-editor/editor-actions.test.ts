@@ -14,6 +14,9 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { setLang } from "../../lib/i18n";
+
+beforeEach(() => setLang("vi"));
 import { render, act, fireEvent, cleanup, waitFor, screen } from "@testing-library/react";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 

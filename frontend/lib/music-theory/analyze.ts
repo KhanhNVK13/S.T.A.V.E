@@ -1,3 +1,4 @@
+import { tNow } from "../i18n";
 import type { DraftSnapshot } from "@stave/shared-types";
 import {
   CADENCE_SPECS,
@@ -136,8 +137,8 @@ export function analyze(snapshot: DraftSnapshot): InsightAnalysis {
   insights.push({
     id: "key",
     kind: "key",
-    title: `Tông: ${key.primary}`,
-    description: `Các nốt đã dùng khớp nhất với hồ sơ của tông ${key.primary}.`,
+    title: tNow("theory.keyTitle", { key: key.primary }),
+    description: tNow("theory.keyDesc", { key: key.primary }),
     fromBar: first,
     toBar: last,
     alternatives: key.alternative ? [key.alternative] : undefined,
@@ -160,8 +161,8 @@ export function analyze(snapshot: DraftSnapshot): InsightAnalysis {
     insights.push({
       id: `progression-${patternId}`,
       kind: "progression",
-      title: `Tiến trình: ${pattern.numerals.join("–")}`,
-      description: pattern.description,
+      title: tNow("theory.progTitle", { numerals: pattern.numerals.join("–") }),
+      description: tNow(pattern.description),
       fromBar: range.fromBar,
       toBar: range.toBar,
     });
@@ -180,8 +181,8 @@ export function analyze(snapshot: DraftSnapshot): InsightAnalysis {
       insights.push({
         id: `cadence-${cadence.id}-${fromBarNo}`,
         kind: "cadence",
-        title: cadence.title,
-        description: cadence.description,
+        title: tNow(cadence.title),
+        description: tNow(cadence.description),
         fromBar: fromBarNo,
         toBar: toBarNo,
       });

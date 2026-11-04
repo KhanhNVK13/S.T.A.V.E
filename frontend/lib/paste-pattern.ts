@@ -1,3 +1,4 @@
+import { tNow } from "./i18n";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 
 export interface PatternClipboardTrack {
@@ -237,26 +238,26 @@ export function describePaste(report: PasteReport): {
   variant: "success" | "warning";
 } {
   const parts = [
-    report.pasted > 0 ? `Đã dán ${report.pasted} nốt.` : "Không có nốt nào được dán.",
+    report.pasted > 0 ? tNow("lib.pasted", { n: report.pasted }) : tNow("lib.pastedNone"),
   ];
   if (report.createdTracks > 0) {
-    parts.push(`Tạo thêm ${report.createdTracks} track.`);
+    parts.push(tNow("lib.pasteTracks", { n: report.createdTracks }));
   }
   const touched = report.trimmed + report.removed + report.split;
   if (touched > 0) {
     const detail: string[] = [];
-    if (report.trimmed > 0) detail.push(`cắt bớt ${report.trimmed} nốt`);
-    if (report.split > 0) detail.push(`tách ${report.split} nốt`);
-    if (report.removed > 0) detail.push(`xoá ${report.removed} nốt bị phủ hoàn toàn`);
-    parts.push(`Các nốt cùng cao độ bị chồng nên đã ${detail.join(", ")}.`);
+    if (report.trimmed > 0) detail.push(tNow("lib.pasteTrimmed", { n: report.trimmed }));
+    if (report.split > 0) detail.push(tNow("lib.pasteSplit", { n: report.split }));
+    if (report.removed > 0) detail.push(tNow("lib.pasteRemoved", { n: report.removed }));
+    parts.push(tNow("lib.pasteOverlap", { detail: detail.join(", ") }));
   }
   if (report.skippedNoTrack > 0) {
     parts.push(
-      `${report.skippedNoTrack} nốt không được dán vì đã đủ số track tối đa.`,
+      tNow("lib.pasteNoTrack", { n: report.skippedNoTrack }),
     );
   }
   if (report.skippedInvalid > 0) {
-    parts.push(`${report.skippedInvalid} nốt không hợp lệ đã bị bỏ qua.`);
+    parts.push(tNow("lib.pasteInvalid", { n: report.skippedInvalid }));
   }
   const warning = touched > 0 || report.skippedNoTrack > 0 || report.skippedInvalid > 0;
   return { message: parts.join(" "), variant: warning ? "warning" : "success" };

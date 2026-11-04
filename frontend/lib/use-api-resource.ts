@@ -1,5 +1,7 @@
 'use client';
 
+import { tNow } from "./i18n";
+
 import { useEffect, useState, type DependencyList } from 'react';
 
 interface ResourceState<T> {
@@ -21,7 +23,7 @@ interface ResourceState<T> {
 export function useApiResource<T>(
   fetcher: () => Promise<T>,
   deps: DependencyList,
-  errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại.',
+  errorMessage = tNow('lib.genericError'),
 ): { data: T | null; loading: boolean; error: string | null } {
   const key = JSON.stringify(deps);
   const [state, setState] = useState<ResourceState<T>>({

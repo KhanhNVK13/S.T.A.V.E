@@ -85,15 +85,16 @@ import { useVersionControl } from "./use-version-control";
 import { summarizeChanges } from "./change-summary";
 import type { SaveStatus } from "../midi-editor";
 import { DC, DC_SIZE } from "./tokens";
-import { APP_LOCALE } from "../../../lib/format-date";
+import { useI18n } from "../../../context/i18n-context";
+import type { TKey } from "../../../lib/i18n";
 
 const NARROW_QUERY = "(max-width: 767px)";
 const TIP_KEY = "stave-editor-help-tip-dismissed";
 
-const TOOLS: { id: ToolMode; label: string; Icon: typeof Pencil; title: string }[] = [
-  { id: "pointer", label: "Select", Icon: MousePointer2, title: "Chọn & di chuyển note" },
-  { id: "pencil", label: "Draw", Icon: Pencil, title: "Vẽ note mới" },
-  { id: "eraser", label: "Erase", Icon: Eraser, title: "Xoá note" },
+const TOOLS: { id: ToolMode; label: string; Icon: typeof Pencil; title: TKey }[] = [
+  { id: "pointer", label: "Select", Icon: MousePointer2, title: "ed.tool.select" },
+  { id: "pencil", label: "Draw", Icon: Pencil, title: "ed.tool.draw" },
+  { id: "eraser", label: "Erase", Icon: Eraser, title: "ed.tool.erase" },
 ];
 
 const GRIDS: { value: GridDivision; label: string }[] = [
@@ -204,6 +205,7 @@ interface EditorRedesignProps {
 }
 
 export function EditorRedesign(props: EditorRedesignProps) {
+  const { t, tx, locale } = useI18n();
   const {
     projectId, projectName, snapshot, notes, tracks, tempo, timeSignature, ppq,
     tool, onToolChange, gridDivision, onGridChange, zoom, onZoomChange,
@@ -413,9 +415,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
       {isNarrow && !narrowDismissed && (
         <div role="alert" style={styles.narrowNotice}>
           <MonitorSmartphone size={16} />
-          <span>Trình soạn nhạc cần màn hình rộng hơn (máy tính hoặc tablet nằm ngang).</span>
+          <span>{t("ed.narrow")}</span>
           <button type="button" onClick={() => setNarrowDismissed(true)} style={styles.saveErrorBtn}>
-            Vẫn tiếp tục
+            {t("ed.continueAnyway")}
           </button>
         </div>
       )}
@@ -425,8 +427,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <div style={styles.headerLeft}>
           <Link
             href={`/projects/${projectId}`}
-            title="Về trang dự án (lịch sử, nhánh, cài đặt)"
-            aria-label="Về trang dự án"
+            title={t("ed.backTitle")}
+            aria-label={t("ed.back")}
             style={styles.backLink}
           >
             <ArrowLeft size={16} />
@@ -445,10 +447,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
               aria-expanded={branchMenuOpen}
               title={
                 vc.switching
-                  ? "Đang chuyển nhánh…"
+                  ? t("ed.branchSwitching")
                   : canSwitchBranch
-                    ? "Đổi nhánh đang mở"
-                    : "Project chỉ có 1 nhánh — tạo thêm ở trang tổng quan project"
+                    ? t("ed.branchSwitch")
+                    : t("ed.branchSingle")
               }
               style={{
                 ...styles.branchChip,
@@ -491,7 +493,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                         />
                         <span style={styles.branchMenuName}>{b.name}</span>
                         {b.is_default && (
-                          <span style={styles.branchMenuTag}>mặc định</span>
+                          <span style={styles.branchMenuTag}>{t("ed.branchDefault")}</span>
                         )}
                       </button>
                     );
@@ -513,7 +515,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             onClick={onPlay}
             disabled={isPlaying}
-            title={isPaused ? "Phát tiếp (Space)" : "Phát (Space)"}
+            title={isPaused ? t("ed.playResume") : t("ed.play")}
             style={{
               ...styles.transportBtn,
               background: isPlaying ? DC.accent : "transparent",
@@ -526,7 +528,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             onClick={onPause}
             disabled={!isPlaying}
-            title="Tạm dừng (Space)"
+            title={t("ed.pause")}
             style={{
               ...styles.transportBtn,
               color: isPlaying ? DC.text : DC.borderSoft,
@@ -538,7 +540,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             onClick={onStop}
             disabled={!canStop}
-            title="Dừng, đưa playhead về đầu"
+            title={t("ed.stop")}
             style={{
               ...styles.transportBtn,
               color: canStop ? DC.text : DC.borderSoft,
@@ -550,7 +552,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <span style={styles.transportDivider} />
           <button
             onClick={onToggleLoop}
-            title={loopOn ? "Loop: ĐANG BẬT. Đang chọn nốt thì Play lặp đúng vùng của các nốt đó" : "Loop: đang tắt"}
+            title={loopOn ? t("ed.loopOn") : t("ed.loopOff")}
             style={{
               ...styles.transportBtn,
               background: loopOn ? DC.accent : "transparent",
@@ -561,7 +563,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           </button>
           <button
             onClick={onMetronomeToggle}
-            title={metronomeOn ? "Metronome: ĐANG BẬT" : "Metronome: đang tắt"}
+            title={metronomeOn ? t("ed.metroOn") : t("ed.metroOff")}
             style={{
               ...styles.transportBtn,
               background: metronomeOn ? DC.accent : "transparent",
@@ -576,8 +578,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             type="button"
             onClick={() => setHelpOpen(true)}
-            title="Trợ giúp: khái niệm và phím tắt (?)"
-            aria-label="Help"
+            title={t("ed.helpTitle")}
+            aria-label={t("ed.helpAria")}
             style={styles.iconBtn}
           >
             <CircleHelp size={14} />
@@ -585,8 +587,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <button
             type="button"
             onClick={() => setCollaboratorsOpen(true)}
-            title="Cộng tác viên: mời, đổi quyền, gỡ"
-            aria-label="Cộng tác viên"
+            title={t("ed.collabTitle")}
+            aria-label={t("ed.collabAria")}
             style={styles.iconBtn}
           >
             <Users size={14} />
@@ -603,10 +605,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
             onClick={() => setCommentsOpen((open) => !open)}
             title={
               commentsOpen
-                ? "Ẩn bình luận"
-                : "Hiện bình luận ghim (gắn vào ô nhịp / nốt)"
+                ? t("ed.commentsHide")
+                : t("ed.commentsShow")
             }
-            aria-label="Bình luận"
+            aria-label={t("ed.commentsAria")}
             aria-pressed={commentsOpen}
             style={{
               ...styles.iconBtn,
@@ -618,8 +620,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           </button>
           <button
             onClick={() => setTrackPanelOpen((open) => !open)}
-            title={trackPanelOpen ? "Ẩn panel Tracks" : "Hiện panel Tracks"}
-            aria-label="Tracks panel"
+            title={trackPanelOpen ? t("ed.tracksHide") : t("ed.tracksShow")}
+            aria-label={t("ed.tracksAria")}
             aria-pressed={trackPanelOpen}
             style={styles.iconBtn}
           >
@@ -627,8 +629,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           </button>
           <button
             onClick={() => setHistoryPanelOpen((open) => !open)}
-            title={historyPanelOpen ? "Ẩn panel lịch sử" : "Hiện panel lịch sử"}
-            aria-label="History panel"
+            title={historyPanelOpen ? t("ed.historyHide") : t("ed.historyShow")}
+            aria-label={t("ed.historyAria")}
             aria-pressed={historyPanelOpen}
             style={styles.iconBtn}
           >
@@ -637,8 +639,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           {/* UC-72: mở/đóng panel Insight (tông / tiến trình hợp âm / kết). */}
           <button
             onClick={() => setInsightPanelOpen((open) => !open)}
-            title={insightPanelOpen ? "Ẩn panel Insight" : "Hiện panel Insight"}
-            aria-label="Insight panel"
+            title={insightPanelOpen ? t("ed.insightHide") : t("ed.insightShow")}
+            aria-label={t("ed.insightAria")}
             aria-pressed={insightPanelOpen}
             style={{
               ...styles.iconBtn,
@@ -652,7 +654,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
               thay vì phải kéo thanh VOL từng track riêng ở panel Tracks. Chỉ
               ảnh hưởng output lúc phát (masterGainRef trong midi-editor.tsx),
               không ghi vào snapshot/track.volume của từng track. */}
-          <div style={styles.masterVolumeGroup} title="Âm lượng chung cho tất cả track">
+          <div style={styles.masterVolumeGroup} title={t("ed.masterTitle")}>
             {masterVolume === 0 ? (
               <VolumeX size={14} color={DC.textMuted} />
             ) : (
@@ -665,7 +667,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
               step={0.01}
               value={masterVolume}
               onChange={(e) => onMasterVolumeChange(Number(e.target.value))}
-              aria-label="Master volume"
+              aria-label={t("ed.masterAria")}
               style={styles.masterVolumeSlider}
             />
             <span style={styles.masterVolumeValue}>{Math.round(masterVolume * 100)}%</span>
@@ -676,12 +678,12 @@ export function EditorRedesign(props: EditorRedesignProps) {
             aria-disabled={hasNoChanges || undefined}
             title={
               vc.branchError
-                ? `Không tải được branch: ${vc.branchError}`
+                ? t("ed.commitBranchError", { error: vc.branchError })
                 : vc.branchLoading
-                  ? "Đang tải thông tin branch…"
+                  ? t("ed.commitLoading")
                   : hasNoChanges
-                    ? "Chưa có thay đổi nào so với commit gần nhất"
-                    : "Ghi lại phiên bản hiện tại"
+                    ? t("ed.commitNoChanges")
+                    : t("ed.commitSave")
             }
             style={{
               ...styles.commitBtn,
@@ -698,11 +700,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
       {noChangeHint && (
         <div role="status" style={styles.narrowNotice}>
           <span>
-            Chưa có gì để ghi lại: bản nháp giống hệt commit gần nhất. Hãy sửa bản nhạc rồi
-            commit.
+            {t("ed.noChangeHint")}
           </span>
           <button type="button" onClick={() => setNoChangeHint(false)} style={styles.saveErrorBtn}>
-            Đã hiểu
+            {t("ed.gotIt")}
           </button>
         </div>
       )}
@@ -711,20 +712,19 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <div role="alert" style={styles.saveErrorBar}>
           {draftConflict ? (
             <span>
-              <strong>Bản nháp đã thay đổi ở tab khác.</strong> Tự lưu đang tạm dừng cho tới khi
-              bạn chọn nạp lại bản mới hoặc ghi đè.
+              <strong>{t("ed.conflictBar")}</strong> {t("ed.conflictBarBody")}
             </span>
           ) : (
             <span>
-              <strong>Không lưu được bản nháp.</strong>{" "}
+              <strong>{t("ed.saveFailBar")}</strong>{" "}
               {saveRetryInSec !== null
-                ? `Sẽ tự thử lại sau ${saveRetryInSec} giây.`
-                : "Đang thử lại…"}{" "}
-              Đừng đóng trang cho tới khi thấy &quot;Đã lưu nháp&quot;.
+                ? t("ed.retryIn", { n: saveRetryInSec })
+                : t("ed.retrying")}{" "}
+              {t("ed.dontClose")}
             </span>
           )}
           <button type="button" onClick={onRetrySave} style={styles.saveErrorBtn}>
-            {draftConflict ? "Xử lý xung đột" : "Thử lại ngay"}
+            {draftConflict ? t("ed.resolveConflict") : t("ed.retryNow")}
           </button>
         </div>
       )}
@@ -733,14 +733,12 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <div role="note" style={styles.tipBar}>
           <Lightbulb size={15} color={DC.accent} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1 }}>
-            Mới dùng STAVE? Bản nháp tự lưu; bấm <strong>Commit Changes</strong> để lưu thành
-            một phiên bản có thể quay lại. Nhấn <kbd style={styles.tipKbd}>?</kbd> để xem khái
-            niệm và phím tắt.
+            {tx("ed.tip", { commit: <strong>Commit Changes</strong>, key: <kbd style={styles.tipKbd}>?</kbd> })}
           </span>
           <button type="button" onClick={() => setHelpOpen(true)} style={styles.tipAction}>
-            Xem trợ giúp
+            {t("ed.tipAction")}
           </button>
-          <button type="button" onClick={dismissTip} aria-label="Ẩn gợi ý" title="Ẩn gợi ý" style={styles.tipClose}>
+          <button type="button" onClick={dismissTip} aria-label={t("ed.tipHide")} title={t("ed.tipHide")} style={styles.tipClose}>
             <X size={14} />
           </button>
         </div>
@@ -752,7 +750,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           {TOOLS.map(({ id, label, Icon, title }) => (
             <button
               key={id}
-              title={title}
+              title={t(title)}
               onClick={() => onToolChange(id)}
               style={{
                 ...styles.segmentBtn,
@@ -790,23 +788,23 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <button
           onClick={onSnapToggle}
           aria-pressed={snapEnabled}
-          title={snapEnabled ? "Đang bám lưới. Bấm để tắt: nốt đặt tự do, không bám lưới" : "Đang tắt bám lưới. Bấm để bật lại"}
+          title={snapEnabled ? t("ed.snapOnTitle") : t("ed.snapOffTitle")}
           style={{
             ...styles.ghostBtn,
             background: snapEnabled ? DC.accentSoft : "transparent",
             color: snapEnabled ? DC.accent : DC.text,
           }}
         >
-          Snap {snapEnabled ? "bật" : "tắt"}
+          {snapEnabled ? t("ed.snapOn") : t("ed.snapOff")}
         </button>
 
         <span style={styles.stripDivider} />
 
-        <button onClick={() => onZoomChange(Math.max(0.25, zoom - 0.25))} title="Thu nhỏ" style={styles.iconBtn}>
+        <button onClick={() => onZoomChange(Math.max(0.25, zoom - 0.25))} title={t("ed.zoomOut")} style={styles.iconBtn}>
           <ZoomOut size={14} />
         </button>
         <span style={styles.zoomValue}>{Math.round(zoom * 100)}%</span>
-        <button onClick={() => onZoomChange(Math.min(4, zoom + 0.25))} title="Phóng to" style={styles.iconBtn}>
+        <button onClick={() => onZoomChange(Math.min(4, zoom + 0.25))} title={t("ed.zoomIn")} style={styles.iconBtn}>
           <ZoomIn size={14} />
         </button>
 
@@ -818,8 +816,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onClick={() => setVelocityLaneOpen((open) => !open)}
           title={
             velocityLaneOpen
-              ? "Ẩn dải velocity"
-              : "Hiện dải velocity — kéo cột để đổi độ mạnh nhẹ của note"
+              ? t("ed.velocityHide")
+              : t("ed.velocityShow")
           }
           aria-pressed={velocityLaneOpen}
           style={{
@@ -859,10 +857,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <span style={styles.stripDivider} />
 
         {/* UC-37: Playback speed (preview only, không đổi tempo thật) */}
-        <div style={styles.bpmGroup} title="Tốc độ nghe thử — không đổi tempo thật của project">
+        <div style={styles.bpmGroup} title={t("ed.speedTitle")}>
           <span style={styles.stripLabel}>SPEED</span>
           <select
-            aria-label="Playback speed"
+            aria-label={t("ed.speedAria")}
             value={playbackRate}
             onChange={(e) => onPlaybackRateChange(Number(e.target.value))}
             style={styles.speedSelect}
@@ -881,7 +879,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
             onClick={() => setEditMenuOpen((open) => !open)}
             aria-haspopup="menu"
             aria-expanded={editMenuOpen}
-            title="Chọn tất cả, copy, cắt, dán, quantize"
+            title={t("ed.editMenuTitle")}
             style={styles.ghostBtn}
           >
             Edit
@@ -900,7 +898,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                   }
                 }}
               >
-                <button role="menuitem" autoFocus onClick={() => runEditAction(onSelectAll)} title="Chọn tất cả note" style={styles.fileMenuItem}>
+                <button role="menuitem" autoFocus onClick={() => runEditAction(onSelectAll)} title={t("ed.selectAllTitle")} style={styles.fileMenuItem}>
                   <SquareCheck size={14} /> Select all
                   <span style={styles.menuShortcut}>Ctrl+A</span>
                 </button>
@@ -908,7 +906,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                   role="menuitem"
                   disabled={!hasSelection}
                   onClick={() => runEditAction(onCopy)}
-                  title={hasSelection ? "Copy note đã chọn" : "Chọn note trước đã"}
+                  title={hasSelection ? t("ed.copyTitle") : t("ed.selectFirst")}
                   style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
                 >
                   <Copy size={14} /> Copy
@@ -918,7 +916,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                   role="menuitem"
                   disabled={!hasSelection}
                   onClick={() => runEditAction(onCut)}
-                  title={hasSelection ? "Cắt note đã chọn" : "Chọn note trước đã"}
+                  title={hasSelection ? t("ed.cutTitle") : t("ed.selectFirst")}
                   style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
                 >
                   <Scissors size={14} /> Cut
@@ -928,7 +926,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                   role="menuitem"
                   disabled={!hasClipboard}
                   onClick={() => runEditAction(onPaste)}
-                  title={hasClipboard ? "Dán note" : "Chưa có gì để dán"}
+                  title={hasClipboard ? t("ed.pasteTitle") : t("ed.pasteEmpty")}
                   style={{ ...styles.fileMenuItem, opacity: hasClipboard ? 1 : 0.45 }}
                 >
                   <ClipboardPaste size={14} /> Paste
@@ -937,7 +935,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
                 <button
                   role="menuitem"
                   onClick={() => runEditAction(onQuantize)}
-                  title="Căn các nốt đang chọn (hoặc track đang chọn) vào lưới"
+                  title={t("ed.quantizeTitle")}
                   style={styles.fileMenuItem}
                 >
                   <Magnet size={14} /> Quantize
@@ -949,8 +947,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <button
           onClick={onUndo}
           disabled={!canUndo}
-          title={canUndo ? "Hoàn tác (Ctrl+Z)" : "Không có gì để hoàn tác"}
-          aria-label="Undo"
+          title={canUndo ? t("ed.undoTitle") : t("ed.undoNone")}
+          aria-label={t("ed.undoAria")}
           style={{ ...styles.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "not-allowed" }}
         >
           <Undo2 size={14} />
@@ -958,8 +956,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
         <button
           onClick={onRedo}
           disabled={!canRedo}
-          title={canRedo ? "Làm lại (Ctrl+Y / Ctrl+Shift+Z)" : "Không có gì để làm lại"}
-          aria-label="Redo"
+          title={canRedo ? t("ed.redoTitle") : t("ed.redoNone")}
+          aria-label={t("ed.redoAria")}
           style={{ ...styles.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "not-allowed" }}
         >
           <Redo2 size={14} />
@@ -969,7 +967,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
         {trackLimitWarning && (
           <span role="alert" style={styles.warning}>
-            Tối đa {maxTracks} track
+            {t("ed.maxTracks", { n: maxTracks })}
           </span>
         )}
 
@@ -998,28 +996,28 @@ export function EditorRedesign(props: EditorRedesignProps) {
                   }
                 }}
               >
-                <button role="menuitem" autoFocus onClick={() => runFileAction(onImportMidi)} title="Nhập file MIDI" style={styles.fileMenuItem}>
+                <button role="menuitem" autoFocus onClick={() => runFileAction(onImportMidi)} title={t("ed.importTitle")} style={styles.fileMenuItem}>
                   <Upload size={14} /> Import MIDI
                 </button>
-                <button role="menuitem" onClick={() => runFileAction(onExportMidi)} title="Xuất project ra file .mid" style={styles.fileMenuItem}>
+                <button role="menuitem" onClick={() => runFileAction(onExportMidi)} title={t("ed.exportTitle")} style={styles.fileMenuItem}>
                   <FileDown size={14} /> Export MIDI
                 </button>
                 <button
                   role="menuitem"
                   disabled={!hasSelection}
                   onClick={() => runFileAction(onExportMidiSelection)}
-                  title={hasSelection ? "Chỉ xuất các nốt đang chọn ra file .mid" : "Chọn note trước để xuất vùng chọn"}
+                  title={hasSelection ? t("ed.exportSelTitle") : t("ed.exportSelNone")}
                   style={{ ...styles.fileMenuItem, opacity: hasSelection ? 1 : 0.45 }}
                 >
                   <FileDown size={14} /> Export selection (MIDI)
                 </button>
-                <button role="menuitem" onClick={() => runFileAction(() => setShowExportAudio(true))} title="Xuất âm thanh WAV" style={styles.fileMenuItem}>
+                <button role="menuitem" onClick={() => runFileAction(() => setShowExportAudio(true))} title={t("ed.exportAudioTitle")} style={styles.fileMenuItem}>
                   <Download size={14} /> Export Audio
                 </button>
-                <button role="menuitem" onClick={() => runFileAction(() => setShowAudioSketch(true))} title="Ghi nhanh ý tưởng bằng micro" style={styles.fileMenuItem}>
+                <button role="menuitem" onClick={() => runFileAction(() => setShowAudioSketch(true))} title={t("ed.sketchTitle")} style={styles.fileMenuItem}>
                   <Mic size={14} /> Audio sketch
                 </button>
-                <button role="menuitem" onClick={() => runFileAction(() => setShowSoundLibrary(true))} title="Tải lên, ghi âm và quản lý âm thanh riêng" style={styles.fileMenuItem}>
+                <button role="menuitem" onClick={() => runFileAction(() => setShowSoundLibrary(true))} title={t("ed.soundsTitle")} style={styles.fileMenuItem}>
                   <Music size={14} /> Custom sounds
                 </button>
               </div>
@@ -1118,22 +1116,22 @@ export function EditorRedesign(props: EditorRedesignProps) {
           />
           {saveStatus === "saved"
             ? lastSavedAt
-              ? `Đã lưu nháp lúc ${lastSavedAt.toLocaleTimeString(APP_LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
-              : "Đã lưu nháp"
+              ? t("ed.savedAt", { time: lastSavedAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) })
+              : t("ed.saved")
             : saveStatus === "saving"
-              ? "Đang lưu…"
+              ? t("ed.saving")
               : saveStatus === "error"
-                ? "Không lưu được"
-                : "Chưa lưu"}
+                ? t("ed.saveFailed")
+                : t("ed.unsaved")}
         </span>
         <span>
           BPM <strong style={styles.footerStrong}>{tempo}</strong>
         </span>
         <span>
-          NHỊP <strong style={styles.footerStrong}>{timeSignature.join("/")}</strong>
+          {t("ed.timeSig")} <strong style={styles.footerStrong}>{timeSignature.join("/")}</strong>
         </span>
         <span style={{ marginLeft: "auto" }}>
-          {notes.length} note · {tracks.length}/{maxTracks} track
+          {t("ed.footerCounts", { notes: notes.length, tracks: tracks.length, max: maxTracks })}
         </span>
       </footer>
 
@@ -1210,10 +1208,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
       <ConfirmDialog
         open={!!switchWarnTarget}
-        title="Chuyển nhánh khi bản nháp chưa lưu được?"
-        message="Bản nháp hiện tại chưa được lưu lên máy chủ. Chuyển nhánh lúc này có thể làm mất các thay đổi chưa lưu. Bạn vẫn muốn chuyển?"
-        confirmLabel="Vẫn chuyển nhánh"
-        cancelLabel="Ở lại nhánh này"
+        title={t("ed.switchWarnTitle")}
+        message={t("ed.switchWarnBody")}
+        confirmLabel={t("ed.switchAnyway")}
+        cancelLabel={t("ed.stayBranch")}
         danger
         loading={vc.switching}
         onConfirm={() => {
@@ -1226,10 +1224,10 @@ export function EditorRedesign(props: EditorRedesignProps) {
 
       <ConfirmDialog
         open={confirmCloseSketch}
-        title="Bỏ bản ghi chưa đính kèm?"
-        message="Bản ghi vừa thu chưa được đính kèm vào dự án. Đóng lúc này sẽ mất bản ghi và không lấy lại được."
-        confirmLabel="Bỏ bản ghi"
-        cancelLabel="Tiếp tục chỉnh"
+        title={t("ed.sketchTitleDiscard")}
+        message={t("ed.sketchBodyDiscard")}
+        confirmLabel={t("ed.sketchDiscard")}
+        cancelLabel={t("ed.sketchKeep")}
         danger
         onConfirm={closeSketch}
         onCancel={() => setConfirmCloseSketch(false)}

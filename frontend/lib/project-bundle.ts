@@ -1,3 +1,4 @@
+import { tNow } from "./i18n";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { exportAudio } from "./audio-exporter";
 import { exportMidiFile } from "./midi-exporter";
@@ -49,7 +50,7 @@ export async function buildProjectBundle(
     try {
       resolved = await resolveProjectCustomSounds(projectId, soundIds);
     } catch {
-      skippedSounds.push(...soundIds.map((id) => `âm thanh ${id.slice(0, 8)}`));
+      skippedSounds.push(...soundIds.map((id) => tNow("lib.bundleSound", { id: id.slice(0, 8) })));
     }
   }
   const decoder = new OfflineAudioContext(1, 1, 44100);
