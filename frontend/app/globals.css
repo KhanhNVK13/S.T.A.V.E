@@ -1,44 +1,24 @@
 @import "tailwindcss";
 
-/*
- * STAVE design tokens — bộ màu duy nhất (Staff Universe, nền tối).
- *
- * Hệ token SEMANTIC (không phải bảng màu cố định kiểu `accent-600`): mỗi biến
- * mô tả VAI TRÒ của màu trong giao diện (nền, bề mặt, viền, chữ phụ, accent…).
- * Component chỉ dùng tên semantic, không hex cố định, không class `dark:`.
- *
- * Nguyên tắc dùng màu:
- * - Diện tích lớn LUÔN dùng nhóm trung tính (background/surface/border).
- * - `--accent` là màu "small dose": chỉ cho CTA chính, link, trạng thái đang
- *   chọn. KHÔNG tô accent lên nền card/section/sidebar.
- * - Chữ đặt trên nền trạng thái dùng bản `-foreground`; bản gốc
- *   success/warning/metal chỉ làm nền, viền, chấm.
- * - `--accent-foreground` là chữ TỐI đặt trên nền accent sáng.
- */
 :root {
   color-scheme: dark;
 
-  /* Nền & bề mặt */
   --background: oklch(0.14 0.022 275);
   --surface: oklch(0.19 0.03 275);
   --surface-subtle: oklch(0.23 0.035 275);
   --surface-muted: oklch(0.25 0.04 275);
 
-  /* Chữ */
   --foreground: oklch(0.95 0.012 275);
   --muted-foreground: oklch(0.83 0.03 275);
 
-  /* Viền */
   --border: oklch(0.34 0.04 275);
   --border-strong: oklch(0.54 0.05 275);
 
-  /* Accent — small dose */
   --accent: oklch(0.76 0.14 270);
   --accent-hover: oklch(0.8 0.13 270);
   --accent-muted: oklch(0.22 0.07 270);
   --accent-foreground: oklch(0.16 0.03 270);
 
-  /* Trạng thái */
   --success: oklch(0.76 0.13 150);
   --success-muted: oklch(0.23 0.055 150);
   --success-foreground: oklch(0.82 0.13 150);
@@ -48,12 +28,10 @@
   --danger: oklch(0.74 0.16 27);
   --danger-muted: oklch(0.23 0.075 27);
 
-  /* Metal — huy hiệu/chi tiết trang trí, dùng rất hạn chế */
   --metal: oklch(0.82 0.07 82);
   --metal-muted: oklch(0.24 0.03 82);
   --metal-foreground: oklch(0.86 0.08 82);
 
-  /* Màu phân biệt track trong MIDI Editor (dữ liệu, không phải chrome) */
   --track-accent: var(--accent);
   --track-metal: var(--metal);
   --track-success: var(--success);
@@ -63,7 +41,6 @@
   --radius-card: 0.75rem;
   --shadow-card: 0 10px 36px oklch(0 0 0 / 0.5);
 
-  /* Container chính cho trang list/content; trang form/đọc hẹp không dùng. */
   --container-page: 105rem;
 }
 
@@ -72,7 +49,6 @@
   --font-mono: var(--font-stave-mono);
   --font-display: var(--font-stave-display);
 
-  /* Tên semantic — dùng cho mọi code mới */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
@@ -114,7 +90,6 @@ body {
   color: var(--foreground);
 }
 
-/* Spinner animation for MIDI editor loading state */
 @keyframes spin {
   to {
     transform: rotate(360deg);

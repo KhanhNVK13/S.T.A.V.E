@@ -40,7 +40,7 @@ export function useRecentProjects(): RecentProject[] {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chạy lại khi đổi route, có giới hạn tần suất bằng state.at
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   return state.items;
