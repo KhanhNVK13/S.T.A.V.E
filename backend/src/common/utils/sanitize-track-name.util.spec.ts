@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validate } from 'class-validator';
 import { sanitizeTrackName } from './sanitize-track-name.util';
 import { DraftTrackDto as UpdateDraftTrackDto } from '../../drafts/dto/update-draft.dto';
@@ -10,15 +10,26 @@ const ch = (...codes: number[]) => String.fromCharCode(...codes);
 
 describe('sanitizeTrackName', () => {
   it('removes NUL and other C0 controls, DEL and C1', () => {
-    expect(sanitizeTrackName(`a${ch(0)}b${ch(0x1f)}c${ch(0x7f)}d${ch(0x85)}e`)).toBe(
-      'abcde',
-    );
+    expect(
+      sanitizeTrackName(`a${ch(0)}b${ch(0x1f)}c${ch(0x7f)}d${ch(0x85)}e`),
+    ).toBe('abcde');
   });
 
   it('removes bidi controls and line/paragraph separators', () => {
     const bad = ch(
-      0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067,
-      0x2068, 0x2069, 0x2028, 0x2029,
+      0x200e,
+      0x200f,
+      0x202a,
+      0x202b,
+      0x202c,
+      0x202d,
+      0x202e,
+      0x2066,
+      0x2067,
+      0x2068,
+      0x2069,
+      0x2028,
+      0x2029,
     );
     expect(sanitizeTrackName(`x${bad}y`)).toBe('xy');
   });
@@ -60,8 +71,11 @@ describe.each([
     instrument: null,
   };
   const run = async (name: unknown) => {
-    const dto = plainToInstance(Dto, { ...base, name });
-    const errors = await validate(dto as object, { whitelist: true });
+    const dto = plainToInstance(Dto as ClassConstructor<object>, {
+      ...base,
+      name,
+    });
+    const errors = await validate(dto, { whitelist: true });
     return { dto: dto as { name: unknown }, errors };
   };
 
