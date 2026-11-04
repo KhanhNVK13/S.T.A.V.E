@@ -30,7 +30,7 @@
 
   /* Viền */
   --border: oklch(0.34 0.04 275);
-  --border-strong: oklch(0.5 0.05 275);
+  --border-strong: oklch(0.54 0.05 275);
 
   /* Accent — small dose */
   --accent: oklch(0.76 0.14 270);
