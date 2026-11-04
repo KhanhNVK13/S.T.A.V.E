@@ -116,15 +116,12 @@ export function JamSky() {
     window.addEventListener("resize", refresh);
     document.addEventListener("visibilitychange", onVisibility);
     motion.addEventListener("change", refresh);
-    const themeObserver = new MutationObserver(refresh);
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
     return () => {
       stop();
       window.removeEventListener("resize", refresh);
       document.removeEventListener("visibilitychange", onVisibility);
       motion.removeEventListener("change", refresh);
-      themeObserver.disconnect();
     };
   }, [live]);
 

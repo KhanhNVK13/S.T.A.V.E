@@ -46,7 +46,7 @@ export function PageHeader({ title, description, breadcrumbs, action }: PageHead
             ))}
           </nav>
         )}
-        <h1 className="mb-1 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
+        <h1 className="mb-1 mt-1 text-[28px] font-semibold leading-tight tracking-[-0.02em]">
           {title}
         </h1>
         {description && <p className="text-sm text-muted">{description}</p>}

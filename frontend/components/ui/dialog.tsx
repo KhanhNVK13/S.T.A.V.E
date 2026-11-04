@@ -30,7 +30,7 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8 [[data-theme=space]_&]:bg-background/75"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 px-4 py-8"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !closeDisabled) onClose();
       }}
@@ -41,7 +41,7 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`max-h-full w-full overflow-y-auto rounded-card border border-border bg-surface shadow-card outline-none ${className}`}
+        className={`max-h-full w-full overflow-y-auto rounded-card border border-border-strong bg-surface shadow-card outline-none ${className}`}
       >
         <h2 id={titleId} className={`mb-4 text-lg font-semibold ${titleClassName}`}>
           {title}

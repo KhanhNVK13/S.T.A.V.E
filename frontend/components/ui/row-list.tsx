@@ -24,7 +24,7 @@ export function RowList({
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-card border border-border bg-surface/85 md:grid md:gap-x-3 md:[&>*]:col-span-full ${cols} ${className}`}
+      className={`overflow-hidden rounded-card border border-border bg-surface/80 md:grid md:gap-x-3 md:[&>*]:col-span-full ${cols} ${className}`}
     >
       {children}
     </div>
@@ -34,7 +34,7 @@ export function RowList({
 export function RowHeader({ children }: { children: ReactNode }) {
   return (
     <div
-      className="hidden h-[34px] items-center border-b border-border bg-surface-subtle px-3.5 text-xs font-bold uppercase tracking-wide text-muted md:grid md:grid-cols-subgrid md:gap-x-3"
+      className="hidden h-[34px] items-center border-b border-border bg-surface-subtle/70 px-3.5 text-xs font-bold uppercase tracking-wide text-muted md:grid md:grid-cols-subgrid md:gap-x-3"
     >
       {children}
     </div>

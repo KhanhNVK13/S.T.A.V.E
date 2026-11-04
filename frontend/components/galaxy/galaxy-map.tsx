@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { GalaxyItem } from "./constellation";
 import type { GalaxyEngine } from "./galaxy-engine";
-import { readGalaxyPalette, watchThemeChange } from "./palette";
+import { readGalaxyPalette } from "./palette";
 
 interface GalaxyMapProps {
   items: GalaxyItem[];
@@ -41,12 +41,9 @@ export function GalaxyMap({ items, activeId, className = "" }: GalaxyMapProps) {
     const reduced = window.matchMedia(REDUCED);
     let generation = 0;
     let flat = false;
-    let unwatchTheme = () => {};
 
     function teardown() {
       generation++;
-      unwatchTheme();
-      unwatchTheme = () => {};
       engineRef.current?.dispose();
       engineRef.current = null;
     }
@@ -87,7 +84,6 @@ export function GalaxyMap({ items, activeId, className = "" }: GalaxyMapProps) {
       engineRef.current = engine;
       engine.setItems(itemsRef.current);
       engine.setActive(activeRef.current);
-      unwatchTheme = watchThemeChange(() => engine?.setPalette(readGalaxyPalette()));
     }
 
     const onChange = () => void mount();
