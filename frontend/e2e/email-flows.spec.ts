@@ -175,7 +175,7 @@ test.describe("Email flows with a local mailbox", () => {
     const staleContext = await browser.newContext();
     const stale = await staleContext.newPage();
     await stale.goto(oldLink);
-    await expect(stale.getByText("Không đăng nhập được")).toBeVisible();
+    await expect(stale.getByText("Liên kết không còn dùng được")).toBeVisible();
     await staleContext.close();
     expect((await authUser((await userId(email))!)).email_confirmed_at).toBeFalsy();
 

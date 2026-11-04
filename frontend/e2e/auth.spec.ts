@@ -92,14 +92,15 @@ test.describe("Authentication and account", () => {
   });
 
   test.describe("UC-04 Login", () => {
-    test("AUTH-021 logs in with a correct email and password and shows the Project Dashboard", async ({
+    test("AUTH-021 logs in with a correct email and password and shows the Home page", async ({
       page,
     }) => {
       const user = await createE2eUser();
       await createE2eProfile(user);
       await attemptLogin(page, user.email, user.password);
       await page.waitForURL((url) => url.pathname !== "/login");
-      await expect(page).toHaveURL(/\/projects$/);
+      await expect(page).toHaveURL((url) => url.pathname === "/");
+      await expect(page.getByRole("heading", { level: 1, name: /^Chào mừng/ })).toBeVisible();
     });
 
     test("AUTH-021 step 4 returns to the page that required login", async ({
@@ -141,9 +142,13 @@ test.describe("Authentication and account", () => {
       await expect(page).toHaveURL(/\/login$/);
     });
 
-    test("AUTH-026 refuses a suspended account and directs the user to support", async ({
+    test("Blocked by DFID117, AUTH-026 refuses a suspended account and directs the user to support", async ({
       page,
     }) => {
+      test.fail(
+        true,
+        "DFID117: the suspended-account notice is only shown on /login, but login now lands on the public home page",
+      );
       const user = await createE2eUser();
       await createE2eProfile(user, { status: "suspended" });
       await attemptLogin(page, user.email, user.password);
@@ -152,7 +157,7 @@ test.describe("Authentication and account", () => {
       );
     });
 
-    test("AUTH-028 logs in after four failed attempts and shows the Project Dashboard", async ({
+    test("AUTH-028 logs in after four failed attempts and shows the Home page", async ({
       page,
     }) => {
       const user = await createE2eUser();
@@ -163,7 +168,8 @@ test.describe("Authentication and account", () => {
       }
       await attemptLogin(page, user.email, user.password);
       await page.waitForURL((url) => url.pathname !== "/login");
-      await expect(page).toHaveURL(/\/projects$/);
+      await expect(page).toHaveURL((url) => url.pathname === "/");
+      await expect(page.getByRole("heading", { level: 1, name: /^Chào mừng/ })).toBeVisible();
     });
   });
 

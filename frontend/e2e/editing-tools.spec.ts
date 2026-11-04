@@ -212,7 +212,7 @@ test.describe("Editing tools", () => {
         before.map(({ id: i, pitch, velocity }) => ({ i, pitch, velocity })),
       );
       expect(await api.history(branchId)).toHaveLength(0);
-      await expect(toolbarButton(page, "Undo")).toBeEnabled();
+      await expect(toolbarButton(page, "Hoàn tác")).toBeEnabled();
       await expect(
         page.getByText(/^(?=.{0,120}$).*((di chuyển|quantize|căn).*4 (note|nốt)|4 (note|nốt).*(di chuyển|quantize|căn))/i).first(),
       ).toBeVisible(quick);
@@ -229,7 +229,7 @@ test.describe("Editing tools", () => {
       await expect
         .poll(async () => starts((await readDraft(api, id)).notes), saved)
         .toEqual(ON_GRID_STARTS);
-      await toolbarButton(page, "Undo").click();
+      await toolbarButton(page, "Hoàn tác").click();
       await expect
         .poll(async () => starts((await readDraft(api, id)).notes), saved)
         .toEqual(before);
@@ -495,7 +495,7 @@ test.describe("Editing tools", () => {
       await page.keyboard.press("Control+V");
       await page.waitForTimeout(3_500);
       expect(await readDraft(api, id)).toEqual(before);
-      await expect(toolbarButton(page, "Undo")).toBeDisabled();
+      await expect(toolbarButton(page, "Hoàn tác")).toBeDisabled();
     });
 
     test("EDT-060 a pattern pasted at the last bar is kept whole past the previous end", async ({

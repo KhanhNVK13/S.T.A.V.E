@@ -448,8 +448,8 @@ test.describe("Community and discovery", () => {
     await waitForList(page);
     expect(await titles(page)).toEqual(["Public Song"]);
     await api.setVisibility(project.id, "private");
-    await page.getByRole("button", { name: "Fork nhiều nhất" }).click();
-    await page.getByRole("button", { name: "Xu hướng" }).click();
+    await page.getByRole("tab", { name: "Fork nhiều nhất" }).click();
+    await page.getByRole("tab", { name: "Xu hướng" }).click();
     await expect(titleLinks(page)).toHaveCount(0);
     await expect(page.getByText("Public Song")).toHaveCount(0);
     await expect(page.getByText(/không thể tải|có lỗi/i)).toHaveCount(0);
@@ -491,29 +491,27 @@ test.describe("Community and discovery", () => {
     page,
   }) => {
     await page.goto("/");
-    await expect(
-      page.getByRole("heading", { name: /sáng tác nhạc theo phong cách của bạn/i }),
-    ).toBeVisible();
-    await expect(page.getByText(/quản lý phiên bản/i).first()).toBeVisible();
-    await expect(page.getByText("Phân nhánh & hợp nhất")).toBeVisible();
-    await page.getByRole("link", { name: /đăng ký miễn phí/i }).first().click();
+    await expect(page.getByRole("heading", { level: 1, name: /mỗi bài hát/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /mỗi commit là một vì sao/i })).toBeAttached();
+    await expect(page.getByRole("heading", { name: /không bao giờ mất một ý tưởng/i })).toBeAttached();
+    await page.getByRole("link", { name: "Dùng thử miễn phí" }).click();
     await expect(page).toHaveURL(/\/register$/);
     await page.goBack();
     await page.getByRole("link", { name: /^đăng nhập$/i }).first().click();
     await expect(page).toHaveURL(/\/login$/);
     await page.goBack();
-    await page.getByRole("link", { name: /^khám phá$/i }).first().click();
+    await page.getByRole("link", { name: "Khám phá dự án công khai" }).click();
     await expect(page).toHaveURL(/\/explore$/);
   });
 
-  test("DISC-026 sends a logged-in user from the root address to the project dashboard", async ({
+  test("DISC-026 shows the Home page instead of the landing page to a logged-in user at the root address", async ({
     page,
   }) => {
     const { user } = await owner("User A");
     await loginThroughUi(page, user);
     await page.goto("/");
-    await expect(page).toHaveURL((url) => url.pathname === "/projects", {
-      timeout: 10_000,
-    });
+    await expect(page.getByRole("heading", { level: 1, name: /^Chào mừng/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /mỗi bài hát/i })).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.pathname === "/");
   });
 });

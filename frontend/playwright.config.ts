@@ -18,6 +18,15 @@ export default defineConfig({
   outputDir: "e2e-results/artifacts",
   use: {
     baseURL: `http://localhost:${FRONTEND_PORT}`,
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: `http://localhost:${FRONTEND_PORT}`,
+          localStorage: [{ name: "stave-lang", value: "vi" }],
+        },
+      ],
+    },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

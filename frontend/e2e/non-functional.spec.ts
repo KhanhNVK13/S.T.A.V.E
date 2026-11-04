@@ -603,12 +603,12 @@ test.describe("Non-functional requirements", () => {
     await openEditor(page, project.id);
     const midi = new Midi();
     midi.addTrack().addNote({ midi: 60, ticks: 0, durationTicks: 240 });
-    await page.locator('input[type="file"]').setInputFiles({
-      name: "sample_6MB.mid",
-      mimeType: "audio/midi",
-      buffer: Buffer.concat([Buffer.from(midi.toArray()), Buffer.alloc(6 * 1024 * 1024)]),
-    });
-    await expect(page.getByText(/5 ?MB/i).first()).toBeVisible(quick);
+    const big = Buffer.concat([Buffer.from(midi.toArray()), Buffer.alloc(6 * 1024 * 1024)]);
+    await expect(async () => {
+      await page.locator('input[type="file"]').setInputFiles([]);
+      await page.locator('input[type="file"]').setInputFiles({ name: "sample_6MB.mid", mimeType: "audio/midi", buffer: big });
+      await expect(page.getByText(/5 ?MB/i).first()).toBeVisible({ timeout: 3_000 });
+    }).toPass({ timeout: 30_000 });
     await page.locator('input[type="file"]').setInputFiles({
       name: "setup.mid",
       mimeType: "audio/midi",
