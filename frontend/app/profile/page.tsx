@@ -24,7 +24,7 @@ import { ConnectedAccounts } from "../../components/settings/connected-accounts"
 import { Dialog } from "../../components/ui/dialog";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
 import { apiErrorMessage } from "../../lib/error-message";
-import {validateRequired, validateMaxLength, REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
+import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
@@ -96,7 +96,7 @@ function ProfileForm() {
       validateRequired(displayName, "Vui lòng nhập tên hiển thị.") ??
       validateMaxLength(displayName, 80, "Tên hiển thị");
     const userInvalid = !username.trim()
-      ? REQUIRED_MESSAGE
+      ? requiredMessage()
       : USERNAME_PATTERN.test(username)
         ? null
         : "Username gồm 3-20 ký tự: chữ thường, số hoặc dấu gạch dưới.";
@@ -360,9 +360,9 @@ function ChangePasswordForm() {
     const form = e.currentTarget;
     setError(null);
     setSuccess(false);
-    const currentInvalid = currentPassword ? null : REQUIRED_MESSAGE;
+    const currentInvalid = currentPassword ? null : requiredMessage();
     const newInvalid = !newPassword
-      ? REQUIRED_MESSAGE
+      ? requiredMessage()
       : newPassword.length < 8
         ? "Mật khẩu mới phải có ít nhất 8 ký tự."
         : newPassword === currentPassword

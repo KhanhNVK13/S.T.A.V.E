@@ -6,10 +6,12 @@ import { MailCheck } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
 import { authErrorMessage } from "../../lib/error-message";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { useI18n } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
 import {validateEmail, focusFirstInvalid } from "../../lib/validation";
 
 export default function ForgotPasswordPage() {
+  const { t, tx } = useI18n();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -46,13 +48,12 @@ export default function ForgotPasswordPage() {
           <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted">
             <MailCheck className="h-5 w-5 text-accent" />
           </span>
-          <h2 className="mb-2 text-lg font-semibold text-foreground">Kiểm tra email</h2>
+          <h2 className="mb-2 text-lg font-semibold text-foreground">{t("auth.checkEmail")}</h2>
           <p className="text-sm text-muted">
-            Nếu <span className="font-mono text-foreground">{email}</span> đã đăng ký, mình
-            đã gửi link đặt lại mật khẩu (hiệu lực 24 giờ, dùng được 1 lần).
+            {tx("auth.forgot.sentBody", { email: <span className="font-mono text-foreground">{email}</span> })}
           </p>
           <Link href="/login" className="mt-5 text-sm text-accent hover:underline">
-            Quay lại đăng nhập
+            {t("auth.backToLogin")}
           </Link>
         </div>
       </AuthCard>
@@ -61,21 +62,21 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthCard
-      eyebrow="Khôi phục truy cập"
-      title="Quên mật khẩu"
-      description="Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu."
+      eyebrow={t("auth.forgot.eyebrow")}
+      title={t("auth.forgot.title")}
+      description={t("auth.forgot.description")}
     >
       <p className="mb-4 -mt-2 text-sm text-muted">
-        Nhập email, mình sẽ gửi link để đặt lại mật khẩu.
+        {t("auth.forgot.lead")}
       </p>
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-        <AuthField label="Email" error={emailError}>
+        <AuthField label={t("auth.email")} error={emailError}>
           <input
             name="email"
             autoComplete="email"
             spellCheck={false}
             type="email"
-            placeholder="ban@email.com"
+            placeholder={t("auth.emailPlaceholder")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={AUTH_INPUT_CLASS}
@@ -87,12 +88,12 @@ export default function ForgotPasswordPage() {
           </p>
         )}
         <Button type="submit" disabled={submitting} className="w-full">
-          {submitting ? "Đang gửi…" : "Gửi link đặt lại mật khẩu"}
+          {submitting ? t("auth.sending") : t("auth.forgot.submit")}
         </Button>
       </form>
       <p className="mt-5 text-center text-sm text-muted">
         <Link href="/login" className="text-accent hover:underline">
-          Quay lại đăng nhập
+          {t("auth.backToLogin")}
         </Link>
       </p>
     </AuthCard>

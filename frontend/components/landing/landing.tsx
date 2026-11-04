@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { FeaturedContent } from "../../lib/api-client";
-import { APP_LOCALE } from "../../lib/format-date";
+import { useI18n } from "../../context/i18n-context";
 import { SiteCredits } from "../site-footer";
 import { pulseSpace, setSpaceProgress } from "../space/space-store";
 import { useSpaceScene } from "../space/use-space-scene";
@@ -12,15 +12,7 @@ import { SAMPLE_COMMITS, buildSampleSong, diffClass, seededRandom } from "./land
 import { SampleRoll } from "./sample-roll";
 import "./landing.css";
 
-const SECTIONS = [
-  "Introduction",
-  "The name",
-  "History",
-  "Why save versions",
-  "How it works",
-  "Tools",
-  "Get started",
-];
+const SECTION_KEYS = ["landing.sec.1", "landing.sec.2", "landing.sec.3", "landing.sec.4", "landing.sec.5", "landing.sec.6", "landing.sec.7"] as const;
 
 type GsapModule = typeof import("gsap").gsap;
 
@@ -30,6 +22,7 @@ function wavePeaks(): string[] {
 }
 
 export function Landing({ data, signedIn = false }: { data: FeaturedContent | null; signedIn?: boolean }) {
+  const { t, locale } = useI18n();
   useSpaceScene("full", 0);
   const rootRef = useRef<HTMLDivElement>(null);
   const rollRef = useRef<HTMLDivElement>(null);
@@ -255,9 +248,9 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
 
   return (
     <div ref={rootRef} className="lnd" data-glide="pending">
-      <nav className="dots" aria-label="Sections">
-        {SECTIONS.map((name, i) => (
-          <a key={name} href={`#s${i + 1}`} aria-label={`Section ${i + 1} of 7: ${name}`} aria-current={i === 0 ? "true" : undefined}>
+      <nav className="dots" aria-label={t("landing.sections")}>
+        {SECTION_KEYS.map((key, i) => (
+          <a key={key} href={`#s${i + 1}`} aria-label={t("landing.dot", { n: i + 1, name: t(key) })} aria-current={i === 0 ? "true" : undefined}>
             <i />
           </a>
         ))}
@@ -265,21 +258,19 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
 
       <section className="scene s-hero" id="s1" aria-labelledby="h1">
         <div className="copy">
-          <p className="eyebrow" data-rv>Version control for MIDI music</p>
-          <h1 id="h1" data-rv>Every song<br />has a history.</h1>
-          <p className="lead" data-rv>
-            Save each version of your track, branch off to try another arrangement, then merge the best ideas back together. Source control, tuned for music.
-          </p>
+          <p className="eyebrow" data-rv>{t("landing.eyebrow")}</p>
+          <h1 id="h1" data-rv>{t("landing.heroTitle1")}<br />{t("landing.heroTitle2")}</h1>
+          <p className="lead" data-rv>{t("landing.heroLead")}</p>
           <div className="actions" data-rv>
             {signedIn ? (
-              <Link className="btn btn-primary" href="/">Back to your Home</Link>
+              <Link className="btn btn-primary" href="/">{t("landing.backHome")}</Link>
             ) : (
-              <Link className="btn btn-primary" href="/register">Start for free</Link>
+              <Link className="btn btn-primary" href="/register">{t("landing.start")}</Link>
             )}
-            <Link className="btn btn-line" href="/explore">Explore public projects</Link>
+            <Link className="btn btn-line" href="/explore">{t("landing.explorePublic")}</Link>
           </div>
         </div>
-        <p className="cue" data-rv aria-hidden="true"><span className="cue-line" />Scroll to fly</p>
+        <p className="cue" data-rv aria-hidden="true"><span className="cue-line" />{t("landing.cue")}</p>
       </section>
 
       <section className="scene s-name" id="s2" aria-labelledby="h2">
@@ -308,30 +299,28 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
             ))}
           </div>
         </div>
-        <p className="tagline">Five stars. One workspace for the whole life of a song.</p>
+        <p className="tagline">{t("landing.tagline")}</p>
       </section>
 
       <section className="scene s-hist" id="s3" aria-labelledby="h3">
         <div className="hist">
           <div className="copy">
-            <p className="eyebrow" data-rv>History</p>
-            <h2 id="h3" data-rv>Every commit is a star.</h2>
-            <p className="lead" data-rv>
-              Pick a star to see exactly what changed in that version. Notes added, removed or re-voiced are marked on the roll.
-            </p>
+            <p className="eyebrow" data-rv>{t("landing.history")}</p>
+            <h2 id="h3" data-rv>{t("landing.historyTitle")}</h2>
+            <p className="lead" data-rv>{t("landing.historyLead")}</p>
             <div className="detail panel" data-rv aria-live="polite">
               <p className="d-top">
                 <span className="hash">{commit.hash}</span>
-                <span className="d-meta">{commit.author} · {commit.when} · {commit.ago}</span>
+                <span className="d-meta">{commit.author} · {commit.when} · {t(commit.ago.key, { n: commit.ago.n })}</span>
               </p>
               <p className="d-msg">{commit.msg}</p>
               <p className="tally">
-                <span className="a"><b>{tally.add}</b> added</span>
-                <span className="d"><b>{tally.del}</b> removed</span>
-                <span className="m"><b>{tally.mod}</b> re-voiced</span>
+                <span className="a"><b>{tally.add}</b> {t("landing.added")}</span>
+                <span className="d"><b>{tally.del}</b> {t("landing.removed")}</span>
+                <span className="m"><b>{tally.mod}</b> {t("landing.revoiced")}</span>
               </p>
             </div>
-            <p className="sample-note" data-rv>Sample project with example data.</p>
+            <p className="sample-note" data-rv>{t("landing.sampleNote")}</p>
           </div>
           <div className="stage">
             <div className="panel graph-wrap" data-rv>
@@ -345,14 +334,14 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
                   notes={song}
                   from={sel - 1}
                   to={sel}
-                  label={`Piano roll comparing commit ${sel > 0 ? SAMPLE_COMMITS[sel - 1].hash : "(empty)"} with ${commit.hash}`}
+                  label={t("landing.rollLabel", { from: sel > 0 ? SAMPLE_COMMITS[sel - 1].hash : t("landing.empty"), to: commit.hash })}
                 />
               </div>
-              <p className="legend" aria-label="Legend">
-                <span><i className="a" />Note added</span>
-                <span><i className="d" />Note removed</span>
-                <span><i className="m" />Velocity changed</span>
-                <span><i className="k" />Unchanged</span>
+              <p className="legend" aria-label={t("landing.legend")}>
+                <span><i className="a" />{t("landing.legendAdded")}</span>
+                <span><i className="d" />{t("landing.legendRemoved")}</span>
+                <span><i className="m" />{t("landing.legendVelocity")}</span>
+                <span><i className="k" />{t("landing.legendUnchanged")}</span>
               </p>
             </div>
           </div>
@@ -362,29 +351,29 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
       <section className="scene s-why" id="s4" aria-labelledby="h4">
         <div className="why">
           <div className="copy">
-            <p className="eyebrow" data-rv>Why keep every version</p>
-            <h2 id="h4" data-rv>Never lose a good idea again.</h2>
+            <p className="eyebrow" data-rv>{t("landing.whyEyebrow")}</p>
+            <h2 id="h4" data-rv>{t("landing.whyTitle")}</h2>
             <ul className="points">
-              <li data-rv><b>Go back to any moment.</b> That first chorus you deleted at 2 a.m. is one click away.</li>
-              <li data-rv><b>Try bold ideas safely.</b> Experiment on a branch. The original never moves.</li>
-              <li data-rv><b>See who changed what.</b> Every note edit is credited to the person who made it.</li>
+              <li data-rv><b>{t("landing.why1")}</b> {t("landing.why1b")}</li>
+              <li data-rv><b>{t("landing.why2")}</b> {t("landing.why2b")}</li>
+              <li data-rv><b>{t("landing.why3")}</b> {t("landing.why3b")}</li>
             </ul>
           </div>
           <div className="compare">
             <div className="panel chaos" data-rv>
-              <h3>Without versions</h3>
-              <ul className="files" aria-label="Example of messy file names">
+              <h3>{t("landing.without")}</h3>
+              <ul className="files" aria-label={t("landing.messyFiles")}>
                 <li>rainy_final.mid</li>
                 <li>rainy_final2.mid</li>
                 <li>rainy_final_REAL.mid</li>
                 <li>rainy_final_REAL (copy).mid</li>
                 <li>rainy_ok_THIS_ONE.mid</li>
               </ul>
-              <p className="note">Which one has the bass line you liked?</p>
+              <p className="note">{t("landing.messyNote")}</p>
             </div>
             <div className="panel order" data-rv>
-              <h3>With STAVE</h3>
-              <ol className="chain" aria-label="Example of a clean version history">
+              <h3>{t("landing.with")}</h3>
+              <ol className="chain" aria-label={t("landing.cleanChain")}>
                 {SAMPLE_COMMITS.slice(0, 5).map((c) => (
                   <li key={c.hash}>
                     <span className="st" />
@@ -393,7 +382,7 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
                   </li>
                 ))}
               </ol>
-              <p className="note">Every step has a name, a date and an author.</p>
+              <p className="note">{t("landing.cleanNote")}</p>
             </div>
           </div>
         </div>
@@ -402,34 +391,34 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
       <section className="scene s-how" id="s5" aria-labelledby="h5">
         <div className="how">
           <div className="copy">
-            <p className="eyebrow" data-rv>How it works</p>
-            <h2 id="h5" data-rv>From first sketch to finished song in four moves.</h2>
+            <p className="eyebrow" data-rv>{t("landing.howEyebrow")}</p>
+            <h2 id="h5" data-rv>{t("landing.howTitle")}</h2>
           </div>
           <div className="rail" aria-hidden="true"><span className="rail-line" /></div>
           <ol className="steps">
             <li className="step panel">
               <span className="num">01</span>
               <svg viewBox="0 0 80 40" aria-hidden="true"><circle cx="40" cy="20" r="7" className="st-draft" /></svg>
-              <h3>Draft</h3>
-              <p>Write freely in the editor. Nothing is permanent yet, so nothing can go wrong.</p>
+              <h3>{t("landing.stepDraftTitle")}</h3>
+              <p>{t("landing.stepDraft")}</p>
             </li>
             <li className="step panel">
               <span className="num">02</span>
               <svg viewBox="0 0 80 40" aria-hidden="true"><line x1="6" y1="20" x2="74" y2="20" className="st-line" /><circle cx="24" cy="20" r="6" className="st-star" /><circle cx="56" cy="20" r="6" className="st-star lit" /></svg>
-              <h3>Commit</h3>
-              <p>Save a named snapshot of the whole project whenever it sounds right.</p>
+              <h3>{t("landing.stepCommitTitle")}</h3>
+              <p>{t("landing.stepCommit")}</p>
             </li>
             <li className="step panel">
               <span className="num">03</span>
               <svg viewBox="0 0 80 40" aria-hidden="true"><path d="M6 12H74" className="st-line" /><path d="M30 12C42 12 40 30 52 30H74" className="st-line teal" /><circle cx="30" cy="12" r="5" className="st-star" /><circle cx="52" cy="30" r="5" className="st-star teal" /></svg>
-              <h3>Branch</h3>
-              <p>Try a new bridge or drum feel on a separate line, without touching the original.</p>
+              <h3>{t("landing.stepBranchTitle")}</h3>
+              <p>{t("landing.stepBranch")}</p>
             </li>
             <li className="step panel">
               <span className="num">04</span>
               <svg viewBox="0 0 80 40" aria-hidden="true"><path d="M6 12H74" className="st-line" /><path d="M6 30H40C54 30 52 12 66 12" className="st-line teal" /><circle cx="66" cy="12" r="6" className="st-star hollow" /></svg>
-              <h3>Merge</h3>
-              <p>Bring the best branch home. STAVE shows every difference before it lands.</p>
+              <h3>{t("landing.stepMergeTitle")}</h3>
+              <p>{t("landing.stepMerge")}</p>
             </li>
           </ol>
         </div>
@@ -438,13 +427,13 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
       <section className="scene s-tools" id="s6" aria-labelledby="h6">
         <div className="tools">
           <div className="copy">
-            <p className="eyebrow" data-rv>The toolbox</p>
-            <h2 id="h6" data-rv>Everything a MIDI project needs.</h2>
+            <p className="eyebrow" data-rv>{t("landing.toolboxEyebrow")}</p>
+            <h2 id="h6" data-rv>{t("landing.toolboxTitle")}</h2>
           </div>
           <div className="bento">
             <article className="tile panel t-gm">
-              <h3><span className="big">128</span> General MIDI instruments</h3>
-              <p>From Acoustic Grand Piano to Gunshot. Assign any sound to any track.</p>
+              <h3><span className="big">128</span> {t("landing.gmTitle")}</h3>
+              <p>{t("landing.gmText")}</p>
               <div className="gm" aria-hidden="true">
                 {Array.from({ length: 8 }, (_, r) => (
                   <div className="gmrow" key={r}>
@@ -454,23 +443,23 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
               </div>
             </article>
             <article className="tile panel t-drum">
-              <h3>Drum kits</h3>
-              <p>A full percussion channel with its own pads.</p>
+              <h3>{t("landing.drumTitle")}</h3>
+              <p>{t("landing.drumText")}</p>
               <div className="pads" aria-hidden="true">
                 {["Kick", "Snare", "Hat", "Clap", "Tom", "Ride", "Crash", "Perc"].map((p) => <span key={p}>{p}</span>)}
               </div>
             </article>
             <article className="tile panel t-own">
-              <h3>Your own sounds</h3>
-              <p>Record a sample or upload one, then map it to a key.</p>
+              <h3>{t("landing.ownTitle")}</h3>
+              <p>{t("landing.ownText")}</p>
               <div className="wave" aria-hidden="true">
                 {peaks.map((t, i) => <i key={i} style={{ transform: t }} />)}
               </div>
             </article>
             <article className="tile panel t-out">
-              <h3>Export anywhere</h3>
-              <p>Take the finished song out of STAVE in the format you need.</p>
-              <ul className="chips" aria-label="Export formats">
+              <h3>{t("landing.exportTitle")}</h3>
+              <p>{t("landing.exportText")}</p>
+              <ul className="chips" aria-label={t("landing.exportFormats")}>
                 <li>.mid</li><li>WAV</li><li>MP3</li>
               </ul>
             </article>
@@ -480,22 +469,22 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
 
       <section className="scene s-cta" id="s7" aria-labelledby="h7">
         <div className="cta copy">
-          <h2 id="h7" data-rv>Create your first project</h2>
-          <p className="lead" data-rv>Import a MIDI file or start from a blank page. Your first commit is one click away.</p>
+          <h2 id="h7" data-rv>{t("landing.ctaTitle")}</h2>
+          <p className="lead" data-rv>{t("landing.ctaLead")}</p>
           <div className="actions" data-rv>
-            <Link className="btn btn-primary btn-lg" href={signedIn ? "/projects/new" : "/register"}>Create your first project</Link>
-            <Link className="btn btn-line btn-lg" href="/explore">Browse public projects</Link>
+            <Link className="btn btn-primary btn-lg" href={signedIn ? "/projects/new" : "/register"}>{t("landing.ctaTitle")}</Link>
+            <Link className="btn btn-line btn-lg" href="/explore">{t("landing.browse")}</Link>
           </div>
           {community.length > 0 && data && (
             <div className="live" data-rv>
               <p className="live-label">
-                Happening now · {data.stats.total_projects.toLocaleString(APP_LOCALE)} public projects · {data.stats.total_users.toLocaleString(APP_LOCALE)} people
+                {t("landing.live", { projects: data.stats.total_projects.toLocaleString(locale), people: data.stats.total_users.toLocaleString(locale) })}
               </p>
               {community.map((p) => (
                 <Link key={p.id} href={`/projects/${p.id}`}>
                   <b>{p.name}</b>
                   <span>
-                    {p.owner.display_name ?? p.owner.username ?? "STAVE user"} · {p.play_count.toLocaleString(APP_LOCALE)} plays
+                    {p.owner.display_name ?? p.owner.username ?? t("ui.unknownUser")} · {t("ui.plays", { n: p.play_count.toLocaleString(locale) })}
                   </span>
                 </Link>
               ))}
@@ -503,16 +492,16 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
           )}
         </div>
         <footer className="foot" data-rv>
-          <Link className="brand" href="/" translate="no" aria-label="STAVE, home">STAVE</Link>
-          <nav aria-label="Footer">
-            <Link href="/explore">Explore</Link>
-            <Link href="/rankings">Rankings</Link>
+          <Link className="brand" href="/" translate="no" aria-label={t("landing.brandHome")}>STAVE</Link>
+          <nav aria-label={t("landing.footerNav")}>
+            <Link href="/explore">{t("nav.explore")}</Link>
+            <Link href="/rankings">{t("nav.rankings")}</Link>
             {signedIn ? (
-              <Link href="/">Home</Link>
+              <Link href="/">{t("nav.home")}</Link>
             ) : (
               <>
-                <Link href="/login">Sign in</Link>
-                <Link href="/register">Sign up</Link>
+                <Link href="/login">{t("nav.signIn")}</Link>
+                <Link href="/register">{t("landing.signUp")}</Link>
               </>
             )}
           </nav>

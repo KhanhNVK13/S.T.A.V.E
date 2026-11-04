@@ -1,7 +1,11 @@
+"use client";
+
 import { useId } from "react";
 import type { ReactNode } from "react";
 import { withErrorProps } from "./ui/form";
 import { Logo } from "./ui/logo";
+import { LanguageSwitch } from "./language-switch";
+import { useT } from "../context/i18n-context";
 
 const STARS: [number, number][] = [
   [30, 150],
@@ -57,19 +61,23 @@ export function AuthCard({
   description?: string;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="grid min-h-full lg:grid-cols-2">
       <div className="hidden flex-col justify-center border-r border-border bg-surface-subtle/50 p-[9%] lg:flex">
         <Logo />
         <p className="mt-6 max-w-[360px] text-[28px] font-bold leading-[1.25]">
-          Quản lý phiên bản cho bản nhạc đang hình thành.
+          {t("auth.tagline")}
         </p>
         <Constellation className="mt-6 w-full max-w-[540px]" />
       </div>
 
       <div className="mx-auto w-full max-w-[430px] px-6 py-12 sm:px-11">
-        <div className="mb-6 lg:hidden">
-          <Logo />
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="lg:hidden">
+            <Logo />
+          </div>
+          <LanguageSwitch className="ml-auto" />
         </div>
         <div className="relative rounded-card border border-border bg-surface/80 p-6 motion-safe:transition-[opacity,transform] motion-safe:duration-[800ms] motion-safe:ease-out starting:translate-y-3 starting:opacity-0">
           <span
@@ -115,16 +123,18 @@ export const AUTH_INPUT_CLASS =
   "h-10 rounded-md border border-border bg-background px-2.5 text-base sm:h-[37px] sm:text-[13px] placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-muted";
 
 export function AuthDivider() {
+  const t = useT();
   return (
     <div className="my-5 flex items-center gap-3">
       <div className="h-px flex-1 bg-border" />
-      <span className="text-xs text-muted">hoặc</span>
+      <span className="text-xs text-muted">{t("auth.or")}</span>
       <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
 
 export function GoogleButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -149,7 +159,7 @@ export function GoogleButton({ onClick }: { onClick: () => void }) {
           d="M12 4.77c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.28 6.62l4 3.1C6.22 6.88 8.87 4.77 12 4.77z"
         />
       </svg>
-      Đăng nhập với Google
+      {t("auth.google")}
     </button>
   );
 }

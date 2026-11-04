@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Bell, Compass, FileMusic, Piano, Plus, Sparkles, Users } from "lucide-react";
 import { useAuth } from "../../context/auth-context";
+import { useI18n } from "../../context/i18n-context";
 import {
   getDraftRecovery,
   getUnreadNotificationCount,
@@ -17,7 +18,7 @@ import {
 import { getJamEvents } from "../../lib/api-jam";
 import { apiErrorMessage } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
-import { APP_LOCALE, formatRelativeTime } from "../../lib/format-date";
+import { formatRelativeTime } from "../../lib/format-date";
 import { useApiResource } from "../../lib/use-api-resource";
 import { useSpaceScene } from "../space/use-space-scene";
 import { SiteCredits } from "../site-footer";
@@ -85,13 +86,14 @@ function BlockSkeleton({ height }: { height: string }) {
 }
 
 function Shortcuts() {
+  const { t } = useI18n();
   const items = [
-    { href: "/projects/new", label: "Dự án mới", icon: Plus },
-    { href: "/explore", label: "Khám phá", icon: Compass },
-    { href: "/welcome", label: "Xem giới thiệu", icon: Sparkles },
+    { href: "/projects/new", label: t("nav.newProject"), icon: Plus },
+    { href: "/explore", label: t("nav.explore"), icon: Compass },
+    { href: "/welcome", label: t("home.tour"), icon: Sparkles },
   ];
   return (
-    <nav aria-label="Lối tắt" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <nav aria-label={t("home.shortcuts")} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {items.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
@@ -107,19 +109,20 @@ function Shortcuts() {
 }
 
 function FirstProject() {
+  const { t } = useI18n();
   return (
     <Card className="flex flex-col items-center px-6 py-12 text-center">
       <FileMusic className="mb-3 h-9 w-9 text-accent" />
-      <h2 className="text-xl font-semibold tracking-tight">Bắt đầu bài hát đầu tiên</h2>
+      <h2 className="text-xl font-semibold tracking-tight">{t("home.firstTitle")}</h2>
       <p className="mt-2 max-w-md text-sm text-muted">
-        Một dự án giữ lại mọi phiên bản của bản nhạc. Bắt đầu từ trang trắng hoặc nhập một file MIDI, commit đầu tiên chỉ cách một cú bấm.
+        {t("home.firstBody")}
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         <Link href="/projects/new" className={LINK_PRIMARY}>
-          <Plus className="h-3.5 w-3.5" /> Tạo dự án đầu tiên
+          <Plus className="h-3.5 w-3.5" /> {t("home.firstCreate")}
         </Link>
         <Link href="/explore" className={LINK_SECONDARY}>
-          Xem dự án công khai
+          {t("home.viewPublic")}
         </Link>
       </div>
     </Card>
@@ -127,6 +130,7 @@ function FirstProject() {
 }
 
 function ContinueCard({ resume }: { resume: Resume }) {
+  const { t } = useI18n();
   const { project, savedAt } = resume;
   return (
     <Card className="p-4" aria-labelledby="home-continue">
@@ -134,7 +138,7 @@ function ContinueCard({ resume }: { resume: Resume }) {
         <ProjectThumb id={project.id} className="sm:!w-40 sm:shrink-0" />
         <div className="min-w-0 flex-1">
           <h2 id="home-continue" className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
-            Tiếp tục từ chỗ bạn dừng lại
+            {t("home.continue")}
           </h2>
           <p className="mt-1 truncate text-xl font-semibold tracking-tight">
             <Link href={`/projects/${project.id}`} className="hover:underline">
@@ -142,16 +146,16 @@ function ContinueCard({ resume }: { resume: Resume }) {
             </Link>
           </p>
           <p className="mt-1 text-[13px] text-muted">
-            Có thay đổi chưa commit
-            {savedAt ? ` · bản nháp lưu ${formatRelativeTime(savedAt)}` : ""}
+            {t("home.uncommitted")}
+            {savedAt ? t("home.draftSaved", { when: formatRelativeTime(savedAt) }) : ""}
           </p>
         </div>
         <Link
           href={`/projects/${project.id}/edit`}
-          aria-label={`Mở Editor cho ${project.name}`}
+          aria-label={t("home.openEditorFor", { name: project.name })}
           className={LINK_PRIMARY}
         >
-          <Piano className="h-3.5 w-3.5" /> Mở Editor
+          <Piano className="h-3.5 w-3.5" /> {t("home.openEditor")}
         </Link>
       </div>
     </Card>
@@ -161,18 +165,19 @@ function ContinueCard({ resume }: { resume: Resume }) {
 const RECENT_COLS = "md:grid-cols-[minmax(0,1fr)_96px_104px_auto]";
 
 function RecentProjects({ projects }: { projects: HomeProject[] }) {
+  const { t } = useI18n();
   return (
     <section aria-labelledby="home-recent">
       <SectionHead
         id="home-recent"
-        title="Dự án gần đây"
-        link={{ href: "/projects", label: "Xem tất cả", hidden: "dự án" }}
+        title={t("home.recent")}
+        link={{ href: "/projects", label: t("home.seeAll"), hidden: t("home.seeAllHidden") }}
       />
       <RowList cols={RECENT_COLS}>
         <RowHeader>
-          <span>Dự án</span>
-          <span>Hiển thị</span>
-          <span className="text-right">Cập nhật</span>
+          <span>{t("home.colProject")}</span>
+          <span>{t("home.colVisibility")}</span>
+          <span className="text-right">{t("home.colUpdated")}</span>
           <span />
         </RowHeader>
         {projects.map((project) => (
@@ -185,17 +190,17 @@ function RecentProjects({ projects }: { projects: HomeProject[] }) {
             />
             <span>
               <Badge variant={project.visibility === "public" ? "info" : "neutral"}>
-                {project.visibility === "public" ? "Công khai" : "Riêng tư"}
+                {project.visibility === "public" ? t("common.public") : t("common.private")}
               </Badge>
             </span>
             <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
             <div className="md:justify-self-end">
               <Link
                 href={`/projects/${project.id}/edit`}
-                aria-label={`Mở Editor cho ${project.name}`}
+                aria-label={t("home.openEditorFor", { name: project.name })}
                 className={LINK_SECONDARY}
               >
-                <Piano className="h-3.5 w-3.5" /> Mở Editor
+                <Piano className="h-3.5 w-3.5" /> {t("home.openEditor")}
               </Link>
             </div>
           </RowItem>
@@ -206,13 +211,14 @@ function RecentProjects({ projects }: { projects: HomeProject[] }) {
 }
 
 function ExplorePicks({ items }: { items: PublicProject[] }) {
+  const { t, locale } = useI18n();
   const [note, setNote] = useState(false);
   return (
     <section aria-labelledby="home-picks">
       <SectionHead
         id="home-picks"
-        title="Gợi ý từ Khám phá"
-        link={{ href: "/explore", label: "Mở Khám phá", hidden: "để xem thêm dự án công khai" }}
+        title={t("home.picks")}
+        link={{ href: "/explore", label: t("home.openExplore"), hidden: t("home.openExploreHidden") }}
       />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((p) => (
@@ -228,17 +234,17 @@ function ExplorePicks({ items }: { items: PublicProject[] }) {
               {p.genre ? ` · ${p.genre}` : ""}
             </p>
             <p className="font-mono text-xs text-muted">
-              {p.play_count.toLocaleString(APP_LOCALE)} lượt nghe · {p.fork_count.toLocaleString(APP_LOCALE)} fork
+              {t("home.playsForks", { plays: p.play_count.toLocaleString(locale), forks: p.fork_count.toLocaleString(locale) })}
             </p>
             <div className="mt-1.5 flex items-center gap-2">
               <button
                 type="button"
                 aria-disabled="true"
-                aria-label={`Nghe thử ${p.name} (PLACEHOLDER, chưa xây)`}
+                aria-label={t("home.previewFor", { name: p.name })}
                 onClick={() => setNote(true)}
                 className="inline-flex h-8 items-center rounded-md border border-border bg-surface/85 px-3 text-[13px] font-semibold text-muted hover:bg-surface-subtle"
               >
-                Nghe thử
+                {t("home.preview")}
               </button>
               <Badge variant="warning">PLACEHOLDER</Badge>
             </div>
@@ -246,7 +252,7 @@ function ExplorePicks({ items }: { items: PublicProject[] }) {
         ))}
       </div>
       <p role="status" className="mt-3 min-h-[1.25rem] text-[13px] text-muted">
-        {note ? "PLACEHOLDER: nghe thử ngay trên Home chưa được xây. Mở dự án để nghe bản đầy đủ." : ""}
+        {note ? t("home.previewNote") : ""}
       </p>
     </section>
   );
@@ -261,6 +267,7 @@ function Notifications({
   count: number;
   onChanged: () => void;
 }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -272,7 +279,7 @@ function Notifications({
       window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
       onChanged();
     } catch (err) {
-      setError(apiErrorMessage(err, "Không đánh dấu được các thông báo."));
+      setError(apiErrorMessage(err, t("home.markFail")));
     } finally {
       setBusy(false);
     }
@@ -282,7 +289,7 @@ function Notifications({
     <Card className="p-4" aria-labelledby="home-notes">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 id="home-notes" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          Thông báo
+          {t("home.notifications")}
           <span
             aria-live="polite"
             className={`inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-xs font-bold ${
@@ -290,12 +297,12 @@ function Notifications({
             }`}
           >
             {count}
-            <span className="sr-only"> chưa đọc</span>
+            <span className="sr-only">{t("home.unread")}</span>
           </span>
         </h2>
         {count > 0 && (
           <button type="button" onClick={() => void readAll()} disabled={busy} className={`${TEXT_LINK} disabled:opacity-50`}>
-            Đánh dấu đã đọc
+            {t("home.markRead")}
           </button>
         )}
       </div>
@@ -311,7 +318,7 @@ function Notifications({
               <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />
               <span className="min-w-0">
                 <Link href="/notifications" className="block text-[13px] font-semibold leading-snug hover:underline">
-                  {n.payload.title ?? "Thông báo"}
+                  {n.payload.title ?? t("home.notifFallback")}
                 </Link>
                 <span className="font-mono text-xs text-muted">{formatRelativeTime(n.created_at)}</span>
               </span>
@@ -321,13 +328,13 @@ function Notifications({
       ) : (
         <p className="text-[13px] text-muted">
           {count > 0
-            ? "Có thông báo chưa đọc, hãy mở trang Thông báo để xem."
-            : "Không có thông báo mới. Lời mời, pull request và lượt sao sẽ hiện ở đây."}
+            ? t("home.notifUnreadHint")
+            : t("home.notifEmpty")}
         </p>
       )}
       <div className="mt-3">
         <Link href="/notifications" className={TEXT_LINK}>
-          Mở trang Thông báo
+          {t("home.openNotifications")}
         </Link>
       </div>
     </Card>
@@ -335,9 +342,10 @@ function Notifications({
 }
 
 function JamBanner({ id, name, description, endsAt, people }: { id: string; name: string; description: string | null; endsAt: string | null; people: number }) {
+  const { t } = useI18n();
   return (
     <Card className="p-4" aria-labelledby="home-jam">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Community Jam đang diễn ra</p>
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{t("home.jamLive")}</p>
       <h2 id="home-jam" className="mt-1.5 text-lg font-semibold tracking-tight">
         {name}
       </h2>
@@ -346,12 +354,12 @@ function JamBanner({ id, name, description, endsAt, people }: { id: string; name
         <JamCountdownTimer endsAt={endsAt} />
         <span className="flex items-center gap-1.5 text-[13px] text-muted">
           <Users className="h-3.5 w-3.5" />
-          {people > 0 ? `${people} người đang có mặt` : "Chờ người tham gia"}
+          {people > 0 ? t("home.jamPeople", { n: people }) : t("home.jamWaiting")}
         </span>
       </div>
       <div className="mt-4">
         <Link href={`/jam/${id}`} className={LINK_PRIMARY}>
-          Tham gia ngay
+          {t("home.jamJoin")}
         </Link>
       </div>
     </Card>
@@ -359,6 +367,7 @@ function JamBanner({ id, name, description, endsAt, people }: { id: string; name
 }
 
 export function Home() {
+  const { t } = useI18n();
   useSpaceScene("quiet", 0);
   const { user, profile } = useAuth();
   const [attempt, setAttempt] = useState(0);
@@ -389,16 +398,16 @@ export function Home() {
 
   let status = "";
   if (!projects.loading) {
-    if (isNew) status = "Hãy tạo dự án đầu tiên để bắt đầu sáng tác.";
-    else if (resume.data) status = `Bạn có thay đổi chưa commit ở “${resume.data.project.name}”.`;
-    else if (hasProjects) status = "Mọi thay đổi của bạn đã được commit.";
+    if (isNew) status = t("home.statusNew");
+    else if (resume.data) status = t("home.statusUncommitted", { name: resume.data.project.name });
+    else if (hasProjects) status = t("home.statusClean");
   }
 
   return (
     <div className="mx-auto max-w-page px-5 py-8">
       <div className="mb-6 min-w-0">
         <h1 className="text-[26px] font-semibold leading-tight tracking-tight">
-          {isNew ? "Chào mừng đến STAVE" : "Chào mừng trở lại"}
+          {isNew ? t("home.welcomeNew") : t("home.welcomeBack")}
           {name ? `, ${name}` : ""}
         </h1>
         {status && <p className="mt-1 max-w-[64ch] text-sm text-muted">{status}</p>}
@@ -419,9 +428,9 @@ export function Home() {
 
           {projects.error && !projects.loading && (
             <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
-              <p>Không tải được danh sách dự án.</p>
+              <p>{t("home.projectsFail")}</p>
               <button type="button" onClick={() => setAttempt((n) => n + 1)} className={LINK_SECONDARY}>
-                Thử lại
+                {t("ui.retry")}
               </button>
             </div>
           )}
@@ -441,11 +450,11 @@ export function Home() {
           ) : unread.error && unreadCount.error ? (
             <Card className="p-4">
               <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold tracking-tight">
-                <Bell className="h-4 w-4 text-muted" /> Thông báo
+                <Bell className="h-4 w-4 text-muted" /> {t("home.notifications")}
               </h2>
-              <p className="text-[13px] text-muted">Không tải được thông báo.</p>
+              <p className="text-[13px] text-muted">{t("home.notifLoadFail")}</p>
               <Link href="/notifications" className={`${TEXT_LINK} mt-2 inline-block`}>
-                Mở trang Thông báo
+                {t("home.openNotifications")}
               </Link>
             </Card>
           ) : (
@@ -469,15 +478,15 @@ export function Home() {
       </div>
 
       <footer className="mt-14 flex flex-col gap-4 border-t border-border pt-5 text-[13px] text-muted">
-        <nav aria-label="Chân trang" className="flex flex-wrap gap-x-5 gap-y-2">
+        <nav aria-label={t("home.footerNav")} className="flex flex-wrap gap-x-5 gap-y-2">
           <Link href="/welcome" className="hover:text-foreground hover:underline">
-            Xem giới thiệu
+            {t("home.tour")}
           </Link>
           <Link href="/explore" className="hover:text-foreground hover:underline">
-            Khám phá
+            {t("nav.explore")}
           </Link>
           <Link href="/rankings" className="hover:text-foreground hover:underline">
-            Bảng xếp hạng
+            {t("nav.rankings")}
           </Link>
         </nav>
         <SiteCredits className="text-xs" />

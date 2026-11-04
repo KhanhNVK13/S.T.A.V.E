@@ -1,5 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useT } from "../../context/i18n-context";
 
 interface Crumb {
   label: string;
@@ -18,16 +21,15 @@ interface PageHeaderProps {
  * cách bằng "/") — cùng ngôn ngữ với các màn thiết kế: "MINA PARK / PUBLIC
  * PROJECT", "ACCOUNT SETTINGS"…
  */
-const HOME_CRUMB: Crumb = { label: "Trang chủ", href: "/" };
-
 export function PageHeader({ title, description, breadcrumbs, action }: PageHeaderProps) {
-  const trail = breadcrumbs && breadcrumbs.length > 0 ? [HOME_CRUMB, ...breadcrumbs] : null;
+  const t = useT();
+  const trail = breadcrumbs && breadcrumbs.length > 0 ? [{ label: t("ui.home"), href: "/" }, ...breadcrumbs] : null;
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-7">
       <div className="min-w-0">
         {trail && (
           <nav
-            aria-label="Đường dẫn"
+            aria-label={t("ui.breadcrumb")}
             className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent"
           >
             {trail.map((crumb, i) => (

@@ -1,237 +1,194 @@
 import { ApiError } from "./api-client";
+import { getLang, tNow, type Lang, type TKey } from "./i18n";
 
-const API_MESSAGES: Record<string, string> = {
-  "Project not found": "Không tìm thấy dự án. Có thể dự án đã bị xoá hoặc bạn không có quyền xem.",
-  "Branch not found": "Không tìm thấy nhánh. Có thể nhánh vừa bị xoá — hãy tải lại trang.",
-  "Commit not found": "Không tìm thấy phiên bản này. Hãy tải lại trang.",
-  "Commit to restore not found": "Không tìm thấy phiên bản cần khôi phục. Hãy tải lại trang.",
-  "Target commit not found": "Không tìm thấy phiên bản cần so sánh. Hãy tải lại trang.",
-  "Base commit not found": "Không tìm thấy phiên bản gốc để so sánh. Hãy tải lại trang.",
-  "Starting commit not found": "Không tìm thấy commit bắt đầu của nhánh. Hãy tải lại trang.",
-  "Source branch not found": "Không tìm thấy nhánh nguồn. Hãy tải lại trang.",
-  "Target branch not found": "Không tìm thấy nhánh đích. Hãy tải lại trang.",
-  "Target branch does not exist": "Nhánh muốn chuyển tới không còn tồn tại. Hãy tải lại trang.",
-  "Current branch not found": "Không tìm thấy nhánh đang mở. Hãy tải lại trang.",
-  "Default branch not found": "Dự án chưa có nhánh mặc định.",
-  "User not found": "Không tìm thấy người dùng.",
-  "Custom sound not found": "Không tìm thấy âm thanh này. Có thể bạn vừa xoá nó ở thẻ khác — hãy tải lại.",
-  "Profile not found": "Không tìm thấy hồ sơ.",
-  "You do not have access to this project": "Bạn không có quyền truy cập dự án này.",
-  "You do not have edit access to this project": "Bạn không có quyền chỉnh sửa dự án này.",
-  "You do not have edit permission on this project": "Bạn không có quyền chỉnh sửa dự án này.",
-  "You do not have access to this branch": "Bạn không có quyền truy cập nhánh này.",
-  "Admin privileges required": "Chỉ quản trị viên mới làm được thao tác này.",
-  "Account is not active": "Tài khoản không ở trạng thái hoạt động.",
-  "This notification cannot be turned off": "Loại thông báo này luôn được gửi nên không thể tắt.",
-  "Project is no longer available": "Dự án này không còn công khai nên không thể fork.",
-  "You cannot fork your own project": "Bạn không thể fork dự án của chính mình.",
-  "Title is required": "Hãy nhập tiêu đề cho pull request.",
-  "Title must not exceed 150 characters": "Tiêu đề tối đa 150 ký tự.",
-  "Description must not exceed 2000 characters": "Mô tả tối đa 2000 ký tự.",
-  "Comment is required": "Hãy nhập nội dung bình luận.",
-  "Comment must not exceed 2000 characters": "Bình luận tối đa 2000 ký tự.",
-  "There is nothing to propose": "Không có gì để đề xuất: bản fork chưa có thay đổi mới so với dự án gốc.",
-  "There is nothing to merge": "Không còn gì để hợp nhất: các thay đổi này đã có trong dự án đích.",
-  "This project is not a fork": "Chỉ dự án được fork mới tạo được pull request.",
-  "The original project is no longer available": "Không gửi được đề xuất vì dự án gốc không còn công khai. Bản fork vẫn là của bạn.",
-  "Too many requests, please try again later": "Bạn thao tác quá nhanh. Hãy đợi vài phút rồi thử lại.",
-  "Draft was changed elsewhere": "Bản nháp vừa được cập nhật ở tab khác. Hãy xử lý xung đột nháp trong trình soạn nhạc rồi thử lại.",
-  "An open pull request already exists": "Đã có một pull request đang mở cho cặp nhánh này.",
-  "Pull request is no longer open": "Pull request này đã được xử lý bởi người khác. Hãy tải lại trang.",
-  "Pull request not found": "Không tìm thấy pull request này.",
-  "This pull request can no longer be merged": "Pull request này không còn hợp nhất được vì dự án hoặc nhánh nguồn không còn tồn tại.",
-  "This pull request can no longer be commented on": "Bạn không còn quyền bình luận trong pull request này.",
-  "You cannot merge this pull request": "Bạn không có quyền hợp nhất pull request này.",
-  "You cannot close this pull request": "Bạn không có quyền đóng pull request này.",
-  "The branches are not related": "Hai nhánh này không có lịch sử chung nên không so sánh được.",
-  "Start the merge before resolving conflicts": "Hãy bấm hợp nhất trước để hệ thống kiểm tra xung đột.",
-  "Notification not found": "Không tìm thấy thông báo này. Hãy tải lại danh sách.",
-  "Archived projects are read-only. Restore the project first":
-    "Dự án đã lưu trữ chỉ để xem. Hãy khôi phục dự án trước khi chỉnh sửa.",
-  "Account is not suspended": "Tài khoản này không bị đình chỉ.",
-  "Cannot act on an administrator account or your own account":
-    "Không thể thao tác trên tài khoản quản trị viên hoặc tài khoản của chính bạn.",
-  "Username confirmation does not match": "Username xác nhận không khớp.",
-  "Username already taken": "Username này đã có người dùng. Hãy chọn tên khác.",
-  "A branch with this name already exists in the project": "Dự án đã có nhánh trùng tên. Hãy đặt tên khác.",
-  "Tag name already exists in this project": "Tên tag này đã được dùng trong dự án. Hãy chọn tên khác.",
-  "Working draft is identical to the most recent commit":
-    "Bản nháp giống hệt phiên bản gần nhất — chưa có thay đổi nào để commit.",
-  "Selected commit is already the most recent version on this branch":
-    "Phiên bản này đang là phiên bản mới nhất của nhánh, không cần khôi phục.",
-  "Branch has moved on with new commits. Please review changes.":
-    "Nhánh vừa có commit mới từ nơi khác. Hãy tải lại trang để xem thay đổi trước khi commit.",
-  "Target branch has moved on since this merge was started. Please restart the merge.":
-    "Nhánh đích vừa thay đổi trong lúc bạn hợp nhất. Hãy bắt đầu hợp nhất lại.",
-  "Nothing to merge. Source branch has no commits the target does not already contain.":
-    "Không có gì để hợp nhất — nhánh đích đã có mọi commit của nhánh này.",
-  "Branches have no common ancestor": "Hai nhánh không có điểm chung nên không hợp nhất được.",
-  "Branches must belong to the same project": "Hai nhánh phải thuộc cùng một dự án.",
-  "Project has no commits yet. Branching is unavailable.":
-    "Dự án chưa có commit nào. Hãy commit lần đầu rồi mới tạo nhánh.",
-  "Project has only one branch": "Dự án chỉ có một nhánh.",
-  "Cannot delete the default branch": "Không thể xoá nhánh mặc định.",
-  "Cannot delete the branch currently open in the editor — switch to another branch first":
-    "Nhánh này đang mở trong editor. Hãy chuyển sang nhánh khác trước khi xoá.",
-  "Cannot compare commits from different projects": "Không thể so sánh phiên bản của hai dự án khác nhau.",
-  "Cannot restore a commit from a different project": "Không thể khôi phục phiên bản của dự án khác.",
-  "Current password is incorrect": "Mật khẩu hiện tại không đúng.",
-  "Branch is the working branch of a collaborator": "Có cộng tác viên đang chọn nhánh này làm nhánh làm việc nên chưa xoá được. Hãy nhờ họ chuyển sang nhánh khác trước.",
-  "Commit history is too large to analyse": "Lịch sử commit của dự án quá lớn để phân tích lúc này. Hãy liên hệ người quản trị.",
-  "Failed to fetch commit tags": "Chưa tải được tag của các commit. Hãy thử lại.",
-  "Avatar file was not uploaded": "Ảnh chưa được tải lên đầy đủ. Hãy thử lại.",
-  "Avatar file is too large": "Ảnh lớn hơn 2 MB nên không dùng được. Hãy chọn ảnh nhỏ hơn.",
-  "Invalid avatar path": "Ảnh đại diện không hợp lệ. Hãy thử tải lại.",
-  "Could not verify avatar file": "Chưa kiểm tra được ảnh vừa tải lên. Hãy thử lại.",
-  "Could not save avatar": "Chưa lưu được ảnh đại diện. Hãy thử lại.",
-  "Could not remove avatar": "Chưa xoá được ảnh đại diện. Hãy thử lại.",
-  "New password must be different from the current password": "Mật khẩu mới phải khác mật khẩu hiện tại.",
-  "Password is incorrect": "Mật khẩu không đúng.",
-  "Could not update password": "Không đổi được mật khẩu. Hãy thử lại.",
-  "Session revoked or not found": "Phiên đăng nhập đã bị thu hồi. Hãy đăng nhập lại.",
-  "Session not found": "Phiên đăng nhập không còn. Hãy đăng nhập lại.",
-  "Missing bearer token": "Bạn cần đăng nhập để tiếp tục.",
-  "Missing X-Session-Id header": "Phiên đăng nhập không hợp lệ. Hãy đăng nhập lại.",
-  "Invalid or expired token": "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.",
-  "Message must not exceed 200 characters": "Nội dung commit tối đa 200 ký tự.",
-  "Message is required": "Nội dung commit không được để trống.",
-  "Tag name is required": "Tên tag không được để trống.",
-  "Tag name must not exceed 30 characters": "Tên tag tối đa 30 ký tự.",
-  "Branch name is required": "Tên nhánh không được để trống.",
-  "Branch name must not exceed 50 characters": "Tên nhánh tối đa 50 ký tự.",
-  "username must be 3-20 chars: lowercase letters, digits, _":
-    "Username dài 3–20 ký tự, chỉ gồm chữ thường, chữ số và dấu gạch dưới.",
-  // Collaboration (UC-60/61/62) — thêm cuối bảng, không sửa dòng cũ.
-  "No account matches the provided identifier":
-    "Không tìm thấy tài khoản ứng với thông tin này.",
-  "An invitation is already pending for this person":
-    "Lời mời cho người này đang chờ — không cần mời lại.",
-  "This person is already a collaborator": "Người này đã là cộng tác viên của dự án.",
-  "You are the project owner and already have full access":
-    "Bạn là chủ dự án, không cần mời chính mình.",
-  "The project already has 10 collaborators (including pending invitations)":
-    "Dự án đã đủ 10 cộng tác viên (kể cả lời mời đang chờ).",
-  "Collaborator not found": "Không tìm thấy cộng tác viên này — có thể vừa được gỡ. Hãy tải lại.",
-  "Invitation not found": "Lời mời này không còn tồn tại — có thể đã được xử lý. Hãy tải lại.",
-  "The project owner cannot be removed": "Không thể gỡ chủ dự án khỏi danh sách cộng tác viên.",
-  // UC-63 (bình luận ghim) — thêm cuối bảng, không sửa dòng cũ.
-  "Comment not found": "Bình luận này không còn tồn tại. Hãy tải lại trang.",
-  "Comment body must not be empty": "Nội dung bình luận không được để trống.",
-  "Comment body must not exceed 1000 characters":
-    "Bình luận tối đa 1000 ký tự.",
-  "Only one level of replies is allowed":
-    "Chỉ được trả lời 1 cấp — không thể trả lời bình luận đã là trả lời.",
-  "You are not allowed to delete this comment":
-    "Bạn không thể xoá bình luận của người khác.",
-  // Community Jam (UC-66) — thêm cuối bảng, không sửa dòng cũ.
-  "Jam event not found":
-    "Không tìm thấy sự kiện Jam này — có thể vừa được huỷ. Hãy tải lại.",
-  "The jam has not started yet":
-    "Sự kiện Jam chưa bắt đầu. Hãy quay lại đúng giờ mở.",
-  "The jam has already ended":
-    "Sự kiện Jam đã kết thúc.",
-  "Your account is not active":
-    "Tài khoản của bạn không ở trạng thái hoạt động nên không tham gia được.",
-  "The jam room is full": "Phòng Jam hiện đã đầy. Hãy thử sự kiện khác.",
-  // UC-68 (xem kết quả Jam) — thêm cuối bảng, không sửa dòng cũ
-  // (key "Jam event not found" của UC-66 giữ nguyên phía trên).
-  "Jam event has not ended yet":
-    "Sự kiện Jam này vẫn đang diễn ra. Đang chuyển hướng bạn đến phòng Jam...",
-  "Failed to load jam result":
-    "Không thể tải kết quả sự kiện Jam. Vui lòng thử lại.",
-  // UC-94 (admin cấu hình / huỷ sự kiện Jam) — thêm cuối bảng, không sửa dòng cũ.
-  "This jam has ended and can no longer be configured":
-    "Sự kiện Jam đã kết thúc — không thể cấu hình lại. Hãy tạo sự kiện mới.",
-  "The new end time must be in the future":
-    "Thời gian kết thúc mới phải là thời điểm trong tương lai.",
-  "The end time is not a valid date": "Thời gian kết thúc không hợp lệ.",
-  "The starting project does not exist":
-    "Dự án khởi đầu không tồn tại. Hãy chọn một dự án khác.",
-  "The starting project must be public":
-    "Chỉ dự án công khai mới được dùng làm dự án khởi đầu.",
-  "A running jam cannot be cancelled; end it instead":
-    "Sự kiện đang diễn ra không thể huỷ — hãy dùng “Kết thúc ngay”.",
-  "Only a scheduled jam can be cancelled":
-    "Chỉ sự kiện chưa bắt đầu mới huỷ được. Sự kiện đã kết thúc không huỷ được.",
-  "Cannot configure an ended jam event":
-    "Sự kiện đã kết thúc, không thể thay đổi cấu hình.",
-  "Cannot modify immutable fields while jam is active":
-    "Không thể chỉnh sửa thông tin cốt lõi khi sự kiện đang diễn ra.",
-  "Only scheduled events can be cancelled":
-    "Chỉ có thể hủy sự kiện chưa bắt đầu.",
-  "New end time must be in the future":
-    "Thời gian kết thúc mới phải là thời điểm trong tương lai.",
-  "New end time must be in the future and after start time":
-    "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.",
-  // UC-95 (admin kết thúc sự kiện Jam) — thêm cuối bảng, không sửa dòng cũ.
-  "Mã định danh sự kiện Jam không hợp lệ.":
-    "Mã định danh sự kiện Jam không hợp lệ.",
-  "Không tìm thấy sự kiện Community Jam yêu cầu.":
-    "Không tìm thấy sự kiện Community Jam yêu cầu.",
-  "Sự kiện Jam này đã kết thúc trước đó.":
-    "Sự kiện Jam này đã kết thúc trước đó.",
-  "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.":
-    "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.",
-  "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.":
-    "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.",
-  "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.":
-    "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.",
+const API_MESSAGES: Record<string, Record<Lang, string>> = {
+  "Project not found": { en: "Project not found. It may have been deleted, or you may not have permission to view it.", vi: "Không tìm thấy dự án. Có thể dự án đã bị xoá hoặc bạn không có quyền xem." },
+  "Branch not found": { en: "Branch not found. It may have just been deleted — reload the page.", vi: "Không tìm thấy nhánh. Có thể nhánh vừa bị xoá — hãy tải lại trang." },
+  "Commit not found": { en: "Version not found. Reload the page.", vi: "Không tìm thấy phiên bản này. Hãy tải lại trang." },
+  "Commit to restore not found": { en: "The version to restore was not found. Reload the page.", vi: "Không tìm thấy phiên bản cần khôi phục. Hãy tải lại trang." },
+  "Target commit not found": { en: "The version to compare was not found. Reload the page.", vi: "Không tìm thấy phiên bản cần so sánh. Hãy tải lại trang." },
+  "Base commit not found": { en: "The base version to compare against was not found. Reload the page.", vi: "Không tìm thấy phiên bản gốc để so sánh. Hãy tải lại trang." },
+  "Starting commit not found": { en: "The branch's starting commit was not found. Reload the page.", vi: "Không tìm thấy commit bắt đầu của nhánh. Hãy tải lại trang." },
+  "Source branch not found": { en: "Source branch not found. Reload the page.", vi: "Không tìm thấy nhánh nguồn. Hãy tải lại trang." },
+  "Target branch not found": { en: "Target branch not found. Reload the page.", vi: "Không tìm thấy nhánh đích. Hãy tải lại trang." },
+  "Target branch does not exist": { en: "The branch you want to switch to no longer exists. Reload the page.", vi: "Nhánh muốn chuyển tới không còn tồn tại. Hãy tải lại trang." },
+  "Current branch not found": { en: "The open branch was not found. Reload the page.", vi: "Không tìm thấy nhánh đang mở. Hãy tải lại trang." },
+  "Default branch not found": { en: "This project has no default branch yet.", vi: "Dự án chưa có nhánh mặc định." },
+  "User not found": { en: "User not found.", vi: "Không tìm thấy người dùng." },
+  "Custom sound not found": { en: "Sound not found. You may have just deleted it in another tab — reload.", vi: "Không tìm thấy âm thanh này. Có thể bạn vừa xoá nó ở thẻ khác — hãy tải lại." },
+  "Profile not found": { en: "Profile not found.", vi: "Không tìm thấy hồ sơ." },
+  "You do not have access to this project": { en: "You don't have access to this project.", vi: "Bạn không có quyền truy cập dự án này." },
+  "You do not have edit access to this project": { en: "You don't have permission to edit this project.", vi: "Bạn không có quyền chỉnh sửa dự án này." },
+  "You do not have edit permission on this project": { en: "You don't have permission to edit this project.", vi: "Bạn không có quyền chỉnh sửa dự án này." },
+  "You do not have access to this branch": { en: "You don't have access to this branch.", vi: "Bạn không có quyền truy cập nhánh này." },
+  "Admin privileges required": { en: "Only administrators can do this.", vi: "Chỉ quản trị viên mới làm được thao tác này." },
+  "Account is not active": { en: "This account is not active.", vi: "Tài khoản không ở trạng thái hoạt động." },
+  "This notification cannot be turned off": { en: "This type of notification is always sent, so it can't be turned off.", vi: "Loại thông báo này luôn được gửi nên không thể tắt." },
+  "Project is no longer available": { en: "This project is no longer public, so it can't be forked.", vi: "Dự án này không còn công khai nên không thể fork." },
+  "You cannot fork your own project": { en: "You can't fork your own project.", vi: "Bạn không thể fork dự án của chính mình." },
+  "Title is required": { en: "Enter a title for the pull request.", vi: "Hãy nhập tiêu đề cho pull request." },
+  "Title must not exceed 150 characters": { en: "The title can be at most 150 characters.", vi: "Tiêu đề tối đa 150 ký tự." },
+  "Description must not exceed 2000 characters": { en: "The description can be at most 2000 characters.", vi: "Mô tả tối đa 2000 ký tự." },
+  "Comment is required": { en: "Enter a comment.", vi: "Hãy nhập nội dung bình luận." },
+  "Comment must not exceed 2000 characters": { en: "Comments can be at most 2000 characters.", vi: "Bình luận tối đa 2000 ký tự." },
+  "There is nothing to propose": { en: "Nothing to propose: the fork has no new changes compared with the original project.", vi: "Không có gì để đề xuất: bản fork chưa có thay đổi mới so với dự án gốc." },
+  "There is nothing to merge": { en: "Nothing left to merge: these changes are already in the target project.", vi: "Không còn gì để hợp nhất: các thay đổi này đã có trong dự án đích." },
+  "This project is not a fork": { en: "Only forked projects can open a pull request.", vi: "Chỉ dự án được fork mới tạo được pull request." },
+  "The original project is no longer available": { en: "Can't send the proposal because the original project is no longer public. The fork is still yours.", vi: "Không gửi được đề xuất vì dự án gốc không còn công khai. Bản fork vẫn là của bạn." },
+  "Too many requests, please try again later": { en: "You're going too fast. Wait a few minutes and try again.", vi: "Bạn thao tác quá nhanh. Hãy đợi vài phút rồi thử lại." },
+  "Draft was changed elsewhere": { en: "The draft was just updated in another tab. Resolve the draft conflict in the editor, then try again.", vi: "Bản nháp vừa được cập nhật ở tab khác. Hãy xử lý xung đột nháp trong trình soạn nhạc rồi thử lại." },
+  "An open pull request already exists": { en: "There is already an open pull request for this pair of branches.", vi: "Đã có một pull request đang mở cho cặp nhánh này." },
+  "Pull request is no longer open": { en: "This pull request was already handled by someone else. Reload the page.", vi: "Pull request này đã được xử lý bởi người khác. Hãy tải lại trang." },
+  "Pull request not found": { en: "Pull request not found.", vi: "Không tìm thấy pull request này." },
+  "This pull request can no longer be merged": { en: "This pull request can no longer be merged because the project or source branch no longer exists.", vi: "Pull request này không còn hợp nhất được vì dự án hoặc nhánh nguồn không còn tồn tại." },
+  "This pull request can no longer be commented on": { en: "You can no longer comment on this pull request.", vi: "Bạn không còn quyền bình luận trong pull request này." },
+  "You cannot merge this pull request": { en: "You don't have permission to merge this pull request.", vi: "Bạn không có quyền hợp nhất pull request này." },
+  "You cannot close this pull request": { en: "You don't have permission to close this pull request.", vi: "Bạn không có quyền đóng pull request này." },
+  "The branches are not related": { en: "These two branches share no history, so they can't be compared.", vi: "Hai nhánh này không có lịch sử chung nên không so sánh được." },
+  "Start the merge before resolving conflicts": { en: "Start the merge first so the system can check for conflicts.", vi: "Hãy bấm hợp nhất trước để hệ thống kiểm tra xung đột." },
+  "Notification not found": { en: "Notification not found. Reload the list.", vi: "Không tìm thấy thông báo này. Hãy tải lại danh sách." },
+  "Archived projects are read-only. Restore the project first": { en: "Archived projects are view-only. Restore the project before editing.", vi: "Dự án đã lưu trữ chỉ để xem. Hãy khôi phục dự án trước khi chỉnh sửa." },
+  "Account is not suspended": { en: "This account is not suspended.", vi: "Tài khoản này không bị đình chỉ." },
+  "Cannot act on an administrator account or your own account": { en: "You can't act on an administrator account or your own account.", vi: "Không thể thao tác trên tài khoản quản trị viên hoặc tài khoản của chính bạn." },
+  "Username confirmation does not match": { en: "The confirmation username doesn't match.", vi: "Username xác nhận không khớp." },
+  "Username already taken": { en: "This username is already taken. Choose another.", vi: "Username này đã có người dùng. Hãy chọn tên khác." },
+  "A branch with this name already exists in the project": { en: "The project already has a branch with this name. Choose another name.", vi: "Dự án đã có nhánh trùng tên. Hãy đặt tên khác." },
+  "Tag name already exists in this project": { en: "This tag name is already used in the project. Choose another name.", vi: "Tên tag này đã được dùng trong dự án. Hãy chọn tên khác." },
+  "Working draft is identical to the most recent commit": { en: "The draft is identical to the latest version — there are no changes to commit.", vi: "Bản nháp giống hệt phiên bản gần nhất — chưa có thay đổi nào để commit." },
+  "Selected commit is already the most recent version on this branch": { en: "This version is already the latest on the branch, so there is nothing to restore.", vi: "Phiên bản này đang là phiên bản mới nhất của nhánh, không cần khôi phục." },
+  "Branch has moved on with new commits. Please review changes.": { en: "The branch just received a new commit from elsewhere. Reload the page to review the changes before committing.", vi: "Nhánh vừa có commit mới từ nơi khác. Hãy tải lại trang để xem thay đổi trước khi commit." },
+  "Target branch has moved on since this merge was started. Please restart the merge.": { en: "The target branch changed while you were merging. Start the merge again.", vi: "Nhánh đích vừa thay đổi trong lúc bạn hợp nhất. Hãy bắt đầu hợp nhất lại." },
+  "Nothing to merge. Source branch has no commits the target does not already contain.": { en: "Nothing to merge — the target branch already has every commit of this branch.", vi: "Không có gì để hợp nhất — nhánh đích đã có mọi commit của nhánh này." },
+  "Branches have no common ancestor": { en: "The two branches have no common point, so they can't be merged.", vi: "Hai nhánh không có điểm chung nên không hợp nhất được." },
+  "Branches must belong to the same project": { en: "Both branches must belong to the same project.", vi: "Hai nhánh phải thuộc cùng một dự án." },
+  "Project has no commits yet. Branching is unavailable.": { en: "This project has no commits yet. Make your first commit before creating a branch.", vi: "Dự án chưa có commit nào. Hãy commit lần đầu rồi mới tạo nhánh." },
+  "Project has only one branch": { en: "The project has only one branch.", vi: "Dự án chỉ có một nhánh." },
+  "Cannot delete the default branch": { en: "The default branch can't be deleted.", vi: "Không thể xoá nhánh mặc định." },
+  "Cannot delete the branch currently open in the editor — switch to another branch first": { en: "This branch is open in the editor. Switch to another branch before deleting it.", vi: "Nhánh này đang mở trong editor. Hãy chuyển sang nhánh khác trước khi xoá." },
+  "Cannot compare commits from different projects": { en: "Versions from two different projects can't be compared.", vi: "Không thể so sánh phiên bản của hai dự án khác nhau." },
+  "Cannot restore a commit from a different project": { en: "A version from another project can't be restored.", vi: "Không thể khôi phục phiên bản của dự án khác." },
+  "Current password is incorrect": { en: "The current password is incorrect.", vi: "Mật khẩu hiện tại không đúng." },
+  "Branch is the working branch of a collaborator": { en: "A collaborator has chosen this branch as their working branch, so it can't be deleted yet. Ask them to switch to another branch first.", vi: "Có cộng tác viên đang chọn nhánh này làm nhánh làm việc nên chưa xoá được. Hãy nhờ họ chuyển sang nhánh khác trước." },
+  "Commit history is too large to analyse": { en: "This project's commit history is too large to analyze right now. Contact an administrator.", vi: "Lịch sử commit của dự án quá lớn để phân tích lúc này. Hãy liên hệ người quản trị." },
+  "Failed to fetch commit tags": { en: "Couldn't load the commit tags. Try again.", vi: "Chưa tải được tag của các commit. Hãy thử lại." },
+  "Avatar file was not uploaded": { en: "The image wasn't fully uploaded. Try again.", vi: "Ảnh chưa được tải lên đầy đủ. Hãy thử lại." },
+  "Avatar file is too large": { en: "The image is larger than 2 MB and can't be used. Choose a smaller image.", vi: "Ảnh lớn hơn 2 MB nên không dùng được. Hãy chọn ảnh nhỏ hơn." },
+  "Invalid avatar path": { en: "Invalid avatar. Try uploading again.", vi: "Ảnh đại diện không hợp lệ. Hãy thử tải lại." },
+  "Could not verify avatar file": { en: "Couldn't check the image you just uploaded. Try again.", vi: "Chưa kiểm tra được ảnh vừa tải lên. Hãy thử lại." },
+  "Could not save avatar": { en: "Couldn't save the avatar. Try again.", vi: "Chưa lưu được ảnh đại diện. Hãy thử lại." },
+  "Could not remove avatar": { en: "Couldn't remove the avatar. Try again.", vi: "Chưa xoá được ảnh đại diện. Hãy thử lại." },
+  "New password must be different from the current password": { en: "The new password must be different from the current password.", vi: "Mật khẩu mới phải khác mật khẩu hiện tại." },
+  "Password is incorrect": { en: "The password is incorrect.", vi: "Mật khẩu không đúng." },
+  "Could not update password": { en: "Couldn't change the password. Try again.", vi: "Không đổi được mật khẩu. Hãy thử lại." },
+  "Session revoked or not found": { en: "This session was revoked. Sign in again.", vi: "Phiên đăng nhập đã bị thu hồi. Hãy đăng nhập lại." },
+  "Session not found": { en: "This session no longer exists. Sign in again.", vi: "Phiên đăng nhập không còn. Hãy đăng nhập lại." },
+  "Missing bearer token": { en: "You need to sign in to continue.", vi: "Bạn cần đăng nhập để tiếp tục." },
+  "Missing X-Session-Id header": { en: "Invalid session. Sign in again.", vi: "Phiên đăng nhập không hợp lệ. Hãy đăng nhập lại." },
+  "Invalid or expired token": { en: "Your session has expired. Sign in again.", vi: "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại." },
+  "Message must not exceed 200 characters": { en: "The commit message can be at most 200 characters.", vi: "Nội dung commit tối đa 200 ký tự." },
+  "Message is required": { en: "The commit message can't be empty.", vi: "Nội dung commit không được để trống." },
+  "Tag name is required": { en: "The tag name can't be empty.", vi: "Tên tag không được để trống." },
+  "Tag name must not exceed 30 characters": { en: "The tag name can be at most 30 characters.", vi: "Tên tag tối đa 30 ký tự." },
+  "Branch name is required": { en: "The branch name can't be empty.", vi: "Tên nhánh không được để trống." },
+  "Branch name must not exceed 50 characters": { en: "The branch name can be at most 50 characters.", vi: "Tên nhánh tối đa 50 ký tự." },
+  "username must be 3-20 chars: lowercase letters, digits, _": { en: "Username must be 3–20 characters: lowercase letters, digits and underscores only.", vi: "Username dài 3–20 ký tự, chỉ gồm chữ thường, chữ số và dấu gạch dưới." },
+  "No account matches the provided identifier": { en: "No account matches this information.", vi: "Không tìm thấy tài khoản ứng với thông tin này." },
+  "An invitation is already pending for this person": { en: "An invitation for this person is already pending — no need to invite again.", vi: "Lời mời cho người này đang chờ — không cần mời lại." },
+  "This person is already a collaborator": { en: "This person is already a collaborator on the project.", vi: "Người này đã là cộng tác viên của dự án." },
+  "You are the project owner and already have full access": { en: "You own this project, so you don't need to invite yourself.", vi: "Bạn là chủ dự án, không cần mời chính mình." },
+  "The project already has 10 collaborators (including pending invitations)": { en: "The project already has 10 collaborators (including pending invitations).", vi: "Dự án đã đủ 10 cộng tác viên (kể cả lời mời đang chờ)." },
+  "Collaborator not found": { en: "Collaborator not found — they may have just been removed. Reload.", vi: "Không tìm thấy cộng tác viên này — có thể vừa được gỡ. Hãy tải lại." },
+  "Invitation not found": { en: "This invitation no longer exists — it may have been handled. Reload.", vi: "Lời mời này không còn tồn tại — có thể đã được xử lý. Hãy tải lại." },
+  "The project owner cannot be removed": { en: "The project owner can't be removed from the collaborator list.", vi: "Không thể gỡ chủ dự án khỏi danh sách cộng tác viên." },
+  "Comment not found": { en: "This comment no longer exists. Reload the page.", vi: "Bình luận này không còn tồn tại. Hãy tải lại trang." },
+  "Comment body must not be empty": { en: "The comment can't be empty.", vi: "Nội dung bình luận không được để trống." },
+  "Comment body must not exceed 1000 characters": { en: "Comments can be at most 1000 characters.", vi: "Bình luận tối đa 1000 ký tự." },
+  "Only one level of replies is allowed": { en: "Only one level of replies is allowed — you can't reply to a reply.", vi: "Chỉ được trả lời 1 cấp — không thể trả lời bình luận đã là trả lời." },
+  "You are not allowed to delete this comment": { en: "You can't delete someone else's comment.", vi: "Bạn không thể xoá bình luận của người khác." },
+  "Jam event not found": { en: "Jam event not found — it may have just been cancelled. Reload.", vi: "Không tìm thấy sự kiện Jam này — có thể vừa được huỷ. Hãy tải lại." },
+  "The jam has not started yet": { en: "The Jam hasn't started yet. Come back when it opens.", vi: "Sự kiện Jam chưa bắt đầu. Hãy quay lại đúng giờ mở." },
+  "The jam has already ended": { en: "The Jam has ended.", vi: "Sự kiện Jam đã kết thúc." },
+  "Your account is not active": { en: "Your account is not active, so you can't join.", vi: "Tài khoản của bạn không ở trạng thái hoạt động nên không tham gia được." },
+  "The jam room is full": { en: "The Jam room is full. Try another event.", vi: "Phòng Jam hiện đã đầy. Hãy thử sự kiện khác." },
+  "Jam event has not ended yet": { en: "This Jam is still running. Redirecting you to the Jam room…", vi: "Sự kiện Jam này vẫn đang diễn ra. Đang chuyển hướng bạn đến phòng Jam..." },
+  "Failed to load jam result": { en: "Couldn't load the Jam result. Please try again.", vi: "Không thể tải kết quả sự kiện Jam. Vui lòng thử lại." },
+  "This jam has ended and can no longer be configured": { en: "This Jam has ended and can't be reconfigured. Create a new event.", vi: "Sự kiện Jam đã kết thúc — không thể cấu hình lại. Hãy tạo sự kiện mới." },
+  "The new end time must be in the future": { en: "The new end time must be in the future.", vi: "Thời gian kết thúc mới phải là thời điểm trong tương lai." },
+  "The end time is not a valid date": { en: "The end time is not valid.", vi: "Thời gian kết thúc không hợp lệ." },
+  "The starting project does not exist": { en: "The starting project doesn't exist. Choose another project.", vi: "Dự án khởi đầu không tồn tại. Hãy chọn một dự án khác." },
+  "The starting project must be public": { en: "Only public projects can be used as the starting project.", vi: "Chỉ dự án công khai mới được dùng làm dự án khởi đầu." },
+  "A running jam cannot be cancelled; end it instead": { en: "A running event can't be cancelled — use “End now”.", vi: "Sự kiện đang diễn ra không thể huỷ — hãy dùng “Kết thúc ngay”." },
+  "Only a scheduled jam can be cancelled": { en: "Only events that haven't started can be cancelled. Ended events can't be cancelled.", vi: "Chỉ sự kiện chưa bắt đầu mới huỷ được. Sự kiện đã kết thúc không huỷ được." },
+  "Cannot configure an ended jam event": { en: "The event has ended, so its settings can't be changed.", vi: "Sự kiện đã kết thúc, không thể thay đổi cấu hình." },
+  "Cannot modify immutable fields while jam is active": { en: "Core details can't be edited while the event is running.", vi: "Không thể chỉnh sửa thông tin cốt lõi khi sự kiện đang diễn ra." },
+  "Only scheduled events can be cancelled": { en: "Only events that haven't started can be cancelled.", vi: "Chỉ có thể hủy sự kiện chưa bắt đầu." },
+  "New end time must be in the future": { en: "The new end time must be in the future.", vi: "Thời gian kết thúc mới phải là thời điểm trong tương lai." },
+  "New end time must be in the future and after start time": { en: "Invalid end time. It must be later than both the current time and the start time.", vi: "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu." },
+  "Mã định danh sự kiện Jam không hợp lệ.": { en: "The Jam event identifier is not valid.", vi: "Mã định danh sự kiện Jam không hợp lệ." },
+  "Không tìm thấy sự kiện Community Jam yêu cầu.": { en: "The requested Community Jam event was not found.", vi: "Không tìm thấy sự kiện Community Jam yêu cầu." },
+  "Sự kiện Jam này đã kết thúc trước đó.": { en: "This Jam event has already ended.", vi: "Sự kiện Jam này đã kết thúc trước đó." },
+  "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.": { en: "A cancelled Jam event can't be ended.", vi: "Không thể kết thúc sự kiện Jam đã bị hủy bỏ." },
+  "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.": { en: "Couldn't save the final track of the Jam event. Please try again.", vi: "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại." },
+  "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.": { en: "A system error occurred while updating the event status. Please try again later.", vi: "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau." },
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
 
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
-    const known = API_MESSAGES[err.message];
+    const lang = getLang();
+    const known = API_MESSAGES[err.message]?.[lang];
     if (known) return known;
-    if (VIETNAMESE.test(err.message)) return err.message;
-    if (err.message.startsWith('Cannot create a branch named "')) {
-      return "Tên nhánh này không dùng được. Hãy chọn tên khác.";
-    }
-    if (err.status === 401) return "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.";
-    if (err.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
-    if (err.status === 404) return `${fallback} Dữ liệu không còn tồn tại — hãy tải lại trang.`;
-    if (err.status === 409) return `${fallback} Dữ liệu vừa thay đổi — hãy tải lại trang rồi thử lại.`;
-    if (err.status === 413) return `${fallback} Dữ liệu gửi lên quá lớn.`;
-    if (err.status === 429) return "Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.";
-    if (err.status >= 500) return `${fallback} Máy chủ đang gặp sự cố, hãy thử lại sau.`;
+    if (lang === "vi" && VIETNAMESE.test(err.message)) return err.message;
+    if (err.message.startsWith('Cannot create a branch named "')) return tNow("err.branchName");
+    if (err.status === 401) return tNow("err.sessionExpired");
+    if (err.status === 403) return tNow("err.forbidden");
+    if (err.status === 404) return `${fallback} ${tNow("err.notFound")}`;
+    if (err.status === 409) return `${fallback} ${tNow("err.conflict")}`;
+    if (err.status === 413) return `${fallback} ${tNow("err.tooLarge")}`;
+    if (err.status === 429) return tNow("err.rateLimit");
+    if (err.status >= 500) return `${fallback} ${tNow("err.server")}`;
     return fallback;
   }
   if (err instanceof TypeError) {
-    return `${fallback} Không kết nối được máy chủ — kiểm tra mạng rồi thử lại.`;
+    return `${fallback} ${tNow("err.network")}`;
   }
   return fallback;
 }
 
-const AUTH_MESSAGES: Record<string, string> = {
-  invalid_credentials: "Email hoặc mật khẩu không đúng.",
-  identity_already_exists: "Tài khoản Google này đã thuộc một tài khoản STAVE khác. Mỗi tài khoản Google chỉ liên kết với một tài khoản STAVE.",
-  manual_linking_disabled: "Chưa thể liên kết tài khoản Google lúc này. Hãy thử lại sau hoặc liên hệ hỗ trợ.",
-  single_identity_not_deletable: "Không ngắt kết nối được vì đây là cách đăng nhập duy nhất của tài khoản. Hãy đặt mật khẩu trước.",
-  identity_not_found: "Không tìm thấy tài khoản Google đã liên kết. Hãy tải lại trang.",
-  access_denied: "Bạn đã huỷ liên kết với Google. Chưa có gì thay đổi.",
-  email_not_confirmed: "Email này chưa được xác nhận. Hãy mở thư xác nhận trong hộp thư, hoặc gửi lại thư bên dưới.",
-  user_already_exists: "Email này đã được đăng ký. Hãy đăng nhập hoặc dùng \"Quên mật khẩu\".",
-  email_exists: "Email này đã được đăng ký. Hãy đăng nhập hoặc dùng \"Quên mật khẩu\".",
-  weak_password: "Mật khẩu quá yếu. Hãy dùng ít nhất 8 ký tự, kết hợp chữ và số.",
-  same_password: "Mật khẩu mới phải khác mật khẩu cũ.",
-  email_address_invalid: "Địa chỉ email không hợp lệ.",
-  over_email_send_rate_limit: "Hệ thống vừa gửi thư cho email này. Hãy đợi khoảng 1 phút rồi thử lại.",
-  over_request_rate_limit: "Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.",
-  otp_expired: "Liên kết này đã hết hạn hoặc đã được dùng rồi. Nếu bạn đã xác nhận email, hãy đăng nhập bình thường. Nếu chưa, hãy gửi lại email xác nhận bên dưới.",
-  user_banned: "Tài khoản này đang bị đình chỉ.",
-  session_not_found: "Phiên đặt lại mật khẩu không còn hiệu lực. Hãy yêu cầu gửi liên kết mới.",
-  session_expired: "Phiên đã hết hạn. Hãy yêu cầu gửi liên kết mới.",
-  signup_disabled: "Hiện chưa mở đăng ký tài khoản mới.",
-  validation_failed: "Thông tin nhập chưa hợp lệ. Hãy kiểm tra lại.",
-};
+const AUTH_CODES = [
+  "invalid_credentials",
+  "identity_already_exists",
+  "manual_linking_disabled",
+  "single_identity_not_deletable",
+  "identity_not_found",
+  "access_denied",
+  "email_not_confirmed",
+  "user_already_exists",
+  "email_exists",
+  "weak_password",
+  "same_password",
+  "email_address_invalid",
+  "over_email_send_rate_limit",
+  "over_request_rate_limit",
+  "otp_expired",
+  "user_banned",
+  "session_not_found",
+  "session_expired",
+  "signup_disabled",
+  "validation_failed",
+] as const;
+
+type AuthCode = (typeof AUTH_CODES)[number];
+
+function isAuthCode(code: string): code is AuthCode {
+  return (AUTH_CODES as readonly string[]).includes(code);
+}
 
 export function authErrorMessage(error: { code?: string; message?: string; status?: number } | null | undefined): string {
-  if (!error) return "Có lỗi xảy ra. Hãy thử lại.";
-  if (error.code && AUTH_MESSAGES[error.code]) return AUTH_MESSAGES[error.code];
-  if (error.status === 429) return AUTH_MESSAGES.over_request_rate_limit;
-  if (error.message && /fetch/i.test(error.message)) {
-    return "Không kết nối được máy chủ — kiểm tra mạng rồi thử lại.";
-  }
-  return "Có lỗi xảy ra. Hãy thử lại.";
+  if (!error) return tNow("err.generic");
+  if (error.code && isAuthCode(error.code)) return tNow(`autherr.${error.code}` as TKey);
+  if (error.status === 429) return tNow("autherr.over_request_rate_limit");
+  if (error.message && /fetch/i.test(error.message)) return tNow("err.network");
+  return tNow("err.generic");
 }

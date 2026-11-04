@@ -1,7 +1,10 @@
+import { tNow } from "./i18n";
+
 const NOTICE_KEY = "stave_auth_notice";
 
-export const ACCOUNT_INACTIVE_NOTICE =
-  "Tài khoản của bạn đang bị đình chỉ hoặc không còn hoạt động. Hãy liên hệ bộ phận hỗ trợ để được giúp đỡ.";
+export function accountInactiveNotice(): string {
+  return tNow("auth.inactiveNotice");
+}
 
 export function setAuthNotice(message: string): void {
   try {

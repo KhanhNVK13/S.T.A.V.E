@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import { useT } from "../../context/i18n-context";
 import { CheckCircle2, Info, TriangleAlert, X } from "lucide-react";
 
 export type ToastVariant = "info" | "success" | "warning" | "danger";
@@ -40,6 +41,7 @@ export function Toast({ message, variant = "info", onDismiss, duration = 4000 }:
     return () => clearTimeout(timer);
   }, [duration, onDismiss]);
 
+  const t = useT();
   const Icon = ICONS[variant];
 
   return (
@@ -53,7 +55,7 @@ export function Toast({ message, variant = "info", onDismiss, duration = 4000 }:
         <button
           onClick={onDismiss}
           className="shrink-0 opacity-60 hover:opacity-100"
-          aria-label="Đóng thông báo"
+          aria-label={t("ui.dismissNotice")}
         >
           <X className="h-4 w-4" />
         </button>

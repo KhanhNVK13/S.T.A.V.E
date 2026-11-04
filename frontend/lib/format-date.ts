@@ -1,8 +1,14 @@
+import { LOCALES, getLang, tNow } from './i18n';
+
 export const APP_LOCALE = 'vi-VN';
 
+export function appLocale(): string {
+  return LOCALES[getLang()];
+}
+
 /**
- * Format a date string to relative time (Vietnamese).
- * E.g. "vừa xong", "5 phút trước", "2 giờ trước", "3 ngày trước", "dd/MM/yyyy"
+ * Format a date string to relative time in the active language.
+ * E.g. "just now", "5 minutes ago", "2 hours ago", "3 days ago", "dd/MM/yyyy"
  */
 export function formatRelativeTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
@@ -17,11 +23,11 @@ export function formatRelativeTime(dateStr: string | null | undefined): string {
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
 
-  if (diffSec < 60) return 'vừa xong';
-  if (diffMin < 60) return `${diffMin} phút trước`;
-  if (diffHour < 24) return `${diffHour} giờ trước`;
-  if (diffDay < 7) return `${diffDay} ngày trước`;
-  if (diffDay < 30) return `${Math.floor(diffDay / 7)} tuần trước`;
+  if (diffSec < 60) return tNow('time.justNow');
+  if (diffMin < 60) return tNow('time.minute', { n: diffMin });
+  if (diffHour < 24) return tNow('time.hour', { n: diffHour });
+  if (diffDay < 7) return tNow('time.day', { n: diffDay });
+  if (diffDay < 30) return tNow('time.week', { n: Math.floor(diffDay / 7) });
 
   // Fallback to dd/MM/yyyy
   const day = date.getDate().toString().padStart(2, '0');
@@ -31,7 +37,7 @@ export function formatRelativeTime(dateStr: string | null | undefined): string {
 }
 
 /**
- * Format a date string to "Tháng M, yyyy" (Vietnamese locale) — used for "joined on" style dates.
+ * Format a date string to month and year in the active locale — used for "joined on" style dates.
  */
 export function formatMonthYear(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
@@ -39,7 +45,7 @@ export function formatMonthYear(dateStr: string | null | undefined): string {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
 
-  return date.toLocaleDateString(APP_LOCALE, { year: 'numeric', month: 'long' });
+  return date.toLocaleDateString(appLocale(), { year: 'numeric', month: 'long' });
 }
 
 /**
@@ -66,7 +72,7 @@ export function formatDateTime(dateStr: string | null | undefined): string {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
 
-  return date.toLocaleString(APP_LOCALE, {
+  return date.toLocaleString(appLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

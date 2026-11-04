@@ -8,10 +8,12 @@ import { authErrorMessage } from "../../lib/error-message";
 import { takeAuthNotice } from "../../lib/auth-notice";
 import { safeRedirectPath } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AuthDivider, GoogleButton, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { useT } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
-import {validateEmail, REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
+import {validateEmail, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 
 export default function LoginPage() {
+  const t = useT();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +36,7 @@ export default function LoginPage() {
     const nextErrors: { email?: string; password?: string } = {};
     const emailInvalid = validateEmail(email);
     if (emailInvalid) nextErrors.email = emailInvalid;
-    if (!password) nextErrors.password = REQUIRED_MESSAGE;
+    if (!password) nextErrors.password = requiredMessage();
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       focusFirstInvalid(form);
@@ -81,24 +83,24 @@ export default function LoginPage() {
 
   return (
     <AuthCard
-      eyebrow="Chào mừng trở lại"
-      title="Đăng nhập vào STAVE"
-      description="Tiếp tục từ nơi bản nhạc của bạn đang dang dở."
+      eyebrow={t("auth.login.eyebrow")}
+      title={t("auth.login.title")}
+      description={t("auth.login.description")}
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3.5">
-        <AuthField label="Email" error={fieldErrors.email}>
+        <AuthField label={t("auth.email")} error={fieldErrors.email}>
           <input
             name="email"
             autoComplete="email"
             spellCheck={false}
             type="email"
-            placeholder="ban@email.com"
+            placeholder={t("auth.emailPlaceholder")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        <AuthField label="Mật khẩu" error={fieldErrors.password}>
+        <AuthField label={t("auth.password")} error={fieldErrors.password}>
           <input
             name="password"
             autoComplete="current-password"
@@ -123,14 +125,14 @@ export default function LoginPage() {
             className="w-full"
           >
             {resendState === "sending"
-              ? "Đang gửi…"
+              ? t("auth.sending")
               : resendState === "sent"
-                ? "Đã gửi lại thư xác nhận — kiểm tra hộp thư"
-                : "Gửi lại email xác nhận"}
+                ? t("auth.resentCheck")
+                : t("auth.resend")}
           </Button>
         )}
         <Button type="submit" disabled={submitting} className="w-full">
-          {submitting ? "Đang đăng nhập…" : "Đăng nhập"}
+          {submitting ? t("auth.signingIn") : t("auth.signIn")}
         </Button>
       </form>
 
@@ -139,10 +141,10 @@ export default function LoginPage() {
 
       <div className="mt-5 flex justify-between text-xs">
         <Link href="/forgot-password" className="font-semibold text-accent hover:underline">
-          Quên mật khẩu?
+          {t("auth.forgot")}
         </Link>
         <Link href="/register" className="font-semibold text-accent hover:underline">
-          Chưa có tài khoản?
+          {t("auth.noAccount")}
         </Link>
       </div>
     </AuthCard>

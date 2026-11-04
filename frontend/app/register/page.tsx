@@ -7,12 +7,10 @@ import { supabase } from "../../lib/supabase-browser";
 import { authErrorMessage } from "../../lib/error-message";
 import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { useI18n } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
-import {validateEmail, REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
+import {validateEmail, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 import { MailCheck } from "lucide-react";
-
-const REGISTRATION_CLOSED_MESSAGE =
-  "Việc đăng ký tài khoản mới đang tạm đóng. Bạn vui lòng quay lại sau.";
 
 async function isRegistrationOpen(): Promise<boolean> {
   const { data } = await supabase
@@ -24,6 +22,7 @@ async function isRegistrationOpen(): Promise<boolean> {
 }
 
 export default function RegisterPage() {
+  const { t, tx } = useI18n();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,11 +59,11 @@ export default function RegisterPage() {
     const nextErrors: typeof fieldErrors = {};
     const emailError = validateEmail(email);
     if (emailError) nextErrors.email = emailError;
-    if (!password) nextErrors.password = REQUIRED_MESSAGE;
-    else if (password.length < 8) nextErrors.password = "Mật khẩu phải có ít nhất 8 ký tự.";
-    if (!confirmPassword) nextErrors.confirmPassword = REQUIRED_MESSAGE;
+    if (!password) nextErrors.password = requiredMessage();
+    else if (password.length < 8) nextErrors.password = t("auth.passwordTooShort");
+    if (!confirmPassword) nextErrors.confirmPassword = requiredMessage();
     else if (password && password !== confirmPassword)
-      nextErrors.confirmPassword = "Mật khẩu nhập lại không khớp.";
+      nextErrors.confirmPassword = t("auth.passwordMismatch");
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       focusFirstInvalid(form);
@@ -75,7 +74,7 @@ export default function RegisterPage() {
     if (!(await isRegistrationOpen().catch(() => true))) {
       setSubmitting(false);
       setClosed(true);
-      setError(REGISTRATION_CLOSED_MESSAGE);
+      setError(t("auth.register.closed"));
       return;
     }
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -100,9 +99,7 @@ export default function RegisterPage() {
     // Supabase trả về error: null kể cả khi email đã đăng ký (chống dò email),
     // nhưng identities rỗng cho biết đây không phải tài khoản mới — không có email nào được gửi.
     if (signUpData.user && signUpData.user.identities?.length === 0) {
-      setError(
-        "Email này đã được đăng ký. Nếu đây là tài khoản của bạn, hãy đăng nhập hoặc dùng chức năng quên mật khẩu."
-      );
+      setError(t("auth.register.alreadyRegistered"));
       return;
     }
 
@@ -134,10 +131,9 @@ export default function RegisterPage() {
     return (
       <AuthCard>
         <div className="flex flex-col items-center text-center">
-          <h2 className="mb-2 text-lg font-semibold text-foreground">Chưa gửi được email xác nhận</h2>
+          <h2 className="mb-2 text-lg font-semibold text-foreground">{t("auth.register.mailFailedTitle")}</h2>
           <p className="text-sm text-muted">
-            Tài khoản cho <span className="font-mono text-foreground">{email}</span> có thể đã được tạo
-            nhưng email xác nhận chưa gửi đi được. Hãy gửi lại, hoặc đăng nhập nếu bạn đã nhận được email trước đó.
+            {tx("auth.register.mailFailedBody", { email: <span className="font-mono text-foreground">{email}</span> })}
           </p>
           {error && (
             <p role="alert" className="mt-3 text-sm text-danger">
@@ -151,13 +147,13 @@ export default function RegisterPage() {
             onClick={() => void handleResend()}
           >
             {resendState === "sending"
-              ? "Đang gửi…"
+              ? t("auth.sending")
               : resendState === "sent"
-                ? "Đã gửi lại, kiểm tra hộp thư"
-                : "Gửi lại email xác nhận"}
+                ? t("auth.resentShort")
+                : t("auth.resend")}
           </Button>
           <Link href="/login" className="mt-4 text-sm text-accent hover:underline">
-            Đến trang đăng nhập
+            {t("auth.register.toLogin")}
           </Link>
         </div>
       </AuthCard>
@@ -171,11 +167,9 @@ export default function RegisterPage() {
           <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted">
             <MailCheck className="h-5 w-5 text-accent" />
           </span>
-          <h2 className="mb-2 text-lg font-semibold text-foreground">Kiểm tra email</h2>
+          <h2 className="mb-2 text-lg font-semibold text-foreground">{t("auth.checkEmail")}</h2>
           <p className="text-sm text-muted">
-            Mình đã gửi email xác nhận tới{" "}
-            <span className="font-mono text-foreground">{email}</span>. Bấm vào link trong
-            email để hoàn tất đăng ký.
+            {tx("auth.register.sentBody", { email: <span className="font-mono text-foreground">{email}</span> })}
           </p>
         </div>
       </AuthCard>
@@ -184,36 +178,36 @@ export default function RegisterPage() {
 
   return (
     <AuthCard
-      eyebrow="Tạo không gian làm việc"
-      title="Tạo tài khoản STAVE"
-      description="Bắt đầu quản lý phiên bản cho các dự án MIDI của bạn."
+      eyebrow={t("auth.register.eyebrow")}
+      title={t("auth.register.title")}
+      description={t("auth.register.description")}
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-        <AuthField label="Email" error={fieldErrors.email}>
+        <AuthField label={t("auth.email")} error={fieldErrors.email}>
           <input
             name="email"
             autoComplete="email"
             spellCheck={false}
             type="email"
             aria-invalid={fieldErrors.email ? true : undefined}
-            placeholder="ban@email.com"
+            placeholder={t("auth.emailPlaceholder")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        <AuthField label="Mật khẩu" error={fieldErrors.password}>
+        <AuthField label={t("auth.password")} error={fieldErrors.password}>
           <input
             name="new-password"
             autoComplete="new-password"
             type="password"
-            placeholder="Tối thiểu 8 ký tự"
+            placeholder={t("auth.passwordMin")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        <AuthField label="Nhập lại mật khẩu" error={fieldErrors.confirmPassword}>
+        <AuthField label={t("auth.confirmPassword")} error={fieldErrors.confirmPassword}>
           <input
             name="confirm-password"
             autoComplete="new-password"
@@ -226,7 +220,7 @@ export default function RegisterPage() {
         </AuthField>
         {closed && !error && (
           <p role="status" className="text-sm text-muted">
-            {REGISTRATION_CLOSED_MESSAGE}
+            {t("auth.register.closed")}
           </p>
         )}
         {error && (
@@ -235,13 +229,13 @@ export default function RegisterPage() {
           </p>
         )}
         <Button type="submit" disabled={submitting || closed} className="w-full">
-          {submitting ? "Đang tạo tài khoản…" : "Đăng ký"}
+          {submitting ? t("auth.register.creating") : t("auth.register.submit")}
         </Button>
       </form>
       <p className="mt-5 text-center text-sm text-muted">
-        Đã có tài khoản?{" "}
+        {t("auth.haveAccount")}{" "}
         <Link href="/login" className="text-accent hover:underline">
-          Đăng nhập
+          {t("auth.signIn")}
         </Link>
       </p>
     </AuthCard>
