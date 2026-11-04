@@ -128,7 +128,7 @@ function ProfileForm() {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
+    <div className="mb-6 grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="flex flex-col items-start gap-3">
         <Avatar
           id={profile?.id ?? ""}
