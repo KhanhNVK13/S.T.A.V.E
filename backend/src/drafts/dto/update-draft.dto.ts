@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -24,6 +24,10 @@ import type {
   SoundMap,
 } from '@stave/shared-types';
 import { IsSoundMap } from '../../common/decorators/is-sound-map.decorator';
+import {
+  sanitizeTrackName,
+  TRACK_NAME_MAX_LENGTH,
+} from '../../common/utils/sanitize-track-name.util';
 
 /** BR-29: a project may have at most this many tracks. */
 export const MAX_DRAFT_TRACKS = 32;
@@ -46,9 +50,10 @@ export class DraftTrackDto implements DraftTrack {
   id!: string;
 
   /** UC-35 normal flow step 4 / exception 4.E1-4.E2: 1-50 chars, never empty. */
+  @Transform(({ value }: { value: unknown }) => sanitizeTrackName(value))
   @IsString()
   @MinLength(1)
-  @MaxLength(50)
+  @MaxLength(TRACK_NAME_MAX_LENGTH)
   name!: string;
 
   @IsInt()

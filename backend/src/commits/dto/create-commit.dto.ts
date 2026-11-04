@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsUUID,
@@ -17,6 +17,10 @@ import {
 } from 'class-validator';
 import type { SoundMap } from '@stave/shared-types';
 import { IsSoundMap } from '../../common/decorators/is-sound-map.decorator';
+import {
+  sanitizeTrackName,
+  TRACK_NAME_MAX_LENGTH,
+} from '../../common/utils/sanitize-track-name.util';
 
 /** Note structure within snapshot - supports both UUID and auto-generated IDs */
 export class DraftNoteDto {
@@ -59,7 +63,9 @@ export class DraftTrackDto {
   @IsString()
   id?: string;
 
+  @Transform(({ value }: { value: unknown }) => sanitizeTrackName(value))
   @IsString()
+  @MaxLength(TRACK_NAME_MAX_LENGTH)
   name!: string;
 
   @IsNumber()

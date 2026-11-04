@@ -10,6 +10,16 @@ import { getInstrumentById } from "./instruments";
 import { nextTrackColor } from "./track-colors";
 
 
+const TRACK_NAME_MAX_LENGTH = 50;
+
+const UNSAFE_NAME_CHARS =
+  /[\u0000-\u001F\u007F-\u009F\u200E\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+export function sanitizeTrackName(name: string): string {
+  const cleaned = name.replace(UNSAFE_NAME_CHARS, "").trim();
+  return cleaned.slice(0, TRACK_NAME_MAX_LENGTH).replace(UNSAFE_NAME_CHARS, "").trim();
+}
+
 /**
  * Convert a MIDI ArrayBuffer to a DraftSnapshot.
  * Merges into an existing snapshot if provided (keeps meta, appends tracks+notes).
@@ -48,13 +58,9 @@ export function parseMidiBuffer(
     ]);
 
     // Some MIDI files pad the track name meta event with NUL bytes (or other
-    // control chars) to a fixed length. Postgres rejects \u0000 in text/jsonb
-    // outright ("unsupported Unicode escape sequence"), so strip control
-    // chars here rather than letting a raw file byte break the commit/draft
-    // write later.
-    const cleanName = midiTrack.name
-      ? midiTrack.name.replace(/[\u0000-\u001F\u007F]/g, "").trim()
-      : "";
+    // control chars). Postgres rejects \u0000 in text/jsonb, so clean the name
+    // here with the same character set as the backend and cap it at 50.
+    const cleanName = sanitizeTrackName(midiTrack.name ?? "");
 
     // UC-24/UC-30: auto-assign the instrument from the file's own Program
     // Change data (GM program number 0-127) instead of always leaving it
