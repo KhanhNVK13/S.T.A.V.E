@@ -409,11 +409,18 @@ function ProjectOverview({ id }: { id: string }) {
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
-              {data.isOwner && <ProjectHistory key={refreshKey} projectId={data.id} canEdit={!data.archivedAt} />}
+              {(data.isOwner || isCollaborator) && (
+                <ProjectHistory
+                  key={refreshKey}
+                  projectId={data.id}
+                  canEdit={data.isOwner && !data.archivedAt}
+                  canOpenHistory={data.isOwner}
+                />
+              )}
 
               {data.isOwner && <VersionSummary key={refreshKey} projectId={data.id} onOpenTab={switchTab} />}
 
-              <section className={data.isOwner ? "mt-6 border-t border-border pt-4" : ""}>
+              <section className={data.isOwner || isCollaborator ? "mt-6 border-t border-border pt-4" : ""}>
                 <h2 className="mb-2 text-[15px] font-semibold">{t("project.about")}</h2>
                 <p className="max-w-3xl text-[13px] leading-relaxed text-muted">
                   {data.description ?? t("project.noDescription")}

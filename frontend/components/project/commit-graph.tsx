@@ -44,11 +44,13 @@ export function CommitGraph({
   branches,
   commits,
   emptyAction,
+  canOpenHistory = true,
 }: {
   projectId: string;
   branches: Branch[];
   commits: Map<string, BranchHistoryCommit>;
   emptyAction?: ReactNode;
+  canOpenHistory?: boolean;
 }) {
   const { t, locale } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -357,11 +359,13 @@ export function CommitGraph({
               >
                 <GitCompareArrows className="h-3.5 w-3.5" /> {t("projectPage.graphCompare")}
               </Button>
-              <Link href={`/projects/${projectId}?tab=commits&branch=${selected.branch_id}`}>
-                <Button variant="secondary" title={t("bgraph.historyTitle")}>
-                  <History className="h-3.5 w-3.5" /> {t("bgraph.history")}
-                </Button>
-              </Link>
+              {canOpenHistory && (
+                <Link href={`/projects/${projectId}?tab=commits&branch=${selected.branch_id}`}>
+                  <Button variant="secondary" title={t("bgraph.historyTitle")}>
+                    <History className="h-3.5 w-3.5" /> {t("bgraph.history")}
+                  </Button>
+                </Link>
+              )}
             </div>
           </>
         ) : (

@@ -17,7 +17,15 @@ interface GraphData {
   partial: boolean;
 }
 
-export function ProjectHistory({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+export function ProjectHistory({
+  projectId,
+  canEdit,
+  canOpenHistory,
+}: {
+  projectId: string;
+  canEdit: boolean;
+  canOpenHistory: boolean;
+}) {
   const { t } = useI18n();
   const [data, setData] = useState<GraphData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +77,7 @@ export function ProjectHistory({ projectId, canEdit }: { projectId: string; canE
             projectId={projectId}
             branches={data.branches}
             commits={data.commits}
+            canOpenHistory={canOpenHistory}
             emptyAction={
               canEdit ? (
                 <Link href={`/projects/${projectId}/edit`}>
