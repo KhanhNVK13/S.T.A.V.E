@@ -1,4 +1,4 @@
-import { Users, type LucideIcon } from "lucide-react";
+import { Music4, Users, type LucideIcon } from "lucide-react";
 import type { TKey } from "../../lib/i18n";
 
 /**
@@ -17,4 +17,5 @@ export const ADMIN_NAV_ITEMS: {
   icon: LucideIcon;
 }[] = [
   { href: "/admin/users", label: "adm.navUsers", icon: Users },
+  { href: "/admin/jam", label: "nav.jam", icon: Music4 },
 ];
