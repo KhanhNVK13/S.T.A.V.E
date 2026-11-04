@@ -5,6 +5,7 @@ import type { BranchHistoryCommit } from "../../lib/api-client";
 import { Button } from "../ui/button";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { INPUT_CLASS } from "../ui/form";
+import { useI18n } from "../../context/i18n-context";
 
 export function versionLabel(commit: BranchHistoryCommit): string {
   const tag = commit.tags[0]?.name;
@@ -23,6 +24,7 @@ function VersionSelect({
   commits: BranchHistoryCommit[];
   onChange: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const tagged = commits.filter((c) => c.tags.length > 0);
   return (
     <label className="mb-3 flex flex-col gap-1.5 text-[13px]">
@@ -33,7 +35,7 @@ function VersionSelect({
         className={`${INPUT_CLASS} w-full font-mono`}
       >
         {tagged.length > 0 && (
-          <optgroup label="Phiên bản có tag">
+          <optgroup label={t("vpick.tagged")}>
             {tagged.map((c) => (
               <option key={`tag-${c.id}`} value={c.id}>
                 {versionLabel(c)}
@@ -41,7 +43,7 @@ function VersionSelect({
             ))}
           </optgroup>
         )}
-        <optgroup label="Tất cả commit">
+        <optgroup label={t("vpick.all")}>
           {commits.map((c) => (
             <option key={c.id} value={c.id}>
               {versionLabel(c)}
@@ -74,6 +76,7 @@ function PickerBody({
   onClose,
   onConfirm,
 }: Omit<PickerProps, "open">) {
+  const { t } = useI18n();
   const [first, setFirst] = useState(initialIds[0] || commits[0]?.id || "");
   const [second, setSecond] = useState(initialIds[1] || commits[1]?.id || commits[0]?.id || "");
   const [error, setError] = useState<string | null>(null);
@@ -81,14 +84,14 @@ function PickerBody({
   function submit() {
     if (mode === "compare") {
       if (!first || !second || first === second) {
-        setError("Hãy chọn hai phiên bản khác nhau để so sánh.");
+        setError(t("vpick.sameVersion"));
         return;
       }
       onConfirm([first, second]);
       return;
     }
     if (!first) {
-      setError("Hãy chọn phiên bản cần khôi phục.");
+      setError(t("vpick.chooseRestore"));
       return;
     }
     onConfirm([first]);
@@ -96,17 +99,17 @@ function PickerBody({
 
   return (
     <Dialog
-      title={mode === "compare" ? "Chọn phiên bản để so sánh" : "Chọn phiên bản để khôi phục"}
+      title={mode === "compare" ? t("vpick.titleCompare") : t("vpick.titleRestore")}
       onClose={onClose}
       className="max-w-lg p-6"
     >
       <p className="mb-3 text-[13px] text-muted">
         {mode === "compare"
-          ? "Chọn hai phiên bản, kể cả khi chúng nằm ở hai nhánh khác nhau. Phiên bản có tag được xếp lên đầu danh sách."
-          : "Phiên bản có tag được xếp lên đầu danh sách. Bước sau sẽ cho bạn xác nhận trước khi khôi phục."}
+          ? t("vpick.leadCompare")
+          : t("vpick.leadRestore")}
       </p>
       <VersionSelect
-        label={mode === "compare" ? "Phiên bản thứ nhất" : "Phiên bản"}
+        label={mode === "compare" ? t("vpick.first") : t("vpick.version")}
         value={first}
         commits={commits}
         onChange={(id) => {
@@ -116,7 +119,7 @@ function PickerBody({
       />
       {mode === "compare" && (
         <VersionSelect
-          label="Phiên bản thứ hai"
+          label={t("vpick.second")}
           value={second}
           commits={commits}
           onChange={(id) => {
@@ -128,9 +131,9 @@ function PickerBody({
       <DialogError message={error} />
       <DialogActions>
         <Button variant="secondary" onClick={onClose}>
-          Huỷ
+          {t("ui.cancel")}
         </Button>
-        <Button onClick={submit}>{mode === "compare" ? "So sánh" : "Tiếp tục"}</Button>
+        <Button onClick={submit}>{mode === "compare" ? t("vpick.compare") : t("vpick.next")}</Button>
       </DialogActions>
     </Dialog>
   );

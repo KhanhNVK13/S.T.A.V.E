@@ -27,6 +27,7 @@ import { apiErrorMessage } from "../../../../lib/error-message";
 import { useI18n } from "../../../../context/i18n-context";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../../lib/validation";
 import { SkyLoading } from "../../../../components/project/sky-state";
+import { tNow } from "../../../../lib/i18n";
 
 const NAME_MAX = 100;
 
@@ -224,7 +225,7 @@ export default function ProjectSettingsPage() {
         const data = (await getProject(projectId)) as Project;
         setProject(data);
       } catch (err) {
-        setError(apiErrorMessage(err, t("pset.loadFail")));
+        setError(apiErrorMessage(err, tNow("pset.loadFail")));
       } finally {
         setLoading(false);
       }

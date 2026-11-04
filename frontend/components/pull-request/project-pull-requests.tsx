@@ -9,13 +9,9 @@ import { getPullRequestTargetBranches, listProjectPullRequests } from "../../lib
 import type { PullRequestListItem, PullRequestStatus } from "../../lib/api-client";
 import { apiErrorMessage } from "../../lib/error-message";
 import { NewPullRequestDialog } from "./new-pull-request-dialog";
-import { PullRequestList, STATUS_LABEL } from "./pull-request-list";
-
-const STATUS_TABS: Array<{ id: PullRequestStatus; label: string }> = [
-  { id: "open", label: STATUS_LABEL.open },
-  { id: "merged", label: STATUS_LABEL.merged },
-  { id: "closed", label: STATUS_LABEL.closed },
-];
+import { PullRequestList, STATUS_KEY } from "./pull-request-list";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 export function ProjectPullRequests({
   projectId,
@@ -24,6 +20,7 @@ export function ProjectPullRequests({
   projectId: string;
   canCreate: boolean;
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [status, setStatus] = useState<PullRequestStatus>("open");
   const [items, setItems] = useState<PullRequestListItem[]>([]);
@@ -38,7 +35,7 @@ export function ProjectPullRequests({
     try {
       setItems(await listProjectPullRequests(projectId, status));
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được danh sách pull request."));
+      setError(apiErrorMessage(err, tNow("pr.loadFail")));
     } finally {
       setLoading(false);
     }
@@ -64,13 +61,19 @@ export function ProjectPullRequests({
     };
   }, [projectId, canCreate]);
 
+  const statusTabs: Array<{ id: PullRequestStatus; label: string }> = [
+    { id: "open", label: t(STATUS_KEY.open) },
+    { id: "merged", label: t(STATUS_KEY.merged) },
+    { id: "closed", label: t(STATUS_KEY.closed) },
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <Tabs tabs={STATUS_TABS} active={status} onChange={(id) => setStatus(id as PullRequestStatus)} />
+        <Tabs tabs={statusTabs} active={status} onChange={(id) => setStatus(id as PullRequestStatus)} />
         {canCreate && isFork && (
           <Button onClick={() => setDialogOpen(true)}>
-            <GitPullRequest className="h-3.5 w-3.5" /> Pull request mới
+            <GitPullRequest className="h-3.5 w-3.5" /> {t("pr.new")}
           </Button>
         )}
       </div>
@@ -81,7 +84,7 @@ export function ProjectPullRequests({
         <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
           <p>{error}</p>
           <Button variant="secondary" onClick={() => void load()}>
-            Thử lại
+            {t("ui.retry")}
           </Button>
         </div>
       )}

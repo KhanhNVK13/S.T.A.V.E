@@ -8,6 +8,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DialogError } from "../ui/dialog";
 import { useDialog } from "../../lib/use-dialog";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-86 — chọn giữ bên nào cho từng nốt xung đột, gom theo ô nhịp (bar) đúng
@@ -35,6 +36,7 @@ export function MergeConflictDialog({
   onCancel: () => void;
   onResolve: (resolutions: { noteId: string; choice: ConflictChoice }[]) => void;
 }) {
+  const { t, tx } = useI18n();
   // Mặc định giữ bên ta (nhánh đích) — lựa chọn an toàn nhất: không có thay đổi
   // nào của nhánh đích bị mất nếu người dùng bấm xác nhận mà chưa xem kỹ.
   const [choices, setChoices] = useState<Record<string, ConflictChoice>>(() => {
@@ -53,8 +55,8 @@ export function MergeConflictDialog({
   );
 
   function describe(note: MergeNoteConflict["baseNote"], deleted: boolean) {
-    if (deleted || !note) return "Đã xoá nốt";
-    return `${pitchName(note.pitch)} · tick ${note.start} · dài ${note.duration} · velocity ${note.velocity}`;
+    if (deleted || !note) return t("mc.deleted");
+    return t("mc.noteDesc", { pitch: pitchName(note.pitch), start: note.start, duration: note.duration, velocity: note.velocity });
   }
 
   return (
@@ -71,15 +73,13 @@ export function MergeConflictDialog({
           <div>
             <h2 id={titleId} className="flex items-center gap-2 text-[15px] font-semibold">
               <TriangleAlert className="h-4 w-4 text-warning-foreground" />
-              Có xung đột cần xử lý trước khi hợp nhất
+              {t("mc.title")}
             </h2>
             <p className="mt-1 text-xs text-muted">
-              Hợp nhất <span className="font-mono text-foreground">{sourceName}</span> vào{" "}
-              <span className="font-mono text-foreground">{targetName}</span> — cùng một nốt bị
-              sửa khác nhau ở hai nhánh. Chọn giữ bên nào cho từng nốt.
+              {tx("mc.lead", { source: <span className="font-mono text-foreground">{sourceName}</span>, target: <span className="font-mono text-foreground">{targetName}</span> })}
             </p>
           </div>
-          <Badge variant="warning">{result.conflictsCount} xung đột</Badge>
+          <Badge variant="warning">{t("mc.count", { n: result.conflictsCount })}</Badge>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -88,9 +88,9 @@ export function MergeConflictDialog({
               <div className="flex items-center gap-2 bg-surface-subtle px-5 py-2">
                 {/* Backend đã đánh số ô nhịp từ 1 (`Math.floor(start / ticksPerBar) + 1`) —
                     cộng thêm 1 ở đây từng làm mọi ô nhịp hiện lệch lên một. */}
-                <Badge variant="neutral">Ô nhịp {bar}</Badge>
+                <Badge variant="neutral">{t("cmp.bar", { n: bar })}</Badge>
                 <span className="text-xs text-muted">
-                  {result.conflictsByBar[bar].length} nốt
+                  {t("mc.notes", { n: result.conflictsByBar[bar].length })}
                 </span>
               </div>
 
@@ -104,7 +104,7 @@ export function MergeConflictDialog({
                 return (
                   <fieldset key={conflict.noteId} className="px-5 py-3">
                     <legend className="mb-2 font-mono text-xs text-muted">
-                      {conflict.baseNote ? pitchName(conflict.baseNote.pitch) : "Nốt mới"} ·{" "}
+                      {conflict.baseNote ? pitchName(conflict.baseNote.pitch) : t("mc.newNote")} ·{" "}
                       {conflict.noteId.slice(0, 8)}
                     </legend>
 
@@ -127,7 +127,7 @@ export function MergeConflictDialog({
                         />
                         <span className="min-w-0">
                           <span className="block text-xs font-bold uppercase tracking-wide text-muted">
-                            Giữ bên ta · {targetName}
+                            {t("mc.keepOurs", { name: targetName })}
                           </span>
                           <span className="mt-0.5 block font-mono text-xs">
                             {describe(conflict.targetNote, targetDeleted)}
@@ -153,7 +153,7 @@ export function MergeConflictDialog({
                         />
                         <span className="min-w-0">
                           <span className="block text-xs font-bold uppercase tracking-wide text-muted">
-                            Lấy bên kia · {sourceName}
+                            {t("mc.takeTheirs", { name: sourceName })}
                           </span>
                           <span className="mt-0.5 block font-mono text-xs">
                             {describe(conflict.sourceNote, sourceDeleted)}
@@ -175,12 +175,11 @@ export function MergeConflictDialog({
         )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
           <p className="text-xs text-muted">
-            Mặc định giữ bên ta cho mọi nốt — đổi từng nốt ở trên nếu muốn lấy thay đổi của nhánh
-            nguồn.
+            {t("mc.default")}
           </p>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={onCancel} disabled={submitting}>
-              Huỷ
+              {t("ui.cancel")}
             </Button>
             <Button
               onClick={() =>
@@ -191,7 +190,7 @@ export function MergeConflictDialog({
               disabled={submitting}
             >
               <GitMerge className="h-3.5 w-3.5" />
-              {submitting ? "Đang hợp nhất…" : "Xác nhận và hợp nhất"}
+              {submitting ? t("mc.merging") : t("mc.confirm")}
             </Button>
           </div>
         </div>

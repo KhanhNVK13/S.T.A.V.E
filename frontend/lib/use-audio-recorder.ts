@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { tNow } from "./i18n";
 
 /** BR-56 — tự dừng ở 3 phút (UC-53 luồng 5.1). */
 export const MAX_RECORDING_SEC = 180;
@@ -30,7 +31,7 @@ export interface AudioRecorder {
  * khi chạm 3 phút.
  */
 function formatLimit(sec: number): string {
-  return sec >= 60 && sec % 60 === 0 ? `${sec / 60} phút` : `${sec} giây`;
+  return sec >= 60 && sec % 60 === 0 ? tNow("snd.rec.minutes", { n: sec / 60 }) : tNow("snd.rec.seconds", { n: sec });
 }
 
 export function useAudioRecorder(maxSec: number = MAX_RECORDING_SEC): AudioRecorder {
@@ -91,13 +92,13 @@ export function useAudioRecorder(maxSec: number = MAX_RECORDING_SEC): AudioRecor
       if (name === "NotAllowedError" || name === "SecurityError") {
         // UC-53 ngoại lệ 2.E1
         setError(
-          "Bạn đã từ chối quyền dùng micro. Không ghi âm được nếu chưa cấp quyền.",
+          tNow("snd.rec.denied"),
         );
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
         // UC-53 ngoại lệ 2.E2
-        setError("Không tìm thấy micro nào trên thiết bị này.");
+        setError(tNow("snd.rec.none"));
       } else {
-        setError("Không truy cập được micro.");
+        setError(tNow("snd.rec.fail"));
       }
       return;
     }
@@ -121,7 +122,7 @@ export function useAudioRecorder(maxSec: number = MAX_RECORDING_SEC): AudioRecor
       setBlob(recorded);
       setStatus(recorded.size > 0 ? "recorded" : "idle");
       if (recorded.size === 0) {
-        setError("Bản ghi rỗng — không có dữ liệu âm thanh nào được thu.");
+        setError(tNow("snd.rec.empty"));
       }
     };
 
@@ -129,7 +130,7 @@ export function useAudioRecorder(maxSec: number = MAX_RECORDING_SEC): AudioRecor
     stream.getAudioTracks().forEach((track) => {
       track.onended = () => {
         if (recorder.state === "recording") {
-          setWarning("Bản ghi kết thúc sớm vì micro bị ngắt. Phần đã ghi vẫn được giữ.");
+          setWarning(tNow("snd.rec.cutoff"));
           recorder.stop();
         }
       };
@@ -159,7 +160,7 @@ export function useAudioRecorder(maxSec: number = MAX_RECORDING_SEC): AudioRecor
       setElapsedSec(elapsed);
       // UC-53 luồng 5.1 — chạm giới hạn thì tự dừng và nói rõ lý do.
       if (elapsed >= maxSec) {
-        setWarning(`Đã đạt giới hạn ${formatLimit(maxSec)} nên bản ghi tự dừng.`);
+        setWarning(tNow("snd.rec.limit", { limit: formatLimit(maxSec) }));
         if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       }
     }, 100);

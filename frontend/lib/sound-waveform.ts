@@ -1,3 +1,4 @@
+import { tNow } from "./i18n";
 import { computeWaveformPeaks } from "./wav-encoder";
 
 const MAX_CONCURRENT = 2;
@@ -21,7 +22,7 @@ function release() {
 
 async function computePeaks(url: string, bucketCount: number): Promise<number[]> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Không tải được file âm thanh.");
+  if (!res.ok) throw new Error(tNow("snd.waveFail"));
   const context = new OfflineAudioContext(1, 1, 44100);
   const buffer = await context.decodeAudioData(await res.arrayBuffer());
   const peaks = computeWaveformPeaks(buffer, bucketCount);

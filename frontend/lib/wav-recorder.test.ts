@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAudioRecorder, MAX_RECORDING_SEC } from "./use-audio-recorder";
 import { decodeRecording, normalizeForStorage, encodeWav, computeWaveformPeaks, STORAGE_SAMPLE_RATE } from "./wav-encoder";
+import { setLang } from "./i18n";
 import { makeAudioBuffer, blobView, readAscii, readBlob } from "./test-helpers/fake-audio";
 
 // ── Browser API fakes ─────────────────────────────────────────
@@ -123,6 +124,8 @@ async function startRecording(maxSec?: number) {
 const recorder = () => FakeMediaRecorder.instances.at(-1)!;
 
 // ═════════════════════════════════════════════════════════════
+beforeEach(() => setLang("vi"));
+
 describe("FE-LIB-36 useAudioRecorder.start", () => {
   it("FE-LIB-36 UTCID01 (N): microphone granted → status 'recording', MediaRecorder started", async () => {
     const { result } = await startRecording();

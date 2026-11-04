@@ -5,11 +5,11 @@ import type { KeyboardEvent } from "react";
 import Link from "next/link";
 import { History, Tag as TagIcon } from "lucide-react";
 import type { Branch, BranchHistoryCommit } from "../../lib/api-client";
-import { APP_LOCALE } from "../../lib/format-date";
 import { formatAuthorName } from "../../lib/format-name";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { SkyEmpty } from "./sky-state";
+import { useI18n } from "../../context/i18n-context";
 
 const MAX_COMMITS = 60;
 const STEP_X = 48;
@@ -57,6 +57,7 @@ export function BranchGraph({
   branches: Branch[];
   commits: Map<string, BranchHistoryCommit>;
 }) {
+  const { t, locale } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const starsRef = useRef<SVGGElement>(null);
@@ -114,7 +115,7 @@ export function BranchGraph({
 
   if (rows.length === 0) {
     return (
-      <SkyEmpty compact title="Chưa có commit nào để vẽ đồ thị. Mở trình soạn nhạc và commit để bắt đầu." />
+      <SkyEmpty compact title={t("bgraph.empty")} />
     );
   }
 
@@ -195,14 +196,14 @@ export function BranchGraph({
         <ul
           className="relative z-10 shrink-0 border-r border-border bg-surface-subtle"
           style={{ width: LABEL_W, height }}
-          aria-label="Các nhánh"
+          aria-label={t("bgraph.branches")}
         >
           {orderedBranches.map((b, i) => (
             <li
               key={b.id}
               className="absolute left-0 right-0 flex items-center gap-1.5 px-3 text-xs"
               style={{ top: laneY(i) - 10, height: 20 }}
-              title={b.is_default ? `${b.name} (mặc định)` : b.name}
+              title={b.is_default ? t("bgraph.defaultSuffix", { name: b.name }) : b.name}
             >
               <span
                 className="h-2 w-2 shrink-0 rounded-full"
@@ -221,7 +222,7 @@ export function BranchGraph({
             viewBox={`0 0 ${width} ${height}`}
             className="block"
             role="group"
-            aria-label="Đồ thị nhánh dạng chòm sao. Mỗi vì sao là một commit, dùng phím mũi tên để di chuyển và Enter để chọn."
+            aria-label={t("bgraph.graphLabel")}
           >
             <g aria-hidden="true">
               {backdrop.map((d, i) => (
@@ -260,7 +261,7 @@ export function BranchGraph({
                     role="button"
                     tabIndex={col === tabStop ? 0 : -1}
                     aria-pressed={isSelected}
-                    aria-label={`Commit ${commit.id.slice(0, 7)}: ${commit.message}, nhánh ${branchName.get(commit.branch_id) ?? ""}`}
+                    aria-label={t("bgraph.commitLabel", { id: commit.id.slice(0, 7), message: commit.message, branch: branchName.get(commit.branch_id) ?? "" })}
                     className="group cursor-pointer outline-none"
                     onClick={() => setSelectedId(commit.id)}
                     onKeyDown={(e) => {
@@ -315,7 +316,7 @@ export function BranchGraph({
                 <span>{formatAuthorName(selected.author)}</span>
                 <span className="font-mono">{branchName.get(selected.branch_id)}</span>
                 <span>
-                  {new Date(selected.created_at).toLocaleString(APP_LOCALE, {
+                  {new Date(selected.created_at).toLocaleString(locale, {
                     day: "2-digit",
                     month: "2-digit",
                     hour: "2-digit",
@@ -330,22 +331,21 @@ export function BranchGraph({
               </p>
             </div>
             <Link href={`/projects/${projectId}?tab=commits&branch=${selected.branch_id}`}>
-              <Button variant="secondary" title="Xem lịch sử commit của nhánh này">
-                <History className="h-3.5 w-3.5" /> Lịch sử nhánh
+              <Button variant="secondary" title={t("bgraph.historyTitle")}>
+                <History className="h-3.5 w-3.5" /> {t("bgraph.history")}
               </Button>
             </Link>
           </>
         ) : (
           <p className="text-muted">
-            Chọn một vì sao để xem commit. Vì sao lớn là đầu nhánh, vì sao rỗng là commit hợp nhất (nét
-            đứt).
+            {t("bgraph.hint")}
           </p>
         )}
       </div>
 
       {all.length > MAX_COMMITS && (
         <p className="border-t border-border px-3.5 py-2 text-xs text-muted">
-          Hiển thị {MAX_COMMITS} commit mới nhất trong tổng số {all.length}.
+          {t("bgraph.showing", { max: MAX_COMMITS, total: all.length })}
         </p>
       )}
     </div>
