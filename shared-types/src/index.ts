@@ -33,14 +33,18 @@ export type SoundMap = Record<string, string>;
 
 export const MAX_SOUND_MAP_ENTRIES = 128;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Keeps only valid "pitch → sound id" entries; returns undefined when nothing valid is left. */
 export function sanitizeSoundMap(value: unknown): SoundMap | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return undefined;
   const out: SoundMap = {};
   let count = 0;
-  for (const [key, soundId] of Object.entries(value as Record<string, unknown>)) {
+  for (const [key, soundId] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
     if (count >= MAX_SOUND_MAP_ENTRIES) break;
     if (!/^\d{1,3}$/.test(key)) continue;
     const pitch = Number(key);
@@ -97,7 +101,7 @@ export interface PublicProjectCard {
   name: string;
   description: string | null;
   genre: string | null;
-  visibility: 'public';
+  visibility: "public";
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -105,6 +109,32 @@ export interface PublicProjectCard {
   fork_count: number;
   owner: PublicProjectOwner;
   tags: string[];
+}
+
+/** Public commit-graph payload — GET /explore/projects/:id/graph. Metadata only, never snapshots. */
+export interface PublicGraphBranch {
+  id: string;
+  name: string;
+  is_default: boolean;
+  head_commit_id: string | null;
+}
+
+export interface PublicGraphCommit {
+  id: string;
+  branch_id: string;
+  parent_commit_id: string | null;
+  merged_from_commit_id: string | null;
+  message: string;
+  created_at: string;
+  author: PublicProjectOwner;
+}
+
+export interface PublicProjectGraph {
+  branches: PublicGraphBranch[];
+  /** Oldest → newest. A parent may be absent when the window was truncated. */
+  commits: PublicGraphCommit[];
+  /** Total commits in the project (>= commits.length). */
+  total: number;
 }
 
 export interface PublicUserProfile {
@@ -158,7 +188,9 @@ export const ORCHESTRA_KIT_INSTRUMENT_NAME = "Orchestra Drum Kit";
 export const DRUM_KIT_ID_OFFSET = 128;
 
 export function isDrumKitInstrument(name: string | null): name is string {
-  return name === DRUM_KIT_INSTRUMENT_NAME || name === ORCHESTRA_KIT_INSTRUMENT_NAME;
+  return (
+    name === DRUM_KIT_INSTRUMENT_NAME || name === ORCHESTRA_KIT_INSTRUMENT_NAME
+  );
 }
 
 export interface GMInstrument {
@@ -329,8 +361,16 @@ export const GM_INSTRUMENTS: GMInstrument[] = [
   { id: 127, name: "Gunshot", category: "Sound Effects" },
 
   // ── Drum Kits (channel 10) — id = DRUM_KIT_ID_OFFSET + kit program ──
-  { id: DRUM_KIT_ID_OFFSET + 0, name: DRUM_KIT_INSTRUMENT_NAME, category: "Drum Kit" },
-  { id: DRUM_KIT_ID_OFFSET + 48, name: ORCHESTRA_KIT_INSTRUMENT_NAME, category: "Drum Kit" },
+  {
+    id: DRUM_KIT_ID_OFFSET + 0,
+    name: DRUM_KIT_INSTRUMENT_NAME,
+    category: "Drum Kit",
+  },
+  {
+    id: DRUM_KIT_ID_OFFSET + 48,
+    name: ORCHESTRA_KIT_INSTRUMENT_NAME,
+    category: "Drum Kit",
+  },
 ];
 
 /** Flat list of valid instrument names — used for server-side `@IsIn` validation. */
@@ -346,14 +386,14 @@ export const GM_INSTRUMENT_NAMES: string[] = GM_INSTRUMENTS.map((i) => i.name);
  * backend always render the same set.
  */
 export const REPORT_REASONS = [
-  { key: 'copyright', label: 'Vi phạm bản quyền' },
-  { key: 'inappropriate', label: 'Nội dung không phù hợp' },
-  { key: 'spam', label: 'Spam hoặc lừa đảo' },
-  { key: 'harassment', label: 'Quấy rối' },
-  { key: 'other', label: 'Khác' },
+  { key: "copyright", label: "Vi phạm bản quyền" },
+  { key: "inappropriate", label: "Nội dung không phù hợp" },
+  { key: "spam", label: "Spam hoặc lừa đảo" },
+  { key: "harassment", label: "Quấy rối" },
+  { key: "other", label: "Khác" },
 ] as const;
 
-export type ReportReason = (typeof REPORT_REASONS)[number]['key'];
+export type ReportReason = (typeof REPORT_REASONS)[number]["key"];
 
 /** Minimal commit row returned by create/restore endpoints */
 export interface CommitRow {
@@ -442,8 +482,8 @@ export function draftNoteToJamNote(note: DraftNote): {
 }
 
 // Collaboration (UC-60/61/62) — shapes shared with `backend/src/collaboration/`.
-export type * from './collaboration';
+export type * from "./collaboration";
 // Comments (UC-63 — pinned comment) — shapes shared with `backend/src/comments/`.
-export type * from './comments';
+export type * from "./comments";
 // Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
-export type * from './jam';
+export type * from "./jam";
