@@ -8,12 +8,14 @@ import { authErrorMessage } from "../../lib/error-message";
 import { apiFetch, setStoredSessionId } from "../../lib/api-client";
 import { setFlashToast } from "../../lib/flash-toast";
 import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
-import {REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
+import {requiredMessage, focusFirstInvalid } from "../../lib/validation";
 import { useAuth } from "../../context/auth-context";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
+import { useT } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
 
 export default function ResetPasswordPage() {
+  const t = useT();
   const router = useRouter();
   const { session, loading } = useAuth();
   const [password, setPassword] = useState("");
@@ -34,11 +36,11 @@ export default function ResetPasswordPage() {
     setError(null);
 
     const nextErrors: typeof fieldErrors = {};
-    if (!password) nextErrors.password = REQUIRED_MESSAGE;
-    else if (password.length < 8) nextErrors.password = "Mật khẩu phải có ít nhất 8 ký tự.";
-    if (!confirmPassword) nextErrors.confirmPassword = REQUIRED_MESSAGE;
+    if (!password) nextErrors.password = requiredMessage();
+    else if (password.length < 8) nextErrors.password = t("auth.passwordTooShort");
+    if (!confirmPassword) nextErrors.confirmPassword = requiredMessage();
     else if (password && password !== confirmPassword)
-      nextErrors.confirmPassword = "Mật khẩu nhập lại không khớp.";
+      nextErrors.confirmPassword = t("auth.passwordMismatch");
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       focusFirstInvalid(form);
@@ -71,8 +73,8 @@ export default function ResetPasswordPage() {
     setSubmitting(false);
     setFlashToast(
       othersSignedOut
-        ? "Đã đặt mật khẩu mới. Các thiết bị khác đã bị đăng xuất."
-        : "Đã đặt mật khẩu mới, nhưng chưa đăng xuất được các thiết bị khác. Hãy vào Cài đặt > Bảo mật > Thiết bị đang đăng nhập để kiểm tra.",
+        ? t("auth.reset.doneOthersOut")
+        : t("auth.reset.doneOthersFailed"),
       othersSignedOut ? "success" : "warning",
     );
     router.push(DEFAULT_AFTER_LOGIN_PATH);
@@ -83,7 +85,7 @@ export default function ResetPasswordPage() {
       <AuthCard>
         <div className="flex flex-col items-center gap-2 py-4 text-sm text-muted">
           <Loader2 className="h-5 w-5 animate-spin text-accent" />
-          Đang xử lý link…
+          {t("auth.reset.processing")}
         </div>
       </AuthCard>
     );
@@ -91,9 +93,9 @@ export default function ResetPasswordPage() {
 
   if (!session) {
     return (
-      <AuthCard title="Link không hợp lệ hoặc đã hết hạn">
+      <AuthCard title={t("auth.reset.invalidTitle")}>
         <p className="text-sm text-muted">
-          Yêu cầu 1 link đặt lại mật khẩu mới ở trang Quên mật khẩu.
+          {t("auth.reset.invalidBody")}
         </p>
       </AuthCard>
     );
@@ -101,23 +103,23 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthCard
-      eyebrow="Bảo mật tài khoản"
-      title="Đặt mật khẩu mới"
-      description="Chọn mật khẩu mới có ít nhất 8 ký tự."
+      eyebrow={t("auth.reset.eyebrow")}
+      title={t("auth.reset.title")}
+      description={t("auth.reset.description")}
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-        <AuthField label="Mật khẩu mới" error={fieldErrors.password}>
+        <AuthField label={t("auth.reset.newPassword")} error={fieldErrors.password}>
           <input
             name="new-password"
             autoComplete="new-password"
             type="password"
-            placeholder="Tối thiểu 8 ký tự"
+            placeholder={t("auth.passwordMin")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={AUTH_INPUT_CLASS}
           />
         </AuthField>
-        <AuthField label="Nhập lại mật khẩu mới" error={fieldErrors.confirmPassword}>
+        <AuthField label={t("auth.reset.confirmNew")} error={fieldErrors.confirmPassword}>
           <input
             name="confirm-password"
             autoComplete="new-password"
@@ -134,7 +136,7 @@ export default function ResetPasswordPage() {
           </p>
         )}
         <Button type="submit" disabled={submitting} className="w-full">
-          {submitting ? "Đang lưu…" : "Đặt mật khẩu mới"}
+          {submitting ? t("auth.reset.saving") : t("auth.reset.submit")}
         </Button>
       </form>
     </AuthCard>

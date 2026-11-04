@@ -8,6 +8,7 @@ import { RequireAuth } from "../../../components/require-auth";
 import { createProject } from "../../../lib/api-client";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Card } from "../../../components/ui/card";
+import { useT } from "../../../context/i18n-context";
 import { Button } from "../../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../../components/ui/form";
 import { apiErrorMessage } from "../../../lib/error-message";
@@ -15,9 +16,9 @@ import { setFlashToast } from "../../../lib/flash-toast";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../lib/validation";
 
 const NAME_MAX = 100;
-const NAME_REQUIRED = "Vui lòng nhập tên dự án.";
 
 export default function NewProjectPage() {
+  const t = useT();
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -31,7 +32,7 @@ export default function NewProjectPage() {
     if (submitting) return;
     const form = e.currentTarget;
     const invalid =
-      validateRequired(name, NAME_REQUIRED) ?? validateMaxLength(name, NAME_MAX, "Tên dự án");
+      validateRequired(name, t("new.nameRequired")) ?? validateMaxLength(name, NAME_MAX, t("new.nameLabel"));
     setNameError(invalid);
     if (invalid) {
       focusFirstInvalid(form);
@@ -47,10 +48,10 @@ export default function NewProjectPage() {
         description: description.trim() || null,
         genre: genre.trim() || null,
       })) as { id?: string } | null;
-      setFlashToast("Đã tạo dự án.");
+      setFlashToast(t("new.created"));
       router.push(created?.id ? `/projects/${created.id}/edit` : "/projects");
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tạo được dự án."));
+      setError(apiErrorMessage(err, t("new.fail")));
     } finally {
       // Only re-enable on error; on success we navigate away anyway
       setSubmitting(false);
@@ -64,9 +65,9 @@ export default function NewProjectPage() {
           href="/projects"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-accent hover:underline"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách dự án
+          <ArrowLeft className="h-3.5 w-3.5" /> {t("new.back")}
         </Link>
-        <PageHeader title="Tạo dự án mới" breadcrumbs={[{ label: "Dự án của tôi", href: "/projects" }]} />
+        <PageHeader title={t("new.title")} breadcrumbs={[{ label: t("nav.projects"), href: "/projects" }]} />
 
         {error && (
           <div className="mb-4 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">
@@ -76,7 +77,7 @@ export default function NewProjectPage() {
 
         <Card className="p-6">
           <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
-            <Field label="Tên dự án *" error={nameError}>
+            <Field label={t("new.nameField")} error={nameError}>
               <input
                 name="name"
                 autoComplete="off"
@@ -87,11 +88,11 @@ export default function NewProjectPage() {
                   setNameError(null);
                 }}
                 className={`${INPUT_CLASS} h-[37px]`}
-                placeholder="Nhập tên dự án"
+                placeholder={t("new.namePlaceholder")}
               />
             </Field>
 
-            <Field label="Mô tả">
+            <Field label={t("new.description")}>
               <textarea
                 name="description"
                 value={description}
@@ -99,11 +100,11 @@ export default function NewProjectPage() {
                 maxLength={2000}
                 rows={4}
                 className={`${INPUT_CLASS} h-[37px]`}
-                placeholder="Mô tả ngắn về dự án của bạn"
+                placeholder={t("new.descriptionPlaceholder")}
               />
             </Field>
 
-            <Field label="Thể loại">
+            <Field label={t("new.genre")}>
               <input
                 name="genre"
                 autoComplete="off"
@@ -112,17 +113,17 @@ export default function NewProjectPage() {
                 onChange={(e) => setGenre(e.target.value)}
                 maxLength={60}
                 className={`${INPUT_CLASS} h-[37px]`}
-                placeholder="Ví dụ: Pop, Rock, Jazz"
+                placeholder={t("new.genrePlaceholder")}
               />
             </Field>
 
             <div className="flex gap-3">
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Đang tạo…" : "Tạo dự án"}
+                {submitting ? t("new.creating") : t("new.submit")}
               </Button>
               <Link href="/projects">
                 <Button type="button" variant="secondary">
-                  Huỷ
+                  {t("ui.cancel")}
                 </Button>
               </Link>
             </div>

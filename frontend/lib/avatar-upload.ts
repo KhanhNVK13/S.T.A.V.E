@@ -4,14 +4,15 @@ import {
   type AvatarContentType,
 } from "./api-client";
 import { supabase } from "./supabase-browser";
+import { tNow } from "./i18n";
 
 export const AVATAR_MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 export const AVATAR_SIZE_PX = 256;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export function validateAvatarFile(file: File): string | null {
-  if (!ACCEPTED_TYPES.includes(file.type)) return "Ảnh đại diện chỉ nhận file JPG, PNG hoặc WebP.";
-  if (file.size > AVATAR_MAX_SOURCE_BYTES) return "Ảnh lớn hơn 10 MB nên không dùng được. Hãy chọn ảnh nhỏ hơn.";
+  if (!ACCEPTED_TYPES.includes(file.type)) return tNow("profile.avatarBadType");
+  if (file.size > AVATAR_MAX_SOURCE_BYTES) return tNow("profile.avatarTooBig");
   return null;
 }
 

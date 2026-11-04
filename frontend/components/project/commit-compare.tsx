@@ -11,7 +11,9 @@ import { Button } from "../ui/button";
 import { INPUT_CLASS } from "../ui/form";
 import { useDialog } from "../../lib/use-dialog";
 import { apiErrorMessage } from "../../lib/error-message";
-import { APP_LOCALE } from "../../lib/format-date";
+import { appLocale } from "../../lib/format-date";
+import { tNow } from "../../lib/i18n";
+import { useI18n } from "../../context/i18n-context";
 import { resolveAndLoadCustomSounds } from "../../lib/custom-sound-buffers";
 import { SnapshotPlayer } from "../../lib/snapshot-player";
 
@@ -43,7 +45,7 @@ const KIND_FILL: Record<NoteKind, string> = {
 };
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleString(APP_LOCALE, {
+  return new Date(iso).toLocaleString(appLocale(), {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -52,44 +54,44 @@ function formatTime(iso: string) {
 }
 
 function formatPan(pan: number) {
-  if (Math.abs(pan) < 0.005) return "Giữa";
-  return `${pan < 0 ? "Trái" : "Phải"} ${Math.round(Math.abs(pan) * 100)}`;
+  if (Math.abs(pan) < 0.005) return tNow("cmp.panCenter");
+  return `${pan < 0 ? tNow("cmp.panLeft") : tNow("cmp.panRight")} ${Math.round(Math.abs(pan) * 100)}`;
 }
 
 function describeMeta(change: SnapshotMetaChange) {
   const show = (v: unknown) =>
     Array.isArray(v) ? v.join("/") : v === undefined || v === null ? "—" : String(v);
   const label =
-    change.field === "tempo" ? "Tempo (BPM)" : change.field === "timeSignature" ? "Nhịp" : "PPQ";
+    change.field === "tempo" ? tNow("cmp.fieldTempo") : change.field === "timeSignature" ? tNow("cmp.fieldTimeSig") : "PPQ";
   return { label, from: show(change.old), to: show(change.new) };
 }
 
 /** Liệt kê từng thuộc tính track đổi — để người dùng thấy ĐỔI GÌ, không chỉ "track đã sửa". */
 function trackFieldChanges(a: DraftTrack, b: DraftTrack) {
   const out: { label: string; from: string; to: string }[] = [];
-  if (a.name !== b.name) out.push({ label: "Tên", from: a.name, to: b.name });
+  if (a.name !== b.name) out.push({ label: tNow("cmp.fieldName"), from: a.name, to: b.name });
   if ((a.instrument ?? null) !== (b.instrument ?? null))
     out.push({
-      label: "Nhạc cụ",
-      from: a.instrument ?? "Mặc định",
-      to: b.instrument ?? "Mặc định",
+      label: tNow("cmp.fieldInstrument"),
+      from: a.instrument ?? tNow("cmp.default"),
+      to: b.instrument ?? tNow("cmp.default"),
     });
   if (a.volume !== b.volume)
     out.push({
-      label: "Âm lượng",
+      label: tNow("cmp.fieldVolume"),
       from: `${Math.round(a.volume * 100)}%`,
       to: `${Math.round(b.volume * 100)}%`,
     });
   if (a.pan !== b.pan) out.push({ label: "Pan", from: formatPan(a.pan), to: formatPan(b.pan) });
   if (a.muted !== b.muted)
-    out.push({ label: "Tắt tiếng", from: a.muted ? "Bật" : "Tắt", to: b.muted ? "Bật" : "Tắt" });
+    out.push({ label: tNow("cmp.fieldMute"), from: a.muted ? tNow("cmp.on") : tNow("cmp.off"), to: b.muted ? tNow("cmp.on") : tNow("cmp.off") });
   if (a.solo !== b.solo)
-    out.push({ label: "Solo", from: a.solo ? "Bật" : "Tắt", to: b.solo ? "Bật" : "Tắt" });
-  if (a.color !== b.color) out.push({ label: "Màu", from: a.color, to: b.color });
+    out.push({ label: "Solo", from: a.solo ? tNow("cmp.on") : tNow("cmp.off"), to: b.solo ? tNow("cmp.on") : tNow("cmp.off") });
+  if (a.color !== b.color) out.push({ label: tNow("cmp.fieldColor"), from: a.color, to: b.color });
   if (a.order !== b.order)
-    out.push({ label: "Thứ tự", from: String(a.order + 1), to: String(b.order + 1) });
+    out.push({ label: tNow("cmp.fieldOrder"), from: String(a.order + 1), to: String(b.order + 1) });
   if (!sameSoundMap(a.soundMap, b.soundMap))
-    out.push({ label: "Âm thanh riêng", from: describeSoundMap(a.soundMap), to: describeSoundMap(b.soundMap) });
+    out.push({ label: tNow("cmp.fieldSounds"), from: describeSoundMap(a.soundMap), to: describeSoundMap(b.soundMap) });
   return out;
 }
 
@@ -100,11 +102,11 @@ function sameSoundMap(a: DraftTrack["soundMap"], b: DraftTrack["soundMap"]) {
 
 function describeSoundMap(map: DraftTrack["soundMap"]) {
   const pitches = Object.keys(map ?? {}).map(Number).sort((x, y) => x - y);
-  return pitches.length === 0 ? "Không có" : `Nốt ${pitches.map(pitchName).join(", ")}`;
+  return pitches.length === 0 ? tNow("cmp.none") : tNow("cmp.soundNotes", { list: pitches.map(pitchName).join(", ") });
 }
 
 function describeNote(n: DraftNote) {
-  return `${pitchName(n.pitch)} · tick ${n.start} · dài ${n.duration} · vel ${n.velocity}`;
+  return tNow("cmp.noteDesc", { pitch: pitchName(n.pitch), start: n.start, duration: n.duration, velocity: n.velocity });
 }
 
 /**
@@ -127,6 +129,7 @@ export function CommitCompare({
   target: CompareSide;
   onClose: () => void;
 }) {
+  const { t: tt } = useI18n();
   const [base, setBase] = useState(initialBase);
   const [target, setTarget] = useState(initialTarget);
   const [diff, setDiff] = useState<SnapshotDiff | null>(null);
@@ -176,13 +179,13 @@ export function CommitCompare({
         setPlayBusy(false);
       });
       if (!started) {
-        setPlayError("Phiên bản này chưa có nốt nào để nghe.");
+        setPlayError(tt("cmp.nothingToPlay"));
         setPlayBusy(false);
         return;
       }
       setPlaying(side);
     } catch (err) {
-      setPlayError(apiErrorMessage(err, "Không phát được phiên bản này."));
+      setPlayError(apiErrorMessage(err, tt("cmp.playFail")));
     } finally {
       setPlayBusy(false);
     }
@@ -200,12 +203,12 @@ export function CommitCompare({
       if (cancelled) return;
       if (b.status === "rejected" || t.status === "rejected") {
         const which = [
-          b.status === "rejected" ? `phiên bản gốc (${base.id.slice(0, 7)})` : null,
-          t.status === "rejected" ? `phiên bản đem so (${target.id.slice(0, 7)})` : null,
+          b.status === "rejected" ? tNow("cmp.baseVersion", { id: base.id.slice(0, 7) }) : null,
+          t.status === "rejected" ? tNow("cmp.targetVersion", { id: target.id.slice(0, 7) }) : null,
         ]
           .filter(Boolean)
-          .join(" và ");
-        setError(`Không đọc được ${which}.`);
+          .join(tNow("cmp.and"));
+        setError(tNow("cmp.readFail", { which }));
         setLoading(false);
         return;
       }
@@ -217,7 +220,7 @@ export function CommitCompare({
         setDiff(result);
       } catch (err) {
         if (!cancelled)
-          setError(apiErrorMessage(err, "Không so sánh được hai phiên bản."));
+          setError(apiErrorMessage(err, tNow("cmp.compareFail")));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -319,14 +322,14 @@ export function CommitCompare({
           <div className="min-w-0">
             <h2 id={titleId} className="flex items-center gap-2 text-[15px] font-semibold">
               <GitCompareArrows className="h-4 w-4 text-muted" />
-              So sánh phiên bản
+              {tt("cmp.title")}
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <VersionChip label="Gốc" side={base} />
-              <Button variant="ghost" onClick={swap} title="Đảo chiều so sánh" disabled={loading}>
-                <ArrowLeftRight className="h-3.5 w-3.5" /> Đảo chiều
+              <VersionChip label={tt("cmp.base")} side={base} />
+              <Button variant="ghost" onClick={swap} title={tt("cmp.swapTitle")} disabled={loading}>
+                <ArrowLeftRight className="h-3.5 w-3.5" /> {tt("cmp.swap")}
               </Button>
-              <VersionChip label="Đem so" side={target} />
+              <VersionChip label={tt("cmp.target")} side={target} />
             </div>
             {baseSnap && targetSnap && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -339,10 +342,10 @@ export function CommitCompare({
                     aria-pressed={playing === side}
                   >
                     {playing === side ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                    {playing === side ? "Dừng" : side === "base" ? "Nghe bản gốc" : "Nghe bản đem so"}
+                    {playing === side ? tt("cmp.stop") : side === "base" ? tt("cmp.listenBase") : tt("cmp.listenTarget")}
                   </Button>
                 ))}
-                {playBusy && <span className="text-xs text-muted">Đang chuẩn bị âm thanh…</span>}
+                {playBusy && <span className="text-xs text-muted">{tt("cmp.preparing")}</span>}
                 {playError && (
                   <span role="alert" className="text-xs text-danger">
                     {playError}
@@ -351,7 +354,7 @@ export function CommitCompare({
               </div>
             )}
           </div>
-          <Button variant="ghost" onClick={onClose} aria-label="Đóng">
+          <Button variant="ghost" onClick={onClose} aria-label={tt("cmp.close")}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -359,7 +362,7 @@ export function CommitCompare({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
             <p className="flex items-center gap-2 py-10 text-xs text-muted">
-              <Loader2 className="h-4 w-4 animate-spin" /> Đang so sánh…
+              <Loader2 className="h-4 w-4 animate-spin" /> {tt("cmp.comparing")}
             </p>
           ) : error ? (
             <div className="rounded-card border border-danger/20 bg-danger-muted px-4 py-3">
@@ -369,33 +372,31 @@ export function CommitCompare({
                 className="mt-2"
                 onClick={() => setReloadKey((k) => k + 1)}
               >
-                Thử lại
+                {tt("ui.retry")}
               </Button>
             </div>
           ) : diff?.areIdentical ? (
             // 3.E1: nói rõ "không có gì đổi" thay vì vẽ lưới trống.
             <p className="rounded-card border border-dashed border-border bg-surface-subtle px-4 py-10 text-center text-sm">
-              Hai phiên bản giống hệt nhau — không có thay đổi nào.
+              {tt("cmp.identical")}
             </p>
           ) : diff ? (
             <div className="flex flex-col gap-5">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="success">+{diff.summary.notes.added} nốt thêm</Badge>
-                <Badge variant="danger">−{diff.summary.notes.removed} nốt xoá</Badge>
-                <Badge variant="warning">~{diff.summary.notes.modified} nốt sửa</Badge>
+                <Badge variant="success">{tt("cmp.notesAdded", { n: diff.summary.notes.added })}</Badge>
+                <Badge variant="danger">{tt("cmp.notesRemoved", { n: diff.summary.notes.removed })}</Badge>
+                <Badge variant="warning">{tt("cmp.notesModified", { n: diff.summary.notes.modified })}</Badge>
                 {diff.summary.tracks.added + diff.summary.tracks.removed + diff.summary.tracks.modified >
                   0 && (
                   <Badge variant="neutral">
-                    Track: +{diff.summary.tracks.added} −{diff.summary.tracks.removed} ~
-                    {diff.summary.tracks.modified}
+                    {tt("cmp.tracksSummary", diff.summary.tracks)}
                   </Badge>
                 )}
               </div>
 
               {nothingReported && (
                 <p className="text-xs text-muted">
-                  Hai phiên bản khác nhau ở dữ liệu nội bộ (VD: phiên bản định dạng) nhưng không có
-                  thay đổi nào về nốt, track hay tempo.
+                  {tt("cmp.internalOnly")}
                 </p>
               )}
 
@@ -405,7 +406,7 @@ export function CommitCompare({
                 diff.tracksDiff.modified.length > 0) && (
                 <section className="overflow-hidden rounded-card border border-border">
                   <h3 className="border-b border-border bg-surface-subtle px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-muted">
-                    Thay đổi dự án & track
+                    {tt("cmp.projectChanges")}
                   </h3>
                   <ul className="divide-y divide-border text-xs">
                     {diff.metaChanges.map((c) => {
@@ -421,28 +422,26 @@ export function CommitCompare({
                     })}
                     {diff.tracksDiff.added.map((t) => (
                       <li key={`a-${t.id}`} className="flex flex-wrap items-center gap-2 px-3.5 py-2">
-                        <Badge variant="success">Thêm track</Badge>
+                        <Badge variant="success">{tt("cmp.trackAdded")}</Badge>
                         <span className="font-semibold">{t.name}</span>
                         <span className="text-muted">
-                          {t.instrument ?? "Nhạc cụ mặc định"} ·{" "}
-                          {diff.tracksDiff.noteCounts[t.id] ?? 0} nốt
+                          {t.instrument ?? tt("cmp.defaultInstrument")} · {tt("cmp.noteCount", { n: diff.tracksDiff.noteCounts[t.id] ?? 0 })}
                         </span>
                       </li>
                     ))}
                     {diff.tracksDiff.removed.map((t) => (
                       <li key={`r-${t.id}`} className="flex flex-wrap items-center gap-2 px-3.5 py-2">
-                        <Badge variant="danger">Xoá track</Badge>
+                        <Badge variant="danger">{tt("cmp.trackRemoved")}</Badge>
                         <span className="font-semibold">{t.name}</span>
                         <span className="text-muted">
-                          {t.instrument ?? "Nhạc cụ mặc định"} ·{" "}
-                          {diff.tracksDiff.noteCounts[t.id] ?? 0} nốt
+                          {t.instrument ?? tt("cmp.defaultInstrument")} · {tt("cmp.noteCount", { n: diff.tracksDiff.noteCounts[t.id] ?? 0 })}
                         </span>
                       </li>
                     ))}
                     {diff.tracksDiff.modified.map(({ old, new: next }) => (
                       <li key={`m-${next.id}`} className="flex flex-col gap-1 px-3.5 py-2">
                         <span className="flex items-center gap-2">
-                          <Badge variant="warning">Sửa track</Badge>
+                          <Badge variant="warning">{tt("cmp.trackModified")}</Badge>
                           <span className="font-semibold">{next.name}</span>
                         </span>
                         <span className="flex flex-wrap gap-x-4 gap-y-1 text-muted">
@@ -464,18 +463,18 @@ export function CommitCompare({
               <section>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
-                    <Legend className="bg-success" label="Thêm" />
-                    <Legend className="bg-danger" label="Xoá" />
-                    <Legend className="bg-warning" label="Sửa (viền = vị trí cũ)" />
-                    <Legend className="bg-border-strong" label="Không đổi" />
+                    <Legend className="bg-success" label={tt("cmp.legendAdded")} />
+                    <Legend className="bg-danger" label={tt("cmp.legendRemoved")} />
+                    <Legend className="bg-warning" label={tt("cmp.legendModified")} />
+                    <Legend className="bg-border-strong" label={tt("cmp.legendUnchanged")} />
                   </div>
                   <select
                     value={trackFilter}
                     onChange={(e) => setTrackFilter(e.target.value)}
                     className={`${INPUT_CLASS} h-8 w-auto`}
-                    aria-label="Lọc theo track"
+                    aria-label={tt("cmp.filterTrack")}
                   >
-                    <option value="all">Tất cả track</option>
+                    <option value="all">{tt("cmp.allTracks")}</option>
                     {allTracks.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
@@ -491,13 +490,13 @@ export function CommitCompare({
               {bars.length > 0 && (
                 <section className="overflow-hidden rounded-card border border-border">
                   <h3 className="border-b border-border bg-surface-subtle px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-muted">
-                    Chi tiết theo ô nhịp
+                    {tt("cmp.byBar")}
                   </h3>
                   <div className="divide-y divide-border">
                     {bars.map((b) => (
                       <details key={b.bar} className="group">
                         <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3.5 py-2 text-xs hover:bg-surface-subtle">
-                          <Badge variant="neutral">Ô nhịp {b.bar}</Badge>
+                          <Badge variant="neutral">{tt("cmp.bar", { n: b.bar })}</Badge>
                           {b.added.length > 0 && <span className="text-success-foreground">+{b.added.length}</span>}
                           {b.removed.length > 0 && <span className="text-danger">−{b.removed.length}</span>}
                           {b.modified.length > 0 && (
@@ -560,10 +559,11 @@ function Legend({ className, label }: { className: string; label: string }) {
  * `resolve-css-colors`.
  */
 function DiffGrid({ notes, meta }: { notes: GridNote[]; meta: DraftSnapshot["meta"] }) {
+  const { t: tt } = useI18n();
   if (notes.length === 0) {
     return (
       <p className="rounded-card border border-dashed border-border px-4 py-8 text-center text-xs text-muted">
-        Track này không có nốt nào ở cả hai phiên bản.
+        {tt("cmp.gridEmpty")}
       </p>
     );
   }

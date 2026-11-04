@@ -1,17 +1,18 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useT } from "../context/i18n-context";
 import { isLandingPath } from "./landing/landing-paths";
 
 export function SiteCredits({ className = "" }: { className?: string }) {
+  const t = useT();
   return (
     <div className={className}>
       <p>
-        STAVE — Source Tracking and Version Control Environment for Music
-        Projects.
+        {t("footer.tagline")}
       </p>
       <p className="mt-1">
-        Instrument sounds: FluidR3_GM SoundFont by Frank Wen, via{" "}
+        {t("footer.sounds")}{" "}
         <a
           href="https://github.com/gleitz/midi-js-soundfonts"
           target="_blank"
@@ -20,7 +21,7 @@ export function SiteCredits({ className = "" }: { className?: string }) {
         >
           gleitz/midi-js-soundfonts
         </a>{" "}
-        (CC BY 3.0). Drum kits: GeneralUser GS by S. Christian Collins,{" "}
+        {t("footer.drums")}{" "}
         <a
           href="https://schristiancollins.com/generaluser.php"
           target="_blank"
@@ -29,14 +30,14 @@ export function SiteCredits({ className = "" }: { className?: string }) {
         >
           schristiancollins.com
         </a>{" "}
-        (GeneralUser GS License v2.0).{" "}
+        {t("footer.license")}{" "}
         <a
           href="/instruments/CREDITS.txt"
           target="_blank"
           rel="noreferrer"
           className="underline hover:text-foreground"
         >
-          Full credits
+          {t("footer.fullCredits")}
         </a>
       </p>
     </div>

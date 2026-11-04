@@ -5,12 +5,14 @@ import type { PresetThemeKey } from "../../lib/api-client";
 import { useTheme } from "../../context/theme-context";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { useI18n } from "../../context/i18n-context";
+import type { TKey } from "../../lib/i18n";
 
-const PRESETS: { key: PresetThemeKey; name: string; description: string }[] = [
-  { key: "space", name: "Space", description: "Nền tối vũ trụ, mặc định" },
-  { key: "unleashed", name: "Unleashed", description: "Trung tính tím-xám, sáng" },
-  { key: "moss", name: "Moss Circuit", description: "Nền ngả xanh rêu, dịu mắt" },
-  { key: "claret", name: "Claret Studio", description: "Nền ngả đỏ rượu, ấm" },
+const PRESETS: { key: PresetThemeKey; name: string; description: TKey }[] = [
+  { key: "space", name: "Space", description: "theme.space" },
+  { key: "unleashed", name: "Unleashed", description: "theme.unleashed" },
+  { key: "moss", name: "Moss Circuit", description: "theme.moss" },
+  { key: "claret", name: "Claret Studio", description: "theme.claret" },
 ];
 
 /**
@@ -41,6 +43,7 @@ function ThemeSwatch({ preset }: { preset: PresetThemeKey }) {
  * đúng thiết kế, không phải lỗi.
  */
 export function ThemePicker() {
+  const { t } = useI18n();
   const { activePreset, savedPreset, isDirty, preview, cancelPreview, save, saving, error } =
     useTheme();
 
@@ -48,17 +51,16 @@ export function ThemePicker() {
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold">Cá nhân hoá</h2>
+          <h2 className="text-lg font-semibold">{t("theme.title")}</h2>
           <p className="mt-1.5 text-xs text-muted">
-            Đổi tông màu trang trí của giao diện. Màu mang ý nghĩa (hành động, cảnh báo, xung
-            đột) giữ nguyên ở mọi theme.
+            {t("theme.lead")}
           </p>
         </div>
         <Badge variant="metal">STAVE+</Badge>
       </div>
 
       <h3 className="mb-2.5 mt-5 text-xs uppercase tracking-wide text-muted">
-        Theme có sẵn
+        {t("theme.presets")}
       </h3>
 
       <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -77,11 +79,11 @@ export function ThemePicker() {
               <div className="flex items-center justify-between gap-2 px-1 pb-0.5 pt-2">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold">{item.name}</p>
-                  <p className="text-xs text-muted">{item.description}</p>
+                  <p className="text-xs text-muted">{t(item.description)}</p>
                 </div>
                 {savedPreset === item.key && (
                   <span className="flex shrink-0 items-center gap-1 text-xs text-muted">
-                    <Check className="h-3 w-3" /> Đang dùng
+                    <Check className="h-3 w-3" /> {t("theme.inUse")}
                   </span>
                 )}
               </div>
@@ -94,16 +96,16 @@ export function ThemePicker() {
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button onClick={() => void save()} disabled={!isDirty || saving}>
-          {saving ? "Đang lưu…" : "Lưu theme"}
+          {saving ? t("theme.saving") : t("theme.save")}
         </Button>
         {isDirty && (
           <Button variant="secondary" onClick={cancelPreview} disabled={saving}>
-            Huỷ thay đổi
+            {t("profile.discard")}
           </Button>
         )}
         {isDirty && !saving && (
           <span className="text-xs text-muted">
-            Đang xem trước — chưa lưu vào tài khoản.
+            {t("theme.previewing")}
           </span>
         )}
       </div>
@@ -115,14 +117,13 @@ export function ThemePicker() {
       <div className="mt-7 border-t border-border pt-5">
         <Badge variant="metal">STAVE+</Badge>
         <h3 className="mb-1.5 mt-2.5 text-base font-semibold">
-          Tạo theme từ ảnh (PLACEHOLDER)
+          {t("theme.fromImage")}
         </h3>
         <p className="max-w-[480px] text-xs leading-relaxed text-muted">
-          Tải lên ảnh bìa hoặc ảnh chụp, STAVE sẽ trích một bảng màu trung tính từ ảnh và ánh xạ
-          vào các vai trò giao diện. Ảnh chỉ dùng để lấy màu, không lưu lại.
+          {t("theme.fromImageDesc")}
         </p>
-        <Button variant="secondary" disabled className="mt-3" title="PLACEHOLDER — chưa xây dựng">
-          <Upload className="h-3.5 w-3.5" /> Tải ảnh lên (PLACEHOLDER)
+        <Button variant="secondary" disabled className="mt-3" title={t("project.placeholderTab")}>
+          <Upload className="h-3.5 w-3.5" /> {t("theme.fromImageButton")}
         </Button>
       </div>
     </>

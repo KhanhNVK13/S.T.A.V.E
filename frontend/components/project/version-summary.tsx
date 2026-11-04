@@ -8,6 +8,8 @@ import { apiErrorMessage } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { formatAuthorName } from "../../lib/format-name";
 import { SkyLoading } from "./sky-state";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 interface Summary {
   defaultBranchName: string;
@@ -23,6 +25,7 @@ export function VersionSummary({
   projectId: string;
   onOpenTab: (tab: "commits" | "branches") => void;
 }) {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +45,7 @@ export function VersionSummary({
           latest: commits[commits.length - 1] ?? null,
         });
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, "Không tải được thông tin phiên bản."));
+        if (!cancelled) setError(apiErrorMessage(err, tNow("vsum.loadFail")));
       }
     })();
     return () => {
@@ -53,7 +56,7 @@ export function VersionSummary({
   return (
     <section className="mt-5 rounded-card border border-border bg-surface">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-        <h2 className="text-[13px] font-semibold">Phiên bản</h2>
+        <h2 className="text-[13px] font-semibold">{t("vsum.title")}</h2>
         {summary && (
           <div className="flex gap-3 text-xs">
             <button
@@ -70,7 +73,7 @@ export function VersionSummary({
               className="flex items-center gap-1 font-semibold text-accent hover:underline"
             >
               <GitBranch className="h-3.5 w-3.5" />
-              {summary.branchCount} nhánh
+              {t("vsum.branches", { n: summary.branchCount })}
             </button>
           </div>
         )}
@@ -81,14 +84,14 @@ export function VersionSummary({
             {error}
           </p>
         ) : !summary ? (
-          <SkyLoading compact label="Đang tải phiên bản…" />
+          <SkyLoading compact label={t("vsum.loading")} />
         ) : summary.latest ? (
           <div className="flex items-start gap-2.5">
             <GitCommitHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
             <div className="min-w-0">
               <p className="truncate font-semibold">{summary.latest.message}</p>
               <p className="text-xs text-muted">
-                Mới nhất trên <span className="font-mono">{summary.defaultBranchName}</span> ·{" "}
+                {t("vsum.latestOn")} <span className="font-mono">{summary.defaultBranchName}</span> ·{" "}
                 {formatAuthorName(summary.latest.author)} ·{" "}
                 <span className="font-mono">{formatRelativeTime(summary.latest.created_at)}</span>
               </p>
@@ -96,8 +99,7 @@ export function VersionSummary({
           </div>
         ) : (
           <p className="text-muted">
-            Chưa có phiên bản nào. Mở trình soạn nhạc và bấm Commit Changes để lưu phiên bản đầu
-            tiên.
+            {t("vsum.empty")}
           </p>
         )}
       </div>

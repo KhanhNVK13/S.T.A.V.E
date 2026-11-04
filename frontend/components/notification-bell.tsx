@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "../context/i18n-context";
 import { useCallback, useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { getUnreadNotificationCount } from "../lib/api-client";
@@ -9,6 +10,7 @@ const POLL_INTERVAL_MS = 60_000;
 export const NOTIFICATIONS_CHANGED_EVENT = "stave:notifications-changed";
 
 export function NotificationBell() {
+  const t = useT();
   const [count, setCount] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -43,13 +45,13 @@ export function NotificationBell() {
     };
   }, [refresh]);
 
-  const label = count > 0 ? `Thông báo, ${count} chưa đọc` : "Thông báo";
+  const label = count > 0 ? t("nav.notificationsUnread", { n: count }) : t("nav.notifications");
 
   return (
     <Link
       href="/notifications"
       aria-label={label}
-      title="Thông báo"
+      title={t("nav.notifications")}
       className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
     >
       <Bell className="h-[18px] w-[18px]" />

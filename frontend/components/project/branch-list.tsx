@@ -36,6 +36,8 @@ import { BranchGraph } from "./branch-graph";
 import { SkyLoading } from "./sky-state";
 import { apiErrorMessage } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 /** Nhánh | so với mặc định | tác giả | tạo lúc | thao tác. */
 const COLS = "md:grid-cols-[minmax(0,1fr)_150px_140px_96px_auto]";
@@ -52,6 +54,7 @@ const COLS = "md:grid-cols-[minmax(0,1fr)_150px_140px_96px_auto]";
  * nhiệm ẩn tab này với người khác.
  */
 export function BranchList({ projectId }: { projectId: string }) {
+  const { t, tx } = useI18n();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [divergence, setDivergence] = useState<Record<string, BranchDivergence>>({});
   const [merged, setMerged] = useState<Record<string, boolean>>({});
@@ -124,7 +127,7 @@ export function BranchList({ projectId }: { projectId: string }) {
       setCommitsById(byId);
       setGraphState(failed ? "error" : "ready");
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được danh sách nhánh."));
+      setError(apiErrorMessage(err, tNow("blist.loadFail")));
     } finally {
       setLoading(false);
     }
@@ -139,8 +142,8 @@ export function BranchList({ projectId }: { projectId: string }) {
     e.preventDefault();
     const name = newName.trim();
     const invalid =
-      validateRequired(name, "Vui lòng nhập tên nhánh.") ??
-      validateMaxLength(name, 50, "Tên nhánh");
+      validateRequired(name, t("chist.branchNameRequired")) ??
+      validateMaxLength(name, 50, t("chist.branchNameLabel"));
     setNameError(invalid);
     if (invalid) return;
     setCreateBusy(true);
@@ -150,7 +153,7 @@ export function BranchList({ projectId }: { projectId: string }) {
         setNewName("");
         setCreating(false);
         setNotice(
-          `Đã tạo nhánh "${name}". Nhánh đang mở trong editor không đổi; bạn có thể chuyển sang nhánh mới bất cứ lúc nào.`,
+          t("blist.created", { name }),
         );
         await load();
         return;
@@ -160,12 +163,12 @@ export function BranchList({ projectId }: { projectId: string }) {
       setCreating(false);
       setNotice(
         outcome.switched
-          ? `Đã tạo nhánh "${name}" và chuyển sang nhánh này. Editor sẽ mở nhánh "${name}".`
-          : `Đã tạo nhánh "${name}" nhưng chưa chuyển sang được: ${apiErrorMessage(outcome.switchError, "không rõ nguyên nhân")} Bạn có thể chuyển nhánh trong editor.`,
+          ? t("blist.createdSwitched", { name })
+          : t("blist.createdNoSwitch", { name, reason: apiErrorMessage(outcome.switchError, t("chist.unknownReason")) }),
       );
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tạo được nhánh."));
+      setError(apiErrorMessage(err, t("blist.createFail")));
     } finally {
       setCreateBusy(false);
     }
@@ -190,12 +193,12 @@ export function BranchList({ projectId }: { projectId: string }) {
     setDeleteError(null);
     try {
       await deleteBranch(deleteTarget.id);
-      setNotice(`Đã xoá nhánh "${deleteTarget.name}".`);
+      setNotice(t("blist.deleted", { name: deleteTarget.name }));
       setDeleteTarget(null);
       setDeletePreview(null);
       await load();
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, "Không xoá được nhánh."));
+      setDeleteError(apiErrorMessage(err, t("blist.deleteFail")));
     } finally {
       setDeleteBusy(false);
     }
@@ -220,13 +223,13 @@ export function BranchList({ projectId }: { projectId: string }) {
 
   function showNothingToMerge(source: Branch) {
     setInfoNotice(
-      `Không có gì để hợp nhất: "${defaultBranch?.name ?? ""}" đã có mọi commit của "${source.name}".`,
+      t("blist.nothingToMerge", { target: defaultBranch?.name ?? "", source: source.name }),
     );
   }
 
   function showDefaultBranchRefusal() {
     setInfoNotice(
-      "Nhánh mặc định không xoá được vì đây là nhánh chính của dự án. Muốn bỏ cả dự án, hãy xoá dự án ở trang cài đặt.",
+      t("blist.defaultRefusal"),
     );
   }
 
@@ -246,14 +249,14 @@ export function BranchList({ projectId }: { projectId: string }) {
       } else {
         setNotice(
           result.commit.branch_id === source.id
-            ? `Đã hợp nhất "${source.name}" vào "${defaultBranch.name}". Không cần tạo commit hợp nhất riêng vì nhánh mặc định chưa có thay đổi nào khác.`
-            : `Đã hợp nhất "${source.name}" vào "${defaultBranch.name}" bằng một commit hợp nhất mới.`,
+            ? t("blist.mergedFastForward", { source: source.name, target: defaultBranch.name })
+            : t("blist.mergedDone", { source: source.name, target: defaultBranch.name }),
         );
         setMergeSource(null);
         await load();
       }
     } catch (err) {
-      setMergeError(apiErrorMessage(err, "Không hợp nhất được nhánh."));
+      setMergeError(apiErrorMessage(err, t("blist.mergeFail")));
       setMergeSource(null);
     } finally {
       setMergeBusy(false);
@@ -270,19 +273,19 @@ export function BranchList({ projectId }: { projectId: string }) {
         targetBranchId: defaultBranch.id,
         resolutions,
       });
-      setNotice(`Đã hợp nhất "${mergeSource.name}" sau khi xử lý xung đột.`);
+      setNotice(t("blist.mergedResolved", { source: mergeSource.name }));
       setConflicts(null);
       setMergeSource(null);
       await load();
     } catch (err) {
-      setResolveError(apiErrorMessage(err, "Không hoàn tất được việc hợp nhất."));
+      setResolveError(apiErrorMessage(err, t("blist.resolveFail")));
     } finally {
       setMergeBusy(false);
     }
   }
 
   if (loading && branches.length === 0) {
-    return <SkyLoading label="Đang tải các nhánh…" />;
+    return <SkyLoading label={t("blist.loading")} />;
   }
 
   return (
@@ -295,17 +298,15 @@ export function BranchList({ projectId }: { projectId: string }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs text-muted">
           <p>
-            <span className="font-mono">{branches.length}</span> nhánh · mặc định{" "}
-            <span className="font-mono text-foreground">{defaultBranch?.name ?? "—"}</span>
+            {tx("blist.summary", { n: <span className="font-mono">{branches.length}</span>, name: <span className="font-mono text-foreground">{defaultBranch?.name ?? "—"}</span> })}
           </p>
           <p className="mt-1">
-            Nhánh là bản làm thử song song: thử ý tưởng mới mà không ảnh hưởng nhánh mặc định,
-            rồi hợp nhất khi hài lòng.
+            {t("blist.explain")}
           </p>
         </div>
         {!creating && (
           <Button onClick={() => setCreating(true)}>
-            <Plus className="h-3.5 w-3.5" /> Tạo nhánh
+            <Plus className="h-3.5 w-3.5" /> {t("blist.create")}
           </Button>
         )}
       </div>
@@ -317,7 +318,7 @@ export function BranchList({ projectId }: { projectId: string }) {
           className="mb-3 flex flex-wrap items-end gap-2 rounded-card border border-border bg-surface p-4"
         >
           <label className="flex min-w-[220px] flex-1 flex-col gap-1.5">
-            <span className="text-xs font-semibold">Tên nhánh mới</span>
+            <span className="text-xs font-semibold">{t("blist.newName")}</span>
             <input
               name="branchName"
               autoComplete="off"
@@ -328,14 +329,14 @@ export function BranchList({ projectId }: { projectId: string }) {
                 setNewName(e.target.value);
                 setNameError(null);
               }}
-              placeholder="vd: thu-phoi-bass"
+              placeholder={t("chist.newBranchPlaceholder")}
               aria-invalid={nameError ? true : undefined}
               className={`${INPUT_CLASS} h-[37px] font-mono`}
             />
             {nameError && <FieldError>{nameError}</FieldError>}
           </label>
           <p className="basis-full text-xs text-muted">
-            Nhánh mới bắt đầu từ commit mới nhất của nhánh mặc định.
+            {t("blist.startsFrom")}
           </p>
           <label className="flex basis-full items-center gap-2 text-[13px]">
             <input
@@ -345,11 +346,11 @@ export function BranchList({ projectId }: { projectId: string }) {
               onChange={(e) => setSwitchAfterCreate(e.target.checked)}
               className="h-3.5 w-3.5 accent-[var(--accent)]"
             />
-            Chuyển sang nhánh mới sau khi tạo
+            {t("blist.switchAfter")}
           </label>
           <div className="flex gap-2">
             <Button type="submit" disabled={createBusy}>
-              {createBusy ? "Đang tạo…" : "Tạo nhánh"}
+              {createBusy ? t("blist.creating") : t("blist.create")}
             </Button>
             <Button
               type="button"
@@ -360,7 +361,7 @@ export function BranchList({ projectId }: { projectId: string }) {
                 setNameError(null);
               }}
             >
-              Huỷ
+              {t("ui.cancel")}
             </Button>
           </div>
         </form>
@@ -373,20 +374,20 @@ export function BranchList({ projectId }: { projectId: string }) {
         >
           <p className="text-xs text-danger">{error}</p>
           <Button variant="secondary" onClick={() => void load()} disabled={loading}>
-            Thử lại
+            {t("ui.retry")}
           </Button>
         </div>
       )}
 
-      <section aria-label="Đồ thị nhánh" className="mb-4">
-        <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">Đồ thị nhánh</h3>
+      <section aria-label={t("blist.graph")} className="mb-4">
+        <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{t("blist.graph")}</h3>
         {graphState === "loading" ? (
-          <SkyLoading compact label="Đang vẽ đồ thị…" />
+          <SkyLoading compact label={t("blist.drawing")} />
         ) : (
           <>
             {graphState === "error" && (
               <p role="alert" className="mb-2 rounded-card border border-danger/20 bg-danger-muted px-4 py-2 text-xs text-danger">
-                Không tải được lịch sử của một số nhánh nên đồ thị có thể thiếu commit.
+                {t("blist.graphPartial")}
               </p>
             )}
             <BranchGraph projectId={projectId} branches={branches} commits={commitsById} />
@@ -396,10 +397,10 @@ export function BranchList({ projectId }: { projectId: string }) {
 
       <RowList cols={COLS}>
         <RowHeader>
-          <span>Nhánh</span>
-          <span>So với mặc định</span>
-          <span>Người tạo</span>
-          <span className="text-right">Tạo lúc</span>
+          <span>{t("blist.colBranch")}</span>
+          <span>{t("blist.colVsDefault")}</span>
+          <span>{t("blist.colCreator")}</span>
+          <span className="text-right">{t("blist.colCreated")}</span>
           <span />
         </RowHeader>
 
@@ -416,7 +417,7 @@ export function BranchList({ projectId }: { projectId: string }) {
                 <button
                   type="button"
                   aria-expanded={isOpen}
-                  aria-label={`${isOpen ? "Thu gọn" : "Xem chi tiết"} nhánh ${branch.name}`}
+                  aria-label={isOpen ? t("blist.collapse", { name: branch.name }) : t("blist.expand", { name: branch.name })}
                   onClick={() =>
                     setExpanded((prev) => {
                       const next = new Set(prev);
@@ -434,14 +435,14 @@ export function BranchList({ projectId }: { projectId: string }) {
                   <span className="truncate font-mono text-[13px] font-semibold">
                     {branch.name}
                   </span>
-                  {branch.is_default && <Badge variant="info">Mặc định</Badge>}
+                  {branch.is_default && <Badge variant="info">{t("blist.default")}</Badge>}
                   {/* UC-48: nhánh editor đang mở. Cũng là nhánh DUY NHẤT
                       không xoá được (backend chặn) — hiện ra để người dùng
                       hiểu vì sao nút xoá bị khoá. */}
-                  {branch.is_active && <Badge variant="neutral">Đang mở</Badge>}
-                  {merged[branch.id] && <Badge variant="success">Đã hợp nhất</Badge>}
+                  {branch.is_active && <Badge variant="neutral">{t("blist.open")}</Badge>}
+                  {merged[branch.id] && <Badge variant="success">{t("blist.merged")}</Badge>}
                   {merged[branch.id] && !branch.is_active && (
-                    <span className="text-xs text-muted">Có thể xoá an toàn.</span>
+                    <span className="text-xs text-muted">{t("blist.safeDelete")}</span>
                   )}
                 </div>
               </div>
@@ -467,8 +468,8 @@ export function BranchList({ projectId }: { projectId: string }) {
                     đã lọc sẵn đúng nhánh này. Link bọc Button giống các nút điều
                     hướng khác của trang dự án. */}
                 <Link href={`/projects/${projectId}?tab=commits&branch=${branch.id}`}>
-                  <Button variant="ghost" title="Xem lịch sử commit của nhánh này">
-                    <History className="h-3.5 w-3.5" /> Lịch sử
+                  <Button variant="ghost" title={t("blist.historyTitle")}>
+                    <History className="h-3.5 w-3.5" /> {t("blist.history")}
                   </Button>
                 </Link>
                 {!branch.is_default && (
@@ -483,18 +484,18 @@ export function BranchList({ projectId }: { projectId: string }) {
                     >
                       <GitMerge className="h-3.5 w-3.5" />
                       {mergeBusy && mergeSource?.id === branch.id
-                        ? "Đang hợp nhất…"
-                        : `Hợp nhất vào ${defaultBranch?.name ?? ""}`}
+                        ? t("blist.merging")
+                        : t("blist.mergeInto", { name: defaultBranch?.name ?? "" })}
                     </Button>
                     <Button
                       variant="ghost"
                       onClick={() => void openDelete(branch)}
                       disabled={branch.is_active}
-                      aria-label={`Xoá nhánh ${branch.name}`}
+                      aria-label={t("blist.deleteLabel", { name: branch.name })}
                       title={
                         branch.is_active
-                          ? "Không xoá được nhánh đang mở trong editor — mở editor và chuyển sang nhánh khác trước"
-                          : "Xoá nhánh"
+                          ? t("blist.deleteActiveTitle")
+                          : t("blist.deleteTitle")
                       }
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -505,8 +506,8 @@ export function BranchList({ projectId }: { projectId: string }) {
                   <Button
                     variant="ghost"
                     onClick={showDefaultBranchRefusal}
-                    title="Xoá nhánh"
-                    aria-label="Xoá nhánh mặc định"
+                    title={t("blist.deleteTitle")}
+                    aria-label={t("blist.deleteDefaultLabel")}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -516,29 +517,29 @@ export function BranchList({ projectId }: { projectId: string }) {
             {isOpen && (
               <dl className="grid gap-x-6 gap-y-2 border-b border-border bg-surface-subtle px-3.5 py-3 text-xs last:border-b-0 sm:grid-cols-3">
                 <div>
-                  <dt className="font-bold uppercase tracking-wide text-muted">Điểm bắt đầu</dt>
+                  <dt className="font-bold uppercase tracking-wide text-muted">{t("blist.startPoint")}</dt>
                   <dd className="mt-1">
                     {branch.is_default
-                      ? "Nhánh gốc của dự án"
+                      ? t("blist.rootBranch")
                       : base
                         ? <><span className="font-mono text-accent">{base.id.slice(0, 7)}</span> · {base.message}</>
                         : branch.base_commit_id
                           ? <span className="font-mono text-accent">{branch.base_commit_id.slice(0, 7)}</span>
-                          : "Chưa xác định"}
+                          : t("blist.unknown")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="font-bold uppercase tracking-wide text-muted">Commit mới nhất</dt>
+                  <dt className="font-bold uppercase tracking-wide text-muted">{t("blist.latestCommit")}</dt>
                   <dd className="mt-1">
                     {head
                       ? <><span className="font-mono text-accent">{head.id.slice(0, 7)}</span> · {head.message}</>
                       : branch.head_commit_id
                         ? <span className="font-mono text-accent">{branch.head_commit_id.slice(0, 7)}</span>
-                        : "Nhánh chưa có commit"}
+                        : t("blist.noCommits")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="font-bold uppercase tracking-wide text-muted">Tác giả commit mới nhất</dt>
+                  <dt className="font-bold uppercase tracking-wide text-muted">{t("blist.latestAuthor")}</dt>
                   <dd className="mt-1">{head ? formatAuthorName(head.author) : "—"}</dd>
                 </div>
               </dl>
@@ -550,29 +551,23 @@ export function BranchList({ projectId }: { projectId: string }) {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title={`Xoá nhánh "${deleteTarget?.name}"?`}
+        title={t("blist.deleteDialogTitle", { name: deleteTarget?.name ?? "" })}
         message={
           deletePreviewState === "loading" ? (
-            "Đang kiểm tra các commit chưa hợp nhất…"
+            t("blist.checking")
           ) : deletePreviewState === "error" ? (
             <strong className="text-danger">
-              Không kiểm tra được nhánh này còn commit chưa hợp nhất hay không. Xoá lúc này có
-              thể làm mất commit.
+              {t("blist.checkFail")}
             </strong>
           ) : deletePreview && deletePreview.unmergedCommitsCount > 0 ? (
             <>
-              Nhánh này còn{" "}
-              <strong className="text-danger">
-                {deletePreview.unmergedCommitsCount} commit chưa được hợp nhất
-              </strong>{" "}
-              vào nhánh mặc định. Xoá nhánh đồng nghĩa mất những commit đó và không thể hoàn
-              tác.
+              {tx("blist.unmerged", { count: <strong className="text-danger">{t("blist.unmergedCount", { n: deletePreview.unmergedCommitsCount })}</strong> })}
             </>
           ) : (
-            "Mọi commit của nhánh này đã có ở nhánh mặc định, xoá nhánh sẽ không làm mất nội dung nào. Việc xoá không thể hoàn tác."
+            t("blist.allMerged")
           )
         }
-        confirmLabel="Xoá nhánh"
+        confirmLabel={t("blist.deleteTitle")}
         danger
         loading={deleteBusy}
         confirmDisabled={deletePreviewState === "loading"}
@@ -586,33 +581,31 @@ export function BranchList({ projectId }: { projectId: string }) {
 
       <ConfirmDialog
         open={!!mergeConfirm}
-        title={`Hợp nhất "${mergeConfirm?.name}" vào "${defaultBranch?.name ?? ""}"?`}
+        title={t("blist.mergeDialogTitle", { source: mergeConfirm?.name ?? "", target: defaultBranch?.name ?? "" })}
         message={
           <>
             {mergeConfirm && divergence[mergeConfirm.id]
-              ? `${divergence[mergeConfirm.id].ahead} commit của nhánh "${mergeConfirm.name}" sẽ được đưa vào "${defaultBranch?.name ?? ""}".`
-              : `Các commit của nhánh "${mergeConfirm?.name}" sẽ được đưa vào "${defaultBranch?.name ?? ""}".`}
+              ? t("blist.mergeAhead", { ahead: divergence[mergeConfirm.id].ahead, source: mergeConfirm.name, target: defaultBranch?.name ?? "" })
+              : t("blist.mergeCommits", { source: mergeConfirm?.name ?? "", target: defaultBranch?.name ?? "" })}
             {mergeSummary === "loading" && (
               <>
                 <br />
-                Đang tính số nốt thay đổi…
+                {t("blist.calculating")}
               </>
             )}
             {mergeSummary && typeof mergeSummary === "object" && (
               <>
                 <br />
                 <strong className="text-foreground">
-                  Thêm {mergeSummary.added} nốt, sửa {mergeSummary.modified} nốt, bỏ{" "}
-                  {mergeSummary.removed} nốt.
+                  {t("blist.noteSummary", { added: mergeSummary.added, modified: mergeSummary.modified, removed: mergeSummary.removed })}
                 </strong>
               </>
             )}
             <br />
-            Nếu cùng một nốt bị sửa khác nhau ở hai nhánh, bạn sẽ được chọn giữ bên nào trước khi
-            hợp nhất.
+            {t("blist.conflictNote")}
           </>
         }
-        confirmLabel="Hợp nhất"
+        confirmLabel={t("blist.mergeConfirm")}
         loading={mergeBusy}
         error={mergeError}
         onConfirm={() => mergeConfirm && void handleMerge(mergeConfirm)}

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Button } from "./button";
+import { useT } from "../../context/i18n-context";
 import { Dialog, DialogActions, DialogError } from "./dialog";
 
 interface ConfirmDialogProps {
@@ -28,8 +29,8 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = "Xác nhận",
-  cancelLabel = "Huỷ",
+  confirmLabel,
+  cancelLabel,
   danger = false,
   loading = false,
   confirmDisabled = false,
@@ -37,6 +38,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useT();
   return (
     <Dialog
       open={open}
@@ -50,10 +52,10 @@ export function ConfirmDialog({
       <DialogError message={error} />
       <DialogActions>
         <Button variant="secondary" onClick={onCancel} disabled={loading}>
-          {cancelLabel}
+          {cancelLabel ?? t("ui.cancel")}
         </Button>
         <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} disabled={loading || confirmDisabled}>
-          {loading ? "Đang xử lý…" : confirmLabel}
+          {loading ? t("ui.processing") : (confirmLabel ?? t("ui.confirm"))}
         </Button>
       </DialogActions>
     </Dialog>

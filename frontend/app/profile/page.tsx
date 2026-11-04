@@ -16,6 +16,7 @@ import { useAuth } from "../../context/auth-context";
 import { apiFetch, removeAvatar } from "../../lib/api-client";
 import { uploadAvatar, validateAvatarFile } from "../../lib/avatar-upload";
 import type { Profile } from "../../lib/types";
+import { useI18n } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
@@ -24,13 +25,14 @@ import { ConnectedAccounts } from "../../components/settings/connected-accounts"
 import { Dialog } from "../../components/ui/dialog";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
 import { apiErrorMessage } from "../../lib/error-message";
-import {validateRequired, validateMaxLength, REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
+import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
 type SettingsTab = "profile" | "security" | "personalization";
 
 function ProfileForm() {
+  const { t } = useI18n();
   const { profile, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [username, setUsername] = useState(profile?.username ?? "");
@@ -61,10 +63,10 @@ function ProfileForm() {
       const newUrl = await uploadAvatar(file);
       setAvatarUrl(newUrl ?? "");
       await refreshProfile();
-      setAvatarMessage({ text: "Đã cập nhật ảnh đại diện.", ok: true });
+      setAvatarMessage({ text: t("profile.avatarUpdated"), ok: true });
     } catch (err) {
       setAvatarMessage({
-        text: apiErrorMessage(err, "Không tải được ảnh đại diện. Hãy thử lại với ảnh khác."),
+        text: apiErrorMessage(err, t("profile.avatarUploadFail")),
         ok: false,
       });
     } finally {
@@ -79,9 +81,9 @@ function ProfileForm() {
       await removeAvatar();
       await refreshProfile();
       setAvatarUrl("");
-      setAvatarMessage({ text: "Đã xoá ảnh đại diện.", ok: true });
+      setAvatarMessage({ text: t("profile.avatarRemoved"), ok: true });
     } catch (err) {
-      setAvatarMessage({ text: apiErrorMessage(err, "Không xoá được ảnh đại diện."), ok: false });
+      setAvatarMessage({ text: apiErrorMessage(err, t("profile.avatarRemoveFail")), ok: false });
     } finally {
       setAvatarBusy(false);
     }
@@ -93,13 +95,13 @@ function ProfileForm() {
     setError(null);
     setSuccess(false);
     const nameInvalid =
-      validateRequired(displayName, "Vui lòng nhập tên hiển thị.") ??
-      validateMaxLength(displayName, 80, "Tên hiển thị");
+      validateRequired(displayName, t("profile.displayNameRequired")) ??
+      validateMaxLength(displayName, 80, t("profile.displayName"));
     const userInvalid = !username.trim()
-      ? REQUIRED_MESSAGE
+      ? requiredMessage()
       : USERNAME_PATTERN.test(username)
         ? null
-        : "Username gồm 3-20 ký tự: chữ thường, số hoặc dấu gạch dưới.";
+        : t("profile.usernameRule");
     setDisplayNameError(nameInvalid);
     setUsernameError(userInvalid);
     if (nameInvalid || userInvalid) {
@@ -107,7 +109,7 @@ function ProfileForm() {
       return;
     }
     if (bio.length > 500) {
-      setError("Giới thiệu tối đa 500 ký tự.");
+      setError(t("profile.bioMax"));
       return;
     }
     setSubmitting(true);
@@ -124,7 +126,7 @@ function ProfileForm() {
       await refreshProfile();
       setSuccess(true);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không lưu được hồ sơ."));
+      setError(apiErrorMessage(err, t("profile.saveFail")));
     } finally {
       setSubmitting(false);
     }
@@ -132,9 +134,9 @@ function ProfileForm() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold">Hồ sơ</h2>
+      <h2 className="text-lg font-semibold">{t("profile.tabProfile")}</h2>
       <p className="mb-5 mt-1.5 text-xs text-muted">
-        Những thông tin này hiển thị trên trang tác giả công khai của bạn.
+        {t("profile.publicNote")}
       </p>
 
       <div className="mb-5 flex items-center gap-3">
@@ -146,7 +148,7 @@ function ProfileForm() {
         />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold">{profile?.email}</p>
-          <p className="text-xs text-muted">Email không thể thay đổi</p>
+          <p className="text-xs text-muted">{t("profile.emailLocked")}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <input
               ref={avatarInputRef}
@@ -162,14 +164,14 @@ function ProfileForm() {
               disabled={avatarBusy}
               onClick={() => avatarInputRef.current?.click()}
             >
-              {avatarBusy ? "Đang xử lý…" : "Tải ảnh lên"}
+              {avatarBusy ? t("profile.busy") : t("profile.upload")}
             </Button>
             {profile?.avatar_url && (
               <Button type="button" variant="ghost" disabled={avatarBusy} onClick={() => void handleAvatarRemove()}>
-                Xoá ảnh
+                {t("profile.removePhoto")}
               </Button>
             )}
-            <span className="text-xs text-muted">JPG, PNG hoặc WebP, ảnh gốc tối đa 10 MB. Ảnh được cắt vuông và thu nhỏ còn 256×256 (tối đa 2 MB sau khi thu nhỏ).</span>
+            <span className="text-xs text-muted">{t("profile.avatarHint")}</span>
           </div>
           {avatarMessage && (
             <p
@@ -184,7 +186,7 @@ function ProfileForm() {
 
       {profile && (
         <p className="mb-5 text-xs text-muted">
-          Địa chỉ trang công khai:{" "}
+          {t("profile.publicAddress")}{" "}
           <Link href={`/creator/${profile.id}`} className="font-mono text-accent hover:underline">
             /creator/{profile.id}
           </Link>
@@ -192,7 +194,7 @@ function ProfileForm() {
       )}
 
       <form onSubmit={handleSubmit} noValidate className="flex max-w-[560px] flex-col gap-3.5">
-        <Field label="Tên hiển thị" error={displayNameError}>
+        <Field label={t("profile.displayName")} error={displayNameError}>
           <input
             name="displayName"
             autoComplete="name"
@@ -217,7 +219,7 @@ function ProfileForm() {
             className={`${INPUT_CLASS} h-[37px] font-mono`}
           />
         </Field>
-        <Field label="Giới thiệu">
+        <Field label={t("profile.bio")}>
           <textarea
             name="bio"
             value={bio}
@@ -250,12 +252,12 @@ function ProfileForm() {
         )}
         {success && (
           <p role="status" className="text-xs text-success-foreground">
-            Đã lưu.
+            {t("profile.saved")}
           </p>
         )}
         <div className="flex gap-2">
           <Button type="submit" disabled={submitting}>
-            {submitting ? "Đang lưu…" : "Lưu hồ sơ"}
+            {submitting ? t("profile.saving") : t("profile.save")}
           </Button>
           <Button
             type="button"
@@ -272,7 +274,7 @@ function ProfileForm() {
               setSuccess(false);
             }}
           >
-            Huỷ thay đổi
+            {t("profile.discard")}
           </Button>
         </div>
       </form>
@@ -281,6 +283,7 @@ function ProfileForm() {
 }
 
 function ProfileTab() {
+  const { t } = useI18n();
   const { profile, refreshProfile } = useAuth();
   const [retrying, setRetrying] = useState(false);
   const [soundsOpen, setSoundsOpen] = useState(false);
@@ -289,7 +292,7 @@ function ProfileTab() {
     return (
       <div role="alert" className="flex flex-col items-start gap-3">
         <p className="text-sm text-danger">
-          Không tải được hồ sơ của bạn. Hãy kiểm tra kết nối rồi thử lại.
+          {t("profile.loadFail")}
         </p>
         <Button
           variant="secondary"
@@ -299,7 +302,7 @@ function ProfileTab() {
             void refreshProfile().finally(() => setRetrying(false));
           }}
         >
-          {retrying ? "Đang tải…" : "Thử lại"}
+          {retrying ? t("profile.loadingShort") : t("ui.retry")}
         </Button>
       </div>
     );
@@ -308,15 +311,15 @@ function ProfileTab() {
     <>
       <ProfileForm key={profile.id} />
       <SettingRow
-        title="Thư viện âm thanh"
-        description="Âm thanh riêng bạn đã tải lên hoặc ghi âm để gán cho nốt nhạc trong editor."
+        title={t("profile.soundLibrary")}
+        description={t("profile.soundLibraryDesc")}
       >
         <Button variant="secondary" onClick={() => setSoundsOpen(true)}>
-          <Music className="h-3.5 w-3.5" /> Mở thư viện
+          <Music className="h-3.5 w-3.5" /> {t("profile.openLibrary")}
         </Button>
       </SettingRow>
       {soundsOpen && (
-        <Dialog title="Thư viện âm thanh" onClose={() => setSoundsOpen(false)} className="max-w-xl p-6">
+        <Dialog title={t("profile.soundLibrary")} onClose={() => setSoundsOpen(false)} className="max-w-xl p-6">
           <SoundLibraryPanel />
         </Dialog>
       )}
@@ -346,6 +349,7 @@ function SettingRow({
 }
 
 function ChangePasswordForm() {
+  const { t } = useI18n();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -360,13 +364,13 @@ function ChangePasswordForm() {
     const form = e.currentTarget;
     setError(null);
     setSuccess(false);
-    const currentInvalid = currentPassword ? null : REQUIRED_MESSAGE;
+    const currentInvalid = currentPassword ? null : requiredMessage();
     const newInvalid = !newPassword
-      ? REQUIRED_MESSAGE
+      ? requiredMessage()
       : newPassword.length < 8
-        ? "Mật khẩu mới phải có ít nhất 8 ký tự."
+        ? t("profile.newPasswordShort")
         : newPassword === currentPassword
-          ? "Mật khẩu mới phải khác mật khẩu hiện tại."
+          ? t("profile.newPasswordSame")
           : null;
     setCurrentError(currentInvalid);
     setNewError(newInvalid);
@@ -385,7 +389,7 @@ function ChangePasswordForm() {
       setSuccess(true);
       setOpen(false);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không đổi được mật khẩu."));
+      setError(apiErrorMessage(err, t("profile.changeFail")));
     } finally {
       setSubmitting(false);
     }
@@ -394,25 +398,25 @@ function ChangePasswordForm() {
   return (
     <>
       <SettingRow
-        title="Mật khẩu"
+        title={t("profile.password")}
         description={
           success ? (
             <span className="text-success-foreground">
-              Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất.
+              {t("profile.passwordChanged")}
             </span>
           ) : (
-            "Dùng mật khẩu đủ mạnh và không dùng lại ở nơi khác."
+            t("profile.passwordHint")
           )
         }
       >
         <Button variant="secondary" onClick={() => setOpen((o) => !o)}>
-          {open ? "Đóng" : "Đổi mật khẩu"}
+          {open ? t("ui.close") : t("profile.changePassword")}
         </Button>
       </SettingRow>
 
       {open && (
         <form onSubmit={handleSubmit} noValidate className="flex max-w-[420px] flex-col gap-3.5 pb-4">
-          <Field label="Mật khẩu hiện tại" error={currentError}>
+          <Field label={t("profile.currentPassword")} error={currentError}>
             <input
               name="current-password"
               autoComplete="current-password"
@@ -425,12 +429,12 @@ function ChangePasswordForm() {
               className={`${INPUT_CLASS} h-[37px]`}
             />
           </Field>
-          <Field label="Mật khẩu mới" error={newError}>
+          <Field label={t("profile.newPassword")} error={newError}>
             <input
               name="new-password"
               autoComplete="new-password"
               type="password"
-              placeholder="Tối thiểu 8 ký tự"
+              placeholder={t("auth.passwordMin")}
               value={newPassword}
               onChange={(e) => {
                 setNewPassword(e.target.value);
@@ -446,7 +450,7 @@ function ChangePasswordForm() {
           )}
           <div>
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Đang xử lý…" : "Cập nhật mật khẩu"}
+              {submitting ? t("profile.busy") : t("profile.updatePassword")}
             </Button>
           </div>
         </form>
@@ -456,6 +460,7 @@ function ChangePasswordForm() {
 }
 
 function DeleteAccountSection() {
+  const { t } = useI18n();
   const router = useRouter();
   const { signOut } = useAuth();
   const [password, setPassword] = useState("");
@@ -474,7 +479,7 @@ function DeleteAccountSection() {
       await signOut();
       router.push("/");
     } catch (err) {
-      setError(apiErrorMessage(err, "Không xoá được tài khoản."));
+      setError(apiErrorMessage(err, t("profile.deleteFail")));
     } finally {
       setSubmitting(false);
     }
@@ -483,24 +488,25 @@ function DeleteAccountSection() {
   return (
     <>
       <SettingRow
-        title="Xoá tài khoản"
-        description="Hành động này không thể hoàn tác — toàn bộ dự án và lịch sử sẽ bị xoá."
+        title={t("profile.deleteAccount")}
+        description={t("profile.deleteHint")}
       >
         {!confirming && (
           <Button variant="danger" onClick={() => setConfirming(true)}>
-            <TriangleAlert className="h-3.5 w-3.5" /> Xoá tài khoản
+            <TriangleAlert className="h-3.5 w-3.5" /> {t("profile.deleteAccount")}
           </Button>
         )}
       </SettingRow>
 
       {confirming && (
         <div className="flex max-w-[420px] flex-col gap-3 pb-4">
-          <p className="text-xs text-danger">Nhập mật khẩu để xác nhận xoá vĩnh viễn.</p>
+          <p className="text-xs text-danger">{t("profile.deleteConfirmLead")}</p>
           <input
             name="password"
             autoComplete="current-password"
             type="password"
-            placeholder="Mật khẩu"
+            placeholder={t("auth.password")}
+            aria-label={t("auth.password")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={`${INPUT_CLASS} h-[37px]`}
@@ -512,10 +518,10 @@ function DeleteAccountSection() {
               onClick={() => void handleDelete()}
               disabled={submitting || !password}
             >
-              {submitting ? "Đang xoá…" : "Xác nhận xoá vĩnh viễn"}
+              {submitting ? t("profile.deleting") : t("profile.deleteConfirm")}
             </Button>
             <Button variant="secondary" onClick={() => setConfirming(false)}>
-              Huỷ
+              {t("ui.cancel")}
             </Button>
           </div>
         </div>
@@ -525,6 +531,7 @@ function DeleteAccountSection() {
 }
 
 export default function ProfilePage() {
+  const { t } = useI18n();
   const { profile } = useAuth();
   const [tab, setTab] = useState<SettingsTab>("profile");
 
@@ -546,29 +553,29 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-5xl px-5 py-8">
         <div className="mb-6">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
-            Cài đặt tài khoản
+            {t("profile.eyebrow")}
           </p>
           <h1 className="mb-1 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
-            {profile?.display_name ?? profile?.username ?? "Hồ sơ của tôi"}
+            {profile?.display_name ?? profile?.username ?? t("profile.myProfile")}
           </h1>
           <p className="text-sm text-muted">
-            Quản lý hồ sơ công khai, bảo mật tài khoản và giao diện làm việc.
+            {t("profile.lead")}
           </p>
         </div>
 
         <div className="grid gap-5 md:grid-cols-[210px_minmax(0,1fr)]">
           <nav className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
             <button onClick={() => setTab("profile")} className={navItemClass("profile")}>
-              <CircleUserRound className="h-4 w-4" /> Hồ sơ
+              <CircleUserRound className="h-4 w-4" /> {t("profile.tabProfile")}
             </button>
             <button onClick={() => setTab("security")} className={navItemClass("security")}>
-              <Lock className="h-4 w-4" /> Bảo mật
+              <Lock className="h-4 w-4" /> {t("profile.tabSecurity")}
             </button>
             <button
               onClick={() => setTab("personalization")}
               className={navItemClass("personalization")}
             >
-              <SlidersHorizontal className="h-4 w-4" /> Cá nhân hoá
+              <SlidersHorizontal className="h-4 w-4" /> {t("profile.tabPersonal")}
             </button>
           </nav>
 
@@ -579,9 +586,9 @@ export default function ProfilePage() {
               <ThemePicker />
             ) : (
               <>
-                <h2 className="text-lg font-semibold">Bảo mật</h2>
+                <h2 className="text-lg font-semibold">{t("profile.tabSecurity")}</h2>
                 <p className="mb-2 mt-1.5 text-xs text-muted">
-                  Bảo vệ tài khoản và kiểm soát các thiết bị đang truy cập.
+                  {t("profile.securityLead")}
                 </p>
 
                 <ChangePasswordForm />
@@ -589,12 +596,12 @@ export default function ProfilePage() {
                 <ConnectedAccounts />
 
                 <SettingRow
-                  title="Thiết bị đang đăng nhập"
-                  description="Xem và đăng xuất từng thiết bị đang truy cập tài khoản."
+                  title={t("profile.devices")}
+                  description={t("profile.devicesDesc")}
                 >
                   <Link href="/profile/sessions">
                     <Button variant="secondary">
-                      <Smartphone className="h-3.5 w-3.5" /> Quản lý
+                      <Smartphone className="h-3.5 w-3.5" /> {t("profile.manage")}
                     </Button>
                   </Link>
                 </SettingRow>

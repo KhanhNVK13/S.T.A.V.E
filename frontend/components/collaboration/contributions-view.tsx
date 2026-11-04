@@ -24,6 +24,8 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { EmptyState } from "../ui/empty-state";
 import { INPUT_CLASS } from "../ui/form";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 interface ContributionsViewProps {
   projectId: string;
@@ -32,8 +34,8 @@ interface ContributionsViewProps {
 }
 
 function displayName(c: ContributorSummaryItem): string {
-  if (c.isDeletedAccount) return "Người dùng đã xoá";
-  return c.displayName?.trim() || c.username?.trim() || "Người dùng";
+  if (c.isDeletedAccount) return tNow("contrib.deletedUser");
+  return c.displayName?.trim() || c.username?.trim() || tNow("contrib.user");
 }
 
 /** Một card thống kê của 1 tác giả (số commit, nốt thêm/xoá/sửa, track). */
@@ -46,9 +48,10 @@ function ContributorCard({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useI18n();
   const active = contributor.lastActivityAt
     ? formatRelativeTime(contributor.lastActivityAt)
-    : "chưa rõ";
+    : t("contrib.unknown");
 
   return (
     <button
@@ -79,9 +82,9 @@ function ContributorCard({
             <p className="truncate text-[13px] font-semibold">
               {displayName(contributor)}
             </p>
-            {contributor.isOwner && <Badge variant="info">Chủ sở hữu</Badge>}
+            {contributor.isOwner && <Badge variant="info">{t("contrib.owner")}</Badge>}
             {contributor.isRemoved && (
-              <Badge variant="warning">Đã rời dự án</Badge>
+              <Badge variant="warning">{t("contrib.left")}</Badge>
             )}
           </div>
           {contributor.username && !contributor.isDeletedAccount && (
@@ -90,7 +93,7 @@ function ContributorCard({
             </p>
           )}
           <p className="mt-0.5 text-xs text-muted">
-            Hoạt động gần nhất: {active}
+            {t("contrib.lastActive", { when: active })}
           </p>
         </div>
       </div>
@@ -101,14 +104,14 @@ function ContributorCard({
           <p className="font-mono text-[15px] font-bold">
             {contributor.totalCommits}
           </p>
-          <p className="text-xs leading-tight text-muted">Số commit</p>
+          <p className="text-xs leading-tight text-muted">{t("contrib.commits")}</p>
         </div>
         <div className="rounded-md bg-success-muted px-1 py-1.5">
           <p className="font-mono text-[15px] font-bold text-success-foreground">
             +{contributor.notesAdded}
           </p>
           <p className="text-xs leading-tight text-success-foreground">
-            Nốt thêm mới
+            {t("contrib.notesAdded")}
           </p>
         </div>
         <div className="rounded-md bg-danger-muted px-1 py-1.5">
@@ -116,7 +119,7 @@ function ContributorCard({
             -{contributor.notesRemoved}
           </p>
           <p className="text-xs leading-tight text-danger">
-            Nốt đã xoá
+            {t("contrib.notesRemoved")}
           </p>
         </div>
         <div className="rounded-md bg-warning-muted px-1 py-1.5">
@@ -124,7 +127,7 @@ function ContributorCard({
             {contributor.notesModified}
           </p>
           <p className="text-xs leading-tight text-warning-foreground">
-            Nốt đã sửa
+            {t("contrib.notesModified")}
           </p>
         </div>
       </div>
@@ -133,24 +136,24 @@ function ContributorCard({
       {contributor.trackDistribution.length > 0 && (
         <div className="mt-3 space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Phân bố thay đổi theo track
+            {t("contrib.trackDist")}
           </p>
-          {contributor.trackDistribution.map((t) => (
-            <div key={t.trackId} className="flex items-center gap-2">
+          {contributor.trackDistribution.map((d) => (
+            <div key={d.trackId} className="flex items-center gap-2">
               <span
                 className="w-24 shrink-0 truncate text-xs text-muted"
-                title={t.trackName}
+                title={d.trackName}
               >
-                {t.trackName}
+                {d.trackName}
               </span>
               <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded bg-surface-muted">
                 <div
                   className="h-2 rounded bg-accent"
-                  style={{ width: `${t.percentage}%` }}
+                  style={{ width: `${d.percentage}%` }}
                 />
               </div>
               <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted">
-                {t.changeCount} · {t.percentage}%
+                {d.changeCount} · {d.percentage}%
               </span>
             </div>
           ))}
@@ -170,18 +173,19 @@ function CommitRow({
   authorName: string | null;
   onOpen: (commit: ContributionCommitItem) => void;
 }) {
+  const { t } = useI18n();
   return (
     <button
       type="button"
       onClick={() => onOpen(commit)}
-      title="Mở trong lịch sử phiên bản"
+      title={t("contrib.openInHistory")}
       className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left hover:bg-surface-subtle"
     >
       <GitCommitVertical className="h-3.5 w-3.5 shrink-0 text-muted" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium">{commit.message}</p>
         <p className="text-xs text-muted">
-          {authorName ?? "Người dùng"} · {formatRelativeTime(commit.createdAt)}
+          {authorName ?? t("contrib.user")} · {formatRelativeTime(commit.createdAt)}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
@@ -210,6 +214,7 @@ export function ContributionsView({
   projectId,
   onSelectCommit,
 }: ContributionsViewProps) {
+  const { t } = useI18n();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState<string>("");
   const [from, setFrom] = useState<string>("");
@@ -236,7 +241,7 @@ export function ContributionsView({
       // 2.E1: surface "try again" — never fall back to "0 contributions".
       setData(null);
       setError(
-        apiErrorMessage(err, "Không thể tải dữ liệu đóng góp của dự án."),
+        apiErrorMessage(err, tNow("contrib.loadFail")),
       );
     } finally {
       setLoading(false);
@@ -271,7 +276,7 @@ export function ContributionsView({
   const nameByAuthor = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const c of data?.contributors ?? []) {
-      map.set(c.userId, c.isDeletedAccount ? "Người dùng đã xoá" : displayName(c));
+      map.set(c.userId, c.isDeletedAccount ? tNow("contrib.deletedUser") : displayName(c));
     }
     return map;
   }, [data]);
@@ -316,12 +321,12 @@ export function ContributionsView({
       <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
         <TriangleAlert className="mx-auto h-7 w-7 text-danger" />
         <p role="alert" className="mt-2 text-sm font-semibold text-danger">
-          Không thể tải dữ liệu đóng góp của dự án.
+          {t("contrib.loadFail")}
         </p>
         <p className="mt-1 text-[13px] text-muted">{error}</p>
         <div className="mt-4 flex justify-center">
           <Button variant="secondary" onClick={() => void loadContributions()}>
-            <RotateCw className="h-3.5 w-3.5" /> Thử lại
+            <RotateCw className="h-3.5 w-3.5" /> {t("ui.retry")}
           </Button>
         </div>
       </div>
@@ -333,8 +338,8 @@ export function ContributionsView({
     return (
       <EmptyState
         icon={Music2}
-        title="Chưa có dữ liệu đóng góp nào cho dự án này."
-        description="Khi dự án có ít nhất 1 commit, thống kê đóng góp của các tác giả sẽ hiện ở đây."
+        title={t("contrib.empty")}
+        description={t("contrib.emptyHint")}
       />
     );
   }
@@ -345,16 +350,16 @@ export function ContributionsView({
       <div className="flex flex-wrap items-center gap-2">
         <select
           name="branch-filter"
-          aria-label="Lọc theo nhánh"
+          aria-label={t("contrib.filterBranch")}
           value={branchId}
           onChange={(e) => setBranchId(e.target.value)}
           className={`${INPUT_CLASS} h-9 w-44`}
         >
-          <option value="">Mọi nhánh</option>
+          <option value="">{t("contrib.allBranches")}</option>
           {branches.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
-              {b.is_default ? " (mặc định)" : ""}
+              {b.is_default ? t("contrib.defaultSuffix") : ""}
             </option>
           ))}
         </select>
@@ -362,16 +367,16 @@ export function ContributionsView({
         <input
           type="date"
           name="filter-from"
-          aria-label="Từ ngày"
+          aria-label={t("contrib.fromDate")}
           value={from}
           onChange={(e) => setFrom(e.target.value)}
           className={`${INPUT_CLASS} h-9 w-40`}
         />
-        <span className="text-xs text-muted">đến</span>
+        <span className="text-xs text-muted">{t("contrib.to")}</span>
         <input
           type="date"
           name="filter-to"
-          aria-label="Đến ngày"
+          aria-label={t("contrib.toDate")}
           value={to}
           onChange={(e) => setTo(e.target.value)}
           className={`${INPUT_CLASS} h-9 w-40`}
@@ -386,13 +391,13 @@ export function ContributionsView({
               setTo("");
             }}
           >
-            Xong lọc
+            {t("contrib.clear")}
           </Button>
         )}
 
         <div className="ml-auto flex items-center gap-1.5 text-xs text-muted">
           <Users className="h-3.5 w-3.5" />
-          {data.contributors.length} người đóng góp
+          {t("contrib.people", { n: data.contributors.length })}
         </div>
       </div>
 
@@ -414,8 +419,8 @@ export function ContributionsView({
           <div className="flex items-center justify-between px-3.5 py-2.5">
             <h2 className="text-xs font-bold uppercase tracking-wide text-muted">
               {selectedAuthor
-                ? "Commit của người được chọn"
-                : "Commit gần đây"}
+                ? t("contrib.selectedCommits")
+                : t("contrib.recentCommits")}
             </h2>
           </div>
           <div className="divide-y divide-border border-t border-border">

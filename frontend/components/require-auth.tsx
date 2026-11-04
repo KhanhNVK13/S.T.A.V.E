@@ -3,9 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { useT } from "../context/i18n-context";
 import { useAuth } from "../context/auth-context";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -18,7 +20,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   if (loading || !user) {
     return (
       <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted">
-        <Loader2 className="h-4 w-4 animate-spin text-accent" /> Đang tải…
+        <Loader2 className="h-4 w-4 animate-spin text-accent" /> {t("ui.loading")}
       </div>
     );
   }

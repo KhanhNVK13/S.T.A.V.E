@@ -1,5 +1,6 @@
 "use client";
 
+import { tNow } from "../lib/i18n";
 import {
   createContext,
   useCallback,
@@ -112,7 +113,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       // UC-78 ngoại lệ 6.E1: báo lỗi VÀ trả giao diện về theme đã lưu, không để
       // người dùng tưởng đã đổi xong.
-      setError("Không lưu được theme. Giao diện đã được trả về lựa chọn cũ.");
+      setError(tNow("theme.saveFail"));
       setPreviewPreset(null);
       applyToDocument(savedPreset);
       return false;

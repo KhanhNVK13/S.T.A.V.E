@@ -18,6 +18,9 @@ import {
   House,
 } from "lucide-react";
 import { useAuth } from "../context/auth-context";
+import { useT } from "../context/i18n-context";
+import { LanguageSwitch } from "./language-switch";
+import type { TKey } from "../lib/i18n";
 import { Logo } from "./ui/logo";
 import { Avatar } from "./ui/avatar";
 import { NotificationBell } from "./notification-bell";
@@ -25,7 +28,7 @@ import { isLandingPath } from "./landing/landing-paths";
 
 interface NavLink {
   href: string;
-  label: string;
+  label: TKey;
 }
 
 /*
@@ -35,13 +38,14 @@ interface NavLink {
  * phải nav toàn cục.
  */
 const NAV_LINKS: NavLink[] = [
-  { href: "/", label: "Trang chủ" },
-  { href: "/explore", label: "Khám phá" },
-  { href: "/rankings", label: "Bảng xếp hạng" },
-  { href: "/projects", label: "Dự án của tôi" },
+  { href: "/", label: "nav.home" },
+  { href: "/explore", label: "nav.explore" },
+  { href: "/rankings", label: "nav.rankings" },
+  { href: "/projects", label: "nav.projects" },
 ];
 
 export function SiteHeader() {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
@@ -75,6 +79,7 @@ export function SiteHeader() {
     void performSignOut();
   }
 
+  const isAuthPath = /^\/(login|register|forgot-password|reset-password)$/.test(pathname);
   const isEditor = /^\/projects\/[^/]+\/edit$/.test(pathname);
   const displayLabel = profile?.display_name ?? user?.email?.split("@")[0] ?? "";
 
@@ -109,21 +114,22 @@ export function SiteHeader() {
               aria-current={isActiveLink(link.href) ? "page" : undefined}
               className={navClass(link.href)}
             >
-              {link.label}
+              {t(link.label)}
             </Link>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          {!isAuthPath && <LanguageSwitch />}
           {loading ? (
             <div className="h-8 w-24 animate-pulse rounded-md bg-surface-subtle" />
           ) : user ? (
             <>
               <Link
                 href="/"
-                aria-label="Trang chủ"
+                aria-label={t("nav.home")}
                 aria-current={pathname === "/" ? "page" : undefined}
-                title="Trang chủ"
+                title={t("nav.home")}
                 className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-subtle hover:text-foreground md:hidden ${
                   pathname === "/" ? "bg-accent-muted text-accent" : "text-muted"
                 }`}
@@ -135,7 +141,7 @@ export function SiteHeader() {
                 href="/projects/new"
                 className="hidden h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent-hover sm:flex"
               >
-                <Plus className="h-3.5 w-3.5" /> Dự án mới
+                <Plus className="h-3.5 w-3.5" /> {t("nav.newProject")}
               </Link>
 
               <div ref={dropdownRef} className="relative">
@@ -159,14 +165,14 @@ export function SiteHeader() {
                           onClick={() => setDropdownOpen(false)}
                           className="flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-surface-subtle"
                         >
-                          <Shield className="h-4 w-4 text-muted" /> Quản trị
+                          <Shield className="h-4 w-4 text-muted" /> {t("nav.admin")}
                         </Link>
                         <Link
                           href="/admin/jam"
                           onClick={() => setDropdownOpen(false)}
                           className="flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-surface-subtle"
                         >
-                          <Music4 className="h-4 w-4 text-muted" /> Sự kiện Jam
+                          <Music4 className="h-4 w-4 text-muted" /> {t("nav.jam")}
                         </Link>
                       </>
                     )}
@@ -175,13 +181,13 @@ export function SiteHeader() {
                       onClick={() => setDropdownOpen(false)}
                       className="flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-surface-subtle"
                     >
-                      <UserRound className="h-4 w-4 text-muted" /> Hồ sơ cá nhân
+                      <UserRound className="h-4 w-4 text-muted" /> {t("nav.profile")}
                     </Link>
                     <button
                       onClick={handleSignOut}
                       className="flex w-full items-center gap-2 px-4 py-2 text-[13px] text-danger hover:bg-surface-subtle"
                     >
-                      <LogOut className="h-4 w-4" /> Đăng xuất
+                      <LogOut className="h-4 w-4" /> {t("nav.signOut")}
                     </button>
                   </div>
                 )}
@@ -193,22 +199,22 @@ export function SiteHeader() {
                 href="/login"
                 className="flex h-8 items-center whitespace-nowrap rounded-md px-3 text-[13px] font-semibold text-muted hover:bg-surface-subtle hover:text-foreground"
               >
-                Đăng nhập
+                {t("nav.signIn")}
               </Link>
               <Link
                 href="/register"
-                aria-label="Bắt đầu miễn phí"
+                aria-label={t("nav.startFree")}
                 className="flex h-8 items-center whitespace-nowrap rounded-md bg-accent px-3 text-[13px] font-semibold text-accent-foreground hover:bg-accent-hover"
               >
-                <span aria-hidden="true" className="sm:hidden">Bắt đầu</span>
-                <span aria-hidden="true" className="hidden sm:inline">Bắt đầu miễn phí</span>
+                <span aria-hidden="true" className="sm:hidden">{t("nav.start")}</span>
+                <span aria-hidden="true" className="hidden sm:inline">{t("nav.startFree")}</span>
               </Link>
             </>
           )}
 
           <button
             onClick={() => setMobileOpen((o) => !o)}
-            aria-label={mobileOpen ? "Đóng menu" : "Mở menu"}
+            aria-label={mobileOpen ? t("nav.closeMenu") : t("nav.openMenu")}
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle md:hidden"
           >
             {mobileOpen ? <X className="h-[18px] w-[18px]" /> : <Menu className="h-[18px] w-[18px]" />}
@@ -226,7 +232,7 @@ export function SiteHeader() {
               aria-current={isActiveLink(link.href) ? "page" : undefined}
               className={navClass(link.href)}
             >
-              {link.label}
+              {t(link.label)}
             </Link>
           ))}
         </nav>
@@ -234,10 +240,10 @@ export function SiteHeader() {
     </header>
     <ConfirmDialog
       open={confirmSignOut}
-      title="Đăng xuất khi bản nháp chưa lưu được?"
-      message="Bản nháp hiện tại chưa được lưu lên máy chủ. Đăng xuất lúc này có thể làm mất các thay đổi chưa lưu. Bạn vẫn muốn đăng xuất?"
-      confirmLabel="Vẫn đăng xuất"
-      cancelLabel="Ở lại"
+      title={t("nav.signOutUnsavedTitle")}
+      message={t("nav.signOutUnsavedBody")}
+      confirmLabel={t("nav.signOutAnyway")}
+      cancelLabel={t("nav.stay")}
       danger
       onConfirm={() => void performSignOut()}
       onCancel={() => setConfirmSignOut(false)}

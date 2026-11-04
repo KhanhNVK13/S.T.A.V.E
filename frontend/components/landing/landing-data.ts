@@ -5,16 +5,16 @@ export interface SampleCommit {
   msg: string;
   author: string;
   when: string;
-  ago: string;
+  ago: { key: "time.week" | "time.day" | "time.yesterday"; n: number };
 }
 
 export const SAMPLE_COMMITS: SampleCommit[] = [
-  { hash: "e41b9a0", msg: "Chord frame Am – F – C – G", author: "Khanh", when: "Oct 12", ago: "2 weeks ago" },
-  { hash: "7c03d5e", msg: "Add a root-note bass line", author: "Khanh", when: "Oct 14", ago: "2 weeks ago" },
-  { hash: "b92af61", msg: "Verse melody, bars 1–2", author: "Minh Anh", when: "Oct 18", ago: "12 days ago" },
-  { hash: "3fd81c7", msg: "Melody bars 3–4, remove duplicate notes on the C chord", author: "Minh Anh", when: "Oct 21", ago: "9 days ago" },
-  { hash: "a58e204", msg: "Shift bass back half a beat for swing", author: "Khanh", when: "Oct 26", ago: "4 days ago" },
-  { hash: "d70c9b3", msg: "Normalize velocity for pad and melody", author: "Khanh", when: "Oct 29", ago: "yesterday" },
+  { hash: "e41b9a0", msg: "Chord frame Am – F – C – G", author: "Khanh", when: "Oct 12", ago: { key: "time.week", n: 2 } },
+  { hash: "7c03d5e", msg: "Add a root-note bass line", author: "Khanh", when: "Oct 14", ago: { key: "time.week", n: 2 } },
+  { hash: "b92af61", msg: "Verse melody, bars 1–2", author: "Minh Anh", when: "Oct 18", ago: { key: "time.day", n: 12 } },
+  { hash: "3fd81c7", msg: "Melody bars 3–4, remove duplicate notes on the C chord", author: "Minh Anh", when: "Oct 21", ago: { key: "time.day", n: 9 } },
+  { hash: "a58e204", msg: "Shift bass back half a beat for swing", author: "Khanh", when: "Oct 26", ago: { key: "time.day", n: 4 } },
+  { hash: "d70c9b3", msg: "Normalize velocity for pad and melody", author: "Khanh", when: "Oct 29", ago: { key: "time.yesterday", n: 0 } },
 ];
 
 export interface SampleNote {

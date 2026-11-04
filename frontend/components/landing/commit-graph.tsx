@@ -1,6 +1,7 @@
 "use client";
 
 import type { KeyboardEvent } from "react";
+import { useT } from "../../context/i18n-context";
 import type { SampleCommit } from "./landing-data";
 
 const W = 760;
@@ -30,6 +31,7 @@ export function CommitGraph({
   selected: number;
   onSelect: (index: number) => void;
 }) {
+  const t = useT();
   const bX = [px(3) + 78, px(3) + 168];
   const dX = px(2) + 80;
 
@@ -50,7 +52,7 @@ export function CommitGraph({
     <svg
       viewBox={`0 0 ${W} ${H}`}
       role="group"
-      aria-label="Commit graph. Each star is a commit; use arrow keys or Tab to move between them."
+      aria-label={t("landing.graphLabel")}
     >
       <defs>
         <radialGradient id="lnd-halo">
@@ -98,7 +100,7 @@ export function CommitGraph({
           tabIndex={i === selected ? 0 : -1}
           role="button"
           aria-pressed={i === selected}
-          aria-label={`Commit ${c.hash}: ${c.msg}, ${c.author}, ${c.when}`}
+          aria-label={t("landing.commitLabel", { hash: c.hash, msg: c.msg, author: c.author, when: c.when })}
           onClick={() => onSelect(i)}
           onKeyDown={(e) => onKey(e, i)}
         >

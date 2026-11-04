@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../context/auth-context";
+import { I18nProvider } from "../context/i18n-context";
 import { ThemeProvider } from "../context/theme-context";
 import { SiteHeader } from "../components/site-header";
 import { SiteFooter } from "../components/site-footer";
 import { FlashToastHost } from "../components/flash-toast";
+import { SkipLink } from "../components/skip-link";
 import { SpaceBackdrop } from "../components/space/space-backdrop";
 
 const staveSans = Inter({
@@ -25,7 +27,7 @@ const staveDisplay = Unbounded({
 });
 
 export const metadata: Metadata = {
-  title: { template: "%s · STAVE", default: "STAVE — Quản lý phiên bản cho dự án nhạc MIDI" },
+  title: { template: "%s · STAVE", default: "STAVE — Version control for MIDI music projects" },
   description:
     "Source Tracking and Version Control Environment for MIDI Music Projects",
 };
@@ -33,21 +35,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="vi"
+      lang="en"
       data-theme="space"
       suppressHydrationWarning
       className={`${staveSans.variable} ${staveMono.variable} ${staveDisplay.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col bg-background font-sans text-foreground">
+        <I18nProvider>
         <AuthProvider>
           <ThemeProvider>
             <SpaceBackdrop />
-            <a
-              href="#main"
-              className="sr-only z-50 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
-            >
-              Bỏ qua tới nội dung chính
-            </a>
+            <SkipLink />
             <SiteHeader />
           {/*
             min-h-0 is required here: a flex item's default min-height is
@@ -68,6 +66,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <FlashToastHost />
           </ThemeProvider>
         </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );

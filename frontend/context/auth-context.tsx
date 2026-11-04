@@ -16,7 +16,7 @@ import {
   getStoredSessionId,
   setStoredSessionId,
 } from "../lib/api-client";
-import { ACCOUNT_INACTIVE_NOTICE, setAuthNotice } from "../lib/auth-notice";
+import { accountInactiveNotice, setAuthNotice } from "../lib/auth-notice";
 import type { Profile } from "../lib/types";
 
 interface AuthContextValue {
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await refreshProfile();
             } catch (err) {
               if (err instanceof ApiError && err.status === 403) {
-                setAuthNotice(ACCOUNT_INACTIVE_NOTICE);
+                setAuthNotice(accountInactiveNotice());
                 clearStoredSessionId();
                 await supabase.auth.signOut({ scope: "local" });
               } else {

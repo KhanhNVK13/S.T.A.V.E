@@ -30,7 +30,9 @@ import { VersionSummary } from "../../../components/project/version-summary";
 import { ImportMidiDialog } from "../../../components/project/import-midi-dialog";
 import { ProjectPullRequests } from "../../../components/pull-request/project-pull-requests";
 import { ContributionsView } from "../../../components/collaboration/contributions-view";
-import { formatRelativeTime, APP_LOCALE } from "../../../lib/format-date";
+import { formatRelativeTime } from "../../../lib/format-date";
+import { tNow } from "../../../lib/i18n";
+import { useI18n } from "../../../context/i18n-context";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -72,6 +74,7 @@ const PENDING_FORK_TTL_MS = 15 * 60 * 1000;
 type TabId = "overview" | "commits" | "branches" | "pulls" | "contributions";
 
 function ProjectOverview({ id }: { id: string }) {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
@@ -121,8 +124,8 @@ function ProjectOverview({ id }: { id: string }) {
           if (!cancelled) {
             setError(
               pubErr instanceof ApiError && pubErr.status === 404
-                ? "Không tìm thấy dự án này hoặc dự án không công khai."
-                : "Không tải được dự án.",
+                ? tNow("project.notFoundPublic")
+                : tNow("project.loadFail"),
             );
           }
           return;
@@ -155,8 +158,8 @@ function ProjectOverview({ id }: { id: string }) {
           if (!cancelled) {
             setError(
               ownErr instanceof ApiError && (ownErr.status === 404 || ownErr.status === 403)
-                ? "Không tìm thấy dự án này, hoặc bạn không có quyền xem."
-                : apiErrorMessage(ownErr, "Không tải được dự án."),
+                ? tNow("project.notFoundOwned")
+                : apiErrorMessage(ownErr, tNow("project.loadFail")),
             );
           }
         }
@@ -223,7 +226,7 @@ function ProjectOverview({ id }: { id: string }) {
       const created = await forkProject(id);
       router.push(`/projects/${created.id}/edit`);
     } catch (err) {
-      setToastMessage(apiErrorMessage(err, "Không fork được dự án."));
+      setToastMessage(apiErrorMessage(err, t("project.forkFail")));
       setForking(false);
     }
   }
@@ -259,7 +262,7 @@ function ProjectOverview({ id }: { id: string }) {
   if (loading || authLoading) {
     return (
       <div className="mx-auto max-w-page px-5 py-8">
-        <SkyLoading label="Đang tải dự án…" />
+        <SkyLoading label={t("project.loading")} />
       </div>
     );
   }
@@ -268,16 +271,16 @@ function ProjectOverview({ id }: { id: string }) {
     return (
       <div className="mx-auto max-w-page px-5 py-8">
         <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
-          <h1 className="text-lg font-semibold text-danger">Không mở được dự án</h1>
+          <h1 className="text-lg font-semibold text-danger">{t("project.openFail")}</h1>
           <p role="alert" className="mt-2 text-[13px] text-muted">
-            {error ?? "Dự án này không tồn tại."}
+            {error ?? t("project.notExist")}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Button variant="secondary" onClick={() => window.location.reload()}>
-              Thử lại
+              {t("ui.retry")}
             </Button>
             <Link href={user ? "/projects" : "/explore"}>
-              <Button variant="ghost">{user ? "Về Dự án của tôi" : "Quay lại Khám phá"}</Button>
+              <Button variant="ghost">{user ? t("project.toMine") : t("project.toExplore")}</Button>
             </Link>
           </div>
         </div>
@@ -285,7 +288,7 @@ function ProjectOverview({ id }: { id: string }) {
     );
   }
 
-  const ownerName = data.owner?.display_name ?? data.owner?.username ?? "Người dùng";
+  const ownerName = data.owner?.display_name ?? data.owner?.username ?? t("project.user");
 
   /*
    * Cùng MỘT trang cho mọi người xem (mô hình GitHub) — khác nhau chỉ ở hành
@@ -294,15 +297,15 @@ function ProjectOverview({ id }: { id: string }) {
    * có playback/mô tả/thống kê).
    */
   const tabs: { id: TabId; label: string; visible: boolean; ready: boolean }[] = [
-    { id: "overview", label: "Tổng quan", visible: true, ready: true },
-    { id: "commits", label: "Commit", visible: data.isOwner, ready: true },
-    { id: "branches", label: "Nhánh", visible: data.isOwner, ready: true },
-    { id: "pulls", label: "Pull request", visible: !!user && (data.isOwner || data.visibility === "public"), ready: true },
+    { id: "overview", label: t("project.tabOverview"), visible: true, ready: true },
+    { id: "commits", label: t("project.tabCommits"), visible: data.isOwner, ready: true },
+    { id: "branches", label: t("project.tabBranches"), visible: data.isOwner, ready: true },
+    { id: "pulls", label: t("project.tabPulls"), visible: !!user && (data.isOwner || data.visibility === "public"), ready: true },
     // UC-65: chỉ chủ dự án hoặc cộng tác viên đã chấp nhận (xem trên, BR-65).
-    { id: "contributions", label: "Đóng góp", visible: data.isOwner || isCollaborator, ready: true },
+    { id: "contributions", label: t("project.tabContributions"), visible: data.isOwner || isCollaborator, ready: true },
   ];
 
-  const activeTab = tabs.find((t) => t.id === tab && t.visible && t.ready) ? tab : "overview";
+  const activeTab = tabs.find((tb) => tb.id === tab && tb.visible && tb.ready) ? tab : "overview";
 
   return (
     <>
@@ -327,7 +330,7 @@ function ProjectOverview({ id }: { id: string }) {
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent">
               <Link href="/" className="hover:underline">
-                Trang chủ
+                {t("ui.home")}
               </Link>
               <span className="text-muted">/</span>
               {data.owner ? (
@@ -338,11 +341,11 @@ function ProjectOverview({ id }: { id: string }) {
                 <span>{ownerName}</span>
               )}
               <span className="text-muted">/</span>
-              <span>{data.visibility === "public" ? "Dự án công khai" : "Dự án riêng tư"}</span>
+              <span>{data.visibility === "public" ? t("project.public") : t("project.private")}</span>
             </p>
             <h1 className="mb-1 mt-0.5 flex flex-wrap items-center gap-2 text-[26px] font-semibold leading-tight tracking-tight">
               {data.name}
-              {data.archivedAt && <Badge variant="warning">Đã lưu trữ</Badge>}
+              {data.archivedAt && <Badge variant="warning">{t("project.archived")}</Badge>}
             </h1>
             {data.description && (
               <p className="max-w-3xl text-sm text-muted">{data.description}</p>
@@ -354,14 +357,14 @@ function ProjectOverview({ id }: { id: string }) {
               <Button variant="secondary" onClick={handleFork} disabled={forking}>
                 {forking ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang xử lý…
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("project.working")}
                   </>
                 ) : (
                   <>
                     <GitFork className="h-3.5 w-3.5" /> Fork
                     {data.forkCount !== null && (
                       <span className="font-mono">
-                        {data.forkCount.toLocaleString(APP_LOCALE)}
+                        {data.forkCount.toLocaleString(locale)}
                       </span>
                     )}
                   </>
@@ -372,26 +375,26 @@ function ProjectOverview({ id }: { id: string }) {
             <Button
               variant="secondary"
               disabled
-              title="PLACEHOLDER — tính năng phát nhạc chưa được xây dựng"
+              title={t("project.previewTitle")}
             >
-              <Play className="h-3.5 w-3.5" /> Nghe thử (PLACEHOLDER)
+              <Play className="h-3.5 w-3.5" /> {t("project.preview")}
             </Button>
 
             {data.isOwner && (
               <>
                 {!data.archivedAt && (
                   <Button variant="secondary" onClick={() => setImportOpen(true)}>
-                    <FileUp className="h-3.5 w-3.5" /> Nhập MIDI
+                    <FileUp className="h-3.5 w-3.5" /> {t("project.importMidi")}
                   </Button>
                 )}
                 <Link href={`/projects/${data.id}/settings`}>
                   <Button variant="secondary">
-                    <SettingsIcon className="h-3.5 w-3.5" /> Cài đặt
+                    <SettingsIcon className="h-3.5 w-3.5" /> {t("project.settings")}
                   </Button>
                 </Link>
                 <Link href={`/projects/${data.id}/edit`}>
                   <Button>
-                    <Piano className="h-3.5 w-3.5" /> Mở trình soạn nhạc
+                    <Piano className="h-3.5 w-3.5" /> {t("project.openEditor")}
                   </Button>
                 </Link>
               </>
@@ -401,27 +404,27 @@ function ProjectOverview({ id }: { id: string }) {
 
         <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border">
           {tabs
-            .filter((t) => t.visible)
-            .map((t) =>
-              t.ready ? (
+            .filter((tb) => tb.visible)
+            .map((tb) =>
+              tb.ready ? (
                 <button
-                  key={t.id}
-                  onClick={() => switchTab(t.id)}
+                  key={tb.id}
+                  onClick={() => switchTab(tb.id)}
                   className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
-                    activeTab === t.id
+                    activeTab === tb.id
                       ? "border-accent font-bold text-foreground"
                       : "border-transparent text-muted hover:text-foreground"
                   }`}
                 >
-                  {t.label}
+                  {tb.label}
                 </button>
               ) : (
                 <span
-                  key={t.id}
-                  title="PLACEHOLDER — chưa xây dựng"
+                  key={tb.id}
+                  title={t("project.placeholderTab")}
                   className="-mb-px cursor-not-allowed whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-xs text-muted"
                 >
-                  {t.label} (PLACEHOLDER)
+                  {tb.label} (PLACEHOLDER)
                 </span>
               ),
             )}
@@ -460,13 +463,13 @@ function ProjectOverview({ id }: { id: string }) {
                     <div className="min-w-0">
                       <p className="truncate font-mono text-xs font-bold">{data.name}.mid</p>
                       <p className="text-xs text-muted">
-                        Cập nhật {formatRelativeTime(data.updatedAt)}
+                        {t("project.updated", { when: formatRelativeTime(data.updatedAt) })}
                       </p>
                     </div>
                   </div>
                   {data.isOwner && (
                     <Link href={`/projects/${data.id}/edit`}>
-                      <Button variant="secondary">Mở trong trình soạn nhạc</Button>
+                      <Button variant="secondary">{t("project.openInEditor")}</Button>
                     </Link>
                   )}
                 </div>
@@ -480,9 +483,9 @@ function ProjectOverview({ id }: { id: string }) {
               {data.isOwner && <VersionSummary key={refreshKey} projectId={data.id} onOpenTab={switchTab} />}
 
               <section className="mt-5 border-t border-border pt-4">
-                <h2 className="mb-2 text-[13px] font-semibold">Về dự án này</h2>
+                <h2 className="mb-2 text-[13px] font-semibold">{t("project.about")}</h2>
                 <p className="text-[13px] leading-relaxed text-muted">
-                  {data.description ?? "Chưa có mô tả cho dự án này."}
+                  {data.description ?? t("project.noDescription")}
                 </p>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
@@ -500,7 +503,7 @@ function ProjectOverview({ id }: { id: string }) {
               {data.owner && (
                 <div className="rounded-card border border-border bg-surface p-4">
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
-                    Tác giả
+                    {t("project.author")}
                   </h3>
                   <Link
                     href={`/creator/${data.owner.id}`}
@@ -524,15 +527,15 @@ function ProjectOverview({ id }: { id: string }) {
               <div className="grid grid-cols-2 overflow-hidden rounded-card border border-border bg-surface">
                 <div className="border-r border-border px-4 py-3">
                   <p className="font-mono text-[17px] font-bold">
-                    {data.playCount.toLocaleString(APP_LOCALE)}
+                    {data.playCount.toLocaleString(locale)}
                   </p>
-                  <p className="text-xs text-muted">Lượt nghe</p>
+                  <p className="text-xs text-muted">{t("project.plays")}</p>
                 </div>
                 <div className="px-4 py-3">
                   <p className="font-mono text-[17px] font-bold">
-                    {data.forkCount !== null ? data.forkCount.toLocaleString(APP_LOCALE) : "—"}
+                    {data.forkCount !== null ? data.forkCount.toLocaleString(locale) : "—"}
                   </p>
-                  <p className="text-xs text-muted">Lượt fork</p>
+                  <p className="text-xs text-muted">{t("project.forks")}</p>
                 </div>
               </div>
 
@@ -545,9 +548,9 @@ function ProjectOverview({ id }: { id: string }) {
                         href={`/login?redirect=${encodeURIComponent(`/projects/${id}`)}`}
                         className="font-semibold text-accent hover:underline"
                       >
-                        Đăng nhập
+                        {t("nav.signIn")}
                       </Link>{" "}
-                      để fork dự án này về không gian làm việc của bạn.
+                      {t("project.signInToFork")}
                     </span>
                   </p>
                 </div>
@@ -562,11 +565,12 @@ function ProjectOverview({ id }: { id: string }) {
 
 export default function ProjectOverviewPage({ params }: Props) {
   const { id } = use(params);
+  const { t } = useI18n();
   return (
     <Suspense
       fallback={
         <div className="mx-auto max-w-page px-5 py-8">
-          <SkyLoading label="Đang tải dự án…" />
+          <SkyLoading label={t("project.loading")} />
         </div>
       }
     >

@@ -13,7 +13,6 @@ import {
 import type { CustomSound, CustomSoundLibrary, CustomSoundUsage } from "../../lib/api-client";
 import { supabase } from "../../lib/supabase-browser";
 import { apiErrorMessage } from "../../lib/error-message";
-import { APP_LOCALE } from "../../lib/format-date";
 import { encodeWav, normalizeForStorage } from "../../lib/wav-encoder";
 import { useAudioRecorder } from "../../lib/use-audio-recorder";
 import { loadWaveformPeaks } from "../../lib/sound-waveform";
@@ -22,6 +21,8 @@ import { Button } from "../ui/button";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { EmptyState } from "../ui/empty-state";
 import { Field, INPUT_CLASS } from "../ui/form";
+import { useI18n } from "../../context/i18n-context";
+import { tNow } from "../../lib/i18n";
 
 const BUCKET = "custom-sounds";
 export const MAX_SOUND_DURATION_SEC = 30;
@@ -56,15 +57,15 @@ async function saveSound(
   try {
     buffer = await decodeFile(source);
   } catch {
-    throw new Error("Không đọc được file âm thanh. Hãy dùng file WAV hoặc MP3.");
+    throw new Error(tNow("snd.undecodable"));
   }
   if (buffer.duration > MAX_SOUND_DURATION_SEC) {
-    throw new Error(`Âm thanh dài ${Math.ceil(buffer.duration)} giây, vượt giới hạn ${MAX_SOUND_DURATION_SEC} giây. Mỗi âm thanh được phát như một nốt riêng lẻ nên cần ngắn gọn. Hãy cắt ngắn rồi thử lại.`);
+    throw new Error(tNow("snd.tooLong", { sec: Math.ceil(buffer.duration), max: MAX_SOUND_DURATION_SEC }));
   }
 
   const wav = encodeWav(await normalizeForStorage(buffer));
   if (wav.size > MAX_SIZE_BYTES) {
-    throw new Error("Âm thanh vượt giới hạn 10 MB. Hãy cắt ngắn hoặc giảm chất lượng rồi thử lại.");
+    throw new Error(tNow("snd.tooBigStored"));
   }
 
   const { soundId, path, token } = await createCustomSoundUploadUrl({
@@ -75,7 +76,7 @@ async function saveSound(
   const { error } = await supabase.storage
     .from(BUCKET)
     .uploadToSignedUrl(path, token, wav, { contentType: "audio/wav" });
-  if (error) throw new Error("Tải file lên thất bại. Hãy kiểm tra mạng rồi thử lại.");
+  if (error) throw new Error(tNow("snd.uploadFail"));
 
   return confirmCustomSoundUpload({ soundId, name, source: kind });
 }
@@ -86,9 +87,10 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
+  const { t, locale } = useI18n();
   const recorder = useAudioRecorder(MAX_SOUND_DURATION_SEC);
   const [name, setName] = useState(() =>
-    `Ghi âm ${new Date().toLocaleString(APP_LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+    t("snd.recordingName", { when: new Date().toLocaleString(locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) }),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +109,7 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
     if (!recorder.blob) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Hãy đặt tên cho âm thanh.");
+      setError(t("snd.nameRequired"));
       return;
     }
     setSaving(true);
@@ -116,7 +118,7 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
       await saveSound(recorder.blob, trimmed, "recorded");
       onSaved();
     } catch (err) {
-      setError(errorText(err, "Không lưu được bản ghi."));
+      setError(errorText(err, t("snd.saveRecordingFail")));
     } finally {
       setSaving(false);
     }
@@ -126,16 +128,16 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
   const isRecorded = recorder.status === "recorded" && !!recorder.blob;
 
   return (
-    <section aria-label="Ghi âm" className="flex flex-col gap-3 rounded-card border border-border bg-surface-subtle p-4">
+    <section aria-label={t("snd.recordSection")} className="flex flex-col gap-3 rounded-card border border-border bg-surface-subtle p-4">
       <div className="flex items-center gap-3">
         {!isRecording && !isRecorded && (
           <Button onClick={() => void recorder.start()} disabled={recorder.status === "requesting"}>
-            <Mic size={14} /> Bắt đầu ghi
+            <Mic size={14} /> {t("snd.startRecording")}
           </Button>
         )}
         {isRecording && (
           <Button variant="danger" onClick={recorder.stop}>
-            <Square size={14} /> Dừng
+            <Square size={14} /> {t("snd.stop")}
           </Button>
         )}
         {isRecorded && previewUrl && <audio src={previewUrl} controls className="h-8 min-w-0 flex-1" />}
@@ -154,7 +156,7 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
       {recorder.warning && <p className="text-xs text-warning-foreground">{recorder.warning}</p>}
 
       {isRecorded && (
-        <Field label="Tên âm thanh">
+        <Field label={t("snd.soundName")}>
           <input
             name="sound-name"
             autoComplete="off"
@@ -170,16 +172,16 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={() => { recorder.reset(); onCancel(); }} disabled={saving}>
-          <X size={14} /> Huỷ
+          <X size={14} /> {t("ui.cancel")}
         </Button>
         {isRecorded && (
           <>
             <Button variant="secondary" onClick={() => recorder.reset()} disabled={saving}>
-              Ghi lại
+              {t("snd.rerecord")}
             </Button>
             <Button onClick={() => void handleSave()} disabled={saving}>
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saving ? "Đang lưu…" : "Lưu"}
+              {saving ? t("snd.saving") : t("snd.save")}
             </Button>
           </>
         )}
@@ -197,6 +199,7 @@ function DeleteSoundDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const { t, tx } = useI18n();
   const [externalCount, setExternalCount] = useState<number | null>(null);
   const [usage, setUsage] = useState<CustomSoundUsage | null>(null);
   const [busy, setBusy] = useState(false);
@@ -210,7 +213,7 @@ function DeleteSoundDialog({
         setExternalCount(u.externalProjectCount);
         setUsage(u);
       })
-      .catch((err) => !cancelled && setError(apiErrorMessage(err, "Không kiểm tra được âm thanh này đang được dùng ở đâu.")));
+      .catch((err) => !cancelled && setError(apiErrorMessage(err, tNow("snd.usageFail"))));
     return () => {
       cancelled = true;
     };
@@ -223,7 +226,7 @@ function DeleteSoundDialog({
       await deleteCustomSound(sound.id, mode);
       onDeleted();
     } catch (err) {
-      setError(apiErrorMessage(err, "Không xoá được âm thanh."));
+      setError(apiErrorMessage(err, t("snd.deleteFail")));
       setBusy(false);
     }
   }
@@ -231,16 +234,16 @@ function DeleteSoundDialog({
   const shared = (externalCount ?? 0) > 0;
 
   return (
-    <Dialog title={`Xoá “${sound.name}”?`} onClose={onClose} closeDisabled={busy} role="alertdialog" className="max-w-md p-6">
+    <Dialog title={t("snd.deleteTitle", { name: sound.name })} onClose={onClose} closeDisabled={busy} role="alertdialog" className="max-w-md p-6">
       <div className="mb-5 space-y-2 text-[13px] leading-relaxed text-muted">
-        {externalCount === null && !error && <p>Đang kiểm tra âm thanh này đang được dùng ở đâu…</p>}
+        {externalCount === null && !error && <p>{t("snd.checkingUsage")}</p>}
         {externalCount !== null && !shared && (
-          <p>Không có dự án của người khác nào đang dùng âm thanh này, nên dù xoá theo cách nào file cũng bị xoá ngay và vĩnh viễn. Các nốt trong dự án của bạn đang dùng nó sẽ phát bằng nhạc cụ của track.</p>
+          <p>{t("snd.notShared")}</p>
         )}
         {shared && (
           <>
             <p>
-              Âm thanh này đang được dùng trong <strong className="text-foreground">{externalCount} dự án của người khác</strong>.
+              {tx("snd.sharedUse", { count: <strong className="text-foreground">{t("snd.sharedCount", { n: externalCount ?? 0 })}</strong> })}
             </p>
             {usage && (usage.externalProjects.length > 0 || usage.privateProjectCount > 0) && (
               <ul className="list-disc space-y-0.5 pl-5">
@@ -248,25 +251,25 @@ function DeleteSoundDialog({
                   <li key={p.id} className="text-foreground">{p.name}</li>
                 ))}
                 {usage.privateProjectCount > 0 && (
-                  <li>{usage.privateProjectCount} dự án riêng tư (không hiện tên)</li>
+                  <li>{t("snd.privateProjects", { n: usage.privateProjectCount })}</li>
                 )}
               </ul>
             )}
-            <p><strong className="text-foreground">Xoá khỏi thư viện của tôi:</strong> bạn không thấy nó nữa, dự án của bạn phát bằng nhạc cụ của track, nhưng dự án của người khác vẫn nghe được. File tự dọn khi không còn ai dùng.</p>
-            <p><strong className="text-foreground">Xoá hoàn toàn:</strong> xoá file ngay, mọi dự án (kể cả của người khác) đều mất âm thanh này. Không hoàn tác được.</p>
+            <p><strong className="text-foreground">{t("snd.removeSelfLabel")}</strong> {t("snd.removeSelfBody")}</p>
+            <p><strong className="text-foreground">{t("snd.removeAllLabel")}</strong> {t("snd.removeAllBody")}</p>
           </>
         )}
       </div>
       <DialogError message={error} />
       <DialogActions>
-        <Button variant="secondary" onClick={onClose} disabled={busy}>Huỷ</Button>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>{t("ui.cancel")}</Button>
         {shared && (
           <Button variant="secondary" onClick={() => void run("self")} disabled={busy}>
-            Xoá khỏi thư viện của tôi
+            {t("snd.removeSelf")}
           </Button>
         )}
         <Button variant="danger" onClick={() => void run("hard")} disabled={busy || externalCount === null}>
-          {busy ? "Đang xoá…" : shared ? "Xoá hoàn toàn" : "Xoá"}
+          {busy ? t("snd.deleting") : shared ? t("snd.deleteAll") : t("snd.delete")}
         </Button>
       </DialogActions>
     </Dialog>
@@ -340,6 +343,7 @@ function RowMenu({
   onRename: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -368,7 +372,7 @@ function RowMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Tuỳ chọn cho ${name}`}
+        aria-label={t("snd.options", { name })}
         onClick={() => setOpen((o) => !o)}
         className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
       >
@@ -388,7 +392,7 @@ function RowMenu({
             }}
             className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left hover:bg-surface-subtle"
           >
-            <Pencil size={14} aria-hidden /> Đổi tên
+            <Pencil size={14} aria-hidden /> {t("snd.rename")}
           </button>
           <button
             type="button"
@@ -399,7 +403,7 @@ function RowMenu({
             }}
             className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-danger hover:bg-danger-muted"
           >
-            <Trash2 size={14} aria-hidden /> Xoá
+            <Trash2 size={14} aria-hidden /> {t("snd.delete")}
           </button>
         </div>
       )}
@@ -414,6 +418,7 @@ export interface SoundLibraryPanelProps {
 }
 
 export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange }: SoundLibraryPanelProps = {}) {
+  const { t } = useI18n();
   const [library, setLibrary] = useState<CustomSoundLibrary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -443,7 +448,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
       setError(null);
       setLoadError(null);
     } catch (err) {
-      setLoadError(apiErrorMessage(err, "Không tải được thư viện âm thanh."));
+      setLoadError(apiErrorMessage(err, tNow("snd.loadFail")));
     } finally {
       setLoading(false);
     }
@@ -464,21 +469,21 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
     e.target.value = "";
     if (!file) return;
     if (!/\.(wav|mp3)$/i.test(file.name)) {
-      setError("Chỉ nhận file WAV hoặc MP3.");
+      setError(t("snd.onlyWavMp3"));
       return;
     }
     if (file.size > MAX_SIZE_BYTES) {
-      setError(`File lớn ${formatSize(file.size)}, vượt giới hạn 10 MB. Hãy chọn file nhỏ hơn.`);
+      setError(t("snd.fileTooBig", { size: formatSize(file.size) }));
       return;
     }
     setUploading(true);
     setError(null);
     try {
-      const name = file.name.replace(/\.[^.]+$/, "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 100) || "Âm thanh";
+      const name = file.name.replace(/\.[^.]+$/, "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 100) || t("snd.defaultName");
       await saveSound(file, name, "uploaded");
       await load();
     } catch (err) {
-      setError(errorText(err, "Không tải lên được âm thanh."));
+      setError(errorText(err, t("snd.uploadError")));
     } finally {
       setUploading(false);
     }
@@ -487,7 +492,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
   async function submitRename(sound: CustomSound) {
     const next = renameValue.trim();
     if (!next) {
-      setRenameError("Hãy đặt tên cho âm thanh.");
+      setRenameError(t("snd.nameRequired"));
       return;
     }
     if (next === sound.name) {
@@ -501,7 +506,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
       setRenamingId(null);
       await load();
     } catch (err) {
-      setRenameError(apiErrorMessage(err, "Không đổi được tên âm thanh."));
+      setRenameError(apiErrorMessage(err, t("snd.renameFail")));
     } finally {
       setRenameBusy(false);
     }
@@ -521,7 +526,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
     audio
       .play()
       .then(() => setPlayingId(sound.id))
-      .catch(() => setError("Không phát được âm thanh này."));
+      .catch(() => setError(t("snd.playFail")));
   }
 
   const items = library?.items ?? [];
@@ -535,18 +540,18 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
         <input ref={fileInputRef} type="file" accept={ACCEPT} onChange={(e) => void handleFileSelect(e)} className="hidden" />
         <Button onClick={() => fileInputRef.current?.click()} disabled={uploading || recording}>
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          {uploading ? "Đang tải lên…" : "Tải lên"}
+          {uploading ? t("snd.uploading") : t("snd.upload")}
         </Button>
         <Button variant="secondary" onClick={() => setRecording(true)} disabled={uploading || recording}>
-          <Mic size={14} /> Ghi âm
+          <Mic size={14} /> {t("snd.record")}
         </Button>
-        <span className="text-xs text-muted">WAV hoặc MP3, tối đa {MAX_SOUND_DURATION_SEC} giây</span>
+        <span className="text-xs text-muted">{t("snd.limits", { sec: MAX_SOUND_DURATION_SEC })}</span>
       </div>
 
       {library && (
         <div className="flex flex-col gap-1">
           <div className="flex justify-between text-xs text-muted">
-            <span>Dung lượng thư viện</span>
+            <span>{t("snd.quota")}</span>
             <span className="font-mono tabular-nums">
               {formatSize(library.usedBytes)} / {formatSize(library.quotaBytes)}
             </span>
@@ -580,17 +585,17 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
         >
           <span>{loadError}</span>
           <Button variant="secondary" onClick={() => void load()} disabled={loading}>
-            Thử lại
+            {t("ui.retry")}
           </Button>
         </div>
       )}
 
       {loadError && !library ? null : loading && !library ? (
         <div className="flex justify-center py-8 text-muted">
-          <Loader2 size={20} className="animate-spin" aria-label="Đang tải…" />
+          <Loader2 size={20} className="animate-spin" aria-label={t("ui.loading")} />
         </div>
       ) : items.length === 0 ? (
-        <EmptyState icon={Music} title="Chưa có âm thanh nào" description="Tải lên file hoặc ghi âm trực tiếp để dùng làm tiếng cho nốt nhạc." />
+        <EmptyState icon={Music} title={t("snd.emptyTitle")} description={t("snd.emptyBody")} />
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((sound) => (
@@ -599,7 +604,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
                 type="button"
                 onClick={() => togglePlay(sound)}
                 disabled={!sound.playbackUrl}
-                aria-label={playingId === sound.id ? `Dừng nghe ${sound.name}` : `Nghe thử ${sound.name}`}
+                aria-label={playingId === sound.id ? t("snd.stopListening", { name: sound.name }) : t("snd.listen", { name: sound.name })}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-foreground hover:bg-surface-subtle disabled:opacity-50"
               >
                 {playingId === sound.id ? <Pause size={14} /> : <Play size={14} />}
@@ -621,7 +626,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
                       autoFocus
                       value={renameValue}
                       maxLength={100}
-                      aria-label={`Tên mới cho ${sound.name}`}
+                      aria-label={t("snd.newName", { name: sound.name })}
                       onChange={(e) => {
                         setRenameValue(e.target.value);
                         setRenameError(null);
@@ -635,10 +640,10 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
                       className={`${INPUT_CLASS} h-8 min-w-0 flex-1`}
                     />
                     <Button type="submit" disabled={renameBusy}>
-                      {renameBusy ? "Đang lưu…" : "Lưu"}
+                      {renameBusy ? t("snd.saving") : t("snd.save")}
                     </Button>
                     <Button type="button" variant="ghost" disabled={renameBusy} onClick={() => setRenamingId(null)}>
-                      Huỷ
+                      {t("ui.cancel")}
                     </Button>
                     {renameError && (
                       <p role="alert" className="basis-full text-xs text-danger">
@@ -651,19 +656,18 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
                     <span className="truncate text-[13px] font-semibold">{sound.name}</span>
                     {mappedIds && (
                       <Badge variant={mappedIds.has(sound.id) ? "success" : "neutral"}>
-                        {mappedIds.has(sound.id) ? "Đã gán" : "Chưa gán"}
+                        {mappedIds.has(sound.id) ? t("snd.assigned") : t("snd.unassigned")}
                       </Badge>
                     )}
                   </div>
                 )}
                 <div className="text-xs text-muted">
                   <span className="font-mono tabular-nums">{formatTime(sound.durationSec)}</span> · {formatSize(sound.sizeBytes)} ·{" "}
-                  {sound.source === "recorded" ? "Ghi âm" : "Tải lên"}
+                  {sound.source === "recorded" ? t("snd.recorded") : t("snd.uploaded")}
                 </div>
                 {!sound.playbackUrl && (
                   <div className="mt-0.5 flex items-center gap-1 text-xs text-warning-foreground">
-                    <AlertTriangle size={12} aria-hidden /> Không khả dụng: không tìm thấy file âm thanh trên máy chủ.
-                    Hãy xoá rồi tải lại.
+                    <AlertTriangle size={12} aria-hidden /> {t("snd.unavailable")}
                   </div>
                 )}
               </div>

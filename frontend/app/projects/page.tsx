@@ -6,6 +6,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { Search, Piano, Archive, Undo2, Settings as SettingsIcon, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { RequireAuth } from '../../components/require-auth';
+import { useI18n } from '../../context/i18n-context';
+import type { TKey } from '../../lib/i18n';
 import {
   archiveProject,
   unarchiveProject,
@@ -38,12 +40,12 @@ interface Project {
 
 type SortOption = 'default' | 'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc';
 
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'default', label: 'Công khai trước' },
-  { value: 'updated_desc', label: 'Mới cập nhật' },
-  { value: 'updated_asc', label: 'Cũ nhất' },
-  { value: 'name_asc', label: 'Tên A→Z' },
-  { value: 'name_desc', label: 'Tên Z→A' },
+const SORT_OPTIONS: { value: SortOption; label: TKey }[] = [
+  { value: 'default', label: 'projects.sortDefault' },
+  { value: 'updated_desc', label: 'projects.sortNewest' },
+  { value: 'updated_asc', label: 'projects.sortOldest' },
+  { value: 'name_asc', label: 'projects.sortNameAsc' },
+  { value: 'name_desc', label: 'projects.sortNameDesc' },
 ];
 
 const PAGE_SIZE = 12;
@@ -54,16 +56,18 @@ type Tab = 'all' | 'active' | 'archived';
 const COLS = 'md:grid-cols-[minmax(0,1fr)_104px_108px_92px_96px_auto]';
 
 function VisibilityBadge({ visibility }: { visibility: ProjectVisibility }) {
+  const { t } = useI18n();
   const isPublic = visibility === 'public';
-  return <Badge variant={isPublic ? 'info' : 'neutral'}>{isPublic ? 'Công khai' : 'Riêng tư'}</Badge>;
+  return <Badge variant={isPublic ? 'info' : 'neutral'}>{isPublic ? t('common.public') : t('common.private')}</Badge>;
 }
 
 function StatusBadge({ archivedAt }: { archivedAt: string | null }) {
+  const { t } = useI18n();
   const isArchived = !!archivedAt;
   return (
     <Badge variant={isArchived ? 'warning' : 'success'}>
       <span className={`h-1.5 w-1.5 rounded-full ${isArchived ? 'bg-warning' : 'bg-success'}`} />
-      {isArchived ? 'Đã lưu trữ' : 'Hoạt động'}
+      {isArchived ? t('projects.statusArchived') : t('projects.statusActive')}
     </Badge>
   );
 }
@@ -79,6 +83,7 @@ function ProjectRow({
   onArchive: (id: string) => Promise<void>;
   onUnarchive: (id: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [showConfirm, setShowConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
@@ -94,7 +99,7 @@ function ProjectRow({
       await onArchive(project.id);
       setShowConfirm(false);
     } catch (err) {
-      setArchiveError(apiErrorMessage(err, 'Không lưu trữ được dự án.'));
+      setArchiveError(apiErrorMessage(err, t('projects.archiveFail')));
       setArchiving(false);
     }
   }
@@ -105,7 +110,7 @@ function ProjectRow({
     try {
       await onUnarchive(project.id);
     } catch (err) {
-      setRestoreError(apiErrorMessage(err, 'Không khôi phục được dự án.'));
+      setRestoreError(apiErrorMessage(err, t('projects.restoreFail')));
       setRestoring(false);
     }
   }
@@ -118,7 +123,7 @@ function ProjectRow({
           name={project.name}
           meta={
             sharesName
-              ? [`Tạo ${formatDateTime(project.created_at)}`, project.description].filter(Boolean).join(' · ')
+              ? [t('projects.created', { when: formatDateTime(project.created_at) }), project.description].filter(Boolean).join(' · ')
               : (project.description ?? undefined)
           }
           leading={<StarPrint id={project.id} size="sm" />}
@@ -135,24 +140,25 @@ function ProjectRow({
               href={`/projects/${project.id}/edit`}
               className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-semibold hover:border-border-strong hover:bg-surface-subtle"
             >
-              <Piano className="h-3.5 w-3.5" /> Mở Editor
+              <Piano className="h-3.5 w-3.5" /> {t('home.openEditor')}
             </Link>
           )}
 
           {isArchived ? (
             <Button variant="ghost" onClick={() => void handleUnarchive()} disabled={restoring}>
-              <Undo2 className="h-3.5 w-3.5" /> {restoring ? 'Đang khôi phục…' : 'Khôi phục'}
+              <Undo2 className="h-3.5 w-3.5" /> {restoring ? t('projects.restoring') : t('projects.restore')}
             </Button>
           ) : (
             <Button variant="ghost" onClick={() => setShowConfirm(true)}>
-              <Archive className="h-3.5 w-3.5" /> Lưu trữ
+              <Archive className="h-3.5 w-3.5" /> {t('projects.archive')}
             </Button>
           )}
 
           <Link
             href={`/projects/${project.id}/settings`}
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
-            title="Cài đặt dự án"
+            title={t('projects.settings')}
+            aria-label={t('projects.settings')}
           >
             <SettingsIcon className="h-3.5 w-3.5" />
           </Link>
@@ -161,9 +167,9 @@ function ProjectRow({
 
       <ConfirmDialog
         open={showConfirm}
-        title="Xác nhận lưu trữ"
-        message={`Bạn có chắc muốn lưu trữ dự án "${project.name}"? Dự án sẽ chuyển sang phần đã lưu trữ.`}
-        confirmLabel="Lưu trữ"
+        title={t('projects.archiveTitle')}
+        message={t('projects.archiveBody', { name: project.name })}
+        confirmLabel={t('projects.archive')}
         loading={archiving}
         error={archiveError}
         onConfirm={() => void handleArchive()}
@@ -180,6 +186,7 @@ function ProjectRow({
 }
 
 function ProjectsContent() {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -200,7 +207,7 @@ function ProjectsContent() {
       setProjects(data);
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, 'Không tải được danh sách dự án.'));
+      setError(apiErrorMessage(err, t('projects.loadFail')));
     }
   }
 
@@ -317,9 +324,9 @@ function ProjectsContent() {
   const archivedCount = projects.filter((p) => p.archived_at).length;
 
   const tabs: { value: Tab; label: string; count: number }[] = [
-    { value: 'all', label: 'Tất cả', count: projects.length },
-    { value: 'active', label: 'Đang hoạt động', count: activeCount },
-    { value: 'archived', label: 'Đã lưu trữ', count: archivedCount },
+    { value: 'all', label: t('projects.tabAll'), count: projects.length },
+    { value: 'active', label: t('projects.tabActive'), count: activeCount },
+    { value: 'archived', label: t('projects.tabArchived'), count: archivedCount },
   ];
 
   // Build page numbers (max 5 shown)
@@ -339,13 +346,13 @@ function ProjectsContent() {
   return (
     <div className="mx-auto max-w-page px-5 py-8">
       <PageHeader
-        breadcrumbs={[{ label: 'Không gian của bạn' }]}
-        title="Dự án của tôi"
-        description="Bản phác, bản phối đã hoàn thiện và những ý tưởng đã lưu trữ."
+        breadcrumbs={[{ label: t('projects.crumb') }]}
+        title={t('projects.title')}
+        description={t('projects.description')}
         action={
           <Link href="/projects/new">
             <Button>
-              <Plus className="h-3.5 w-3.5" /> Tạo dự án mới
+              <Plus className="h-3.5 w-3.5" /> {t('projects.create')}
             </Button>
           </Link>
         }
@@ -363,7 +370,8 @@ function ProjectsContent() {
               setSearch(e.target.value);
               updateUrl({ page: null }); // reset to page 1 on search
             }}
-            placeholder="Lọc dự án của bạn"
+            placeholder={t('projects.filterPlaceholder')}
+            aria-label={t('projects.filterPlaceholder')}
             className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
           />
         </div>
@@ -375,10 +383,10 @@ function ProjectsContent() {
               setGenre(e.target.value);
               updateUrl({ page: null });
             }}
-            aria-label="Lọc theo thể loại"
+            aria-label={t('projects.filterGenre')}
             className={`${INPUT_CLASS} h-[34px]`}
           >
-            <option value="">Tất cả thể loại</option>
+            <option value="">{t('projects.allGenres')}</option>
             {allGenres.map((g) => (
               <option key={g} value={g}>
                 {g}
@@ -390,12 +398,12 @@ function ProjectsContent() {
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortOption)}
-          aria-label="Sắp xếp"
+          aria-label={t('projects.sort')}
           className={`${INPUT_CLASS} h-[34px]`}
         >
           {SORT_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
-              {opt.label}
+              {t(opt.label)}
             </option>
           ))}
         </select>
@@ -403,14 +411,14 @@ function ProjectsContent() {
 
       <div className="mb-5">
         <Tabs
-          tabs={tabs.map((t) => ({ id: t.value, label: `${t.label} (${t.count})` }))}
+          tabs={tabs.map((tb) => ({ id: tb.value, label: `${tb.label} (${tb.count})` }))}
           active={tab}
           onChange={(id) => updateUrl({ tab: id, page: null })}
         />
       </div>
 
       {/* Content */}
-      {loading && <SkyLoading label="Đang tải danh sách dự án…" />}
+      {loading && <SkyLoading label={t('projects.loading')} />}
 
       {error && (
         <div className="rounded-card border border-danger/20 bg-danger-muted p-4">
@@ -419,7 +427,7 @@ function ProjectsContent() {
             onClick={() => void fetchProjects()}
             className="mt-2 rounded-lg border border-danger/30 px-3 py-1 text-xs text-danger hover:bg-danger-muted"
           >
-            Thử lại
+            {t('ui.retry')}
           </button>
         </div>
       )}
@@ -428,12 +436,12 @@ function ProjectsContent() {
         <SkyEmpty
           title={
             search || genre
-              ? `Không tìm thấy dự án nào${search ? ` matching "${search}"` : ''}${genre ? ` #${genre}` : ''}`
+              ? `${t('projects.noMatch')}${search ? t('projects.matching', { q: search }) : ''}${genre ? ` #${genre}` : ''}`
               : projects.length === 0
-                ? 'Chưa có dự án nào.'
-                : 'Không có dự án nào trong mục này.'
+                ? t('projects.none')
+                : t('projects.noneInTab')
           }
-          description={projects.length === 0 && !search && !genre ? 'Tạo dự án đầu tiên của bạn để bắt đầu sáng tác!' : undefined}
+          description={projects.length === 0 && !search && !genre ? t('projects.noneHint') : undefined}
           action={
             search || genre ? (
               <button
@@ -444,12 +452,12 @@ function ProjectsContent() {
                 }}
                 className="text-sm text-accent hover:underline"
               >
-                Xóa bộ lọc
+                {t('projects.clearFilters')}
               </button>
             ) : projects.length === 0 ? (
               <Link href="/projects/new">
                 <Button className="gap-1.5">
-                  <Plus className="h-4 w-4" /> Tạo dự án mới
+                  <Plus className="h-4 w-4" /> {t('projects.create')}
                 </Button>
               </Link>
             ) : (
@@ -457,7 +465,7 @@ function ProjectsContent() {
                 onClick={() => updateUrl({ tab: 'all', page: null })}
                 className="text-sm text-accent hover:underline"
               >
-                Xem tất cả dự án
+                {t('projects.showAll')}
               </button>
             )
           }
@@ -467,20 +475,18 @@ function ProjectsContent() {
       {!loading && !error && filteredProjects.length > 0 && (
         <>
           <p className="mb-2 text-xs text-muted">
-            {filteredProjects.length === 1
-              ? '1 dự án'
-              : `${filteredProjects.length} dự án`}
+            {t('projects.count', { n: filteredProjects.length })}
             {genre ? ` • #${genre}` : ''}
             {search ? ` • "${search}"` : ''}
           </p>
 
           <RowList cols={COLS}>
             <RowHeader>
-              <span>Dự án</span>
-              <span>Thể loại</span>
-              <span>Trạng thái</span>
-              <span>Hiển thị</span>
-              <span className="text-right">Cập nhật</span>
+              <span>{t('projects.colProject')}</span>
+              <span>{t('projects.colGenre')}</span>
+              <span>{t('projects.colStatus')}</span>
+              <span>{t('projects.colVisibility')}</span>
+              <span className="text-right">{t('projects.colUpdated')}</span>
               <span />
             </RowHeader>
 
@@ -501,6 +507,7 @@ function ProjectsContent() {
               <button
                 onClick={() => updateUrl({ page: String(currentPage - 1) })}
                 disabled={currentPage <= 1}
+                aria-label={t('projects.prevPage')}
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -514,6 +521,8 @@ function ProjectsContent() {
                 ) : (
                   <button
                     key={p}
+                    aria-label={t('projects.page', { n: p })}
+                    aria-current={p === currentPage ? 'page' : undefined}
                     onClick={() => updateUrl({ page: String(p) })}
                     className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-xs font-semibold ${
                       p === currentPage
@@ -529,6 +538,7 @@ function ProjectsContent() {
               <button
                 onClick={() => updateUrl({ page: String(currentPage + 1) })}
                 disabled={currentPage >= totalPages}
+                aria-label={t('projects.nextPage')}
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -542,12 +552,13 @@ function ProjectsContent() {
 }
 
 export default function ProjectsPage() {
+  const { t } = useI18n();
   return (
     <RequireAuth>
       <Suspense
         fallback={
           <div className="mx-auto max-w-page px-5 py-8">
-            <SkyLoading label="Đang tải danh sách dự án…" />
+            <SkyLoading label={t('projects.loading')} />
           </div>
         }
       >

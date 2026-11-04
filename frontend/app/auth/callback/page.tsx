@@ -9,6 +9,8 @@ import { authErrorMessage } from "../../../lib/error-message";
 import { supabase } from "../../../lib/supabase-browser";
 import { setFlashToast } from "../../../lib/flash-toast";
 import { safeRedirectPath } from "../../../lib/safe-redirect";
+import { tNow } from "../../../lib/i18n";
+import { useT } from "../../../context/i18n-context";
 import { validateEmail } from "../../../lib/validation";
 import { AUTH_INPUT_CLASS } from "../../../components/auth-card";
 import { Button } from "../../../components/ui/button";
@@ -32,6 +34,7 @@ function readCallbackType(): string | null {
 }
 
 function ResendVerification() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
@@ -60,7 +63,7 @@ function ResendVerification() {
   if (state === "sent") {
     return (
       <p role="status" className="text-sm text-success-foreground">
-        Nếu địa chỉ này đã đăng ký mà chưa xác nhận, mình đã gửi email xác nhận mới. Hãy kiểm tra hộp thư.
+        {t("auth.cb.resentNotice")}
       </p>
     );
   }
@@ -68,7 +71,7 @@ function ResendVerification() {
   return (
     <form onSubmit={handleResend} noValidate className="flex w-full flex-col gap-2 text-left">
       <label htmlFor="resend-email" className="text-xs font-semibold">
-        Gửi lại email xác nhận
+        {t("auth.resend")}
       </label>
       <input
         id="resend-email"
@@ -76,7 +79,7 @@ function ResendVerification() {
         type="email"
         autoComplete="email"
         spellCheck={false}
-        placeholder="ban@email.com"
+        placeholder={t("auth.emailPlaceholder")}
         value={email}
         aria-invalid={emailError ? true : undefined}
         onChange={(e) => {
@@ -88,13 +91,14 @@ function ResendVerification() {
       {emailError && <FieldError>{emailError}</FieldError>}
       {error && <FieldError>{error}</FieldError>}
       <Button type="submit" variant="secondary" disabled={state === "sending"}>
-        {state === "sending" ? "Đang gửi…" : "Gửi email xác nhận"}
+        {state === "sending" ? t("auth.sending") : t("auth.cb.sendConfirm")}
       </Button>
     </form>
   );
 }
 
 export default function AuthCallbackPage() {
+  const t = useT();
   const router = useRouter();
   const { session, loading } = useAuth();
   const [failure, setFailure] = useState<string | null>(null);
@@ -113,7 +117,7 @@ export default function AuthCallbackPage() {
       return;
     }
     const timer = setTimeout(() => {
-      setFailure("Đăng nhập mất quá nhiều thời gian. Hãy thử đăng nhập lại.");
+      setFailure(tNow("auth.cb.timeout"));
     }, TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, []);
@@ -122,7 +126,7 @@ export default function AuthCallbackPage() {
     if (!loading && session) {
       const type = callbackTypeRef.current;
       if (type === "signup" || type === "email") {
-        setFlashToast("Email đã được xác nhận. Chào mừng bạn đến với STAVE!");
+        setFlashToast(tNow("auth.cb.confirmedToast"));
       }
       router.replace(safeRedirectPath(new URLSearchParams(window.location.search).get("next")));
     }
@@ -135,16 +139,16 @@ export default function AuthCallbackPage() {
         className="mx-auto flex min-h-full max-w-sm flex-col items-center justify-center gap-4 px-5 text-center"
       >
         <p className="text-base font-semibold text-foreground">
-          {expiredLink ? "Liên kết không còn dùng được" : "Không đăng nhập được"}
+          {expiredLink ? t("auth.cb.expiredTitle") : t("auth.cb.failedTitle")}
         </p>
         <p className="text-sm text-muted">{failure}</p>
         {expiredLink && <ResendVerification />}
         <div className="flex flex-wrap justify-center gap-3 text-sm font-semibold">
           <Link href="/login" className="text-accent hover:underline">
-            Về trang đăng nhập
+            {t("auth.cb.toLogin")}
           </Link>
           <Link href="/forgot-password" className="text-accent hover:underline">
-            Gửi liên kết mới
+            {t("auth.cb.newLink")}
           </Link>
         </div>
       </div>
@@ -157,7 +161,7 @@ export default function AuthCallbackPage() {
       className="flex min-h-full flex-col items-center justify-center gap-3 text-sm text-muted"
     >
       <Loader2 className="h-6 w-6 animate-spin text-accent" />
-      Đang đăng nhập…
+      {t("auth.cb.signingIn")}
     </div>
   );
 }
