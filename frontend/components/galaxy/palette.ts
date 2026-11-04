@@ -28,7 +28,7 @@ export function rgba({ r, g, b }: Rgb, alpha: number): string {
   return `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${alpha})`;
 }
 
-/** Màu cảnh sao lấy từ token, nên đổi theo theme mà không hardcode hex. */
+/** Màu cảnh sao lấy từ token, không hardcode hex. */
 export function readGalaxyPalette(): GalaxyPalette {
   const css = resolveCssColors({
     star: "var(--foreground)",
@@ -36,13 +36,4 @@ export function readGalaxyPalette(): GalaxyPalette {
     active: "var(--accent)",
   });
   return { star: toRgb(css.star), link: toRgb(css.link), active: toRgb(css.active) };
-}
-
-export function watchThemeChange(onChange: () => void): () => void {
-  const observer = new MutationObserver(onChange);
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-theme", "class", "style"],
-  });
-  return () => observer.disconnect();
 }

@@ -30,7 +30,7 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8 [[data-theme=space]_&]:bg-background/75"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 px-4 py-8"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !closeDisabled) onClose();
       }}

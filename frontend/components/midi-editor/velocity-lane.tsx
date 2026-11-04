@@ -74,20 +74,8 @@ export function VelocityLane({
   onNotesChange,
   readOnly = false,
 }: VelocityLaneProps) {
-  // Canvas không parse được var()/color-mix() — phải resolve trước, và theo dõi
-  // `data-theme` để vẽ lại khi người dùng đổi theme (UC-78). Gán thẳng biểu
-  // thức CSS thì canvas im lặng giữ màu cũ (xem CLAUDE.md 4.7).
-  const [colors, setColors] = useState(() => resolveCssColors(LANE_COLOR_SPEC));
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setColors(resolveCssColors(LANE_COLOR_SPEC));
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
+  // Canvas không parse được var()/color-mix(): màu phải được resolve trước.
+  const [colors] = useState(() => resolveCssColors(LANE_COLOR_SPEC));
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);

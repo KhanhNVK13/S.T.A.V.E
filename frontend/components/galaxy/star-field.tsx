@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { hashString, seeded } from "./constellation";
-import { readGalaxyPalette, rgba, watchThemeChange } from "./palette";
+import { readGalaxyPalette, rgba } from "./palette";
 
 /**
  * Nền sao Canvas 2D tĩnh, vẽ lại chỉ khi đổi kích thước hoặc theme. Bám theo vùng
@@ -53,11 +53,9 @@ export function StarField() {
 
     const observer = new ResizeObserver(draw);
     observer.observe(scroller);
-    const unwatch = watchThemeChange(draw);
     draw();
     return () => {
       observer.disconnect();
-      unwatch();
     };
   }, []);
 

@@ -8,7 +8,6 @@ import {
   TriangleAlert,
   CircleUserRound,
   Lock,
-  SlidersHorizontal,
   Music,
 } from "lucide-react";
 import { RequireAuth } from "../../components/require-auth";
@@ -20,7 +19,6 @@ import { useI18n } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
-import { ThemePicker } from "../../components/settings/theme-picker";
 import { ConnectedAccounts } from "../../components/settings/connected-accounts";
 import { Dialog } from "../../components/ui/dialog";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
@@ -29,7 +27,7 @@ import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid 
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
-type SettingsTab = "profile" | "security" | "personalization";
+type SettingsTab = "profile" | "security";
 
 function ProfileForm() {
   const { t } = useI18n();
@@ -571,19 +569,11 @@ export default function ProfilePage() {
             <button onClick={() => setTab("security")} className={navItemClass("security")}>
               <Lock className="h-4 w-4" /> {t("profile.tabSecurity")}
             </button>
-            <button
-              onClick={() => setTab("personalization")}
-              className={navItemClass("personalization")}
-            >
-              <SlidersHorizontal className="h-4 w-4" /> {t("profile.tabPersonal")}
-            </button>
           </nav>
 
           <section className="min-h-[480px] rounded-card border border-border bg-surface/80 p-6">
             {tab === "profile" ? (
               <ProfileTab />
-            ) : tab === "personalization" ? (
-              <ThemePicker />
             ) : (
               <>
                 <h2 className="text-lg font-semibold">{t("profile.tabSecurity")}</h2>

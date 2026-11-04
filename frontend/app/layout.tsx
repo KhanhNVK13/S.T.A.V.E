@@ -3,7 +3,6 @@ import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../context/auth-context";
 import { I18nProvider } from "../context/i18n-context";
-import { ThemeProvider } from "../context/theme-context";
 import { SiteHeader } from "../components/site-header";
 import { SiteFooter } from "../components/site-footer";
 import { FlashToastHost } from "../components/flash-toast";
@@ -36,14 +35,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      data-theme="space"
       suppressHydrationWarning
       className={`${staveSans.variable} ${staveMono.variable} ${staveDisplay.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col bg-background font-sans text-foreground">
         <I18nProvider>
         <AuthProvider>
-          <ThemeProvider>
             <SpaceBackdrop />
             <SkipLink />
             <SiteHeader />
@@ -64,7 +61,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">{children}</main>
             <SiteFooter />
             <FlashToastHost />
-          </ThemeProvider>
         </AuthProvider>
         </I18nProvider>
       </body>

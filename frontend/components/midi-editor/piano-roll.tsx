@@ -172,24 +172,8 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     },
     ref,
   ) {
-    /*
-     * Màu canvas phải là giá trị đã resolve. Theo dõi thuộc tính `data-theme`
-     * trên <html> (thứ mà ThemeProvider đặt) bằng MutationObserver thay vì đọc
-     * context theme: piano roll là component lá, không nên phụ thuộc vào provider
-     * nào — và cách này vẫn bắt được cả những lần đổi theme từ nơi khác.
-     */
-    const [colors, setColors] = useState(() => resolveCssColors(PAL_COLOR_SPEC));
-
-    useEffect(() => {
-      const observer = new MutationObserver(() => {
-        setColors(resolveCssColors(PAL_COLOR_SPEC));
-      });
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["data-theme"],
-      });
-      return () => observer.disconnect();
-    }, []);
+    // Canvas không parse được var()/color-mix(): màu phải được resolve trước.
+    const [colors] = useState(() => resolveCssColors(PAL_COLOR_SPEC));
 
     const pal = useMemo(() => ({ ...PAL_METRICS, ...colors }), [colors]);
     const ROW_H = pal.rowH;
