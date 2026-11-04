@@ -11,6 +11,7 @@ import {
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
+import { RecoverySessionGuard } from '../common/guards/recovery-session.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { RegisterSessionDto } from './dto/register-session.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -56,7 +57,7 @@ export class AuthController {
     return { success: true };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RecoverySessionGuard)
   @Post('sessions/reset')
   resetSessions(
     @Req() req: AuthenticatedRequest,
