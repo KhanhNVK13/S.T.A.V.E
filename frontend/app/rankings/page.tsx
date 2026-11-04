@@ -12,7 +12,8 @@ import { Button } from '../../components/ui/button';
 import { GalaxyPage } from '../../components/galaxy/galaxy-page';
 import { Podium } from '../../components/galaxy/podium';
 import { useState } from 'react';
-import { APP_LOCALE } from '../../lib/format-date';
+import { useI18n } from '../../context/i18n-context';
+import { tNow } from '../../lib/i18n';
 
 type RankingType = 'trending' | 'top_forked' | 'top_played';
 
@@ -28,41 +29,42 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export default function RankingsPage() {
+  const { t, locale } = useI18n();
   const [type, setType] = useState<RankingType>('trending');
 
   const { data, loading, error } = useApiResource<PublicProject[]>(
     () => getProjectRankings(type),
     [type],
-    'Không thể tải bảng xếp hạng. Vui lòng thử lại.',
+    tNow('rk.loadFail'),
   );
   const projects = data ?? [];
   const MetricIcon = type === 'top_forked' ? GitFork : Play;
   const podium = projects.slice(0, 3).map((project) => ({
     id: project.id,
     name: project.name,
-    owner: project.owner.display_name ?? project.owner.username ?? 'Người dùng',
+    owner: project.owner.display_name ?? project.owner.username ?? t('ex.user'),
     genre: project.genre,
     metric: type === 'top_forked' ? project.fork_count : project.play_count,
   }));
   const rest = projects.slice(3);
 
   const tabs = [
-    { id: 'trending', label: 'Xu hướng' },
-    { id: 'top_forked', label: 'Fork nhiều nhất' },
-    { id: 'top_played', label: 'Nghe nhiều nhất' },
+    { id: 'trending', label: t('rk.trending') },
+    { id: 'top_forked', label: t('rk.topForked') },
+    { id: 'top_played', label: t('rk.topPlayed') },
   ];
 
   return (
     <GalaxyPage>
       <PageHeader
-        breadcrumbs={[{ label: 'Cộng đồng' }]}
-        title="Bảng xếp hạng"
+        breadcrumbs={[{ label: t('rk.crumb') }]}
+        title={t('rk.title')}
         description={
           type === 'trending'
-            ? 'Dự án có nhiều tương tác nhất trong 7 ngày gần nhất (lượt nghe, fork, bình luận từ các tài khoản khác nhau), ưu tiên dự án đang lên.'
+            ? t('rk.descTrending')
             : type === 'top_forked'
-              ? 'Dự án được nhiều chủ dự án khác nhau fork nhất.'
-              : 'Dự án được nhiều tài khoản khác nhau nghe nhất.'
+              ? t('rk.descForked')
+              : t('rk.descPlayed')
         }
       />
 
@@ -89,21 +91,21 @@ export default function RankingsPage() {
         <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
           <p className="text-[13px] text-danger">{error}</p>
           <Button variant="secondary" onClick={() => window.location.reload()} className="mt-4">
-            Thử lại
+            {t('ui.retry')}
           </Button>
         </div>
       ) : projects.length === 0 ? (
-        <EmptyState icon={Trophy} title="Chưa có dự án nào trong bảng xếp hạng này." />
+        <EmptyState icon={Trophy} title={t('rk.empty')} />
       ) : (
         <>
           <Podium entries={podium} metricIcon={MetricIcon} />
           {rest.length > 0 && (
             <RowList cols={COLS}>
               <RowHeader>
-                <span>Hạng</span>
-                <span>Dự án</span>
-                <span>Thể loại</span>
-                <span className="text-right">{type === 'top_forked' ? 'Fork' : 'Lượt nghe'}</span>
+                <span>{t('rk.colRank')}</span>
+                <span>{t('ex.colProject')}</span>
+                <span>{t('ex.colGenre')}</span>
+                <span className="text-right">{type === 'top_forked' ? 'Fork' : t('ex.colPlays')}</span>
               </RowHeader>
 
               {rest.map((project, index) => {
@@ -116,12 +118,12 @@ export default function RankingsPage() {
                     <RowTitle
                       href={`/projects/${project.id}`}
                       name={project.name}
-                      meta={project.owner.display_name ?? project.owner.username ?? 'Người dùng'}
+                      meta={project.owner.display_name ?? project.owner.username ?? t('ex.user')}
                     />
                     <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
                     <span className="flex items-center gap-1.5 font-mono text-[13px] font-bold md:justify-end">
                       <MetricIcon className="h-3.5 w-3.5 text-muted" />
-                      {metric.toLocaleString(APP_LOCALE)}
+                      {metric.toLocaleString(locale)}
                     </span>
                   </RowItem>
                 );

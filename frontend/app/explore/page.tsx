@@ -14,13 +14,15 @@ import { Button } from '../../components/ui/button';
 import { Avatar } from '../../components/ui/avatar';
 import { INPUT_CLASS } from '../../components/ui/form';
 import { RowList, RowHeader, RowTitle, RowStat, RowTime } from '../../components/ui/row-list';
+import { useI18n } from '../../context/i18n-context';
+import { tNow } from '../../lib/i18n';
 import { GalaxyPage } from '../../components/galaxy/galaxy-page';
 import { GalaxyMap } from '../../components/galaxy/galaxy-map';
 import { GalaxyRow } from '../../components/galaxy/galaxy-row';
 import { weightOf } from '../../components/galaxy/constellation';
 
 const GENRE_FILTERS = [
-  { value: '', label: 'Tất cả thể loại' },
+  { value: '', label: 'ex.allGenres' },
   { value: 'Jazz', label: 'Jazz' },
   { value: 'Rock', label: 'Rock' },
   { value: 'Pop', label: 'Pop' },
@@ -31,8 +33,8 @@ const GENRE_FILTERS = [
 ] as const;
 
 const SORT_OPTIONS = [
-  { value: 'newest', label: 'Mới nhất' },
-  { value: 'most_played', label: 'Nổi bật' },
+  { value: 'newest', label: 'ex.sortNewest' },
+  { value: 'most_played', label: 'ex.sortPopular' },
 ] as const;
 
 /** Tên | thể loại | lượt nghe | fork | cập nhật — dùng chung cho hàng tiêu đề và hàng dữ liệu. */
@@ -55,6 +57,7 @@ function RowSkeleton() {
 }
 
 function ExploreContent() {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -75,7 +78,7 @@ function ExploreContent() {
         tag: tag || undefined,
       }),
     [page, sort, genre, search, tag],
-    'Không thể tải danh sách dự án. Vui lòng thử lại.',
+    tNow('ex.loadFail'),
   );
 
   function updateParams(newParams: Record<string, string | null>) {
@@ -126,7 +129,8 @@ function ExploreContent() {
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tìm dự án công khai"
+            placeholder={t('ex.search')}
+            aria-label={t('ex.search')}
             className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
           />
         </div>
@@ -134,12 +138,12 @@ function ExploreContent() {
         <select
           value={genre}
           onChange={(e) => updateParams({ genre: e.target.value })}
-          aria-label="Lọc theo thể loại"
+          aria-label={t('ex.filterGenre')}
           className={`${INPUT_CLASS} h-[34px]`}
         >
           {GENRE_FILTERS.map((g) => (
             <option key={g.value} value={g.value}>
-              {g.label}
+              {g.value === '' ? t('ex.allGenres') : g.label}
             </option>
           ))}
         </select>
@@ -147,12 +151,12 @@ function ExploreContent() {
         <select
           value={sort}
           onChange={(e) => updateParams({ sort: e.target.value })}
-          aria-label="Sắp xếp"
+          aria-label={t('ex.sort')}
           className={`${INPUT_CLASS} h-[34px]`}
         >
           {SORT_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
-              {opt.label}
+              {t(opt.label)}
             </option>
           ))}
         </select>
@@ -176,7 +180,7 @@ function ExploreContent() {
           <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
             <p className="text-[13px] text-danger">{error}</p>
             <Button variant="secondary" onClick={() => window.location.reload()} className="mt-4">
-              Thử lại
+              {t('ui.retry')}
             </Button>
           </div>
         ) : items?.length === 0 ? (
@@ -184,13 +188,13 @@ function ExploreContent() {
             icon={SearchIcon}
             title={
               search || genre || tag
-                ? "Không tìm thấy dự án nào."
-                : "Chưa có dự án nào được công khai."
+                ? t('ex.noneFound')
+                : t('ex.nonePublic')
             }
             description={
               search || genre || tag
                 ? undefined
-                : "Hãy là người đầu tiên chia sẻ một bản nhạc với cộng đồng."
+                : t('ex.noneHint')
             }
             action={
               search || genre || tag ? (
@@ -201,11 +205,11 @@ function ExploreContent() {
                     updateParams({ search: null, genre: null, tag: null });
                   }}
                 >
-                  Xoá bộ lọc
+                  {t('ex.clearFilters')}
                 </Button>
               ) : (
                 <Link href="/projects/new">
-                  <Button>Tạo dự án</Button>
+                  <Button>{t('ex.createProject')}</Button>
                 </Link>
               )
             }
@@ -214,21 +218,21 @@ function ExploreContent() {
           <>
             <p className="mb-2 text-xs text-muted">
               {search
-                ? `${data?.total ?? 0} kết quả cho "${search}"`
-                : `${data?.total ?? 0} dự án công khai`}
+                ? t('ex.resultsFor', { n: data?.total ?? 0, q: search })
+                : t('ex.publicCount', { n: data?.total ?? 0 })}
             </p>
 
             <RowList cols={COLS}>
               <RowHeader>
-                <span>Dự án</span>
-                <span>Thể loại</span>
-                <span>Lượt nghe</span>
+                <span>{t('ex.colProject')}</span>
+                <span>{t('ex.colGenre')}</span>
+                <span>{t('ex.colPlays')}</span>
                 <span>Fork</span>
-                <span className="text-right">Cập nhật</span>
+                <span className="text-right">{t('ex.colUpdated')}</span>
               </RowHeader>
 
               {items?.map((project) => {
-                const ownerName = project.owner.display_name ?? project.owner.username ?? 'Người dùng';
+                const ownerName = project.owner.display_name ?? project.owner.username ?? t('ex.user');
                 return (
                   <GalaxyRow key={project.id} onActiveChange={(active) => setHoveredId((current) => (active ? project.id : current === project.id ? null : current))}>
                     <RowTitle
@@ -251,8 +255,8 @@ function ExploreContent() {
                       }
                     />
                     <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
-                    <RowStat icon={Play} value={project.play_count} title="Lượt nghe" />
-                    <RowStat icon={GitFork} value={project.fork_count} title="Lượt fork" />
+                    <RowStat icon={Play} value={project.play_count} title={t('ex.statPlays')} />
+                    <RowStat icon={GitFork} value={project.fork_count} title={t('ex.statForks')} />
                     <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
                   </GalaxyRow>
                 );
@@ -266,7 +270,7 @@ function ExploreContent() {
                   onClick={() => updateParams({ page: String(page - 1) })}
                   disabled={page <= 1}
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Trước
+                  <ChevronLeft className="h-3.5 w-3.5" /> {t('ex.prev')}
                 </Button>
                 <span className="px-3 font-mono text-xs text-muted">
                   {page} / {data.totalPages}
@@ -276,7 +280,7 @@ function ExploreContent() {
                   onClick={() => updateParams({ page: String(page + 1) })}
                   disabled={page >= data.totalPages}
                 >
-                  Sau <ChevronRight className="h-3.5 w-3.5" />
+                  {t('ex.next')} <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
             )}
@@ -286,8 +290,8 @@ function ExploreContent() {
 
       <aside aria-hidden="true" className="sticky top-6 hidden overflow-hidden rounded-card border border-border bg-background min-[900px]:block">
         <div className="border-b border-border px-3.5 py-2.5">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Bản đồ thiên hà</p>
-          <p className="text-xs text-muted">Mỗi dự án là một chòm sao. Rê chuột vào một dòng để làm nó sáng lên.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{t('ex.galaxy')}</p>
+          <p className="text-xs text-muted">{t('ex.galaxyHint')}</p>
         </div>
         <GalaxyMap items={galaxyItems} activeId={hoveredId} className="h-[calc(100svh-21rem)] max-h-[620px] min-h-[340px]" />
       </aside>
@@ -297,12 +301,13 @@ function ExploreContent() {
 }
 
 export default function ExplorePage() {
+  const { t } = useI18n();
   return (
     <GalaxyPage>
       <PageHeader
-        breadcrumbs={[{ label: 'Thư viện công khai' }]}
-        title="Khám phá"
-        description="Tìm dự án MIDI công khai để nghe, học hỏi và fork."
+        breadcrumbs={[{ label: t('ex.crumb') }]}
+        title={t('ex.title')}
+        description={t('ex.description')}
         action={
           // UC-66: liên kết "Jam" nổi bật dẫn về trang sự kiện Community Jam.
           <Link href="/jam">
