@@ -1,60 +1,33 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search as SearchIcon, ChevronLeft, ChevronRight, X, Play, GitFork } from 'lucide-react';
-import { listPublicProjects, PublicProjectsResponse } from '../../lib/api-client';
+import { Search as SearchIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import {
+  getFeaturedContent,
+  listPublicProjects,
+  FeaturedContent,
+  PublicProjectsResponse,
+} from '../../lib/api-client';
 import { useApiResource } from '../../lib/use-api-resource';
-import { formatRelativeTime } from '../../lib/format-date';
 import { PageHeader } from '../../components/ui/page-header';
 import { EmptyState } from '../../components/ui/empty-state';
-import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Avatar } from '../../components/ui/avatar';
 import { INPUT_CLASS } from '../../components/ui/form';
-import { RowList, RowHeader, RowTitle, RowStat, RowTime } from '../../components/ui/row-list';
+import { ProjectRows, ProjectRowsSkeleton } from '../../components/explore/project-rows';
 import { useI18n } from '../../context/i18n-context';
 import { tNow } from '../../lib/i18n';
-import { GalaxyPage } from '../../components/galaxy/galaxy-page';
-import { GalaxyMap } from '../../components/galaxy/galaxy-map';
-import { GalaxyRow } from '../../components/galaxy/galaxy-row';
-import { weightOf } from '../../components/galaxy/constellation';
 
-const GENRE_FILTERS = [
-  { value: '', label: 'ex.allGenres' },
-  { value: 'Jazz', label: 'Jazz' },
-  { value: 'Rock', label: 'Rock' },
-  { value: 'Pop', label: 'Pop' },
-  { value: 'Lo-Fi', label: 'Lo-Fi' },
-  { value: 'Electronic', label: 'Electronic' },
-  { value: 'Classical', label: 'Classical' },
-  { value: 'Hip-Hop', label: 'Hip-Hop' },
-] as const;
+const GENRES = ['Jazz', 'Rock', 'Pop', 'Lo-Fi', 'Electronic', 'Classical', 'Hip-Hop'] as const;
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'ex.sortNewest' },
   { value: 'most_played', label: 'ex.sortPopular' },
 ] as const;
 
-/** Tên | thể loại | lượt nghe | fork | cập nhật — dùng chung cho hàng tiêu đề và hàng dữ liệu. */
-const COLS = 'md:grid-cols-[minmax(0,1fr)_112px_84px_84px_96px]';
-
-function RowSkeleton() {
-  return (
-    <RowList cols={COLS}>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
-          <div className="h-8 w-8 shrink-0 rounded-full bg-surface-subtle" />
-          <div className="flex-1">
-            <div className="mb-1.5 h-3 w-1/3 rounded bg-surface-subtle" />
-            <div className="h-2.5 w-1/4 rounded bg-surface-subtle" />
-          </div>
-        </div>
-      ))}
-    </RowList>
-  );
-}
+const CHIP_BASE =
+  'inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors';
 
 function ExploreContent() {
   const { t } = useI18n();
@@ -66,6 +39,7 @@ function ExploreContent() {
   const genre = searchParams.get('genre') ?? '';
   const search = searchParams.get('search') ?? '';
   const tag = searchParams.get('tag') ?? '';
+  const filtered = Boolean(search || genre || tag);
 
   const { data, loading, error } = useApiResource<PublicProjectsResponse>(
     () =>
@@ -80,6 +54,15 @@ function ExploreContent() {
     [page, sort, genre, search, tag],
     tNow('ex.loadFail'),
   );
+
+  const [featuredTry, setFeaturedTry] = useState(0);
+  const { data: featured, error: featuredError } = useApiResource<FeaturedContent>(
+    () => getFeaturedContent(),
+    [featuredTry],
+    tNow('explorePage.featuredFail'),
+  );
+  const showFeatured = !filtered && page === 1;
+  const featuredProjects = showFeatured ? (featured?.featured_projects ?? []) : [];
 
   function updateParams(newParams: Record<string, string | null>) {
     const params = new URLSearchParams(window.location.search);
@@ -101,7 +84,6 @@ function ExploreContent() {
     router.push(`/explore?${params.toString()}`);
   }
 
-  // Ô nhập gõ mượt (state local), URL/refetch chỉ cập nhật sau khi ngừng gõ 400ms
   const [searchInput, setSearchInput] = useState(search);
   useEffect(() => {
     if (searchInput === search) return;
@@ -112,17 +94,14 @@ function ExploreContent() {
 
   const items = data?.items;
 
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const galaxyItems = useMemo(
-    () => (items ?? []).map((p) => ({ id: p.id, weight: weightOf(p.play_count, p.fork_count) })),
-    [items],
-  );
-
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] max-w-[380px] flex-1">
-          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+        <div className="relative min-w-[200px] max-w-[420px] flex-1">
+          <SearchIcon
+            aria-hidden="true"
+            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
+          />
           <input
             name="q"
             autoComplete="off"
@@ -134,19 +113,6 @@ function ExploreContent() {
             className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
           />
         </div>
-
-        <select
-          value={genre}
-          onChange={(e) => updateParams({ genre: e.target.value })}
-          aria-label={t('ex.filterGenre')}
-          className={`${INPUT_CLASS} h-[34px]`}
-        >
-          {GENRE_FILTERS.map((g) => (
-            <option key={g.value} value={g.value}>
-              {g.value === '' ? t('ex.allGenres') : g.label}
-            </option>
-          ))}
-        </select>
 
         <select
           value={sort}
@@ -163,21 +129,76 @@ function ExploreContent() {
 
         {tag && (
           <button
+            type="button"
             onClick={() => updateParams({ tag: null })}
+            aria-label={t('explorePage.removeTag', { tag })}
             className="flex h-[34px] items-center gap-1.5 rounded-md border border-accent bg-accent-muted px-3 text-xs font-semibold text-accent"
           >
             #{tag}
-            <X className="h-3.5 w-3.5" />
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
 
-      <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(300px,36%)] min-[900px]:items-start">
-      <div className="min-w-0">
+      <div role="group" aria-label={t('ex.filterGenre')} className="mb-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          aria-pressed={genre === ''}
+          onClick={() => updateParams({ genre: null })}
+          className={`${CHIP_BASE} ${
+            genre === ''
+              ? 'border-accent bg-accent-muted text-foreground'
+              : 'border-border-strong text-muted hover:text-foreground'
+          }`}
+        >
+          {t('ex.allGenres')}
+        </button>
+        {GENRES.map((g) => (
+          <button
+            key={g}
+            type="button"
+            aria-pressed={genre === g}
+            onClick={() => updateParams({ genre: g })}
+            className={`${CHIP_BASE} ${
+              genre === g
+                ? 'border-accent bg-accent-muted text-foreground'
+                : 'border-border-strong text-muted hover:text-foreground'
+            }`}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+
+      {showFeatured && (featuredProjects.length > 0 || featuredError) && (
+        <section aria-labelledby="explore-featured" className="mb-8">
+          <h2 id="explore-featured" className="mb-2.5 text-[17px] font-semibold">
+            {t('explorePage.featured')}
+          </h2>
+          {featuredError ? (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-danger/20 bg-danger-muted px-4 py-3"
+            >
+              <p className="text-[13px] text-danger">{featuredError}</p>
+              <Button variant="secondary" onClick={() => setFeaturedTry((n) => n + 1)}>
+                {t('ui.retry')}
+              </Button>
+            </div>
+          ) : (
+            <ProjectRows projects={featuredProjects} />
+          )}
+        </section>
+      )}
+
+      <section aria-labelledby="explore-all">
+        <h2 id="explore-all" className="mb-2.5 text-[17px] font-semibold">
+          {t('explorePage.allProjects')}
+        </h2>
         {loading ? (
-          <RowSkeleton />
+          <ProjectRowsSkeleton />
         ) : error ? (
-          <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
+          <div role="alert" className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
             <p className="text-[13px] text-danger">{error}</p>
             <Button variant="secondary" onClick={() => window.location.reload()} className="mt-4">
               {t('ui.retry')}
@@ -186,18 +207,10 @@ function ExploreContent() {
         ) : items?.length === 0 ? (
           <EmptyState
             icon={SearchIcon}
-            title={
-              search || genre || tag
-                ? t('ex.noneFound')
-                : t('ex.nonePublic')
-            }
-            description={
-              search || genre || tag
-                ? undefined
-                : t('ex.noneHint')
-            }
+            title={filtered ? t('ex.noneFound') : t('ex.nonePublic')}
+            description={filtered ? undefined : t('ex.noneHint')}
             action={
-              search || genre || tag ? (
+              filtered ? (
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -216,52 +229,13 @@ function ExploreContent() {
           />
         ) : (
           <>
-            <p className="mb-2 text-xs text-muted">
+            <p role="status" className="mb-2 text-xs text-muted">
               {search
                 ? t('ex.resultsFor', { n: data?.total ?? 0, q: search })
                 : t('ex.publicCount', { n: data?.total ?? 0 })}
             </p>
 
-            <RowList cols={COLS}>
-              <RowHeader>
-                <span>{t('ex.colProject')}</span>
-                <span>{t('ex.colGenre')}</span>
-                <span>{t('ex.colPlays')}</span>
-                <span>Fork</span>
-                <span className="text-right">{t('ex.colUpdated')}</span>
-              </RowHeader>
-
-              {items?.map((project) => {
-                const ownerName = project.owner.display_name ?? project.owner.username ?? t('ex.user');
-                return (
-                  <GalaxyRow key={project.id} onActiveChange={(active) => setHoveredId((current) => (active ? project.id : current === project.id ? null : current))}>
-                    <RowTitle
-                      href={`/projects/${project.id}`}
-                      name={project.name}
-                      meta={
-                        <>
-                          <Link href={`/creator/${project.owner.id}`} className="hover:text-accent hover:underline">
-                            {ownerName}
-                          </Link>
-                          {project.description ? ` · ${project.description}` : ''}
-                        </>
-                      }
-                      leading={
-                        <Avatar
-                          id={project.owner.id}
-                          label={ownerName}
-                          imageUrl={project.owner.avatar_url}
-                        />
-                      }
-                    />
-                    <span>{project.genre && <Badge variant="neutral">{project.genre}</Badge>}</span>
-                    <RowStat icon={Play} value={project.play_count} title={t('ex.statPlays')} />
-                    <RowStat icon={GitFork} value={project.fork_count} title={t('ex.statForks')} />
-                    <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
-                  </GalaxyRow>
-                );
-              })}
-            </RowList>
+            <ProjectRows projects={items ?? []} />
 
             {data && data.totalPages > 1 && (
               <div className="mt-6 flex items-center justify-center gap-2">
@@ -270,7 +244,7 @@ function ExploreContent() {
                   onClick={() => updateParams({ page: String(page - 1) })}
                   disabled={page <= 1}
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" /> {t('ex.prev')}
+                  <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" /> {t('ex.prev')}
                 </Button>
                 <span className="px-3 font-mono text-xs text-muted">
                   {page} / {data.totalPages}
@@ -280,22 +254,13 @@ function ExploreContent() {
                   onClick={() => updateParams({ page: String(page + 1) })}
                   disabled={page >= data.totalPages}
                 >
-                  {t('ex.next')} <ChevronRight className="h-3.5 w-3.5" />
+                  {t('ex.next')} <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
                 </Button>
               </div>
             )}
           </>
         )}
-      </div>
-
-      <aside aria-hidden="true" className="sticky top-6 hidden overflow-hidden rounded-card border border-border bg-background min-[900px]:block">
-        <div className="border-b border-border px-3.5 py-2.5">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{t('ex.galaxy')}</p>
-          <p className="text-xs text-muted">{t('ex.galaxyHint')}</p>
-        </div>
-        <GalaxyMap items={galaxyItems} activeId={hoveredId} className="h-[calc(100svh-21rem)] max-h-[620px] min-h-[340px]" />
-      </aside>
-      </div>
+      </section>
     </>
   );
 }
@@ -303,22 +268,21 @@ function ExploreContent() {
 export default function ExplorePage() {
   const { t } = useI18n();
   return (
-    <GalaxyPage>
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
       <PageHeader
         breadcrumbs={[{ label: t('ex.crumb') }]}
         title={t('ex.title')}
         description={t('ex.description')}
         action={
-          // UC-66: liên kết "Jam" nổi bật dẫn về trang sự kiện Community Jam.
           <Link href="/jam">
             <Button>Jam</Button>
           </Link>
         }
       />
 
-      <Suspense fallback={<RowSkeleton />}>
+      <Suspense fallback={<ProjectRowsSkeleton />}>
         <ExploreContent />
       </Suspense>
-    </GalaxyPage>
+    </div>
   );
 }
