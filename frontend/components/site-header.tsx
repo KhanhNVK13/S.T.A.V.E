@@ -15,11 +15,13 @@ import {
   Menu,
   X,
   Music4,
+  House,
 } from "lucide-react";
 import { useAuth } from "../context/auth-context";
 import { Logo } from "./ui/logo";
 import { Avatar } from "./ui/avatar";
 import { NotificationBell } from "./notification-bell";
+import { isLandingPath } from "./landing/landing-paths";
 
 interface NavLink {
   href: string;
@@ -33,6 +35,7 @@ interface NavLink {
  * phải nav toàn cục.
  */
 const NAV_LINKS: NavLink[] = [
+  { href: "/", label: "Trang chủ" },
   { href: "/explore", label: "Khám phá" },
   { href: "/rankings", label: "Bảng xếp hạng" },
   { href: "/projects", label: "Dự án của tôi" },
@@ -75,8 +78,12 @@ export function SiteHeader() {
   const isEditor = /^\/projects\/[^/]+\/edit$/.test(pathname);
   const displayLabel = profile?.display_name ?? user?.email?.split("@")[0] ?? "";
 
+  function isActiveLink(href: string) {
+    return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  }
+
   function navClass(href: string) {
-    const isActive = pathname === href || pathname.startsWith(`${href}/`);
+    const isActive = isActiveLink(href);
     return `flex h-8 items-center rounded-md px-3 text-[13px] font-semibold transition-colors ${
       isActive
         ? "bg-accent-muted text-accent"
@@ -88,7 +95,7 @@ export function SiteHeader() {
     <>
     <header
       className={`sticky top-0 z-50 border-b ${
-        pathname === "/" ? "border-transparent bg-transparent" : "border-border bg-surface/90"
+        isLandingPath(pathname) ? "border-transparent bg-transparent" : "border-border bg-surface/90"
       }`}
     >
       <div className={`mx-auto flex ${isEditor ? "h-11" : "h-14"} max-w-page items-center gap-5 px-5`}>
@@ -96,7 +103,12 @@ export function SiteHeader() {
 
         <nav className="hidden items-center gap-0.5 md:flex">
           {NAV_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className={navClass(link.href)}>
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={isActiveLink(link.href) ? "page" : undefined}
+              className={navClass(link.href)}
+            >
               {link.label}
             </Link>
           ))}
@@ -107,6 +119,17 @@ export function SiteHeader() {
             <div className="h-8 w-24 animate-pulse rounded-md bg-surface-subtle" />
           ) : user ? (
             <>
+              <Link
+                href="/"
+                aria-label="Trang chủ"
+                aria-current={pathname === "/" ? "page" : undefined}
+                title="Trang chủ"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-subtle hover:text-foreground md:hidden ${
+                  pathname === "/" ? "bg-accent-muted text-accent" : "text-muted"
+                }`}
+              >
+                <House className="h-[18px] w-[18px]" />
+              </Link>
               <NotificationBell />
               <Link
                 href="/projects/new"
@@ -168,15 +191,17 @@ export function SiteHeader() {
             <>
               <Link
                 href="/login"
-                className="flex h-8 items-center rounded-md px-3 text-[13px] font-semibold text-muted hover:bg-surface-subtle hover:text-foreground"
+                className="flex h-8 items-center whitespace-nowrap rounded-md px-3 text-[13px] font-semibold text-muted hover:bg-surface-subtle hover:text-foreground"
               >
                 Đăng nhập
               </Link>
               <Link
                 href="/register"
-                className="flex h-8 items-center rounded-md bg-accent px-3 text-[13px] font-semibold text-accent-foreground hover:bg-accent-hover"
+                aria-label="Bắt đầu miễn phí"
+                className="flex h-8 items-center whitespace-nowrap rounded-md bg-accent px-3 text-[13px] font-semibold text-accent-foreground hover:bg-accent-hover"
               >
-                Đăng ký
+                <span aria-hidden="true" className="sm:hidden">Bắt đầu</span>
+                <span aria-hidden="true" className="hidden sm:inline">Bắt đầu miễn phí</span>
               </Link>
             </>
           )}
@@ -198,6 +223,7 @@ export function SiteHeader() {
               key={link.href}
               href={link.href}
               onClick={() => setMobileOpen(false)}
+              aria-current={isActiveLink(link.href) ? "page" : undefined}
               className={navClass(link.href)}
             >
               {link.label}

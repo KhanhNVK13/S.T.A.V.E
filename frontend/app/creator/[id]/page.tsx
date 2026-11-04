@@ -91,7 +91,13 @@ export default function CreatorProfilePage({ params }: Props) {
             size="lg"
           />
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Hồ sơ tác giả</p>
+            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent">
+              <Link href="/" className="hover:underline">
+                Trang chủ
+              </Link>
+              <span className="text-muted">/</span>
+              <span>Hồ sơ tác giả</span>
+            </p>
             <h1 className="mb-0.5 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
               {profile.display_name ?? profile.username ?? 'Người dùng'}
             </h1>

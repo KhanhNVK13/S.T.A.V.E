@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../../context/theme-context";
+import { isLandingPath } from "../landing/landing-paths";
 import { readSkyColors } from "./sky-colors";
 import { createSky2D } from "./sky2d";
 import type { SkyEngine } from "./sky-types";
@@ -28,7 +29,7 @@ function useMedia(query: string): boolean {
 }
 
 function routeScene(pathname: string): { mode: SpaceMode; anchor: number } {
-  if (pathname === "/") return { mode: "full", anchor: 0 };
+  if (isLandingPath(pathname)) return { mode: "full", anchor: 0 };
   return { mode: "quiet", anchor: 0 };
 }
 
@@ -135,7 +136,7 @@ export function SpaceBackdrop() {
       data-space-backdrop={want3d ? "full" : "quiet"}
       className="pointer-events-none fixed inset-0 -z-10"
       style={{
-        opacity: pathname === "/" ? 1 : 0.6,
+        opacity: isLandingPath(pathname) ? 1 : 0.6,
         background:
           "radial-gradient(ellipse at 70% 40%, var(--surface-subtle) 0%, transparent 60%), var(--background)",
       }}

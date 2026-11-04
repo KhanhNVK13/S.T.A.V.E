@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase-browser";
 import { authErrorMessage } from "../../lib/error-message";
+import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { Button } from "../../components/ui/button";
 import {validateEmail, REQUIRED_MESSAGE, focusFirstInvalid } from "../../lib/validation";
@@ -22,6 +24,7 @@ async function isRegistrationOpen(): Promise<boolean> {
 }
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -100,6 +103,11 @@ export default function RegisterPage() {
       setError(
         "Email này đã được đăng ký. Nếu đây là tài khoản của bạn, hãy đăng nhập hoặc dùng chức năng quên mật khẩu."
       );
+      return;
+    }
+
+    if (signUpData.session) {
+      router.push(DEFAULT_AFTER_LOGIN_PATH);
       return;
     }
 

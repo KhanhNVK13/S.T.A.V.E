@@ -327,7 +327,11 @@ export default function ProjectSettingsPage() {
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách dự án
         </Link>
-        <PageHeader title="Cài đặt dự án" description={project?.name} />
+        <PageHeader
+          title="Cài đặt dự án"
+          description={project?.name}
+          breadcrumbs={[{ label: "Dự án của tôi", href: "/projects" }, { label: "Dự án", href: `/projects/${projectId}` }]}
+        />
 
         {loading && <SkyLoading label="Đang tải thông tin dự án…" />}
 
