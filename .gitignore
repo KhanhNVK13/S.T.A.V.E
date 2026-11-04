@@ -31,8 +31,7 @@ npm-debug.log*
 .husky/_
 
 # tài liệu riêng của người dùng — không đưa vào repo public
-CLAUDE.md
-PROJECT_STATE.md
+# (CLAUDE.md và project-state/ được commit; docs/ vẫn bị chặn)
 docs/
 
 # Claude Code internal (memory, settings, workflows — không liên quan đến app)
