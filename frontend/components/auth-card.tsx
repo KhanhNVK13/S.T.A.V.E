@@ -120,7 +120,7 @@ export function AuthField({
 }
 
 export const AUTH_INPUT_CLASS =
-  "h-10 rounded-md border border-border bg-background px-2.5 text-base sm:h-[37px] sm:text-[13px] placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-muted";
+  "h-10 rounded-md border border-border-strong bg-background px-2.5 text-base sm:h-[37px] sm:text-[13px] placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-muted";
 
 export function AuthDivider() {
   const t = useT();
@@ -139,7 +139,7 @@ export function GoogleButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[37px] w-full items-center justify-center gap-2 rounded-md border border-border bg-surface text-xs font-semibold hover:bg-surface-subtle"
+      className="flex h-[37px] w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-surface text-xs font-semibold hover:bg-surface-subtle"
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24">
         <path
