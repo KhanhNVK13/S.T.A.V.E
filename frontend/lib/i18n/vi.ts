@@ -1835,4 +1835,12 @@ export const vi: Record<keyof typeof en, string> = {
   "pullRequestsPage.tabDiscussion": "Thảo luận ({n})",
   "pullRequestsPage.noCommits": "Pull request này không đem theo commit mới nào.",
   "pullRequestsPage.noAnalysis": "Không có chi tiết thay đổi cho pull request này.",
+  "accessibilityPage.tab": "Trợ năng",
+  "accessibilityPage.title": "Trợ năng",
+  "accessibilityPage.lead": "Các tuỳ chọn hiển thị giúp STAVE dễ đọc và dễ dùng hơn.",
+  "accessibilityPage.cvdTitle": "Chế độ cho người mù màu",
+  "accessibilityPage.cvdDesc": "Đổi màu thêm, bỏ, đổi trong màn so sánh commit và hợp nhất sang bộ màu dễ phân biệt hơn. Các màu khác không thay đổi.",
+  "accessibilityPage.stateOn": "Bật",
+  "accessibilityPage.stateOff": "Tắt",
+  "accessibilityPage.localNote": "Chỉ lưu trong trình duyệt này, không đi theo tài khoản của bạn.",
 };

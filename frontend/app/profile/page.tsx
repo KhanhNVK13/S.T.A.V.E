@@ -10,6 +10,7 @@ import { apiFetch, removeAvatar } from "../../lib/api-client";
 import { uploadAvatar, validateAvatarFile } from "../../lib/avatar-upload";
 import type { Profile } from "../../lib/types";
 import { useI18n } from "../../context/i18n-context";
+import type { TKey } from "../../lib/i18n";
 import { Button } from "../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
@@ -17,14 +18,16 @@ import { ConnectedAccounts } from "../../components/settings/connected-accounts"
 import { Dialog } from "../../components/ui/dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { PageHeader } from "../../components/ui/page-header";
+import { Switch } from "../../components/ui/switch";
 import { Tabs } from "../../components/ui/tabs";
+import { useAccessibility } from "../../context/accessibility-context";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
 import { apiErrorMessage } from "../../lib/error-message";
 import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
-type SettingsTab = "profile" | "security";
+type SettingsTab = "profile" | "security" | "accessibility";
 
 function ProfileForm() {
   const { t } = useI18n();
@@ -327,17 +330,19 @@ function ProfileTab() {
 /** Một dòng cài đặt: mô tả bên trái, hành động/trạng thái bên phải. */
 function SettingRow({
   title,
+  titleId,
   description,
   children,
 }: {
   title: string;
+  titleId?: string;
   description?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-[75px] flex-wrap items-center justify-between gap-3 border-t border-border py-3">
       <div className="min-w-0">
-        <p className="text-xs font-semibold">{title}</p>
+        <p id={titleId} className="text-xs font-semibold">{title}</p>
         {description && <div className="mt-1 text-xs text-muted">{description}</div>}
       </div>
       {children}
@@ -530,10 +535,40 @@ function DeleteAccountSection() {
   );
 }
 
-const SETTINGS_TABS: { id: SettingsTab; label: "profile.tabProfile" | "profile.tabSecurity" }[] = [
+const SETTINGS_TABS: { id: SettingsTab; label: TKey }[] = [
   { id: "profile", label: "profile.tabProfile" },
   { id: "security", label: "profile.tabSecurity" },
+  { id: "accessibility", label: "accessibilityPage.tab" },
 ];
+
+function AccessibilityTab() {
+  const { t } = useI18n();
+  const { colorBlindMode, setColorBlindMode } = useAccessibility();
+  return (
+    <>
+      <h2 className="text-lg font-semibold">{t("accessibilityPage.title")}</h2>
+      <p className="mb-2 mt-1.5 text-xs text-muted">{t("accessibilityPage.lead")}</p>
+      <SettingRow
+        title={t("accessibilityPage.cvdTitle")}
+        titleId="cvd-title"
+        description={<span id="cvd-desc">{t("accessibilityPage.cvdDesc")}</span>}
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-muted" aria-hidden="true">
+            {colorBlindMode ? t("accessibilityPage.stateOn") : t("accessibilityPage.stateOff")}
+          </span>
+          <Switch
+            checked={colorBlindMode}
+            onChange={setColorBlindMode}
+            labelledBy="cvd-title"
+            describedBy="cvd-desc"
+          />
+        </div>
+      </SettingRow>
+      <p className="border-t border-border pt-3 text-xs text-muted">{t("accessibilityPage.localNote")}</p>
+    </>
+  );
+}
 
 export default function ProfilePage() {
   const { t } = useI18n();
@@ -543,7 +578,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- tham số URL chỉ đọc được ở client
-    if (requested === "security") setTab("security");
+    if (requested === "security" || requested === "accessibility") setTab(requested);
   }, []);
 
   return (
@@ -563,11 +598,13 @@ export default function ProfilePage() {
 
         <section
           role="tabpanel"
-          aria-label={t(tab === "profile" ? "profile.tabProfile" : "profile.tabSecurity")}
+          aria-label={t(SETTINGS_TABS.find((item) => item.id === tab)?.label ?? "profile.tabProfile")}
           className="mt-5 min-h-[480px] rounded-card border border-border bg-surface/80 p-6"
         >
           {tab === "profile" ? (
             <ProfileTab />
+          ) : tab === "accessibility" ? (
+            <AccessibilityTab />
           ) : (
             <>
               <h2 className="text-lg font-semibold">{t("profile.tabSecurity")}</h2>
