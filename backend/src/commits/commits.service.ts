@@ -907,6 +907,6 @@ export class CommitsService {
   ): Promise<void> {
     return level === 'edit'
       ? this.access.assertCanEdit(projectId, userId)
-      : this.access.assertCanView(projectId, userId);
+      : this.access.assertCanRead(projectId, userId);
   }
 }

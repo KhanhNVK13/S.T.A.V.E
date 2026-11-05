@@ -199,6 +199,7 @@ function fakeProjectAccess(overrides: Record<string, unknown> = {}) {
   return {
     getAccess: jest.fn().mockResolvedValue('owner'),
     assertCanView: jest.fn().mockResolvedValue(undefined),
+    assertCanRead: jest.fn().mockResolvedValue(undefined),
     assertCanEdit: jest.fn().mockResolvedValue(undefined),
     assertOwner: jest.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -847,21 +848,21 @@ describe('BE-COL-05 CollaborationService — UC-65 listContributions', () => {
 
   it('UTCID06 rejects pending collaborators and outsiders (1.E1 → 403)', async () => {
     const pendingAccess = fakeProjectAccess({
-      assertCanView: jest
+      assertCanRead: jest
         .fn()
         .mockRejectedValue(
           new ForbiddenException('You do not have access to this project'),
         ),
     });
 
-    // Pending collaborator (BR-65) — assertCanView rejects.
+    // Pending collaborator (BR-65) on a non-public project — assertCanRead rejects.
     const servicePending = makeService(uc65Rows(), pendingAccess);
     await expect(
       servicePending.listContributions('p-1', PENDING, {}),
     ).rejects.toThrow(ForbiddenException);
 
     // The assert is called with the right arguments.
-    expect(pendingAccess.assertCanView).toHaveBeenCalledWith('p-1', PENDING);
+    expect(pendingAccess.assertCanRead).toHaveBeenCalledWith('p-1', PENDING);
 
     // An outsider is rejected the same way by the same guard.
     await expect(

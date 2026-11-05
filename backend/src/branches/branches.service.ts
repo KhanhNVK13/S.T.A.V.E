@@ -301,7 +301,7 @@ export class BranchesService {
     if (!branch) {
       throw new NotFoundException('Branch not found');
     }
-    await this.access.assertCanView(branch.project_id, userId);
+    await this.access.assertCanRead(branch.project_id, userId);
 
     const defaultBranch = await this.getDefaultBranch(branch.project_id);
     if (!defaultBranch) {
@@ -348,7 +348,7 @@ export class BranchesService {
     if (!branch) {
       throw new NotFoundException('Branch not found');
     }
-    await this.access.assertCanView(branch.project_id, userId);
+    await this.access.assertCanRead(branch.project_id, userId);
 
     const defaultBranch = await this.getDefaultBranch(branch.project_id);
     const isDefaultBranch = defaultBranch?.id === branch.id;
@@ -646,7 +646,7 @@ export class BranchesService {
     projectId: string,
     userId: string,
   ): Promise<BranchWithAuthor[]> {
-    await this.access.assertCanView(projectId, userId);
+    await this.access.assertCanRead(projectId, userId);
 
     const { data: branches, error } = await this.supabase
       .from('branches')
