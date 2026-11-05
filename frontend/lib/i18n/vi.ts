@@ -1839,7 +1839,7 @@ export const vi: Record<keyof typeof en, string> = {
   "accessibilityPage.title": "Trợ năng",
   "accessibilityPage.lead": "Các tuỳ chọn hiển thị giúp STAVE dễ đọc và dễ dùng hơn.",
   "accessibilityPage.cvdTitle": "Chế độ cho người mù màu",
-  "accessibilityPage.cvdDesc": "Đổi màu thêm, bỏ, đổi trong màn so sánh commit và hợp nhất sang bộ màu dễ phân biệt hơn. Các màu khác không thay đổi.",
+  "accessibilityPage.cvdDesc": "Đổi màu thêm, bỏ, đổi trong màn so sánh commit sang bộ màu dễ phân biệt hơn. Các màu khác không thay đổi.",
   "accessibilityPage.stateOn": "Bật",
   "accessibilityPage.stateOff": "Tắt",
   "accessibilityPage.localNote": "Chỉ lưu trong trình duyệt này, không đi theo tài khoản của bạn.",

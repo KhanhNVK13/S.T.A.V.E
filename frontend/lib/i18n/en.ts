@@ -1837,7 +1837,7 @@ export const en = {
   "accessibilityPage.title": "Accessibility",
   "accessibilityPage.lead": "Display options that make STAVE easier to read and use.",
   "accessibilityPage.cvdTitle": "Color-blind mode",
-  "accessibilityPage.cvdDesc": "Changes the added, removed and changed colors in the commit compare and merge views to a palette that is easier to tell apart. No other colors change.",
+  "accessibilityPage.cvdDesc": "Changes the added, removed and changed colors in the commit compare screen to a palette that is easier to tell apart. No other colors change.",
   "accessibilityPage.stateOn": "On",
   "accessibilityPage.stateOff": "Off",
   "accessibilityPage.localNote": "Saved in this browser only; it does not follow your account.",
