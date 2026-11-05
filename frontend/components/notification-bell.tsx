@@ -6,7 +6,7 @@ import { getUnreadNotificationCount } from "../lib/api-client";
 const POLL_INTERVAL_MS = 60_000;
 export const NOTIFICATIONS_CHANGED_EVENT = "stave:notifications-changed";
 
-export function useUnreadNotificationCount(): number {
+export function useUnreadNotificationCount(enabled = true): number {
   const [count, setCount] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -18,6 +18,7 @@ export function useUnreadNotificationCount(): number {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- nạp số chưa đọc lần đầu
     void refresh();
 
@@ -39,7 +40,7 @@ export function useUnreadNotificationCount(): number {
       document.removeEventListener("visibilitychange", handleVisible);
       window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleChanged);
     };
-  }, [refresh]);
+  }, [refresh, enabled]);
 
   return count;
 }

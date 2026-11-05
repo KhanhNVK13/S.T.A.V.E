@@ -21,6 +21,7 @@ import {
   type ShellNavItem,
 } from "./nav-items";
 import { QuickFind } from "./quick-find";
+import { useSessionReady } from "../../lib/use-session-ready";
 import { useRecentProjects } from "./use-recent-projects";
 import { useSignOut } from "./use-sign-out";
 
@@ -86,8 +87,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const narrow = useNarrow();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
-  const unread = useUnreadNotificationCount();
-  const recent = useRecentProjects();
+  const sessionReady = useSessionReady();
+  const unread = useUnreadNotificationCount(sessionReady);
+  const recent = useRecentProjects(sessionReady);
   const { requestSignOut, signOutDialog } = useSignOut();
 
   const drawerActive = narrow && drawerOpen;
