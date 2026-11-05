@@ -18,7 +18,7 @@ import {
 } from "../../lib/api-client";
 import type { NotificationFilter, NotificationItem } from "../../lib/api-client";
 import { apiErrorMessage } from "../../lib/error-message";
-import { appLocale, formatRelativeTime } from "../../lib/format-date";
+import { formatRelativeTime } from "../../lib/format-date";
 import { tNow, type TKey } from "../../lib/i18n";
 import { useI18n } from "../../context/i18n-context";
 
@@ -33,32 +33,6 @@ const EMPTY_TEXT: Record<NotificationFilter, { title: TKey; description: TKey }>
   unread: { title: "nt.emptyUnreadTitle", description: "nt.emptyUnreadBody" },
   mentions: { title: "nt.emptyMentionsTitle", description: "nt.emptyMentionsBody" },
 };
-
-function dayKey(iso: string): string {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-function dayLabel(iso: string): string {
-  const date = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  if (dayKey(iso) === dayKey(today.toISOString())) return tNow("nt.today");
-  if (dayKey(iso) === dayKey(yesterday.toISOString())) return tNow("nt.yesterday");
-  return date.toLocaleDateString(appLocale(), { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function groupByDay(items: NotificationItem[]): Array<{ key: string; label: string; items: NotificationItem[] }> {
-  const groups: Array<{ key: string; label: string; items: NotificationItem[] }> = [];
-  for (const item of items) {
-    const key = dayKey(item.created_at);
-    const last = groups[groups.length - 1];
-    if (last && last.key === key) last.items.push(item);
-    else groups.push({ key, label: dayLabel(item.created_at), items: [item] });
-  }
-  return groups;
-}
 
 function NotificationsView() {
   const { t } = useI18n();
@@ -146,7 +120,11 @@ function NotificationsView() {
   }
 
   const hasUnread = items.some((entry) => !entry.read_at);
-  const groups = groupByDay(items);
+  const allGroups: Array<{ key: string; label: TKey; items: NotificationItem[] }> = [
+    { key: "unread", label: "notificationsPage.groupUnread", items: items.filter((entry) => !entry.read_at) },
+    { key: "read", label: "notificationsPage.groupRead", items: items.filter((entry) => entry.read_at) },
+  ];
+  const groups = allGroups.filter((group) => group.items.length > 0);
 
   return (
     <div className="mx-auto min-h-full max-w-3xl px-5 py-8">
@@ -156,7 +134,7 @@ function NotificationsView() {
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={() => void markAllRead()} disabled={markingAll || !hasUnread}>
-              <CheckCheck className="h-3.5 w-3.5" />
+              <CheckCheck aria-hidden="true" className="h-3.5 w-3.5" />
               {markingAll ? t("ui.processing") : t("nt.markAll")}
             </Button>
             <Link
@@ -165,7 +143,7 @@ function NotificationsView() {
               title={t("nt.settings")}
               className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
             >
-              <SettingsIcon className="h-4 w-4" />
+              <SettingsIcon aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
         }
@@ -192,18 +170,22 @@ function NotificationsView() {
         {!loading && !error && items.length > 0 && (
           <div className="flex flex-col gap-5">
             {groups.map((group) => (
-              <section key={group.key} aria-label={group.label}>
-                <h2 className="mb-2 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">
-                  {group.label}
+              <section key={group.key} aria-labelledby={`nt-group-${group.key}`}>
+                <h2
+                  id={`nt-group-${group.key}`}
+                  className="mb-2 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-muted"
+                >
+                  {t(group.label)}
+                  <span className="font-mono tabular-nums">{group.items.length}</span>
                   <span aria-hidden="true" className="h-px flex-1 bg-border" />
                 </h2>
-                <ul className="overflow-hidden rounded-card border border-border bg-surface">
+                <ul className="overflow-hidden rounded-card border border-border bg-surface/80">
                   {group.items.map((item) => {
                     const unread = !item.read_at;
                     return (
                       <li
                         key={item.id}
-                        className="relative border-b border-border last:border-b-0 before:absolute before:left-[1.1rem] before:top-0 before:h-full before:w-px before:bg-border-strong first:before:top-[1.2rem] first:before:h-[calc(100%-1.2rem)] last:before:h-[1.2rem] only:before:hidden"
+                        className="border-b border-border last:border-b-0"
                       >
                         <button
                           type="button"
@@ -214,7 +196,7 @@ function NotificationsView() {
                         >
                           <span
                             aria-hidden="true"
-                            className={`relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                            className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
                               unread ? "bg-accent ring-4 ring-accent-muted" : "border border-border-strong bg-surface"
                             }`}
                           />

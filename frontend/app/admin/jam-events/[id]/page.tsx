@@ -93,7 +93,7 @@ function AdminJamEventContent({
   }, []);
 
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <div>
       <PageHeader
         breadcrumbs={[{ label: t("aj.crumb") }, { label: t("aj.ctlCrumb") }]}
         title={t("aj.ctlTitle")}

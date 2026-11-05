@@ -278,7 +278,7 @@ function AdminUsersTable() {
         className="flex flex-wrap gap-2"
       >
         <div className="relative min-w-[240px] max-w-[380px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+          <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
             type="search"
             name="q"
@@ -343,7 +343,10 @@ function AdminUsersTable() {
                 </div>
               </div>
               <span className="truncate font-mono text-xs text-muted">{user.maskedEmail}</span>
-              <span className="font-mono text-xs tabular-nums text-muted">{user.projectCount}</span>
+              <span className="font-mono text-xs tabular-nums text-muted">
+                <span className="font-sans md:hidden">{t("au.colProjects")}: </span>
+                {user.projectCount}
+              </span>
               <span>
                 <StatusBadge status={user.status} />
               </span>
@@ -378,6 +381,12 @@ function AdminUsersTable() {
               </div>
             </RowItem>
           ))}
+
+          {!result && !error && (
+            <p role="status" className="px-4 py-8 text-center text-[13px] text-muted">
+              {t("ui.loading")}
+            </p>
+          )}
 
           {result && result.users.length === 0 && (
             <p className="px-4 py-8 text-center text-[13px] text-muted">{t("au.noResults")}</p>

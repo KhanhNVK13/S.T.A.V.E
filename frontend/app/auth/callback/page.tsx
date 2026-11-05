@@ -138,9 +138,9 @@ export default function AuthCallbackPage() {
         role="alert"
         className="mx-auto flex min-h-full max-w-sm flex-col items-center justify-center gap-4 px-5 text-center"
       >
-        <p className="text-base font-semibold text-foreground">
+        <h1 className="text-base font-semibold text-foreground">
           {expiredLink ? t("auth.cb.expiredTitle") : t("auth.cb.failedTitle")}
-        </p>
+        </h1>
         <p className="text-sm text-muted">{failure}</p>
         {expiredLink && <ResendVerification />}
         <div className="flex flex-wrap justify-center gap-3 text-sm font-semibold">
@@ -160,8 +160,8 @@ export default function AuthCallbackPage() {
       role="status"
       className="flex min-h-full flex-col items-center justify-center gap-3 text-sm text-muted"
     >
-      <Loader2 className="h-6 w-6 animate-spin text-accent" />
-      {t("auth.cb.signingIn")}
+      <Loader2 aria-hidden="true" className="h-6 w-6 animate-spin text-accent" />
+      <h1 className="text-sm font-normal">{t("auth.cb.signingIn")}</h1>
     </div>
   );
 }
