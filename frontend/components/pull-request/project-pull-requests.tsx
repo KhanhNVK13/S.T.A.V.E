@@ -9,7 +9,7 @@ import { getPullRequestTargetBranches, listProjectPullRequests } from "../../lib
 import type { PullRequestListItem, PullRequestStatus } from "../../lib/api-client";
 import { apiErrorMessage } from "../../lib/error-message";
 import { NewPullRequestDialog } from "./new-pull-request-dialog";
-import { PullRequestList, STATUS_KEY } from "./pull-request-list";
+import { PullRequestListState, STATUS_KEY } from "./pull-request-list";
 import { useI18n } from "../../context/i18n-context";
 import { tNow } from "../../lib/i18n";
 
@@ -78,18 +78,7 @@ export function ProjectPullRequests({
         )}
       </div>
 
-      {loading && <div className="h-16 animate-pulse rounded-card border border-border bg-surface-subtle" />}
-
-      {!loading && error && (
-        <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
-          <p>{error}</p>
-          <Button variant="secondary" onClick={() => void load()}>
-            {t("ui.retry")}
-          </Button>
-        </div>
-      )}
-
-      {!loading && !error && <PullRequestList items={items} />}
+      <PullRequestListState loading={loading} error={error} items={items} status={status} onRetry={() => void load()} />
 
       {dialogOpen && (
         <NewPullRequestDialog
