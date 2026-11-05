@@ -411,14 +411,14 @@ function ProjectOverview({ id }: { id: string }) {
             <div className="min-w-0">
               {(data.isOwner || isCollaborator) && (
                 <ProjectHistory
-                  key={refreshKey}
+                  key={`history-${refreshKey}`}
                   projectId={data.id}
                   canEdit={data.isOwner && !data.archivedAt}
                   canOpenHistory={data.isOwner}
                 />
               )}
 
-              {data.isOwner && <VersionSummary key={refreshKey} projectId={data.id} onOpenTab={switchTab} />}
+              {data.isOwner && <VersionSummary key={`summary-${refreshKey}`} projectId={data.id} onOpenTab={switchTab} />}
 
               <section className={data.isOwner || isCollaborator ? "mt-6 border-t border-border pt-4" : ""}>
                 <h2 className="mb-2 text-[15px] font-semibold">{t("project.about")}</h2>
