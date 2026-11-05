@@ -1,10 +1,13 @@
-/* Trang chủ Staff Universe. Màu giao diện đi qua token semantic; chỉ màu diff
-   (xanh dương / hồng đỏ nét đứt / hổ phách) và hai màu nhánh trang trí là hằng số. */
+/* Trang chủ Staff Universe. Màu giao diện và màu diff đi qua token; chỉ hai màu nhánh trang trí là hằng số. */
 .lnd {
-  --lnd-add: #5b8cff;
-  --lnd-add-text: #86a8ff;
-  --lnd-del: #ff6b8a;
-  --lnd-mod: #ffb938;
+  --lnd-add: var(--diff-add);
+  --lnd-add-text: var(--diff-add-foreground);
+  --lnd-del: var(--diff-remove);
+  --lnd-del-text: var(--diff-remove-foreground);
+  --lnd-del-fill: color-mix(in srgb, var(--diff-remove) 18%, transparent);
+  --lnd-mod: var(--diff-modify);
+  --lnd-mod-text: var(--diff-modify-foreground);
+  --lnd-mod-fill: color-mix(in srgb, var(--diff-modify) 28%, transparent);
   --lnd-teal: #4fd6c4;
   --lnd-violet: #c58bd6;
   --lnd-panel: color-mix(in oklab, var(--surface) 78%, transparent);
@@ -77,7 +80,7 @@
   & .d-meta { color: var(--muted-foreground); font-size: 14px; }
   & .d-msg { margin-top: 6px; font-size: 17px; line-height: 1.35; min-height: 3em; }
   & .tally { margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 15px; font-variant-numeric: tabular-nums; }
-  & .tally .a { color: var(--lnd-add-text); } & .tally .d { color: var(--lnd-del); } & .tally .m { color: var(--lnd-mod); }
+  & .tally .a { color: var(--lnd-add-text); } & .tally .d { color: var(--lnd-del-text); } & .tally .m { color: var(--lnd-mod-text); }
   & .sample-note { margin-top: 10px; font-size: 12px; color: var(--muted-foreground); }
   & .stage { display: grid; gap: 14px; min-width: 0; }
   & .graph-host svg { width: 100%; height: auto; max-height: 30vh; }
@@ -90,14 +93,14 @@
   & .roll .lbl { font-size: 12px; fill: var(--muted-foreground); }
   & .n-dim { fill: color-mix(in oklab, var(--foreground) 26%, transparent); }
   & .n-keep { fill: color-mix(in oklab, var(--foreground) 70%, transparent); }
-  & .n-add { fill: var(--lnd-add); stroke: #a9c1ff; stroke-width: 1.2; }
-  & .n-del { fill: rgba(255, 107, 138, 0.18); stroke: var(--lnd-del); stroke-width: 1.4; stroke-dasharray: 3 2; }
-  & .n-mod { fill: rgba(255, 185, 56, 0.28); stroke: var(--lnd-mod); stroke-width: 1.4; }
+  & .n-add { fill: var(--lnd-add); stroke: var(--lnd-add-text); stroke-width: 1.2; }
+  & .n-del { fill: var(--lnd-del-fill); stroke: var(--lnd-del); stroke-width: 1.4; stroke-dasharray: 3 2; }
+  & .n-mod { fill: var(--lnd-mod-fill); stroke: var(--lnd-mod); stroke-width: 1.4; }
   & .legend { margin-top: 10px; display: flex; gap: 8px 18px; flex-wrap: wrap; font-size: 13px; color: var(--muted-foreground); }
   & .legend i { display: inline-block; width: 16px; height: 9px; border-radius: 2px; margin-right: 7px; vertical-align: -1px; }
   & .legend .a { background: var(--lnd-add); }
-  & .legend .d { background: rgba(255, 107, 138, 0.18); border: 1.5px dashed var(--lnd-del); }
-  & .legend .m { background: rgba(255, 185, 56, 0.28); border: 1.5px solid var(--lnd-mod); }
+  & .legend .d { background: var(--lnd-del-fill); border: 1.5px dashed var(--lnd-del); }
+  & .legend .m { background: var(--lnd-mod-fill); border: 1.5px solid var(--lnd-mod); }
   & .legend .k { background: color-mix(in oklab, var(--foreground) 26%, transparent); }
 
   & .g-staff line { stroke: var(--border); stroke-width: 1; }
