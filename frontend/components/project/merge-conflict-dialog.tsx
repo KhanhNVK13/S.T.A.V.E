@@ -1,24 +1,25 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GitMerge, TriangleAlert } from "lucide-react";
 import type { ConflictChoice, MergeConflictResult, MergeNoteConflict } from "../../lib/api-client";
 import { pitchName } from "../../lib/midi-note-name";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DialogError } from "../ui/dialog";
-import { useDialog } from "../../lib/use-dialog";
+import { DiffDialogShell } from "./diff-dialog-shell";
+import {
+  conflictNoteIds,
+  conflictSignature,
+  forgetChoices,
+  initialChoices,
+  rememberChoices,
+  shouldForgetChoices,
+  tallyChoices,
+} from "./merge-model";
+import type { ConflictChoices } from "./merge-model";
 import { useI18n } from "../../context/i18n-context";
 
-/**
- * UC-86 — chọn giữ bên nào cho từng nốt xung đột, gom theo ô nhịp (bar) đúng
- * như backend trả về (`conflictsByBar`) và đúng quyết định đã chốt ở CLAUDE.md
- * 4.1 ("phát hiện note-level, hiển thị gom theo bar").
- *
- * Quy ước đặt tên: `target` là nhánh ĐƯỢC merge vào (bên ta), `source` là nhánh
- * mang thay đổi tới (bên kia) — giữ nguyên thuật ngữ của backend để không dịch
- * sai khi gửi `PICK_TARGET` / `PICK_SOURCE`.
- */
 export function MergeConflictDialog({
   result,
   sourceName,
@@ -37,164 +38,202 @@ export function MergeConflictDialog({
   onResolve: (resolutions: { noteId: string; choice: ConflictChoice }[]) => void;
 }) {
   const { t, tx } = useI18n();
-  // Mặc định giữ bên ta (nhánh đích) — lựa chọn an toàn nhất: không có thay đổi
-  // nào của nhánh đích bị mất nếu người dùng bấm xác nhận mà chưa xem kỹ.
-  const [choices, setChoices] = useState<Record<string, ConflictChoice>>(() => {
-    const initial: Record<string, ConflictChoice> = {};
-    for (const conflicts of Object.values(result.conflictsByBar)) {
-      for (const c of conflicts) initial[c.noteId] = "PICK_TARGET";
-    }
-    return initial;
-  });
-
-  const titleId = useId();
-  const dialogRef = useDialog<HTMLDivElement>({ onClose: onCancel, closeDisabled: submitting });
-
-  const bars = Object.keys(result.conflictsByBar).sort(
-    (a, b) => Number(a) - Number(b),
+  const signature = useMemo(
+    () => conflictSignature(result, sourceName, targetName),
+    [result, sourceName, targetName],
   );
+  const [choices, setChoices] = useState<ConflictChoices>(() => initialChoices(result, signature));
+
+  useEffect(() => {
+    rememberChoices(signature, choices);
+  }, [signature, choices]);
+
+  const outcome = useRef({ resolveRequested: false, cancelled: false, error });
+  useEffect(() => {
+    outcome.current.error = error;
+  }, [error]);
+  useEffect(() => {
+    const state = outcome.current;
+    return () => {
+      if (shouldForgetChoices(state)) forgetChoices(signature);
+    };
+  }, [signature]);
+
+  function cancel() {
+    outcome.current.cancelled = true;
+    onCancel();
+  }
+
+  function resolve() {
+    outcome.current.resolveRequested = true;
+    outcome.current.cancelled = false;
+    onResolve(Object.entries(choices).map(([noteId, choice]) => ({ noteId, choice })));
+  }
+
+  const bars = Object.keys(result.conflictsByBar).sort((a, b) => Number(a) - Number(b));
+  const tally = tallyChoices(choices);
+
+  function setAll(choice: ConflictChoice) {
+    setChoices(Object.fromEntries(conflictNoteIds(result).map((id) => [id, choice])));
+  }
 
   function describe(note: MergeNoteConflict["baseNote"], deleted: boolean) {
     if (deleted || !note) return t("mc.deleted");
-    return t("mc.noteDesc", { pitch: pitchName(note.pitch), start: note.start, duration: note.duration, velocity: note.velocity });
+    return t("mc.noteDesc", {
+      pitch: pitchName(note.pitch),
+      start: note.start,
+      duration: note.duration,
+      velocity: note.velocity,
+    });
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8">
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-card border border-border bg-surface outline-none"
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-          <div>
-            <h2 id={titleId} className="flex items-center gap-2 text-[15px] font-semibold">
-              <TriangleAlert className="h-4 w-4 text-warning-foreground" />
-              {t("mc.title")}
-            </h2>
-            <p className="mt-1 text-xs text-muted">
-              {tx("mc.lead", { source: <span className="font-mono text-foreground">{sourceName}</span>, target: <span className="font-mono text-foreground">{targetName}</span> })}
-            </p>
-          </div>
-          <Badge variant="warning">{t("mc.count", { n: result.conflictsCount })}</Badge>
+  const header = (
+    <p className="mt-1 text-xs text-muted">
+      {tx("mc.lead", {
+        source: <span className="font-mono text-foreground">{sourceName}</span>,
+        target: <span className="font-mono text-foreground">{targetName}</span>,
+      })}
+    </p>
+  );
+
+  const footer = (
+    <>
+      {error && (
+        <div className="px-4 pt-3 md:px-6">
+          <DialogError message={error} />
         </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {bars.map((bar) => (
-            <section key={bar} className="border-b border-border last:border-b-0">
-              <div className="flex items-center gap-2 bg-surface-subtle px-5 py-2">
-                {/* Backend đã đánh số ô nhịp từ 1 (`Math.floor(start / ticksPerBar) + 1`) —
-                    cộng thêm 1 ở đây từng làm mọi ô nhịp hiện lệch lên một. */}
-                <Badge variant="neutral">{t("cmp.bar", { n: bar })}</Badge>
-                <span className="text-xs text-muted">
-                  {t("mc.notes", { n: result.conflictsByBar[bar].length })}
-                </span>
-              </div>
-
-              {result.conflictsByBar[bar].map((conflict) => {
-                const choice = choices[conflict.noteId];
-                const targetDeleted =
-                  conflict.type === "DELETE_VS_MODIFY" && !conflict.targetNote;
-                const sourceDeleted =
-                  conflict.type === "DELETE_VS_MODIFY" && !conflict.sourceNote;
-
-                return (
-                  <fieldset key={conflict.noteId} className="px-5 py-3">
-                    <legend className="mb-2 font-mono text-xs text-muted">
-                      {conflict.baseNote ? pitchName(conflict.baseNote.pitch) : t("mc.newNote")} ·{" "}
-                      {conflict.noteId.slice(0, 8)}
-                    </legend>
-
-                    <div className="grid gap-2.5 md:grid-cols-2">
-                      <label
-                        className={`flex cursor-pointer gap-2.5 rounded-md border p-3 transition-colors ${
-                          choice === "PICK_TARGET"
-                            ? "border-accent bg-accent-muted"
-                            : "border-border hover:bg-surface-subtle"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`conflict-${conflict.noteId}`}
-                          className="mt-0.5 accent-accent"
-                          checked={choice === "PICK_TARGET"}
-                          onChange={() =>
-                            setChoices((c) => ({ ...c, [conflict.noteId]: "PICK_TARGET" }))
-                          }
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-xs font-bold uppercase tracking-wide text-muted">
-                            {t("mc.keepOurs", { name: targetName })}
-                          </span>
-                          <span className="mt-0.5 block font-mono text-xs">
-                            {describe(conflict.targetNote, targetDeleted)}
-                          </span>
-                        </span>
-                      </label>
-
-                      <label
-                        className={`flex cursor-pointer gap-2.5 rounded-md border p-3 transition-colors ${
-                          choice === "PICK_SOURCE"
-                            ? "border-accent bg-accent-muted"
-                            : "border-border hover:bg-surface-subtle"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`conflict-${conflict.noteId}`}
-                          className="mt-0.5 accent-accent"
-                          checked={choice === "PICK_SOURCE"}
-                          onChange={() =>
-                            setChoices((c) => ({ ...c, [conflict.noteId]: "PICK_SOURCE" }))
-                          }
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-xs font-bold uppercase tracking-wide text-muted">
-                            {t("mc.takeTheirs", { name: sourceName })}
-                          </span>
-                          <span className="mt-0.5 block font-mono text-xs">
-                            {describe(conflict.sourceNote, sourceDeleted)}
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                  </fieldset>
-                );
-              })}
-            </section>
-          ))}
-        </div>
-
-        {error && (
-          <div className="border-t border-border px-5 pt-3">
-            <DialogError message={error} />
-          </div>
-        )}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
-          <p className="text-xs text-muted">
-            {t("mc.default")}
-          </p>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={onCancel} disabled={submitting}>
-              {t("ui.cancel")}
-            </Button>
-            <Button
-              onClick={() =>
-                onResolve(
-                  Object.entries(choices).map(([noteId, choice]) => ({ noteId, choice })),
-                )
-              }
-              disabled={submitting}
-            >
-              <GitMerge className="h-3.5 w-3.5" />
-              {submitting ? t("mc.merging") : t("mc.confirm")}
-            </Button>
-          </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
+        <p className="text-xs text-muted">{t("mc.default")}</p>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={cancel} disabled={submitting}>
+            {t("ui.cancel")}
+          </Button>
+          <Button onClick={resolve} disabled={submitting}>
+            <GitMerge aria-hidden="true" className="h-3.5 w-3.5" />
+            {submitting ? t("mc.merging") : t("mc.confirm")}
+          </Button>
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <DiffDialogShell
+      title={t("mc.title")}
+      icon={<TriangleAlert aria-hidden="true" className="h-4 w-4 text-warning-foreground" />}
+      onClose={cancel}
+      closeDisabled={submitting}
+      header={header}
+      footer={footer}
+    >
+      <div className="flex flex-col gap-4 px-4 py-4 md:px-6 md:py-5">
+        <dl
+          aria-label={t("mergePage.statsLabel")}
+          className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border sm:grid-cols-4"
+        >
+          <Stat label={t("mergePage.statConflicts")} value={result.conflictsCount} tone="text-warning-foreground" />
+          <Stat label={t("mergePage.statBars")} value={bars.length} />
+          <Stat label={t("mergePage.statOurs")} value={tally.ours} />
+          <Stat label={t("mergePage.statTheirs")} value={tally.theirs} />
+        </dl>
+        <p role="status" className="sr-only">
+          {t("mergePage.liveStatus", { ours: tally.ours, theirs: tally.theirs })}
+        </p>
+
+        {bars.length === 0 ? (
+          <p className="rounded-card border border-dashed border-border-strong px-4 py-10 text-center text-sm text-muted">
+            {t("mergePage.noConflicts")}
+          </p>
+        ) : (
+          <>
+            <div role="group" aria-label={t("mergePage.bulkLabel")} className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setAll("PICK_TARGET")} disabled={submitting}>
+                {t("mergePage.keepAllOurs")}
+              </Button>
+              <Button variant="secondary" onClick={() => setAll("PICK_SOURCE")} disabled={submitting}>
+                {t("mergePage.takeAllTheirs")}
+              </Button>
+            </div>
+
+            {bars.map((bar) => (
+              <section key={bar} className="overflow-hidden rounded-card border border-border">
+                <div className="flex items-center gap-2 border-b border-border bg-surface-subtle px-4 py-2">
+                  <Badge variant="neutral">{t("cmp.bar", { n: bar })}</Badge>
+                  <span className="text-xs text-muted">{t("mc.notes", { n: result.conflictsByBar[bar].length })}</span>
+                </div>
+                <div className="divide-y divide-border">
+                  {result.conflictsByBar[bar].map((conflict) => {
+                    const choice = choices[conflict.noteId];
+                    const targetDeleted = conflict.type === "DELETE_VS_MODIFY" && !conflict.targetNote;
+                    const sourceDeleted = conflict.type === "DELETE_VS_MODIFY" && !conflict.sourceNote;
+                    const noteLabel = `${conflict.baseNote ? pitchName(conflict.baseNote.pitch) : t("mc.newNote")} · ${conflict.noteId.slice(0, 8)}`;
+
+                    return (
+                      <fieldset key={conflict.noteId} disabled={submitting} className="min-w-0">
+                        <legend className="w-full px-4 pb-2 pt-3 font-mono text-xs text-muted">{noteLabel}</legend>
+                        <div className="grid gap-2.5 px-4 pb-3 md:grid-cols-2">
+                          <Option
+                            name={`conflict-${conflict.noteId}`}
+                            checked={choice === "PICK_TARGET"}
+                            onSelect={() => setChoices((c) => ({ ...c, [conflict.noteId]: "PICK_TARGET" }))}
+                            title={t("mc.keepOurs", { name: targetName })}
+                            body={describe(conflict.targetNote, targetDeleted)}
+                          />
+                          <Option
+                            name={`conflict-${conflict.noteId}`}
+                            checked={choice === "PICK_SOURCE"}
+                            onSelect={() => setChoices((c) => ({ ...c, [conflict.noteId]: "PICK_SOURCE" }))}
+                            title={t("mc.takeTheirs", { name: sourceName })}
+                            body={describe(conflict.sourceNote, sourceDeleted)}
+                          />
+                        </div>
+                      </fieldset>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </>
+        )}
+      </div>
+    </DiffDialogShell>
+  );
+}
+
+function Stat({ label, value, tone = "text-foreground" }: { label: string; value: number; tone?: string }) {
+  return (
+    <div className="bg-surface px-4 py-3">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className={`mt-0.5 font-mono text-2xl font-semibold ${tone}`}>{value}</dd>
     </div>
+  );
+}
+
+function Option({
+  name,
+  checked,
+  onSelect,
+  title,
+  body,
+}: {
+  name: string;
+  checked: boolean;
+  onSelect: () => void;
+  title: string;
+  body: string;
+}) {
+  return (
+    <label
+      className={`flex min-w-0 cursor-pointer gap-2.5 rounded-md border p-3 transition-colors ${
+        checked ? "border-accent bg-accent-muted" : "border-border hover:bg-surface-subtle"
+      }`}
+    >
+      <input type="radio" name={name} className="mt-0.5 accent-accent" checked={checked} onChange={onSelect} />
+      <span className="min-w-0">
+        <span className="block break-words text-xs font-bold uppercase tracking-wide text-muted">{title}</span>
+        <span className="mt-0.5 block break-words font-mono text-xs">{body}</span>
+      </span>
+    </label>
   );
 }

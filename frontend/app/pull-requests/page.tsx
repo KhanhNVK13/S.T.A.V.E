@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { RequireAuth } from "../../components/require-auth";
 import { PageHeader } from "../../components/ui/page-header";
-import { Button } from "../../components/ui/button";
 import { Tabs } from "../../components/ui/tabs";
 import { tNow } from "../../lib/i18n";
-import { PullRequestList, STATUS_KEY } from "../../components/pull-request/pull-request-list";
+import { PullRequestListState, STATUS_KEY } from "../../components/pull-request/pull-request-list";
 import { listPullRequests } from "../../lib/api-client";
 import type { PullRequestListItem, PullRequestStatus } from "../../lib/api-client";
 import { apiErrorMessage } from "../../lib/error-message";
@@ -57,23 +56,16 @@ function PullRequestsView() {
         description={t("prl.description")}
       />
 
-      <Tabs tabs={viewTabs} active={view} onChange={(id) => setView(id as View)} />
+      <div role="group" aria-label={t("pullRequestsPage.viewLabel")}>
+        <Tabs tabs={viewTabs} active={view} onChange={(id) => setView(id as View)} />
+      </div>
 
       <div className="mt-4 flex flex-col gap-4">
-        <Tabs tabs={statusTabs} active={status} onChange={(id) => setStatus(id as PullRequestStatus)} />
+        <div role="group" aria-label={t("pullRequestsPage.statusLabel")}>
+          <Tabs tabs={statusTabs} active={status} onChange={(id) => setStatus(id as PullRequestStatus)} />
+        </div>
 
-        {loading && <div className="h-16 animate-pulse rounded-card border border-border bg-surface-subtle" />}
-
-        {!loading && error && (
-          <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
-            <p>{error}</p>
-            <Button variant="secondary" onClick={() => void load()}>
-              {t("ui.retry")}
-            </Button>
-          </div>
-        )}
-
-        {!loading && !error && <PullRequestList items={items} />}
+        <PullRequestListState loading={loading} error={error} items={items} status={status} onRetry={() => void load()} />
       </div>
     </div>
   );
