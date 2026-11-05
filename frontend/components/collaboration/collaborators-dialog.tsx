@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Trash2, UserPlus, Users } from "lucide-react";
+import { Loader2, Trash2, UserPlus } from "lucide-react";
 import type { CollaboratorItem, CollaboratorPermissionLevel } from "@stave/shared-types";
 import {
   inviteCollaborator,
@@ -290,35 +290,6 @@ export function CollaboratorsDialog({
           setRemoveTarget(null);
           setRemoveError(null);
         }}
-      />
-    </>
-  );
-}
-
-/** Nút kích hoạt sẵn (mang state mở/đóng), gắn 1 điểm vào toolbar editor. */
-export function CollaboratorsButton({
-  projectId,
-  projectName,
-  isOwner,
-}: {
-  projectId: string;
-  projectName: string;
-  isOwner: boolean;
-}) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button variant="ghost" onClick={() => setOpen(true)} className="gap-1.5" aria-haspopup="dialog">
-        <Users size={15} />
-        {t("col.title")}
-      </Button>
-      <CollaboratorsDialog
-        open={open}
-        onClose={() => setOpen(false)}
-        projectId={projectId}
-        projectName={projectName}
-        isOwner={isOwner}
       />
     </>
   );

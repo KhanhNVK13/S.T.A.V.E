@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Music4, RefreshCw, TriangleAlert } from "lucide-react";
 import type {
+  DraftNote,
   JamActivityItem,
   JamEvent,
   JamParticipant,
@@ -20,7 +21,6 @@ import { JamParticipantsBar } from "./jam-participants-bar";
 import { JamCountdownTimer } from "./jam-countdown-timer";
 import { JamFrozenBanner } from "./jam-frozen-banner";
 import { useJamSocket } from "./use-jam-socket";
-import { PIANO_ROLL_FALLBACK_NOTES } from "./jam-piano-roll";
 import { JamLiveEditor } from "./jam-live-editor";
 import { useI18n } from "../../context/i18n-context";
 import { tNow } from "../../lib/i18n";
@@ -52,6 +52,8 @@ function activityLabel(item: JamActivityItem): string {
       return tNow("jam.actEdit", { who }) + detail;
   }
 }
+
+const PIANO_ROLL_FALLBACK_NOTES: DraftNote[] = [];
 
 export function JamSession({ event }: { event: JamEvent }) {
   const { t, tx } = useI18n();

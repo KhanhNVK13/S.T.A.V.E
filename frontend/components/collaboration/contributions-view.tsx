@@ -106,27 +106,27 @@ function ContributorCard({
           </p>
           <p className="text-xs leading-tight text-muted">{t("contrib.commits")}</p>
         </div>
-        <div className="rounded-md bg-success-muted px-1 py-1.5">
-          <p className="font-mono text-[15px] font-bold text-success-foreground">
+        <div className="rounded-md bg-diff-add-muted px-1 py-1.5">
+          <p className="font-mono text-[15px] font-bold text-diff-add-foreground">
             +{contributor.notesAdded}
           </p>
-          <p className="text-xs leading-tight text-success-foreground">
+          <p className="text-xs leading-tight text-diff-add-foreground">
             {t("contrib.notesAdded")}
           </p>
         </div>
-        <div className="rounded-md bg-danger-muted px-1 py-1.5">
-          <p className="font-mono text-[15px] font-bold text-danger">
+        <div className="rounded-md bg-diff-remove-muted px-1 py-1.5">
+          <p className="font-mono text-[15px] font-bold text-diff-remove-foreground">
             -{contributor.notesRemoved}
           </p>
-          <p className="text-xs leading-tight text-danger">
+          <p className="text-xs leading-tight text-diff-remove-foreground">
             {t("contrib.notesRemoved")}
           </p>
         </div>
-        <div className="rounded-md bg-warning-muted px-1 py-1.5">
-          <p className="font-mono text-[15px] font-bold text-warning-foreground">
+        <div className="rounded-md bg-diff-modify-muted px-1 py-1.5">
+          <p className="font-mono text-[15px] font-bold text-diff-modify-foreground">
             {contributor.notesModified}
           </p>
-          <p className="text-xs leading-tight text-warning-foreground">
+          <p className="text-xs leading-tight text-diff-modify-foreground">
             {t("contrib.notesModified")}
           </p>
         </div>
@@ -189,10 +189,10 @@ function CommitRow({
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
-        <span className="text-success-foreground">+{commit.notesAdded}</span>
-        <span className="text-danger">-{commit.notesRemoved}</span>
+        <span className="text-diff-add-foreground">+{commit.notesAdded}</span>
+        <span className="text-diff-remove-foreground">-{commit.notesRemoved}</span>
         {commit.notesModified > 0 && (
-          <span className="text-warning-foreground">
+          <span className="text-diff-modify-foreground">
             ~{commit.notesModified}
           </span>
         )}
