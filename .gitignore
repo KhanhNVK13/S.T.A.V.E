@@ -37,3 +37,7 @@ docs/
 
 # Claude Code internal (memory, settings, workflows — không liên quan đến app)
 .claude/
+
+# MS Office temporary lock files
+~$*
+
