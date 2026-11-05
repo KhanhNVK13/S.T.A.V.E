@@ -43,3 +43,11 @@ export function tallyChoices(choices: ConflictChoices): { ours: number; theirs: 
   }
   return { ours, theirs };
 }
+
+export function shouldForgetChoices(state: {
+  resolveRequested: boolean;
+  cancelled: boolean;
+  error: string | null;
+}): boolean {
+  return state.resolveRequested && !state.cancelled && !state.error;
+}

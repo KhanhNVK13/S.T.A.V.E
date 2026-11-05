@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GitMerge, TriangleAlert } from "lucide-react";
 import type { ConflictChoice, MergeConflictResult, MergeNoteConflict } from "../../lib/api-client";
 import { pitchName } from "../../lib/midi-note-name";
@@ -11,8 +11,10 @@ import { DiffDialogShell } from "./diff-dialog-shell";
 import {
   conflictNoteIds,
   conflictSignature,
+  forgetChoices,
   initialChoices,
   rememberChoices,
+  shouldForgetChoices,
   tallyChoices,
 } from "./merge-model";
 import type { ConflictChoices } from "./merge-model";
@@ -45,6 +47,28 @@ export function MergeConflictDialog({
   useEffect(() => {
     rememberChoices(signature, choices);
   }, [signature, choices]);
+
+  const outcome = useRef({ resolveRequested: false, cancelled: false, error });
+  useEffect(() => {
+    outcome.current.error = error;
+  }, [error]);
+  useEffect(() => {
+    const state = outcome.current;
+    return () => {
+      if (shouldForgetChoices(state)) forgetChoices(signature);
+    };
+  }, [signature]);
+
+  function cancel() {
+    outcome.current.cancelled = true;
+    onCancel();
+  }
+
+  function resolve() {
+    outcome.current.resolveRequested = true;
+    outcome.current.cancelled = false;
+    onResolve(Object.entries(choices).map(([noteId, choice]) => ({ noteId, choice })));
+  }
 
   const bars = Object.keys(result.conflictsByBar).sort((a, b) => Number(a) - Number(b));
   const tally = tallyChoices(choices);
@@ -82,15 +106,10 @@ export function MergeConflictDialog({
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
         <p className="text-xs text-muted">{t("mc.default")}</p>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onCancel} disabled={submitting}>
+          <Button variant="secondary" onClick={cancel} disabled={submitting}>
             {t("ui.cancel")}
           </Button>
-          <Button
-            onClick={() =>
-              onResolve(Object.entries(choices).map(([noteId, choice]) => ({ noteId, choice })))
-            }
-            disabled={submitting}
-          >
+          <Button onClick={resolve} disabled={submitting}>
             <GitMerge aria-hidden="true" className="h-3.5 w-3.5" />
             {submitting ? t("mc.merging") : t("mc.confirm")}
           </Button>
@@ -103,7 +122,7 @@ export function MergeConflictDialog({
     <DiffDialogShell
       title={t("mc.title")}
       icon={<TriangleAlert aria-hidden="true" className="h-4 w-4 text-warning-foreground" />}
-      onClose={onCancel}
+      onClose={cancel}
       closeDisabled={submitting}
       header={header}
       footer={footer}

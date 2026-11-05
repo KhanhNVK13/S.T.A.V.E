@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { MergeConflictResult } from "../../lib/api-client";
-import { conflictSignature, initialChoices, rememberChoices, tallyChoices } from "./merge-model";
+import {
+  conflictSignature,
+  forgetChoices,
+  initialChoices,
+  rememberChoices,
+  shouldForgetChoices,
+  tallyChoices,
+} from "./merge-model";
 
 const conflict = (noteId: string) => ({ noteId, type: "MODIFIED_DIFFERENTLY" as const });
 
@@ -31,5 +38,20 @@ describe("merge conflict choices", () => {
 
   it("tallies the two sides", () => {
     expect(tallyChoices({ a: "PICK_SOURCE", b: "PICK_TARGET", c: "PICK_SOURCE" })).toEqual({ ours: 1, theirs: 2 });
+  });
+
+  it("returns to the defaults once the choices are forgotten", () => {
+    const sig = conflictSignature(result, "feature", "main");
+    rememberChoices(sig, { a: "PICK_SOURCE", b: "PICK_SOURCE", c: "PICK_SOURCE" });
+    expect(initialChoices(result, sig).a).toBe("PICK_SOURCE");
+    forgetChoices(sig);
+    expect(initialChoices(result, sig)).toEqual({ a: "PICK_TARGET", b: "PICK_TARGET", c: "PICK_TARGET" });
+  });
+
+  it("forgets only after a resolve that was neither cancelled nor failed", () => {
+    expect(shouldForgetChoices({ resolveRequested: true, cancelled: false, error: null })).toBe(true);
+    expect(shouldForgetChoices({ resolveRequested: false, cancelled: false, error: null })).toBe(false);
+    expect(shouldForgetChoices({ resolveRequested: true, cancelled: true, error: null })).toBe(false);
+    expect(shouldForgetChoices({ resolveRequested: true, cancelled: false, error: "boom" })).toBe(false);
   });
 });
