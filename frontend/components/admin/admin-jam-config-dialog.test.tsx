@@ -196,5 +196,10 @@ describe("FE-ADM-01 AdminJamConfigDialog (UC-94)", () => {
       );
       expect(onClose).toHaveBeenCalled();
     });
+
+    await vi.waitFor(() => {
+      const save = screen.getByText("Lưu thay đổi").closest("button");
+      expect(save?.disabled).toBe(false);
+    });
   });
 });
