@@ -53,7 +53,7 @@ const COLS = "md:grid-cols-[minmax(0,1fr)_150px_140px_96px_auto]";
  * Backend chỉ cho chủ dự án gọi mọi endpoint branch/merge; trang cha chịu trách
  * nhiệm ẩn tab này với người khác.
  */
-export function BranchList({ projectId }: { projectId: string }) {
+export function BranchList({ projectId, readOnly = false }: { projectId: string; readOnly?: boolean }) {
   const { t, tx } = useI18n();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [divergence, setDivergence] = useState<Record<string, BranchDivergence>>({});
@@ -295,7 +295,7 @@ export function BranchList({ projectId }: { projectId: string }) {
             {t("blist.explain")}
           </p>
         </div>
-        {!creating && (
+        {!creating && !readOnly && (
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-3.5 w-3.5" /> {t("blist.create")}
           </Button>
@@ -463,7 +463,7 @@ export function BranchList({ projectId }: { projectId: string }) {
                     <History className="h-3.5 w-3.5" /> {t("blist.history")}
                   </Button>
                 </Link>
-                {!branch.is_default && (
+                {!readOnly && !branch.is_default && (
                   <>
                     <Button
                       variant="secondary"
@@ -493,7 +493,7 @@ export function BranchList({ projectId }: { projectId: string }) {
                     </Button>
                   </>
                 )}
-                {branch.is_default && (
+                {!readOnly && branch.is_default && (
                   <Button
                     variant="ghost"
                     onClick={showDefaultBranchRefusal}

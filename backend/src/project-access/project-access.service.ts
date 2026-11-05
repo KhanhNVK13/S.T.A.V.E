@@ -99,6 +99,34 @@ export class ProjectAccessService {
     }
   }
 
+  /**
+   * Read-only access: owner, accepted collaborator, or any signed-in user when
+   * the project is public, not archived, not hidden by moderation and owned by
+   * an active account. Never use this for drafts or write paths.
+   */
+  async assertCanRead(projectId: string, userId: string): Promise<void> {
+    const { access, project } = await this.resolve(projectId, userId);
+    if (access !== null) return;
+    if (project.archived_at) {
+      throw new ForbiddenException('You do not have access to this project');
+    }
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('id, owner:owner_id!inner (status)')
+      .eq('id', projectId)
+      .eq('visibility', 'public')
+      .eq('owner.status', 'active')
+      .maybeSingle();
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to check project visibility: ${error.message}`,
+      );
+    }
+    if (!data) {
+      throw new ForbiddenException('You do not have access to this project');
+    }
+  }
+
   /** owner, or accepted collaborator with `edit`. */
   async assertCanEdit(projectId: string, userId: string): Promise<void> {
     const { access, project } = await this.resolve(projectId, userId);

@@ -62,8 +62,10 @@ const TAG_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
 export function CommitHistory({
   projectId,
   initialBranchId,
+  readOnly = false,
 }: {
   projectId: string;
+  readOnly?: boolean;
   /** UC-50: mở thẳng lịch sử 1 nhánh (từ nút "Lịch sử" ở tab Nhánh). */
   initialBranchId?: string | null;
 }) {
@@ -486,18 +488,20 @@ export function CommitHistory({
                       {commit.tags.map((tag) => (
                         <Badge key={tag.id} variant="metal">
                           <TagIcon className="h-3 w-3" /> {tag.name}
-                          <button
-                            type="button"
-                            aria-label={t("chist.removeTagLabel", { name: tag.name })}
-                            title={t("chist.removeTagShort")}
-                            onClick={() => {
-                              setRemoveTagError(null);
-                              setRemoveTag({ commitId: commit.id, name: tag.name });
-                            }}
-                            className="ml-0.5 rounded hover:bg-surface-muted"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
+                          {!readOnly && (
+                            <button
+                              type="button"
+                              aria-label={t("chist.removeTagLabel", { name: tag.name })}
+                              title={t("chist.removeTagShort")}
+                              onClick={() => {
+                                setRemoveTagError(null);
+                                setRemoveTag({ commitId: commit.id, name: tag.name });
+                              }}
+                              className="ml-0.5 rounded hover:bg-surface-muted"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
                         </Badge>
                       ))}
                       {changeCounts[commit.id] === "loading" && (
@@ -587,32 +591,36 @@ export function CommitHistory({
                           <GitCompareArrows className="h-3.5 w-3.5" /> {t("chist.compareWithLatest")}
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setTaggingId(commit.id);
-                          setTagName("");
-                          setTagError(null);
-                        }}
-                      >
-                        <TagIcon className="h-3.5 w-3.5" /> {t("chist.addTag")}
-                      </Button>
+                      {!readOnly && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setTaggingId(commit.id);
+                            setTagName("");
+                            setTagError(null);
+                          }}
+                        >
+                          <TagIcon className="h-3.5 w-3.5" /> {t("chist.addTag")}
+                        </Button>
+                      )}
                       {changeCounts[commit.id] === undefined && (
                         <Button variant="ghost" onClick={() => void showChangeCount(commit)}>
                           {t("chist.changes")}
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setBranchFromError(null);
-                          setBranchFromName("");
-                          setBranchFrom(commit);
-                        }}
-                      >
-                        <GitBranchPlus className="h-3.5 w-3.5" /> {t("chist.branchFromHere")}
-                      </Button>
-                      {!allView && (
+                      {!readOnly && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setBranchFromError(null);
+                            setBranchFromName("");
+                            setBranchFrom(commit);
+                          }}
+                        >
+                          <GitBranchPlus className="h-3.5 w-3.5" /> {t("chist.branchFromHere")}
+                        </Button>
+                      )}
+                      {!readOnly && !allView && (
                         <Button variant="secondary" onClick={() => setRestoreTarget(commit)}>
                           <RotateCcw className="h-3.5 w-3.5" /> {t("chist.restore")}
                         </Button>

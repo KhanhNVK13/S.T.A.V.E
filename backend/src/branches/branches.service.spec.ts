@@ -1189,7 +1189,7 @@ describe('BE-BRN-04 BranchesService.getBranchHistory', () => {
   it('UTCID10 forbids a non-owner', async () => {
     const { service } = makeService({
       branches: [{ data: branch }],
-      projects: [{ data: { owner_id: otherUserId } }],
+      projects: [{ data: { owner_id: otherUserId } }, { data: null }],
     });
     await expect(service.getBranchHistory(branchId, userId)).rejects.toThrow(
       new ForbiddenException('You do not have access to this project'),
@@ -1437,7 +1437,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
   it('UTCID06 forbids a non-owner', async () => {
     const { service } = makeService({
       branches: [{ data: branch }],
-      projects: [{ data: { owner_id: otherUserId } }],
+      projects: [{ data: { owner_id: otherUserId } }, { data: null }],
     });
     await expect(service.getBranchDetails(branchId, userId)).rejects.toThrow(
       new ForbiddenException('You do not have access to this project'),
@@ -1475,7 +1475,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
   it('UTCID10 forbids a view-only collaborator', async () => {
     const { service } = makeService({
       branches: [{ data: branch }],
-      projects: [{ data: { owner_id: otherUserId } }],
+      projects: [{ data: { owner_id: otherUserId } }, { data: null }],
     });
     await expect(service.getBranchDetails(branchId, userId)).rejects.toThrow(
       new ForbiddenException('You do not have access to this project'),
@@ -1572,7 +1572,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
 
   it('UTCID07 forbids a non-owner', async () => {
     const { service } = makeService({
-      projects: [{ data: { owner_id: otherUserId } }],
+      projects: [{ data: { owner_id: otherUserId } }, { data: null }],
     });
     await expect(service.getProjectBranches(projectId, userId)).rejects.toThrow(
       new ForbiddenException('You do not have access to this project'),
@@ -1599,7 +1599,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
 
   it('UTCID10 forbids a view-only collaborator', async () => {
     const { service } = makeService({
-      projects: [{ data: { owner_id: otherUserId } }],
+      projects: [{ data: { owner_id: otherUserId } }, { data: null }],
     });
     await expect(service.getProjectBranches(projectId, userId)).rejects.toThrow(
       new ForbiddenException('You do not have access to this project'),
@@ -1634,7 +1634,7 @@ describe('BE-BRN-08 BranchesService.verifyUserEditPermission', () => {
     ['UTCID06', ''],
   ])('%s forbids a user who is not the owner', async (_id, caller) => {
     const { service } = makeService({
-      projects: [{ data: { owner_id: otherBranchId } }],
+      projects: [{ data: { owner_id: otherBranchId } }, { data: null }],
     });
     await expect(service.getProjectBranches(projectId, caller)).rejects.toThrow(
       new ForbiddenException('You do not have access to this project'),

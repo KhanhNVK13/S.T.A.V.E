@@ -205,3 +205,71 @@ describe('BE-PAC-02 ProjectAccessService assertions', () => {
     );
   });
 });
+
+describe('BE-PAC-03 ProjectAccessService.assertCanRead', () => {
+  const publicRow: Row = {
+    ...projectRow,
+    visibility: 'public',
+    archived_at: null,
+    'owner.status': 'active',
+  };
+
+  function setupRead(row: Row): ProjectAccessService {
+    const state: Record<string, TableState> = {
+      projects: { rows: [row] },
+      project_collaborators: { rows: [] },
+    };
+    return new ProjectAccessService(mockSupabaseClient(state));
+  }
+
+  it('UTCID01 lets a stranger read a public project', async () => {
+    await expect(
+      setupRead(publicRow).assertCanRead('p-1', 'stranger'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('UTCID02 lets the owner read a private project', async () => {
+    await expect(
+      setupRead({ ...publicRow, visibility: 'private' }).assertCanRead(
+        'p-1',
+        'owner-1',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('UTCID03 forbids a stranger on a private project', async () => {
+    await expect(
+      setupRead({ ...publicRow, visibility: 'private' }).assertCanRead(
+        'p-1',
+        'stranger',
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('UTCID04 forbids a stranger on an archived public project', async () => {
+    await expect(
+      setupRead({
+        ...publicRow,
+        archived_at: '2026-10-01T00:00:00Z',
+      }).assertCanRead('p-1', 'stranger'),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('UTCID05 forbids a stranger when the owner account is not active', async () => {
+    await expect(
+      setupRead({ ...publicRow, 'owner.status': 'suspended' }).assertCanRead(
+        'p-1',
+        'stranger',
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('UTCID06 throws NotFoundException for a project hidden for moderation', async () => {
+    await expect(
+      setupRead({
+        ...publicRow,
+        moderation_hidden_at: '2026-10-01T00:00:00Z',
+      }).assertCanRead('p-1', 'stranger'),
+    ).rejects.toThrow(NotFoundException);
+  });
+});
