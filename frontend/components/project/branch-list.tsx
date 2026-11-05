@@ -443,8 +443,8 @@ export function BranchList({ projectId }: { projectId: string }) {
                   "—"
                 ) : div ? (
                   <>
-                    <span className="text-success-foreground">+{div.ahead}</span>{" "}
-                    <span className="text-danger">-{div.behind}</span>
+                    <span className="text-diff-add-foreground">+{div.ahead}</span>{" "}
+                    <span className="text-diff-remove-foreground">-{div.behind}</span>
                   </>
                 ) : (
                   "…"
