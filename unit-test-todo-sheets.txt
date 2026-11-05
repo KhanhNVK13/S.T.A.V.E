@@ -1,0 +1,220 @@
+VIỆC CẦN LÀM ĐỂ HOÀN THIỆN FILE UNIT TEST (docs/Report5_Unit Test.xlsx)
+
+Số liệu lấy từ chính workbook và từ code trên nhánh main ngày 03/11/2026.
+
+MỤC TIÊU
+--------
+File phải hoàn thiện cho toàn bộ code HIỆN CÓ trước khi bắt đầu viết test case cho code mới (các UC chưa làm:
+thanh toán, admin nâng cao, gợi ý AI...). Tiêu chí hoàn thiện (kiểm trên sheet Statistics):
+  - Untested = 0.
+  - Failed = 0, hoặc mỗi ca Failed đều có Defect ID và có dòng trong docs/testing/defects-list.md.
+  - Mọi sheet đều có code test thật trong repo, tên test gắn mã sheet và UTCIDnn đúng cột (xem Chỉ dẫn chung A).
+  - Mọi sheet có đủ Condition/Confirm/Exception, Executed By, Executed Date, Passed/Failed.
+
+HIỆN TRẠNG (workbook: 254 sheet, 1.903 ca)
+  Passed 1.697 | Failed 80 | Untested 126
+  Trong 126 ca Untested có 96 ca thuộc 11 sheet mới chỉ có thiết kế (Phần A) và 30 ca cũ chưa chạy (Phần D).
+
+Nhận việc theo thứ tự A -> B -> C -> D -> E -> F.
+
+
+PHẦN A. 11 sheet đã thiết kế test case, chưa có code test và chưa có kết quả (96 ca)
+------------------------------------------------------------------------------------
+Sheet       Hàm cần test                                              UC      Số ca  Executed By trong sheet
+BE-JAM-11   JamService.createEvent(adminId, dto)                      UC-93   12     Cam Trung Duc
+BE-JAM-12   CreateJamEventDto.validate(dto)                           UC-93   17     Cam Trung Duc
+BE-SKT-06   AudioSketchesService.remove(projectId, sketchId, userId)  UC-117  7      Nguyen Van Tri
+FE-LIB-49   validation.ts: validateEmail, validateRequired,           UC-06   13     Dao Nam Hai
+            validateMaxLength, focusFirstInvalid
+FE-EDT-13   PianoRoll.handleMouseDown, nhánh eraser (xoá nốt)         UC-27   7      Dao Nam Hai
+FE-EDT-14   MidiEditor: phím Delete/Backspace xoá nốt đang chọn       UC-27   7      Dao Nam Hai
+FE-EDT-15   MidiEditor.handleAddTrack                                 UC-28   6      Dao Nam Hai
+FE-EDT-16   MidiEditor.handleSetTrackVolume                           UC-40   7      Dao Nam Hai
+FE-EDT-17   MidiEditor.handleSetTrackPan                              UC-41   7      Dao Nam Hai
+FE-EDT-18   MidiEditor.handleSetTrackColor                            UC-34   5      Dao Nam Hai
+FE-EDT-19   TrackPanel.commitLabel                                    UC-35   8      Dao Nam Hai
+Khi một người làm hết, đổi ô Executed By (L3) của các sheet này thành tên người đó.
+
+Chỉ dẫn từng sheet:
+
+1) BE-JAM-11 - JamService.createEvent (12 ca)
+   Viết ở: backend/src/jam/jam.service.spec.ts (thêm một describe mới).
+   Mẫu mock: cách dựng Supabase mock sẵn có trong file này và backend/src/test-utils/supabase-mock.ts.
+   Cần mock: projects.insert, branches.insert/select, drafts.upsert, jam_events.insert, admin_audit_log.insert.
+   Lưu ý:
+     - assertNoOverlap khi gặp LỖI DB sẽ quay về dữ liệu mẫu SEEDED_JAM_EVENTS. Ca overlap phải mock trả
+       dữ liệu thành công, đừng để rơi vào nhánh dự phòng này.
+     - Thời gian "bắt đầu ngay" phụ thuộc Date.now(): dùng jest.useFakeTimers().setSystemTime(...).
+     - Ca "jam_events insert lỗi": kiểm project/branch/draft vừa tạo bị xoá (deleteJamProjectQuietly).
+     - Ca "audit insert lỗi": sự kiện vẫn được trả về, chỉ ghi log lỗi.
+   Thông báo cần kiểm: "End time must be after start time", "Starting project cannot be copied",
+     ConflictException code JAM_OVERLAP_CONFLICT, "Could not create jam event".
+
+2) BE-JAM-12 - CreateJamEventDto (17 ca)
+   Viết ở: backend/src/jam/dto/create-jam-event.dto.spec.ts (file mới).
+   Mẫu: backend/src/admin/dto/suspend-user.dto.spec.ts (dùng ValidationPipe({ whitelist: true, transform: true })
+   và pipe.transform(body, { type: 'body', metatype: ... }); lỗi là BadRequestException, đọc thông điệp từ
+   getResponse().message).
+   Thông điệp cần kiểm (tiếng Việt, lấy từ DTO): "Tên sự kiện không được để trống", "Tên sự kiện không được
+   vượt quá 120 ký tự", "Thời gian bắt đầu/kết thúc không được để trống / không đúng định dạng",
+   "ID dự án bắt đầu không hợp lệ", "Thời gian chờ tối thiểu là 1 giây", "tối đa là 3600 giây",
+   "Thời gian chờ phải là số nguyên". Ca biên: name 120/121 ký tự, editCooldownSec 0/1/3600/3601/1.5.
+
+3) BE-SKT-06 - AudioSketchesService.remove (7 ca)
+   Viết ở: backend/src/audio-sketches/audio-sketches.service.remove.spec.ts (đã tồn tại, describe
+   'AudioSketchesService.remove' đã có 4 test: xoá dòng rồi xoá file, bù trừ khi xoá file lỗi, không tìm
+   thấy sketch, user không có quyền sửa). Việc còn lại: đổi tên 4 test đó theo mã sheet (UTCID tương ứng
+   cột 1, 2, 3, 6 của sheet) và THÊM 3 ca còn thiếu: lỗi khi đọc dòng, lỗi khi xoá dòng, và ca chèn lại
+   cũng lỗi (chỉ ghi log).
+
+4) FE-LIB-49 - validation.ts (13 ca)
+   Viết ở: frontend/lib/validation.test.ts (file mới). Hàm thuần, không cần mock. Riêng focusFirstInvalid dùng
+   requestAnimationFrame: mock bằng vi.stubGlobal hoặc vi.useFakeTimers; root là phần tử jsdom có con
+   aria-invalid="true". Thông điệp: "Vui lòng nhập trường này.", "Email chưa đúng định dạng, ví dụ
+   ban@email.com.", "<nhãn> tối đa <n> ký tự.".
+
+5) FE-EDT-13 đến 19 - Trình soạn nhạc (47 ca)
+   Viết ở: frontend/components/midi-editor/editor-actions.test.ts (13 đến 18); file này đã có sẵn bộ dụng cụ
+   để dựng MidiEditor (renderEditor, khoảng dòng 465) và PianoRoll (renderRoll, khoảng dòng 855); xem các ca
+   FE-EDT-04, FE-EDT-09, FE-EDT-10 làm mẫu. FE-EDT-19 viết ở
+   frontend/components/midi-editor/redesign/track-panel.test.tsx (file mới).
+   Theo từng sheet:
+     FE-EDT-13 (eraser): dùng hàm trợ giúp ngay trong editor-actions.test.ts (renderRoll, xOf, yOf, khoảng dòng
+       808 đến 860), không tự gõ toạ độ pixel. Lưu ý: frontend/e2e/support/piano-roll.ts là bộ dụng cụ của
+       Playwright (E2E), KHÔNG dùng cho Vitest. Ca lưới đóng băng (isReadOnly) phải kiểm onNotify được gọi với
+       câu "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.".
+     FE-EDT-14 (phím Delete): bắn keydown lên window. Ca hộp thoại mở dùng isDialogOpen; ca focus ở ô nhập thì
+       tạo input rồi dispatch từ chính phần tử đó.
+     FE-EDT-15 (thêm track): mock crypto.randomUUID; giới hạn MAX_TRACKS = 32; cảnh báo tự tắt sau 3 giây
+       (vi.useFakeTimers). Màu mới lấy từ TRACK_COLOR_PALETTE (frontend/lib/track-colors.ts).
+     FE-EDT-16/17 (volume, pan): kẹp volume trong 0..1, pan trong -1..1. Kiểm cả track khác không đổi.
+     FE-EDT-18 (màu): handler KHÔNG kiểm tra hex, chỉ lưu; DTO phía server mới chặn (BE-DRF-03). Ca "red"
+       mô tả đúng hành vi hiện tại. Nếu nhóm muốn kiểm ở client thì báo lại để sửa code và sheet.
+     FE-EDT-19 (nhãn): commitLabel nằm trong TrackPanel (frontend/components/midi-editor/redesign/track-panel.tsx).
+       Render TrackPanel, bấm MỘT LẦN vào nút tên track (title "Đổi tên track") để vào chế độ sửa, gõ rồi
+       Enter hoặc blur; kiểm onSetTrackLabel được gọi với chuỗi đã trim, rỗng thì không gọi; Escape thì huỷ;
+       giới hạn 50 ký tự.
+
+
+PHẦN B. Sheet đã ghi Passed nhưng KHÔNG tìm thấy code test trong repo (khoảng 400 ca)
+------------------------------------------------------------------------------------
+Đã đối chiếu tên sheet (BE-CMT-01...) với toàn bộ file *.spec.ts / *.test.ts trên main. Với các sheet dưới đây,
+kết quả Passed trong workbook chưa kiểm chứng lại được. Việc cần làm: hỏi người phụ trách ban đầu xem test có
+ở nhánh chưa push không; nếu không có thì VIẾT code test theo sheet, chạy, rồi xác nhận lại kết quả.
+
+B1. Không có file test nào
+  BE-CMT-01 đến 24 (24 sheet, 204 ca): CommitsService (createCommit, getCommitHistory, getCommitById,
+      tagCommit, getTagsForCommit, deleteTag, compareCommits, restoreCommit, các hàm kiểm quyền và helper),
+      DiffService / hàm calculateTicksPerBar, deepEqual, isTrackModified, compareSnapshots, 5 DTO
+      (CreateCommitDto, GetCommitHistoryDto, CompareCommitsDto, RestoreCommitDto, TagCommitDto).
+      Đây là lõi version control (UC-42 đến 46), module commits mới phủ 22% số dòng. ƯU TIÊN CAO NHẤT.
+      Viết ở: backend/src/commits/commits.service.spec.ts, diff.service.spec.ts và backend/src/commits/dto/*.spec.ts.
+      Người phụ trách ban đầu: Cam Trung Duc.
+  SH-TYP-01 đến 03 (3 sheet, 36 ca): sanitizeSoundMap, isValidSoundMap, isDrumKitInstrument
+      (shared-types/src/index.ts). Viết ở: shared-types/ hoặc backend/src/common (chạy được bằng Jest hoặc Vitest).
+      Người phụ trách ban đầu: Cam Trung Duc.
+  BE-DRF-03 đến 05 (3 sheet, 37 ca): DraftTrackDto, DraftNoteDto, UpdateDraftDto - chưa thấy spec của 3 DTO này.
+      Viết ở: backend/src/drafts/dto/*.spec.ts. Người phụ trách: Cam Trung Duc.
+  BE-AUTH-13 (6 ca): RegisterSessionDto - backend/src/auth/dto chỉ có spec của ChangePasswordDto và
+      DeleteAccountDto. Người phụ trách ban đầu: Nguyễn Hoàng Vũ.
+  FE-LIB-08 (colorFromId), FE-LIB-12 (apiErrorMessage), FE-LIB-13 (authErrorMessage), FE-LIB-17 (getInitials):
+      không có file test. Viết ở: frontend/lib/avatar-color.test.ts, error-message.test.ts, format-name.test.ts.
+      FE-LIB-08/12/13: Nguyễn Hoàng Vũ; FE-LIB-17: Cam Trung Duc.
+
+B2. Có file test nhưng tên test chưa gắn mã sheet / UTCID (chỉ cần đổi tên, không cần viết mới)
+  BE-DRF-01, BE-DRF-02: backend/src/drafts/drafts.service.spec.ts (12 test). Đối chiếu từng test với cột UTCID của
+      sheet; đổi tên cho khớp; thiếu ca nào thì viết thêm.
+  FE-LIB-01 (apiFetch): frontend/lib/api-client.test.ts. FE-LIB-14/15/16 (format-date): frontend/lib/format-date.test.ts.
+      Đối chiếu và đổi tên theo mã. (Các test này có thể đã đủ ca, chỉ thiếu gắn mã.)
+
+Với mọi sheet ở Phần B sau khi có test: kiểm tra số test = số cột UTCID của sheet. Test khác sheet thì sửa
+code hoặc sửa sheet theo quy tắc ở Chỉ dẫn chung C.
+
+
+PHẦN C. 80 ca đang ghi Failed (45 sheet) - phải chạy lại và cập nhật
+--------------------------------------------------------------------
+Các ca này là kết quả của lần chạy đầu (Round 1). Hiện toàn bộ test trong repo đang pass (backend 1.128,
+frontend 450), tức nhiều lỗi đã được sửa hoặc test đã đổi sau đó. Với mỗi ca:
+  - Chạy lại; nếu code đã đúng thì đổi F thành P, cập nhật Executed Date, giữ Defect ID cũ để truy vết.
+  - Nếu vẫn fail thật: giữ F, ghi/điền Defect ID, thêm vào docs/testing/defects-list.md, báo trưởng nhóm.
+  - Nếu fail do sheet sai (code đã đổi hợp lý): sửa sheet và ghi vào Note.
+Danh sách (sheet: số ca Failed):
+  BE-AUTH-06:1  BE-AUTH-07:1  BE-AUTH-10:3  BE-USR-06:2
+  BE-ADM-01:1  BE-ADM-02:3  BE-ADM-03:2  BE-ADM-04:2  BE-ADM-06:1  BE-ADM-07:1  BE-COM-04:1
+  BE-EXP-01:3  BE-EXP-02:2  BE-EXP-03:2  BE-EXP-04:1  BE-EXP-05:3
+  BE-CMT-01..10:1 mỗi sheet (10)  BE-CMT-15:1  BE-CMT-21:5  BE-CMT-23:1
+  BE-DRF-01:1  BE-DRF-02:1  BE-DRF-03:2  BE-DRF-04:6  BE-DRF-05:1
+  BE-MRG-05:2  BE-MRG-09:3
+  BE-PRJ-01:3  BE-PRJ-02:1  BE-PRJ-05:3  BE-PRJ-06:2  BE-PRJ-11:2  BE-PRJ-12:2
+  BE-SND-08:3  BE-SKT-01:1  SH-TYP-02:1
+Lưu ý: các sheet BE-CMT, BE-DRF, SH-TYP chưa có code test (Phần B), nên chưa thể "chạy lại"; làm Phần B trước.
+Tham khảo: docs/testing/defects-list.md (DFID đã ghi), docs/testing/unit-test-results.txt.
+
+
+PHẦN D. 30 ca cũ chưa chạy (13 sheet)
+-------------------------------------
+BE-AUTH-03: 6 ca (AuthService.syncProfile)      BE-AUTH-09: 5 ca (changePassword)
+BE-BRN-01:1  BE-BRN-02:2  BE-BRN-03:1  BE-BRN-04:2  BE-BRN-05:1  BE-BRN-06:1  BE-BRN-07:1  BE-BRN-08:2 (11 ca)
+BE-MRG-03:1  BE-MRG-05:1
+FE-LIB-03: 6 ca (mergeBranches trong api-client)
+Chạy test tương ứng, điền P/F, ngày chạy. Các test BE-BRN/MRG nằm ở backend/src/branches/branches.service.spec.ts và
+backend/src/merge/merge.service.spec.ts; BE-AUTH ở backend/src/auth/auth.service*.spec.ts; FE-LIB-03 ở
+frontend/lib/api-client.test.ts. Cột nào chưa có test thì viết test.
+
+
+PHẦN E. Rà soát nội dung 56 sheet được sinh từ spec có sẵn
+----------------------------------------------------------
+Các sheet này (mã: BE-COL-01 đến 05, BE-PAC-01/02, BE-CMM-01 đến 03, BE-PRS-01 đến 04, BE-JAM-01 đến 10,
+FE-ADM-01, BE-FRK-01, BE-PRQ-01 đến 08, BE-NTF-01 đến 08, BE-CNA-01, BE-AIX-01/02, BE-PLS-01, FE-INS-01/02,
+BE-ACB-01/02, FE-LIB-43 đến 48) đã Passed, nhưng được sinh tự động từ tên test:
+  - Cột Condition chỉ ghi tên test, dòng Confirm là một câu chung "Result described in the scenario title is
+    observed". So với sheet cũ (ví dụ BE-AUTH-03, BE-MRG-02) thì chưa chi tiết theo input và kết quả cụ thể.
+  - Kiểu N/A/B được phân loại tự động theo từ khoá, cần xem lại từng ca.
+Việc cần làm: với mỗi sheet, đọc test tương ứng và viết lại phần Condition (từng input), Confirm (kết quả cụ thể)
+và Exception (thông báo/mã lỗi) theo mẫu BE-AUTH-03 hoặc BE-MRG-02; sửa kiểu N/A/B cho đúng.
+(Sắp xếp ưu tiên: BE-JAM, BE-PRQ, BE-COL vì nhiều ca nhất.) Không đổi định dạng cột/hàng, copy từ sheet mẫu.
+Yêu cầu "đúng và đủ nội dung": nếu thời gian ít, làm ít nhất Confirm/Exception cho các ca A (abnormal).
+
+
+PHẦN F. Kiểm tra cuối trước khi nộp
+-----------------------------------
+  1. Mở bằng Excel, để tính lại (F9). Sheet Statistics: Untested = 0, Failed theo tiêu chí ở đầu file.
+  2. Hàng "Test coverage" và "Test successful coverage" ở Statistics hợp lý (>= 100% và = Passed/Total).
+  3. Mỗi sheet: Executed By, Executed Date (dạng chữ dd/mm/yyyy), Passed/Failed đầy đủ cho mọi cột UTCID.
+  4. Sheet Cover: thêm dòng "Record of change" mô tả những gì đã làm (ngày, phiên bản, nội dung).
+  5. Chạy toàn bộ test lần cuối: cd backend && npx jest ; cd frontend && npx vitest run. Tất cả phải pass (trừ ca
+     đã ghi Defect). ESLint sạch cho file đã sửa.
+  6. Không sửa định dạng của workbook (cột D rộng 44, hàng theo mẫu BE-AUTH-03).
+  7. Báo lại: sheet nào đã xong, ca nào còn fail và lý do, để ghi vào PROJECT_STATE.md.
+
+
+CHỈ DẪN CHUNG
+-------------
+A. Đặt tên test (bắt buộc, để đếm kết quả tự động)
+   - describe có mã sheet:  describe('BE-JAM-11 JamService.createEvent', () => { ... })
+   - mỗi it bắt đầu bằng UTCIDnn, đúng thứ tự cột của sheet:  it('UTCID01 creates a scheduled event ...', ...)
+   - Mẫu có sẵn: backend/src/projects/projects.service.spec.ts và các spec đã gắn mã (forks, jam, collaboration...).
+     Frontend: frontend/lib/*.test.ts (các file music-theory, paste-pattern, zip-store đã gắn mã).
+   - Số test phải bằng số cột UTCID của sheet. Cần thêm ca thì thêm cột vào sheet (copy cột liền kề).
+
+B. Chạy test
+   - Backend (Jest): cd backend ; npx jest src/jam/jam.service.spec.ts ; npx jest (toàn bộ)
+   - Frontend (Vitest): cd frontend ; npx vitest run lib/validation.test.ts ; npx vitest run (toàn bộ)
+   - Lint: npx eslint <file> (cả frontend và backend). Không dùng "npm run lint" ở backend (tự sửa file).
+     Backend dùng Prettier: npx prettier --check <file>.
+   - KHÔNG chạy test ghi vào DB production. Test ở đây đều mock, không cần kết nối DB.
+
+C. Điền kết quả vào workbook
+   - Ô Passed/Failed từng cột: P hoặc F. Ô Executed Date: chữ dd/mm/yyyy (ví dụ 04/11/2026).
+   - Có ca fail: ghi mã lỗi ở dòng Defect ID và thêm vào docs/testing/defects-list.md.
+   - Theo docs/testing/unit-test-guide.md: test fail do CODE sai thì sửa code (nhánh bugfix/), không sửa test
+     cho khớp lỗi. Test fail do SHEET sai thì sửa sheet và ghi lại.
+   - Workbook có công thức tự tính Passed/Failed/Untested; không gõ tay các ô đó.
+   - Đóng Excel trước khi thay file bằng công cụ khác (file đang mở bị khoá).
+
+D. Git (theo CLAUDE.md mục 8)
+   - Nhánh: test/<mô-tả-ngắn>, ví dụ test/commits-service-unit-tests (chỉ thêm test, không đổi logic).
+   - Tạo nhánh từ main mới nhất, mở PR, người khác review. Không push thẳng main. Chia PR nhỏ theo nhóm
+     (ví dụ một PR cho commits, một cho drafts + shared-types, một cho frontend).
+   - Commit message tiếng Anh, thì hiện tại: "Add unit tests for CommitsService".
+   - Gặp lỗi code thật: nhánh bugfix/ riêng, không sửa lẫn trong nhánh test.

@@ -18,6 +18,7 @@
   "devDependencies": {
     "@playwright/test": "^1.64.0",
     "concurrently": "^9.1.2",
+    "exceljs": "^4.4.0",
     "husky": "^9.1.7",
     "supabase": "^2.121.0"
   }
