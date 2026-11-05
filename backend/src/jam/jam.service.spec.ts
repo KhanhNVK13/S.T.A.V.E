@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -46,7 +47,7 @@ function createInMemorySupabase(
   const build = (table: string): any => {
     const rows = (state[table] ??= []);
     const preds: Array<(row: Row) => boolean> = [];
-    let mode: 'select' | 'update' | 'insert' | 'upsert' = 'select';
+    let mode: 'select' | 'update' | 'insert' | 'upsert' | 'delete' = 'select';
     let payload: Row = {};
     let onConflict: string | undefined;
 
@@ -81,6 +82,10 @@ function createInMemorySupabase(
       payload = p;
       return q;
     };
+    q.delete = () => {
+      mode = 'delete';
+      return q;
+    };
     q.insert = (p: Row) => {
       mode = 'insert';
       payload = p;
@@ -98,6 +103,12 @@ function createInMemorySupabase(
       error: { message: string } | null;
     } => {
       switch (mode) {
+        case 'delete': {
+          const remaining = rows.filter((r) => !filterRow(r, preds));
+          rows.length = 0;
+          rows.push(...remaining);
+          return { data: null, error: null };
+        }
         case 'select': {
           // UC-68 2.E2 test hook: a table in `failSelectTables` always
           // returns an error instead of rows.
@@ -136,7 +147,10 @@ function createInMemorySupabase(
               error: { message: `insert rejected on ${table} (simulated)` },
             };
           }
-          const inserted = { ...payload };
+          const inserted = {
+            id: (payload as any).id ?? randomUUID(),
+            ...payload,
+          };
           rows.push(inserted);
           return { data: inserted, error: null };
         }
@@ -1661,5 +1675,306 @@ describe('BE-JAM-08 JamService — UC-95 endJamEvent', () => {
     const result = await service.endJamEvent('ev-sched-95', ADMIN_ID);
     expect(result.status).toBe('ended');
     expect(state.jam_events[0].status).toBe('ended');
+  });
+});
+
+// ============================================================================
+// SHEET: BE-JAM-11 (JamService.createEvent)
+// ============================================================================
+describe('BE-JAM-11 JamService.createEvent', () => {
+  const adminId = '11111111-1111-4111-8111-111111111111';
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-11-04T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function setupCreateService(
+    tables: Record<string, Row[]> = {},
+    options: {
+      failInsertTables?: Set<string>;
+      failSelectTables?: Set<string>;
+      failUpdateTables?: Set<string>;
+      failUpsertTables?: Set<string>;
+    } = {},
+  ) {
+    const initialTables: Record<string, Row[]> = {
+      projects: [],
+      branches: [],
+      drafts: [],
+      jam_events: [],
+      admin_audit_log: [],
+      ...tables,
+    };
+    const supabase = createInMemorySupabase(initialTables, options);
+    const state = (supabase as any)._state as Record<string, Row[]>;
+    const service = new JamService(supabase);
+    return { service, state, supabase };
+  }
+
+  it('UTCID01 creates a scheduled event in the future without overlap', async () => {
+    const { service, state } = setupCreateService();
+    const result = await service.createEvent(adminId, {
+      name: 'Future Jam',
+      scheduledStartAt: '2026-11-04T14:00:00.000Z',
+      scheduledEndAt: '2026-11-04T16:00:00.000Z',
+      description: 'Mô tả Jam tương lai',
+      editCooldownSec: 15,
+    });
+
+    expect(result.name).toBe('Future Jam');
+    expect(result.status).toBe('scheduled');
+    expect(result.started_at).toBeNull();
+    expect(result.ended_at).toBeNull();
+    expect(result.edit_cooldown_sec).toBe(15);
+    expect(state.jam_events).toHaveLength(1);
+    expect(state.projects).toHaveLength(1);
+    expect(state.branches).toHaveLength(1);
+    expect(state.drafts).toHaveLength(1);
+    expect(state.admin_audit_log).toHaveLength(1);
+  });
+
+  it('UTCID02 creates an active event when start time is in the past / current time', async () => {
+    const { service, state } = setupCreateService();
+    const result = await service.createEvent(adminId, {
+      name: 'Immediate Jam',
+      scheduledStartAt: '2026-11-04T11:59:00.000Z',
+      scheduledEndAt: '2026-11-04T14:00:00.000Z',
+    });
+
+    expect(result.name).toBe('Immediate Jam');
+    expect(result.status).toBe('active');
+    expect(result.started_at).toBe('2026-11-04T12:00:00.000Z');
+    expect(state.jam_events[0].status).toBe('active');
+  });
+
+  it('UTCID03 creates event with valid startingProjectId and copies snapshot', async () => {
+    const sourceProjId = '22222222-2222-4222-8222-222222222222';
+    const sourceBranchId = '33333333-3333-4333-8333-333333333333';
+    const customSnapshot: DraftSnapshot = {
+      schemaVersion: 3,
+      meta: { tempo: 130, timeSignature: [4, 4], ppq: 480 },
+      tracks: [
+        {
+          id: 't-source',
+          name: 'Piano',
+          order: 0,
+          color: '#6366f1',
+          muted: false,
+          solo: false,
+          volume: 0.8,
+          pan: 0,
+          instrument: 'Acoustic Grand Piano',
+        },
+      ],
+      notes: [],
+    };
+
+    const { service, state } = setupCreateService({
+      projects: [
+        {
+          id: sourceProjId,
+          visibility: 'public',
+          archived_at: null,
+          moderation_hidden_at: null,
+        },
+      ],
+      branches: [
+        {
+          id: sourceBranchId,
+          project_id: sourceProjId,
+          is_default: true,
+          name: 'main',
+        },
+      ],
+      drafts: [
+        {
+          branch_id: sourceBranchId,
+          snapshot: customSnapshot,
+        },
+      ],
+    });
+
+    const result = await service.createEvent(adminId, {
+      name: 'Jam from Source',
+      scheduledStartAt: '2026-11-04T14:00:00.000Z',
+      scheduledEndAt: '2026-11-04T16:00:00.000Z',
+      startingProjectId: sourceProjId,
+    });
+
+    expect(result.starting_project_id).toBe(sourceProjId);
+    const createdDraft = state.drafts.find(
+      (d) => d.branch_id !== sourceBranchId,
+    );
+    expect(createdDraft).toBeDefined();
+    expect((createdDraft!.snapshot as DraftSnapshot).meta.tempo).toBe(130);
+  });
+
+  it('UTCID04 creates event with confirmOverlap: true bypassing overlap check', async () => {
+    const { service, state } = setupCreateService({
+      jam_events: [
+        {
+          id: 'ev-existing',
+          name: 'Existing Jam',
+          status: 'scheduled',
+          scheduled_start_at: '2026-11-04T14:00:00.000Z',
+          scheduled_end_at: '2026-11-04T16:00:00.000Z',
+        },
+      ],
+    });
+
+    const result = await service.createEvent(adminId, {
+      name: 'Overlapping Jam Allowed',
+      scheduledStartAt: '2026-11-04T15:00:00.000Z',
+      scheduledEndAt: '2026-11-04T17:00:00.000Z',
+      confirmOverlap: true,
+    });
+
+    expect(result.name).toBe('Overlapping Jam Allowed');
+    expect(state.jam_events).toHaveLength(2);
+  });
+
+  it('UTCID05 rejects when end time equals start time', async () => {
+    const { service } = setupCreateService();
+    await expect(
+      service.createEvent(adminId, {
+        name: 'Equal Time Jam',
+        scheduledStartAt: '2026-11-04T14:00:00.000Z',
+        scheduledEndAt: '2026-11-04T14:00:00.000Z',
+      }),
+    ).rejects.toThrow(
+      new BadRequestException('End time must be after start time'),
+    );
+  });
+
+  it('UTCID06 rejects when end time is before start time', async () => {
+    const { service } = setupCreateService();
+    await expect(
+      service.createEvent(adminId, {
+        name: 'Inverted Time Jam',
+        scheduledStartAt: '2026-11-04T16:00:00.000Z',
+        scheduledEndAt: '2026-11-04T14:00:00.000Z',
+      }),
+    ).rejects.toThrow(
+      new BadRequestException('End time must be after start time'),
+    );
+  });
+
+  it('UTCID07 rejects when start or end time is invalid date', async () => {
+    const { service } = setupCreateService();
+    await expect(
+      service.createEvent(adminId, {
+        name: 'Invalid Date Jam',
+        scheduledStartAt: 'invalid-date',
+        scheduledEndAt: '2026-11-04T14:00:00.000Z',
+      }),
+    ).rejects.toThrow(
+      new BadRequestException('End time must be after start time'),
+    );
+  });
+
+  it('UTCID08 rejects when startingProjectId cannot be copied', async () => {
+    const { service } = setupCreateService({
+      projects: [
+        {
+          id: 'proj-private',
+          visibility: 'private',
+          archived_at: null,
+          moderation_hidden_at: null,
+        },
+      ],
+    });
+
+    await expect(
+      service.createEvent(adminId, {
+        name: 'Private Source Jam',
+        scheduledStartAt: '2026-11-04T14:00:00.000Z',
+        scheduledEndAt: '2026-11-04T16:00:00.000Z',
+        startingProjectId: 'proj-private',
+      }),
+    ).rejects.toThrow(
+      new BadRequestException('Starting project cannot be copied'),
+    );
+  });
+
+  it('UTCID09 rejects with JAM_OVERLAP_CONFLICT when window overlaps existing event', async () => {
+    const { service } = setupCreateService({
+      jam_events: [
+        {
+          id: 'ev-existing',
+          name: 'Existing Jam',
+          status: 'scheduled',
+          scheduled_start_at: '2026-11-04T14:00:00.000Z',
+          scheduled_end_at: '2026-11-04T16:00:00.000Z',
+        },
+      ],
+    });
+
+    let caught: any;
+    try {
+      await service.createEvent(adminId, {
+        name: 'Conflict Jam',
+        scheduledStartAt: '2026-11-04T15:00:00.000Z',
+        scheduledEndAt: '2026-11-04T17:00:00.000Z',
+      });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect(caught.getResponse()).toMatchObject({
+      code: 'JAM_OVERLAP_CONFLICT',
+    });
+  });
+
+  it('UTCID10 rolls back workspace project quietly and throws 500 when jam_events insert fails', async () => {
+    const { service, state } = setupCreateService(
+      {},
+      { failInsertTables: new Set(['jam_events']) },
+    );
+
+    await expect(
+      service.createEvent(adminId, {
+        name: 'Failing Insert Jam',
+        scheduledStartAt: '2026-11-04T14:00:00.000Z',
+        scheduledEndAt: '2026-11-04T16:00:00.000Z',
+      }),
+    ).rejects.toThrow(
+      new InternalServerErrorException('Could not create jam event'),
+    );
+
+    expect(state.projects).toHaveLength(0);
+  });
+
+  it('UTCID11 creates and returns event successfully even when admin_audit_log insert fails', async () => {
+    const { service, state } = setupCreateService(
+      {},
+      { failInsertTables: new Set(['admin_audit_log']) },
+    );
+
+    const result = await service.createEvent(adminId, {
+      name: 'Audit Failing Jam',
+      scheduledStartAt: '2026-11-04T14:00:00.000Z',
+      scheduledEndAt: '2026-11-04T16:00:00.000Z',
+    });
+
+    expect(result.name).toBe('Audit Failing Jam');
+    expect(state.jam_events).toHaveLength(1);
+    expect(state.admin_audit_log).toHaveLength(0);
+  });
+
+  it('UTCID12 applies default cooldown of 30 seconds when editCooldownSec is omitted', async () => {
+    const { service } = setupCreateService();
+    const result = await service.createEvent(adminId, {
+      name: 'Default Cooldown Jam',
+      scheduledStartAt: '2026-11-04T14:00:00.000Z',
+      scheduledEndAt: '2026-11-04T16:00:00.000Z',
+    });
+
+    expect(result.edit_cooldown_sec).toBe(JamService.DEFAULT_COOLDOWN_SEC);
   });
 });
