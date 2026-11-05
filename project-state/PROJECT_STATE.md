@@ -41,7 +41,7 @@ Quyết định của người dùng (04/11/2026): một bộ màu tối duy nh�
 - Mốc đo: `main` tại `87da5fa`. Kết quả `docs/Report5_Test Report.xlsx`: **352 Passed / 165 Failed / 289 Pending** trên 806 ca. Lỗi thật mới DFID117–DFID171 ghi ở `docs/testing/defects-list.md`.
 - **116 ca Pending chờ người dùng tự test** (âm thanh, micro, thiết bị thật, đăng nhập Google, email thật, k6/Lighthouse, PayOS sandbox, các ca "(Manual)"); danh sách mã ca đầy đủ ở `archive/06-round1-and-redesign.md` §145. 173 ca Pending khác không do người dùng (142 chưa có chức năng, 23 thiếu đúng hành vi, 4 cần giả lỗi máy chủ, 4 cần môi trường triển khai); số theo sheet ở `docs/testing/test-report-plan.md`.
 - **Round 2 = chạy lại cả chương trình sau khi redesign vào `main`.** Cột Round 2 (I/J/K) hiện toàn Pending.
-- Chờ người dùng xác nhận: DFID135 (avatar nhận tới 10MB thay vì 2MB có phải thay đổi có chủ ý). Việc nhóm: cập nhật workbook Unit Test theo UTCID04/05 của BE-EXP-06; chạy lại 80 ca Failed cũ; viết spec cho 11 sheet thiết kế (BE-JAM-11/12, BE-SKT-06, FE-LIB-49, FE-EDT-13–19); spec cho `CommitsService`/`DiffService` (module commits chỉ phủ 22%).
+- DFID135 (avatar nhận tới 10MB thay vì 2MB): người dùng chốt 05/11/2026 theo SRS (2MB), giữ là lỗi, sửa ở Round 2; AUTH-063 giữ Failed. Việc nhóm: cập nhật workbook Unit Test theo UTCID04/05 của BE-EXP-06; chạy lại 80 ca Failed cũ; viết spec cho 11 sheet thiết kế (BE-JAM-11/12, BE-SKT-06, FE-LIB-49, FE-EDT-13–19); spec cho `CommitsService`/`DiffService` (module commits chỉ phủ 22%).
 - `docs/Report5_Unit Test.xlsx` không sửa nếu nhóm đang điền. `docs/Report5_Test Report.xlsx` sửa tự do (giữ tên tester Round 1 từng hàng).
 
 **Quyết định test còn hiệu lực:**
