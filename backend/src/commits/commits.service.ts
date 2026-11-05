@@ -277,9 +277,10 @@ export class CommitsService {
     // Verify user has access to the project
     const projectId = (commitData as { branch?: { project_id: string } }).branch
       ?.project_id;
-    if (projectId) {
-      await this.verifyProjectAccess(projectId, userId, 'view');
+    if (!projectId) {
+      throw new NotFoundException('Commit not found');
     }
+    await this.verifyProjectAccess(projectId, userId, 'view');
 
     const commit = commitData as unknown as CommitDbRow;
     const tags = await this.getTagsForCommits([commitId]);
@@ -438,7 +439,9 @@ export class CommitsService {
     // Fetch base commit
     const { data: baseCommit, error: baseError } = await this.supabase
       .from('commits')
-      .select('id, snapshot, branch_id')
+      .select(
+        'id, snapshot, branch_id, branch:branches!commits_branch_id_fkey(project_id)',
+      )
       .eq('id', baseCommitId)
       .single();
 
@@ -449,7 +452,9 @@ export class CommitsService {
     // Fetch target commit
     const { data: targetCommit, error: targetError } = await this.supabase
       .from('commits')
-      .select('id, snapshot, branch_id')
+      .select(
+        'id, snapshot, branch_id, branch:branches!commits_branch_id_fkey(project_id)',
+      )
       .eq('id', targetCommitId)
       .single();
 
@@ -458,10 +463,25 @@ export class CommitsService {
     }
 
     // Get branch and project IDs
-    const baseBranchId = (baseCommit as { branch_id: string }).branch_id;
-    const targetBranchId = (targetCommit as { branch_id: string }).branch_id;
-    const baseProjectId = await this.getProjectIdFromBranch(baseBranchId);
-    const targetProjectId = await this.getProjectIdFromBranch(targetBranchId);
+    const baseCommitObj = baseCommit as {
+      snapshot: DraftSnapshot;
+      branch_id?: string;
+      branch?: { project_id: string } | null;
+    };
+    const targetCommitObj = targetCommit as {
+      snapshot: DraftSnapshot;
+      branch_id?: string;
+      branch?: { project_id: string } | null;
+    };
+
+    const baseProjectId =
+      baseCommitObj.branch !== undefined
+        ? (baseCommitObj.branch?.project_id ?? null)
+        : await this.getProjectIdFromBranch(baseCommitObj.branch_id);
+    const targetProjectId =
+      targetCommitObj.branch !== undefined
+        ? (targetCommitObj.branch?.project_id ?? null)
+        : await this.getProjectIdFromBranch(targetCommitObj.branch_id);
 
     // Verify both commits belong to the same project (BR-46)
     if (baseProjectId !== targetProjectId) {
@@ -582,8 +602,9 @@ export class CommitsService {
    * Get project ID from branch ID
    */
   private async getProjectIdFromBranch(
-    branchId: string,
+    branchId?: string | null,
   ): Promise<string | null> {
+    if (!branchId) return null;
     const { data: branch } = await this.supabase
       .from('branches')
       .select('project_id')
@@ -762,7 +783,7 @@ export class CommitsService {
    * Normalize snapshot DTO to proper DraftSnapshot format
    */
   private normalizeSnapshot(dto: unknown): DraftSnapshot {
-    const snapshot = dto as {
+    const snapshot = (dto ?? {}) as {
       schemaVersion?: number;
       meta?: { tempo: number; timeSignature: [number, number]; ppq: number };
       tracks?: DraftTrackDto[];
@@ -772,18 +793,21 @@ export class CommitsService {
     return {
       schemaVersion: snapshot.schemaVersion ?? 1,
       meta: snapshot.meta ?? { tempo: 120, timeSignature: [4, 4], ppq: 480 },
-      tracks: (snapshot.tracks ?? []).map((t) => ({
-        id: t.id ?? uuidv4(),
-        name: t.name,
-        order: t.order ?? 0,
-        color: t.color ?? '#6366f1',
-        muted: t.muted ?? t.isMuted ?? false,
-        solo: t.solo ?? t.isSolo ?? false,
-        volume: t.volume ?? 1,
-        pan: t.pan ?? 0,
-        instrument: t.instrument ?? null,
-        soundMap: sanitizeSoundMap(t.soundMap),
-      })),
+      tracks: (snapshot.tracks ?? []).map((t) => {
+        const sm = sanitizeSoundMap(t.soundMap);
+        return {
+          id: t.id ?? uuidv4(),
+          name: t.name,
+          order: t.order ?? 0,
+          color: t.color ?? '#6366f1',
+          muted: t.muted ?? t.isMuted ?? false,
+          solo: t.solo ?? t.isSolo ?? false,
+          volume: t.volume ?? 1,
+          pan: t.pan ?? 0,
+          instrument: t.instrument ?? null,
+          ...(sm !== undefined ? { soundMap: sm } : {}),
+        };
+      }),
       notes: (snapshot.notes ?? []).map((n) => ({
         id: n.id ?? uuidv4(),
         trackId: n.trackId,
@@ -898,6 +922,14 @@ export class CommitsService {
     }
 
     return authorsMap;
+  }
+
+  verifyCommitOwnership(commitId: string, userId: string): Promise<string> {
+    return this.verifyCommitAccess(commitId, userId, 'edit');
+  }
+
+  verifyProjectOwnership(projectId: string, userId: string): Promise<void> {
+    return this.verifyProjectAccess(projectId, userId, 'edit');
   }
 
   private verifyProjectAccess(

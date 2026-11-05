@@ -6,6 +6,7 @@ import {
   ValidateNested,
   IsArray,
   ArrayMaxSize,
+  ArrayMinSize,
   IsInt,
   IsNumber,
   Min,
@@ -48,7 +49,7 @@ export class DraftNoteDto {
   duration!: number;
 
   @IsInt()
-  @Min(0)
+  @Min(1)
   @Max(127)
   velocity!: number;
 }
@@ -141,6 +142,8 @@ export class DraftSnapshotDto {
   meta!: DraftMetaDto;
 
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(32)
   @ValidateNested({ each: true })
   @Type(() => DraftTrackDto)
   tracks!: DraftTrackDto[];

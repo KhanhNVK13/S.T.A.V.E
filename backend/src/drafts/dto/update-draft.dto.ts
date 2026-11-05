@@ -1,8 +1,10 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsNumber,
@@ -65,9 +67,13 @@ export class DraftTrackDto implements DraftTrack {
   solo!: boolean;
 
   @IsNumber()
+  @Min(0)
+  @Max(1)
   volume!: number;
 
   @IsNumber()
+  @Min(-1)
+  @Max(1)
   pan!: number;
 
   @IsOptional()
@@ -92,12 +98,16 @@ export class DraftNoteDto implements DraftNote {
   pitch!: number;
 
   @IsInt()
+  @Min(0)
   start!: number;
 
   @IsInt()
+  @Min(1)
   duration!: number;
 
   @IsInt()
+  @Min(1)
+  @Max(127)
   velocity!: number;
 }
 
@@ -105,11 +115,13 @@ export class UpdateDraftDto implements DraftSnapshot {
   @IsInt()
   schemaVersion!: number;
 
+  @IsDefined({ message: 'nested property meta must be either object or array' })
   @ValidateNested()
   @Type(() => DraftMetaDto)
   meta!: DraftMetaDto;
 
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(MAX_DRAFT_TRACKS)
   @ValidateNested({ each: true })
   @Type(() => DraftTrackDto)
