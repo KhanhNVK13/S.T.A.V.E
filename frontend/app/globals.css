@@ -38,6 +38,16 @@
   --track-warning: var(--warning);
   --track-danger: var(--danger);
 
+  --diff-add: var(--success);
+  --diff-add-muted: var(--success-muted);
+  --diff-add-foreground: var(--success-foreground);
+  --diff-remove: var(--danger);
+  --diff-remove-muted: var(--danger-muted);
+  --diff-remove-foreground: var(--danger);
+  --diff-modify: var(--warning);
+  --diff-modify-muted: var(--warning-muted);
+  --diff-modify-foreground: var(--warning-foreground);
+
   --radius-card: 0.75rem;
   --shadow-card: 0 10px 36px oklch(0 0 0 / 0.5);
 
@@ -74,6 +84,16 @@
   --color-metal: var(--metal);
   --color-metal-muted: var(--metal-muted);
   --color-metal-foreground: var(--metal-foreground);
+
+  --color-diff-add: var(--diff-add);
+  --color-diff-add-muted: var(--diff-add-muted);
+  --color-diff-add-foreground: var(--diff-add-foreground);
+  --color-diff-remove: var(--diff-remove);
+  --color-diff-remove-muted: var(--diff-remove-muted);
+  --color-diff-remove-foreground: var(--diff-remove-foreground);
+  --color-diff-modify: var(--diff-modify);
+  --color-diff-modify-muted: var(--diff-modify-muted);
+  --color-diff-modify-foreground: var(--diff-modify-foreground);
 
   --radius-card: var(--radius-card);
   --shadow-card: var(--shadow-card);

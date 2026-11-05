@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, GitCompareArrows, Loader2, Play, Square } from "lucide-react";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import { compareCommits, getCommit } from "../../lib/api-client";
 import type { SnapshotDiff, SnapshotMetaChange } from "../../lib/api-client";
 import { pitchName } from "../../lib/midi-note-name";
 import { Badge } from "../ui/badge";
+import { DIFF_GLYPH, DIFF_TEXT, DiffBadge } from "./diff-ui";
+import type { DiffKind } from "./diff-ui";
 import { Button } from "../ui/button";
 import { DiffDialogShell } from "./diff-dialog-shell";
 import { BLACK_KEYS, buildBarChanges, buildGridNotes, countAffected } from "./compare-model";
@@ -31,9 +33,9 @@ const PX_PER_QUARTER = 32;
 const ROW_H = 8;
 
 const KIND_CLASS: Record<NoteKind, string> = {
-  added: "fill-success stroke-success",
-  removed: "fill-danger/25 stroke-danger",
-  modified: "fill-warning stroke-warning",
+  added: "fill-diff-add stroke-diff-add",
+  removed: "fill-diff-remove/25 stroke-diff-remove",
+  modified: "fill-diff-modify stroke-diff-modify",
   unchanged: "fill-border-strong stroke-none",
 };
 
@@ -329,9 +331,9 @@ export function CommitCompare({
               aria-label={tt("comparePage.statsLabel")}
               className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border sm:grid-cols-5"
             >
-              <Stat label={tt("comparePage.statAdded")} value={`+${diff.summary.notes.added}`} tone="text-success-foreground" />
-              <Stat label={tt("comparePage.statRemoved")} value={`−${diff.summary.notes.removed}`} tone="text-danger" />
-              <Stat label={tt("comparePage.statModified")} value={`~${diff.summary.notes.modified}`} tone="text-warning-foreground" />
+              <Stat label={tt("comparePage.statAdded")} value={`+${diff.summary.notes.added}`} tone={DIFF_TEXT.add} />
+              <Stat label={tt("comparePage.statRemoved")} value={`−${diff.summary.notes.removed}`} tone={DIFF_TEXT.remove} />
+              <Stat label={tt("comparePage.statModified")} value={`~${diff.summary.notes.modified}`} tone={DIFF_TEXT.modify} />
               <Stat label={tt("comparePage.statBars")} value={String(affected.bars)} />
               <Stat label={tt("comparePage.statTracks")} value={String(affected.tracks)} className="col-span-2 sm:col-span-1" />
             </dl>
@@ -362,7 +364,7 @@ export function CommitCompare({
                       })}
                       {diff.tracksDiff.added.map((t) => (
                         <li key={`a-${t.id}`} className="flex flex-wrap items-center gap-2 px-3.5 py-2">
-                          <Badge variant="success">{tt("cmp.trackAdded")}</Badge>
+                          <DiffBadge kind="add">{tt("cmp.trackAdded")}</DiffBadge>
                           <span className="font-semibold">{t.name}</span>
                           <span className="text-muted">
                             {t.instrument ?? tt("cmp.defaultInstrument")} · {tt("cmp.noteCount", { n: diff.tracksDiff.noteCounts[t.id] ?? 0 })}
@@ -371,7 +373,7 @@ export function CommitCompare({
                       ))}
                       {diff.tracksDiff.removed.map((t) => (
                         <li key={`r-${t.id}`} className="flex flex-wrap items-center gap-2 px-3.5 py-2">
-                          <Badge variant="danger">{tt("cmp.trackRemoved")}</Badge>
+                          <DiffBadge kind="remove">{tt("cmp.trackRemoved")}</DiffBadge>
                           <span className="font-semibold">{t.name}</span>
                           <span className="text-muted">
                             {t.instrument ?? tt("cmp.defaultInstrument")} · {tt("cmp.noteCount", { n: diff.tracksDiff.noteCounts[t.id] ?? 0 })}
@@ -381,7 +383,7 @@ export function CommitCompare({
                       {diff.tracksDiff.modified.map(({ old, new: next }) => (
                         <li key={`m-${next.id}`} className="flex flex-col gap-1 px-3.5 py-2">
                           <span className="flex items-center gap-2">
-                            <Badge variant="warning">{tt("cmp.trackModified")}</Badge>
+                            <DiffBadge kind="modify">{tt("cmp.trackModified")}</DiffBadge>
                             <span className="font-semibold">{next.name}</span>
                           </span>
                           <span className="flex flex-wrap gap-x-4 gap-y-1 text-muted">
@@ -470,28 +472,28 @@ export function CommitCompare({
                             })}
                           </span>
                           {b.added.length > 0 && (
-                            <span aria-hidden="true" className="font-mono text-success-foreground">+{b.added.length}</span>
+                            <span aria-hidden="true" className={`font-mono ${DIFF_TEXT.add}`}>+{b.added.length}</span>
                           )}
                           {b.removed.length > 0 && (
-                            <span aria-hidden="true" className="font-mono text-danger">−{b.removed.length}</span>
+                            <span aria-hidden="true" className={`font-mono ${DIFF_TEXT.remove}`}>−{b.removed.length}</span>
                           )}
                           {b.modified.length > 0 && (
-                            <span aria-hidden="true" className="font-mono text-warning-foreground">~{b.modified.length}</span>
+                            <span aria-hidden="true" className={`font-mono ${DIFF_TEXT.modify}`}>~{b.modified.length}</span>
                           )}
                         </summary>
                         <ul className="flex flex-col gap-1 px-3.5 pb-3 font-mono text-xs">
                           {b.added.map((n) => (
-                            <li key={n.id} className="text-success-foreground">
+                            <li key={n.id} className={DIFF_TEXT.add}>
                               + {trackName(n.trackId)} · {describeNote(n)}
                             </li>
                           ))}
                           {b.removed.map((n) => (
-                            <li key={n.id} className="text-danger">
+                            <li key={n.id} className={DIFF_TEXT.remove}>
                               − {trackName(n.trackId)} · {describeNote(n)}
                             </li>
                           ))}
                           {b.modified.map((m) => (
-                            <li key={m.new.id} className="text-warning-foreground">
+                            <li key={m.new.id} className={DIFF_TEXT.modify}>
                               ~ {trackName(m.new.trackId)} · {describeNote(m.old)} → {describeNote(m.new)}
                             </li>
                           ))}
@@ -530,15 +532,29 @@ function VersionChip({ label, side }: { label: string; side: CompareSide }) {
 }
 
 const LEGEND_SWATCH: Record<NoteKind, string> = {
-  added: "bg-success border border-success",
-  removed: "border-[1.5px] border-dashed border-danger bg-danger/25",
-  modified: "bg-warning border border-warning",
+  added: "bg-diff-add border border-diff-add",
+  removed: "border-[1.5px] border-dashed border-diff-remove bg-diff-remove/25",
+  modified:
+    "bg-diff-modify border border-diff-modify bg-[repeating-linear-gradient(135deg,var(--background)_0_1.5px,transparent_1.5px_4px)]",
   unchanged: "bg-border-strong",
 };
 
+const LEGEND_KIND: Record<NoteKind, DiffKind | null> = {
+  added: "add",
+  removed: "remove",
+  modified: "modify",
+  unchanged: null,
+};
+
 function Legend({ kind, label }: { kind: NoteKind; label: string }) {
+  const diffKind = LEGEND_KIND[kind];
   return (
     <span className="flex items-center gap-1.5">
+      {diffKind && (
+        <span aria-hidden="true" className={`w-3 text-center font-mono text-sm font-bold leading-none ${DIFF_TEXT[diffKind]}`}>
+          {DIFF_GLYPH[diffKind]}
+        </span>
+      )}
       <span aria-hidden="true" className={`inline-block h-2.5 w-4 rounded-sm ${LEGEND_SWATCH[kind]}`} />
       {label}
     </span>
@@ -562,6 +578,7 @@ function DiffGrid({
   summary: { added: number; removed: number; modified: number };
 }) {
   const { t: tt } = useI18n();
+  const hatchId = `diff-hatch-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   if (notes.length === 0) {
     return (
       <p className="rounded-card border border-dashed border-border-strong px-4 py-8 text-center text-xs text-muted">
@@ -614,6 +631,11 @@ function DiffGrid({
         aria-label={tt("comparePage.rollLabel", summary)}
         className="block min-w-full"
       >
+        <defs>
+          <pattern id={hatchId} width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1={0} y1={0} x2={0} y2={4} className="stroke-background" strokeWidth={1.5} />
+          </pattern>
+        </defs>
         {rows.map((pitch) =>
           BLACK_KEYS.has(pitch % 12) ? (
             <rect key={pitch} x={0} y={y(pitch)} width={width} height={ROW_H} className="fill-surface-subtle" />
@@ -649,7 +671,7 @@ function DiffGrid({
                 y={y(g.old.pitch)}
                 width={Math.max(2, g.old.duration * pxPerTick)}
                 height={ROW_H - 1}
-                className="fill-none stroke-warning"
+                className="fill-none stroke-diff-modify"
                 strokeDasharray="2 2"
                 strokeWidth={1}
               />
@@ -669,9 +691,34 @@ function DiffGrid({
                 {tt(KIND_LABEL_KEY[g.kind])} · {describeNote(g.note)}
               </title>
             </rect>
+            {g.kind === "modified" && (
+              <rect
+                x={g.note.start * pxPerTick}
+                y={y(g.note.pitch)}
+                width={Math.max(2, g.note.duration * pxPerTick)}
+                height={ROW_H - 1}
+                rx={1.5}
+                fill={`url(#${hatchId})`}
+                pointerEvents="none"
+              />
+            )}
+            {(g.kind === "added" || g.kind === "removed") && g.note.duration * pxPerTick >= 12 && (
+              <path
+                d={noteMark(g.kind, g.note.start * pxPerTick + 3, y(g.note.pitch) + (ROW_H - 1) / 2)}
+                className={g.kind === "added" ? "stroke-background" : "stroke-diff-remove"}
+                fill="none"
+                strokeWidth={1.3}
+                pointerEvents="none"
+              />
+            )}
           </g>
         ))}
       </svg>
     </div>
   );
+}
+
+function noteMark(kind: "added" | "removed", x: number, cy: number): string {
+  const bar = `M${x} ${cy}h5`;
+  return kind === "added" ? `${bar}M${x + 2.5} ${cy - 2.5}v5` : bar;
 }

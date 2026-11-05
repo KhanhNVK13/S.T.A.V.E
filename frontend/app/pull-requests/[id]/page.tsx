@@ -12,6 +12,7 @@ import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
 import { INPUT_CLASS } from "../../../components/ui/form";
 import { Toast } from "../../../components/ui/toast";
 import { MergeConflictDialog } from "../../../components/project/merge-conflict-dialog";
+import { DIFF_TEXT } from "../../../components/project/diff-ui";
 import { PrDiffView } from "../../../components/pull-request/pr-diff-view";
 import { PullRequestStatusBadge } from "../../../components/pull-request/pull-request-list";
 import {
@@ -236,9 +237,9 @@ function PullRequestView({ id }: { id: string }) {
           <dd className="mt-0.5 font-mono text-lg font-semibold">
             {noteStats ? (
               <>
-                <span className="text-success-foreground">+{noteStats.added}</span>{" "}
-                <span className="text-danger">−{noteStats.removed}</span>{" "}
-                <span className="text-warning-foreground">~{noteStats.modified}</span>
+                <span className={DIFF_TEXT.add}>+{noteStats.added}</span>{" "}
+                <span className={DIFF_TEXT.remove}>−{noteStats.removed}</span>{" "}
+                <span className={DIFF_TEXT.modify}>~{noteStats.modified}</span>
               </>
             ) : (
               "—"
