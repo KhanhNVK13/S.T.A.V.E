@@ -59,6 +59,7 @@ import {
 import Link from "next/link";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { CommitWithAuthor, ResolvedCustomSound } from "../../../lib/api-client";
+import { suggestCommitMessage as suggestCommitMessageApi } from "../../../lib/api-client";
 import type { GridDivision, ToolMode } from "../piano-roll";
 import { PianoRoll } from "../piano-roll";
 import type { PianoRollHandle } from "../piano-roll";
@@ -86,7 +87,7 @@ import { summarizeChanges } from "./change-summary";
 import type { SaveStatus } from "../midi-editor";
 import { DC, DC_SIZE } from "./tokens";
 import { useI18n } from "../../../context/i18n-context";
-import type { TKey } from "../../../lib/i18n";
+import { getLang, type TKey } from "../../../lib/i18n";
 
 const NARROW_QUERY = "(max-width: 767px)";
 const TIP_KEY = "stave-editor-help-tip-dismissed";
@@ -385,6 +386,18 @@ export function EditorRedesign(props: EditorRedesignProps) {
     if (ok) {
       setCommitOpen(false);
       setCommitMessage("");
+    }
+  }
+
+  async function suggestCommitMessage(signal: AbortSignal) {
+    try {
+      const res = await suggestCommitMessageApi(
+        { projectId, branchId: vc.branch?.id, lang: getLang() },
+        signal,
+      );
+      return res.suggestion ?? null;
+    } catch {
+      return null;
     }
   }
 
@@ -1146,6 +1159,8 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onMessageChange={setCommitMessage}
           onSubmit={(message) => void submitCommit(message)}
           onClose={() => setCommitOpen(false)}
+          aiEnabled={vc.headCommit !== null}
+          onSuggestCommitMessage={suggestCommitMessage}
         />
       )}
 
