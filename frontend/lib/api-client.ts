@@ -1067,3 +1067,53 @@ export async function getPullRequestTargetBranches(projectId: string): Promise<{
 }> {
   return apiFetch(`/projects/${projectId}/pull-requests/target-branches`);
 }
+
+// ---------------------------------------------------------------------------
+// UC-71 Merge risk warning
+// ---------------------------------------------------------------------------
+
+/** Mức rủi ro hợp nhất — `low` / `medium` / `high`. */
+export type MergeRiskLevel = "low" | "medium" | "high";
+
+/** Các con số đánh giá rủi ro — không chứa nội dung nốt. */
+export interface MergeRiskMetrics {
+  /** Tổng nốt thay đổi ở nhánh nguồn so với điểm gốc chung. */
+  sourceChanged: number;
+  /** Tổng nốt thay đổi ở nhánh đích so với điểm gốc chung. */
+  targetChanged: number;
+  /** Số nốt bị đổi ở cả hai phía. */
+  overlap: number;
+  /** Số xung đột merge tìm được. */
+  conflictsCount: number;
+  /** Số commit nhánh nguồn có thêm kể từ điểm gốc chung. */
+  sourceCommits: number;
+  /** Số commit nhánh đích có thêm kể từ điểm gốc chung. */
+  targetCommits: number;
+}
+
+/**
+ * Kết quả `GET /ai/merge-risk` — UC-71.
+ *
+ * `explanation` là `null` khi mức thấp (không có cảnh báo giả) hoặc khi AI
+ * lỗi/quá hạn; các con số vẫn luôn có (BR-79).
+ */
+export interface MergeRiskResult {
+  level: MergeRiskLevel;
+  metrics: MergeRiskMetrics;
+  explanation: string | null;
+}
+
+/**
+ * GET /ai/merge-risk — UC-71.
+ *
+ * Hai nhánh không có điểm gốc chung sẽ khiến backend trả 400
+ * "Branches cannot be compared" — đó là lỗi merge chứ không phải đánh giá
+ * rủi ro, nên hàm này ném lỗi cho caller bắt.
+ */
+export async function getMergeRisk(
+  sourceBranchId: string,
+  targetBranchId: string,
+): Promise<MergeRiskResult> {
+  const search = new URLSearchParams({ sourceBranchId, targetBranchId });
+  return apiFetch<MergeRiskResult>(`/ai/merge-risk?${search.toString()}`);
+}

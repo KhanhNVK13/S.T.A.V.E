@@ -24,6 +24,7 @@ import type {
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";
+import { MergeRiskPanel } from "./merge-risk-panel";
 import { FieldError, INPUT_CLASS } from "../ui/form";
 import { validateMaxLength, validateRequired } from "../../lib/validation";
 import { createAndActivateBranch } from "../../lib/create-and-activate-branch";
@@ -594,6 +595,14 @@ export function BranchList({ projectId }: { projectId: string }) {
             )}
             <br />
             {t("blist.conflictNote")}
+            {/* UC-71: panel rủi ro hợp nhất — chỉ thêm vào, không chặn merge.
+                Tự ẩn nếu tải lỗi, nên hộp xác nhận vẫn hoạt động bình thường. */}
+            {mergeConfirm && defaultBranch && (
+              <MergeRiskPanel
+                sourceBranchId={mergeConfirm.id}
+                targetBranchId={defaultBranch.id}
+              />
+            )}
           </>
         }
         confirmLabel={t("blist.mergeConfirm")}

@@ -1,0 +1,42 @@
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { SessionAuthGuard } from '../common/guards/session-auth.guard';
+import { CurrentUser } from '../common/decorators';
+import { MergeRiskService, type MergeRiskResult } from './merge-risk.service';
+import { MergeRiskDto } from './dto/merge-risk.dto';
+
+/**
+ * UC-71 Controller — cảnh báo rủi ro merge.
+ *
+ * Endpoints:
+ * GET /ai/merge-risk?sourceBranchId=&targetBranchId=
+ *
+ * Guards: JwtAuthGuard + SessionAuthGuard (both required)
+ */
+@Controller('ai')
+@UseGuards(JwtAuthGuard, SessionAuthGuard)
+export class AiController {
+  constructor(private readonly mergeRiskService: MergeRiskService) {}
+
+  /**
+   * GET /ai/merge-risk
+   *
+   * Mức rủi ro (thấp / vừa / cao) kèm các con số và câu giải thích ngắn.
+   *
+   * - Hai nhánh không có điểm gốc chung → 400 "Branches cannot be compared"
+   *   (đó là lỗi merge, không phải đánh giá rủi ro).
+   * - Mức thấp: câu cố định, không gọi AI.
+   * - Gemini lỗi/quá hạn → `explanation: null`, các con số vẫn trả về đủ.
+   */
+  @Get('merge-risk')
+  async getMergeRisk(
+    @CurrentUser() userId: string,
+    @Query() dto: MergeRiskDto,
+  ): Promise<MergeRiskResult> {
+    return this.mergeRiskService.assess(
+      userId,
+      dto.sourceBranchId,
+      dto.targetBranchId,
+    );
+  }
+}
