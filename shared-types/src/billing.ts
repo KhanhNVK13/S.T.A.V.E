@@ -32,13 +32,23 @@ export interface EffectiveSubscription {
   inGrace: boolean;
 }
 
-export type PaymentOrderStatus = "pending" | "success" | "failed";
+/** `expired` = still pending in the database but older than 30 minutes, shown as not completed. */
+export type PaymentOrderStatus = "pending" | "success" | "failed" | "expired";
 
 export interface PaymentOrder {
   orderCode: number;
   planName: string | null;
   amountVnd: number;
   status: PaymentOrderStatus;
+  createdAt: string;
+}
+
+export type CheckoutPurpose = "subscribe" | "upgrade" | "renew";
+
+/** POST /subscriptions/checkout */
+export interface CheckoutResponse {
+  checkoutUrl: string;
+  orderCode: number;
 }
 
 export const FAKE_PAYMENT_RESULTS = ["success", "fail", "cancel"] as const;

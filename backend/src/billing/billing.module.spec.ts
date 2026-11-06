@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { BillingModule } from './billing.module';
@@ -9,6 +10,7 @@ import { SubscriptionPlansController } from './subscription-plans.controller';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 import { PaymentsService } from './payments.service';
+import { PaymentsController } from './payments.controller';
 import { PAYMENT_GATEWAY } from './payment-gateway';
 import { FakeGateway } from './fake.gateway';
 import { PayosGateway } from './payos.gateway';
@@ -25,6 +27,7 @@ describe('BE-BIL-12 BillingModule.register', () => {
     ).toEqual([
       SubscriptionsController,
       SubscriptionPlansController,
+      PaymentsController,
       DevFakePaymentController,
     ]);
   });
@@ -32,7 +35,11 @@ describe('BE-BIL-12 BillingModule.register', () => {
   it('UTCID02 never registers the fake payment controller in production', () => {
     expect(
       controllersFor({ PAYMENT_PROVIDER: 'fake', NODE_ENV: 'production' }),
-    ).toEqual([SubscriptionsController, SubscriptionPlansController]);
+    ).toEqual([
+      SubscriptionsController,
+      SubscriptionPlansController,
+      PaymentsController,
+    ]);
   });
 
   it('UTCID03 does not register it for PayOS or when PAYMENT_PROVIDER is not set', () => {
@@ -78,7 +85,11 @@ class TestSupabaseModule {}
 describe('BE-BIL-15 BillingModule wiring', () => {
   async function compile(env: Record<string, string | undefined>) {
     return Test.createTestingModule({
-      imports: [TestSupabaseModule, BillingModule.register(env)],
+      imports: [
+        TestSupabaseModule,
+        ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
+        BillingModule.register(env),
+      ],
     }).compile();
   }
 

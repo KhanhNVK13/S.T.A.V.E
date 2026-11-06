@@ -1,17 +1,9 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsPositive, Max } from 'class-validator';
+import { IsIn } from 'class-validator';
 import { FAKE_PAYMENT_RESULTS } from '@stave/shared-types';
 import type { FakePaymentResult } from '@stave/shared-types';
+import { OrderCodeParamsDto } from './order-code.dto';
 
-export class FakePaymentOrderParamsDto {
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  @Max(Number.MAX_SAFE_INTEGER)
-  orderCode!: number;
-}
-
-export class FakePaymentResultParamsDto extends FakePaymentOrderParamsDto {
+export class FakePaymentResultParamsDto extends OrderCodeParamsDto {
   @IsIn(FAKE_PAYMENT_RESULTS)
   result!: FakePaymentResult;
 }

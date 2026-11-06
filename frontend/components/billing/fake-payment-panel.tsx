@@ -14,8 +14,8 @@ import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { PageHeader } from "../ui/page-header";
 
-const STATUS_LABEL = { pending: "Đang chờ thanh toán", success: "Thành công", failed: "Thất bại" } as const;
-const STATUS_VARIANT = { pending: "warning", success: "success", failed: "danger" } as const;
+const STATUS_LABEL = { pending: "Đang chờ thanh toán", success: "Thành công", failed: "Thất bại", expired: "Chưa hoàn tất" } as const;
+const STATUS_VARIANT = { pending: "warning", success: "success", failed: "danger", expired: "neutral" } as const;
 
 export function FakePaymentPanel({ orderCode }: { orderCode: number | null }) {
   const router = useRouter();

@@ -136,6 +136,19 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Could not read subscription": { en: "Couldn't load your current plan. Please try again.", vi: "Không tải được gói bạn đang dùng. Hãy thử lại." },
   "Could not read plans": { en: "Couldn't load the plans. Please try again.", vi: "Không tải được danh sách gói. Hãy thử lại." },
   "Default plan is not configured": { en: "The free plan isn't set up yet. Please contact an administrator.", vi: "Gói miễn phí chưa được thiết lập. Hãy liên hệ quản trị viên." },
+  "Payment provider unavailable": { en: "Payment isn't available right now. Please try again later.", vi: "Hiện chưa thanh toán được, vui lòng thử lại sau." },
+  "Plan not found": { en: "This plan no longer exists. Reload the page.", vi: "Không tìm thấy gói này. Hãy tải lại trang." },
+  "Plan is no longer available": { en: "This plan is no longer available. Reload the page to see current plans.", vi: "Gói này không còn mở bán. Hãy tải lại trang để xem các gói hiện có." },
+  "You already have a paid plan": { en: "You already have a paid plan. Use \"Change plan\" instead.", vi: "Bạn đang dùng gói trả phí. Hãy dùng \"Đổi gói\"." },
+  "You do not have a paid plan": { en: "You are on the free plan. Use \"Upgrade\" instead.", vi: "Bạn đang ở gói miễn phí. Hãy dùng \"Nâng cấp\"." },
+  "You are already on this plan": { en: "You are already on this plan.", vi: "Bạn đang dùng gói này rồi." },
+  "Only a more expensive plan can be bought as an upgrade": { en: "Only a more expensive plan can be bought as an upgrade.", vi: "Chỉ nâng cấp được lên gói có giá cao hơn." },
+  "Only your current paid plan can be renewed": { en: "Only your current paid plan can be renewed.", vi: "Chỉ gia hạn được gói trả phí bạn đang dùng." },
+  "This plan does not need payment": { en: "This plan is free and doesn't need payment.", vi: "Gói này miễn phí, không cần thanh toán." },
+  "Could not create the order": { en: "Couldn't create the payment order. Please try again.", vi: "Không tạo được đơn thanh toán. Hãy thử lại." },
+  "Could not read transactions": { en: "Couldn't load your transactions. Please try again.", vi: "Không tải được giao dịch. Hãy thử lại." },
+  "Could not read your account": { en: "Couldn't load your account. Please try again.", vi: "Không tải được tài khoản của bạn. Hãy thử lại." },
+  "Invalid webhook signature": { en: "Invalid payment notification.", vi: "Thông báo thanh toán không hợp lệ." },
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;

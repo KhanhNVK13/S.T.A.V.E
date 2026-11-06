@@ -2,10 +2,8 @@ import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
-import {
-  FakePaymentOrderParamsDto,
-  FakePaymentResultParamsDto,
-} from './dto/fake-payment.dto';
+import { FakePaymentResultParamsDto } from './dto/fake-payment.dto';
+import { OrderCodeParamsDto } from './dto/order-code.dto';
 import { PaymentsService } from './payments.service';
 
 /** UC-74 — cổng thanh toán giả, chỉ được đăng ký khi PAYMENT_PROVIDER=fake và không phải production. */
@@ -17,7 +15,7 @@ export class DevFakePaymentController {
   @Get(':orderCode')
   getOrder(
     @Req() req: AuthenticatedRequest,
-    @Param() params: FakePaymentOrderParamsDto,
+    @Param() params: OrderCodeParamsDto,
   ) {
     return this.paymentsService.getOrderForUser(req.user.id, params.orderCode);
   }
