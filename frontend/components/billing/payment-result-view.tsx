@@ -10,14 +10,12 @@ import { startPaymentPoll, type PaymentPollState } from "../../lib/payment-resul
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { PageHeader } from "../ui/page-header";
+import { PRIMARY_LINK } from "./link-styles";
 
 interface PaymentResultViewProps {
   orderCode: number | null;
   returnTo: string | null;
 }
-
-const PRIMARY_LINK =
-  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 text-[13px] font-semibold text-accent-foreground hover:border-accent-hover hover:bg-accent-hover";
 
 export function PaymentResultView({ orderCode, returnTo }: PaymentResultViewProps) {
   const [attempt, setAttempt] = useState(0);

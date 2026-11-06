@@ -3,8 +3,11 @@ import type {
   CheckoutResponse,
   EffectiveSubscription,
   FakePaymentResult,
+  PaymentIssueCreated,
   PaymentOrder,
   PlanListItem,
+  TransactionHistoryPage,
+  TransactionReceipt,
 } from "@stave/shared-types";
 
 export async function getMySubscription(): Promise<EffectiveSubscription> {
@@ -41,4 +44,20 @@ export async function getPaymentOrder(orderCode: number): Promise<PaymentOrder> 
 
 export async function syncPaymentOrder(orderCode: number): Promise<PaymentOrder> {
   return apiFetch<PaymentOrder>(`/payments/orders/${orderCode}/sync`, { method: "POST" });
+}
+
+export async function listTransactions(cursor?: string | null): Promise<TransactionHistoryPage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return apiFetch<TransactionHistoryPage>(`/billing/transactions${query}`);
+}
+
+export async function getTransactionReceipt(id: string): Promise<TransactionReceipt> {
+  return apiFetch<TransactionReceipt>(`/billing/transactions/${id}/receipt`);
+}
+
+export async function reportPaymentIssue(id: string, description: string): Promise<PaymentIssueCreated> {
+  return apiFetch<PaymentIssueCreated>(`/billing/transactions/${id}/issues`, {
+    method: "POST",
+    body: JSON.stringify({ description }),
+  });
 }

@@ -2,6 +2,8 @@ import { Logger, Module, type DynamicModule } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { BillingHistoryService } from './billing-history.service';
+import { BillingController } from './billing.controller';
 import { DevFakePaymentController } from './dev-fake-payment.controller';
 import { PAYMENT_GATEWAY } from './payment-gateway';
 import {
@@ -27,11 +29,13 @@ export class BillingModule {
         SubscriptionsController,
         SubscriptionPlansController,
         PaymentsController,
+        BillingController,
         ...(isFakePaymentEnabled(env) ? [DevFakePaymentController] : []),
       ],
       providers: [
         SubscriptionsService,
         PaymentsService,
+        BillingHistoryService,
         { provide: BILLING_FRONTEND_URL, useValue: frontendUrl(env) },
         {
           provide: PAYMENT_GATEWAY,

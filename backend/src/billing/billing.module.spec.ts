@@ -11,6 +11,7 @@ import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
+import { BillingController } from './billing.controller';
 import { PAYMENT_GATEWAY } from './payment-gateway';
 import { FakeGateway } from './fake.gateway';
 import { PayosGateway } from './payos.gateway';
@@ -28,6 +29,7 @@ describe('BE-BIL-12 BillingModule.register', () => {
       SubscriptionsController,
       SubscriptionPlansController,
       PaymentsController,
+      BillingController,
       DevFakePaymentController,
     ]);
   });
@@ -39,6 +41,7 @@ describe('BE-BIL-12 BillingModule.register', () => {
       SubscriptionsController,
       SubscriptionPlansController,
       PaymentsController,
+      BillingController,
     ]);
   });
 

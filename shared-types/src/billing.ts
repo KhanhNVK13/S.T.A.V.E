@@ -58,3 +58,59 @@ export type FakePaymentResult = (typeof FAKE_PAYMENT_RESULTS)[number];
 export interface PlanListItem extends SubscriptionPlan {
   isCurrent: boolean;
 }
+
+export type TransactionKind = "charge" | "refund" | "compensation";
+/** `incomplete` = still pending (shown the same whether or not the 30-minute window has passed). */
+export type TransactionDisplayStatus = "success" | "failed" | "incomplete";
+
+export interface TransactionHistoryItem {
+  id: string;
+  createdAt: string;
+  description: string | null;
+  amountVnd: number;
+  kind: TransactionKind;
+  displayStatus: TransactionDisplayStatus;
+  planName: string | null;
+  retryOf: { id: string; createdAt: string } | null;
+  hasOpenIssue: boolean;
+}
+
+/** GET /billing/transactions */
+export interface TransactionHistoryPage {
+  items: TransactionHistoryItem[];
+  nextCursor: string | null;
+}
+
+export interface TransactionDetails {
+  id: string;
+  createdAt: string;
+  description: string | null;
+  amountVnd: number;
+  kind: TransactionKind;
+  displayStatus: TransactionDisplayStatus;
+  planName: string | null;
+  orderCode: number | null;
+}
+
+/** GET /billing/transactions/:id/receipt — `receipt` is null when a receipt cannot be issued. */
+export interface TransactionReceipt {
+  available: boolean;
+  details: TransactionDetails;
+  receipt: {
+    orderCode: number;
+    createdAt: string;
+    planName: string;
+    amountVnd: number;
+    payerName: string | null;
+  } | null;
+}
+
+/** POST /billing/transactions/:id/issues */
+export interface PaymentIssueCreated {
+  id: string;
+  transactionId: string;
+  status: "open";
+  createdAt: string;
+}
+
+export const PAYMENT_ISSUE_DESCRIPTION_MAX = 500;

@@ -149,6 +149,12 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Could not read transactions": { en: "Couldn't load your transactions. Please try again.", vi: "Không tải được giao dịch. Hãy thử lại." },
   "Could not read your account": { en: "Couldn't load your account. Please try again.", vi: "Không tải được tài khoản của bạn. Hãy thử lại." },
   "Invalid webhook signature": { en: "Invalid payment notification.", vi: "Thông báo thanh toán không hợp lệ." },
+  "Transaction not found": { en: "Transaction not found. It may belong to another account.", vi: "Không tìm thấy giao dịch. Có thể giao dịch thuộc tài khoản khác." },
+  "This transaction already has an open issue": { en: "This transaction already has an issue being handled.", vi: "Giao dịch này đã có sự cố đang được xử lý." },
+  "Could not report the issue": { en: "Couldn't send the issue. Please try again.", vi: "Không gửi được sự cố. Hãy thử lại." },
+  "Could not read payment issues": { en: "Couldn't load payment issues. Please try again.", vi: "Không tải được sự cố thanh toán. Hãy thử lại." },
+  "Invalid cursor": { en: "The list is out of date. Reload the page.", vi: "Danh sách đã cũ. Hãy tải lại trang." },
+  "Description must be 1 to 500 characters": { en: "The description must be 1 to 500 characters.", vi: "Mô tả phải có từ 1 đến 500 ký tự." },
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
