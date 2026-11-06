@@ -80,7 +80,8 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
   });
 
   it('UTCID06 rejects missing name field', async () => {
-    const { name: _, ...withoutName } = baseDto;
+    const withoutName: Partial<typeof baseDto> = { ...baseDto };
+    delete withoutName.name;
     await expectValidationRejection(
       transform(withoutName),
       'Tên sự kiện không được để trống',
@@ -88,7 +89,8 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
   });
 
   it('UTCID07 rejects missing scheduledStartAt field', async () => {
-    const { scheduledStartAt: _, ...withoutStart } = baseDto;
+    const withoutStart: Partial<typeof baseDto> = { ...baseDto };
+    delete withoutStart.scheduledStartAt;
     await expectValidationRejection(
       transform(withoutStart),
       'Thời gian bắt đầu không được để trống',
@@ -103,7 +105,8 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
   });
 
   it('UTCID09 rejects missing scheduledEndAt field', async () => {
-    const { scheduledEndAt: _, ...withoutEnd } = baseDto;
+    const withoutEnd: Partial<typeof baseDto> = { ...baseDto };
+    delete withoutEnd.scheduledEndAt;
     await expectValidationRejection(
       transform(withoutEnd),
       'Thời gian kết thúc không được để trống',
