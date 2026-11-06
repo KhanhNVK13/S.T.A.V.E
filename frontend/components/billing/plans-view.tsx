@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Info, Receipt, RefreshCw, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
 import type { EffectiveSubscription, PlanFeatureKey, PlanListItem } from "@stave/shared-types";
-import { getMySubscription, listSubscriptionPlans } from "../../lib/api-billing";
+import { getMySubscription, listSubscriptionPlans, startCheckout } from "../../lib/api-billing";
+import { apiErrorMessage } from "../../lib/error-message";
 import { formatDate } from "../../lib/format-date";
 import { formatVnd } from "../../lib/format-vnd";
 import { planFeatureList } from "../../lib/plan-features";
@@ -12,17 +13,22 @@ import { useApiResource } from "../../lib/use-api-resource";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
+import { ConfirmDialog } from "../ui/confirm-dialog";
 import { PageHeader } from "../ui/page-header";
 
 interface PlansViewProps {
   feature: PlanFeatureKey | null;
   canceled: boolean;
+  returnTo: string | null;
 }
 
 const planAnchor = (planId: string) => `plan-${planId}`;
 
-export function PlansView({ feature, canceled }: PlansViewProps) {
+export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
   const [attempt, setAttempt] = useState(0);
+  const [upgradePlan, setUpgradePlan] = useState<PlanListItem | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const { data, loading, error } = useApiResource(
     () => Promise.all([listSubscriptionPlans(), getMySubscription()]),
     [attempt],
@@ -38,6 +44,24 @@ export function PlansView({ feature, canceled }: PlansViewProps) {
       .getElementById(planAnchor(highlightedPlanId))
       ?.scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
   }, [highlightedPlanId]);
+
+  function openUpgrade(plan: PlanListItem) {
+    setCheckoutError(null);
+    setUpgradePlan(plan);
+  }
+
+  async function confirmUpgrade() {
+    if (!upgradePlan) return;
+    setCheckoutLoading(true);
+    setCheckoutError(null);
+    try {
+      const { checkoutUrl } = await startCheckout(upgradePlan.id, returnTo);
+      window.location.assign(checkoutUrl);
+    } catch (err) {
+      setCheckoutError(apiErrorMessage(err, "Không tạo được đơn thanh toán."));
+      setCheckoutLoading(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
@@ -93,11 +117,35 @@ export function PlansView({ feature, canceled }: PlansViewProps) {
                 subscription={subscription}
                 feature={feature}
                 highlighted={plan.id === highlightedPlanId}
+                onUpgrade={openUpgrade}
               />
             </li>
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={upgradePlan !== null}
+        title={upgradePlan ? `Nâng cấp lên ${upgradePlan.name}` : ""}
+        message={
+          upgradePlan && (
+            <div className="space-y-2">
+              <p>
+                Bạn sẽ thanh toán <strong className="text-foreground">{formatVnd(upgradePlan.priceVnd)}</strong> cho 1 tháng
+                sử dụng, tính từ lúc thanh toán thành công.
+              </p>
+              <p>Huỷ bất cứ lúc nào: bạn vẫn dùng đến hết kỳ đã trả, không hoàn tiền.</p>
+              <p>Bạn sẽ được chuyển tới trang thanh toán.</p>
+            </div>
+          )
+        }
+        confirmLabel="Tiếp tục thanh toán"
+        cancelLabel="Để sau"
+        loading={checkoutLoading}
+        error={checkoutError}
+        onConfirm={() => void confirmUpgrade()}
+        onCancel={() => setUpgradePlan(null)}
+      />
     </div>
   );
 }
@@ -107,11 +155,13 @@ function PlanCard({
   subscription,
   feature,
   highlighted,
+  onUpgrade,
 }: {
   plan: PlanListItem;
   subscription: EffectiveSubscription;
   feature: PlanFeatureKey | null;
   highlighted: boolean;
+  onUpgrade: (plan: PlanListItem) => void;
 }) {
   const features = planFeatureList(plan.features);
   const onPaidPlan = subscription.hasPaidAccess;
@@ -165,8 +215,10 @@ function PlanCard({
       )}
 
       <div className="mt-auto flex flex-wrap gap-2 pt-5">
-        {/* TODO(P4): nối "Nâng cấp" với checkout. TODO(P6): nối "Đổi gói" / "Huỷ gói". */}
-        {!onPaidPlan && !plan.isCurrent && !plan.isDefault && <Button disabled>Nâng cấp lên {plan.name}</Button>}
+        {!onPaidPlan && !plan.isCurrent && !plan.isDefault && (
+          <Button onClick={() => onUpgrade(plan)}>Nâng cấp lên {plan.name}</Button>
+        )}
+        {/* TODO(P6): nối "Đổi gói" / "Huỷ gói". */}
         {onPaidPlan && !plan.isCurrent && <Button variant="secondary" disabled>Đổi gói</Button>}
         {onPaidPlan && plan.isCurrent && !subscription.cancelAtPeriodEnd && (
           <Button variant="secondary" disabled>
