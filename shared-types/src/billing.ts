@@ -114,3 +114,24 @@ export interface PaymentIssueCreated {
 }
 
 export const PAYMENT_ISSUE_DESCRIPTION_MAX = 500;
+
+export type PlanChangeKind = "upgrade" | "downgrade";
+
+/** GET /subscriptions/change-preview — what confirming the change will do. */
+export interface PlanChangePreview {
+  kind: PlanChangeKind;
+  planName: string;
+  chargeVnd: number;
+  effectiveAt: string | null;
+}
+
+/** POST /subscriptions/change */
+export type PlanChangeResult =
+  | { kind: "upgrade"; checkoutUrl: string; orderCode: number }
+  | { kind: "downgrade"; planName: string; scheduledAt: string | null };
+
+/** GET /subscriptions/cancel-preview */
+export interface CancelPreview {
+  endDate: string | null;
+  paidOnlySettings: string[];
+}

@@ -14,6 +14,7 @@ import {
 } from './payment-gateway.factory';
 import { PaymentsController } from './payments.controller';
 import { BILLING_FRONTEND_URL, PaymentsService } from './payments.service';
+import { SubscriptionChangesService } from './subscription-changes.service';
 import { SubscriptionPlansController } from './subscription-plans.controller';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
@@ -36,6 +37,7 @@ export class BillingModule {
         SubscriptionsService,
         PaymentsService,
         BillingHistoryService,
+        SubscriptionChangesService,
         { provide: BILLING_FRONTEND_URL, useValue: frontendUrl(env) },
         {
           provide: PAYMENT_GATEWAY,

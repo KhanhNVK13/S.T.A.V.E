@@ -20,6 +20,7 @@ import type {
 } from '@stave/shared-types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { formatVnd } from './billing-format';
 import { PLAN_COLUMNS, type PlanRow } from './effective-plan';
 import { PAYMENT_GATEWAY, type PaymentGateway } from './payment-gateway';
 import { isSafeReturnTo } from './return-to';
@@ -75,15 +76,6 @@ interface PayerRow {
   email: string | null;
   username: string | null;
   display_name: string | null;
-}
-
-const VND = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-});
-
-export function formatVnd(amount: number): string {
-  return VND.format(amount);
 }
 
 export function generateOrderCode(

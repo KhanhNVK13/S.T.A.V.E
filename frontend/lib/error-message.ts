@@ -155,6 +155,14 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Could not read payment issues": { en: "Couldn't load payment issues. Please try again.", vi: "Không tải được sự cố thanh toán. Hãy thử lại." },
   "Invalid cursor": { en: "The list is out of date. Reload the page.", vi: "Danh sách đã cũ. Hãy tải lại trang." },
   "Description must be 1 to 500 characters": { en: "The description must be 1 to 500 characters.", vi: "Mô tả phải có từ 1 đến 500 ký tự." },
+  "Could not update subscription": { en: "Couldn't save the change to your plan. Nothing was changed — please try again.", vi: "Không lưu được thay đổi gói. Chưa có gì thay đổi, hãy thử lại." },
+  "No active paid plan to change": { en: "Your plan changed in the meantime. Reload the page.", vi: "Gói của bạn vừa thay đổi. Hãy tải lại trang." },
+  "No plan change is scheduled": { en: "There is no scheduled plan change to cancel.", vi: "Không có lịch chuyển gói nào để huỷ." },
+  "No active paid plan to cancel": { en: "You don't have a renewing paid plan to cancel.", vi: "Bạn không có gói trả phí đang gia hạn để huỷ." },
+  "Only a canceled plan that is still running can be resumed": { en: "Only a canceled plan that is still running can be resumed. If it has ended, subscribe again.", vi: "Chỉ tiếp tục được gói đã huỷ nhưng còn hạn. Nếu gói đã hết hạn, hãy đăng ký lại." },
+  "Resume your plan before scheduling a change": { en: "Your plan is canceled. Resume it before scheduling a change.", vi: "Gói của bạn đã được huỷ. Hãy tiếp tục gói trước khi đặt lịch đổi gói." },
+  "Renew your plan before scheduling a change": { en: "Your paid period has ended. Renew it before scheduling a change.", vi: "Kỳ đã trả đã kết thúc. Hãy gia hạn trước khi đặt lịch đổi gói." },
+  "Could not read your theme": { en: "Couldn't load your theme settings. Please try again.", vi: "Không tải được thiết lập giao diện của bạn. Hãy thử lại." },
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
