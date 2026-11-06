@@ -10,8 +10,8 @@
  */
 "use client";
 
-import React from "react";
-import { GitCommitHorizontal } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { GitCommitHorizontal, RefreshCw } from "lucide-react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../../../lib/api-client";
 import { summarizeChanges } from "./change-summary";
@@ -32,6 +32,8 @@ interface CommitDialogProps {
   onMessageChange: (message: string) => void;
   onSubmit: (message: string) => void;
   onClose: () => void;
+  aiEnabled?: boolean;
+  onSuggestCommitMessage?: (signal: AbortSignal) => Promise<string | null>;
 }
 
 function countLabel(count: ChangeCount): string {
@@ -51,6 +53,8 @@ export function CommitDialog({
   onMessageChange,
   onSubmit,
   onClose,
+  aiEnabled = false,
+  onSuggestCommitMessage,
 }: CommitDialogProps) {
   const { t } = useI18n();
   const summary = headSnapshot ? summarizeChanges(headSnapshot, snapshot) : null;
@@ -60,6 +64,40 @@ export function CommitDialog({
     trimmed.length > 0 &&
     message.length <= COMMIT_MESSAGE_MAX_LENGTH &&
     !submitting;
+
+  const [aiBusy, setAiBusy] = useState(
+    () => aiEnabled && !!onSuggestCommitMessage && message.trim().length === 0,
+  );
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const controllerRef = useRef<AbortController | null>(null);
+  const userTypedRef = useRef(message.trim().length > 0);
+
+  function runSuggestion(refill: boolean) {
+    if (!onSuggestCommitMessage) return;
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    if (refill) setAiBusy(true);
+    void onSuggestCommitMessage(controller.signal)
+      .then((suggestion) => {
+        if (suggestion === null || controller.signal.aborted) return;
+        if (refill || !userTypedRef.current) {
+          onMessageChange(suggestion);
+          setAiSuggestion(suggestion);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!controller.signal.aborted) setAiBusy(false);
+      });
+  }
+
+  useEffect(() => {
+    if (!aiEnabled || !onSuggestCommitMessage) return;
+    if (!userTypedRef.current) runSuggestion(false);
+    return () => controllerRef.current?.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Modal title="Commit Changes" onClose={onClose} closeDisabled={submitting}>
@@ -127,7 +165,11 @@ export function CommitDialog({
           rows={3}
           placeholder={t("cd.placeholder")}
           aria-describedby="commit-message-hint"
-          onChange={(e) => onMessageChange(e.target.value)}
+          onChange={(e) => {
+            userTypedRef.current = true;
+            setAiSuggestion(null);
+            onMessageChange(e.target.value);
+          }}
           onKeyDown={(e) => {
             // Ctrl/Cmd+Enter gửi nhanh; Enter thường vẫn xuống dòng.
             if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSubmit) {
@@ -136,15 +178,46 @@ export function CommitDialog({
           }}
           style={styles.textarea}
         />
-        {trimmed.length === 0 && message.length > 0 ? (
+        {aiBusy ? (
+          <div id="commit-message-hint" style={styles.helper}>
+            {t("cd.aiBusy")}
+          </div>
+        ) : trimmed.length === 0 && message.length > 0 ? (
           <div id="commit-message-hint" style={styles.hint}>
             {t("cd.required")}
           </div>
         ) : (
           <div id="commit-message-hint" style={styles.helper}>
-            {trimmed.length === 0
-              ? t("cd.hintEmpty")
-              : t("cd.hintKeys")}
+            {aiEnabled && onSuggestCommitMessage && aiSuggestion === message ? (
+              <>
+                {t("cd.aiLabel")}{" "}
+                <button
+                  type="button"
+                  onClick={() => runSuggestion(true)}
+                  style={styles.retryBtn}
+                >
+                  <RefreshCw size={12} className="mr-0.5 inline" />
+                  {t("cd.aiRegenerate")}
+                </button>
+              </>
+            ) : (
+              <>
+                {aiEnabled && onSuggestCommitMessage && (
+                  <button
+                    type="button"
+                    onClick={() => runSuggestion(true)}
+                    style={styles.retryBtn}
+                  >
+                    <RefreshCw size={12} className="mr-0.5 inline" />
+                    {t("cd.aiSuggest")}
+                  </button>
+                )}
+                {aiEnabled && onSuggestCommitMessage && " "}
+                {trimmed.length === 0
+                  ? t("cd.hintEmpty")
+                  : t("cd.hintKeys")}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -233,4 +306,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hint: { marginTop: 6, fontSize: 12, color: DC.danger, fontWeight: 600 },
   helper: { marginTop: 6, fontSize: 12, color: DC.textMuted },
+  retryBtn: {
+    background: "none",
+    border: "none",
+    color: DC.accent,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: "pointer",
+    padding: 2,
+    marginLeft: 4,
+    borderRadius: 4,
+  },
 };
