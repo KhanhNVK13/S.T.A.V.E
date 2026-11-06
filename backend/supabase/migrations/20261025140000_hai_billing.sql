@@ -95,7 +95,9 @@ CREATE POLICY payment_issues_select_own
   ));
 
 -- UC-74: hoàn tất đơn theo order_code, idempotent (chỉ đơn còn 'pending' mới được xử lý).
--- Kích hoạt gói lỗi thì giao dịch vẫn 'success' và trả activated = false để backend ghi sự cố (5.E1).
+-- Kích hoạt gói lỗi thì giao dịch vẫn 'success' và tạo sự cố mở (5.E1).
+-- Cổng báo thành công cho đơn đã 'failed' thì không sửa giao dịch, chỉ tạo sự cố.
+-- Cùng gói còn hiệu lực (gia hạn) thì kỳ mới nối tiếp kỳ cũ; khác gói thì kỳ mới tính từ lúc này.
 CREATE OR REPLACE FUNCTION public.billing_complete_order(p_order_code bigint, p_success boolean)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -104,27 +106,44 @@ SET search_path = public
 AS $$
 DECLARE
   v_tx public.transactions%ROWTYPE;
+  v_sub public.subscriptions%ROWTYPE;
+  v_plan_name text;
   v_sub_id uuid;
+  v_period_start timestamptz;
   v_activated boolean := false;
   v_activation_error text;
+  v_issue_created boolean := false;
 BEGIN
   SELECT * INTO v_tx FROM public.transactions
   WHERE order_code = p_order_code AND status = 'pending'
   FOR UPDATE;
 
   IF NOT FOUND THEN
-    SELECT * INTO v_tx FROM public.transactions WHERE order_code = p_order_code;
+    SELECT * INTO v_tx FROM public.transactions WHERE order_code = p_order_code FOR UPDATE;
+    IF FOUND AND p_success AND v_tx.status = 'failed' THEN
+      INSERT INTO public.payment_issues (id, transaction_id, description, status, created_at)
+      VALUES (gen_random_uuid(), v_tx.id,
+              'Cổng thanh toán báo thành công sau khi giao dịch đã bị đánh dấu thất bại', 'open', now())
+      ON CONFLICT DO NOTHING;
+      v_issue_created := FOUND;
+    END IF;
+    SELECT name INTO v_plan_name FROM public.subscription_plans WHERE id = v_tx.plan_id;
     RETURN jsonb_build_object(
       'processed', false,
       'status', v_tx.status,
       'user_id', v_tx.user_id,
       'plan_id', v_tx.plan_id,
+      'plan_name', v_plan_name,
+      'amount_vnd', v_tx.amount_vnd,
       'transaction_id', v_tx.id,
       'subscription_id', null,
       'activated', null,
-      'activation_error', null
+      'activation_error', null,
+      'issue_created', v_issue_created
     );
   END IF;
+
+  SELECT name INTO v_plan_name FROM public.subscription_plans WHERE id = v_tx.plan_id;
 
   IF NOT p_success THEN
     UPDATE public.transactions SET status = 'failed' WHERE id = v_tx.id;
@@ -133,50 +152,73 @@ BEGIN
       'status', 'failed',
       'user_id', v_tx.user_id,
       'plan_id', v_tx.plan_id,
+      'plan_name', v_plan_name,
+      'amount_vnd', v_tx.amount_vnd,
       'transaction_id', v_tx.id,
       'subscription_id', null,
       'activated', false,
-      'activation_error', null
+      'activation_error', null,
+      'issue_created', false
     );
   END IF;
 
-  IF v_tx.user_id IS NOT NULL AND v_tx.plan_id IS NOT NULL THEN
-    BEGIN
-      INSERT INTO public.subscriptions AS s
-        (id, user_id, plan_id, status, price_locked_vnd, started_at, current_period_end,
-         pending_plan_id, grace_until, renewal_notified_at)
-      VALUES
-        (gen_random_uuid(), v_tx.user_id, v_tx.plan_id, 'active', v_tx.amount_vnd, now(),
-         now() + interval '1 month', NULL, NULL, NULL)
-      ON CONFLICT (user_id) DO UPDATE SET
-        plan_id = EXCLUDED.plan_id,
-        status = EXCLUDED.status,
-        price_locked_vnd = EXCLUDED.price_locked_vnd,
-        started_at = EXCLUDED.started_at,
-        current_period_end = EXCLUDED.current_period_end,
-        pending_plan_id = NULL,
-        grace_until = NULL,
-        renewal_notified_at = NULL
-      RETURNING s.id INTO v_sub_id;
-      v_activated := true;
-    EXCEPTION WHEN OTHERS THEN
-      v_sub_id := NULL;
-      v_activated := false;
-      v_activation_error := SQLERRM;
-    END;
-  END IF;
-
   UPDATE public.transactions SET status = 'success' WHERE id = v_tx.id;
+
+  BEGIN
+    IF v_tx.user_id IS NULL OR v_tx.plan_id IS NULL THEN
+      RAISE EXCEPTION 'transaction has no user or plan';
+    END IF;
+
+    SELECT * INTO v_sub FROM public.subscriptions WHERE user_id = v_tx.user_id FOR UPDATE;
+    v_period_start := now();
+    IF FOUND AND v_sub.plan_id = v_tx.plan_id
+       AND greatest(v_sub.current_period_end, coalesce(v_sub.grace_until, v_sub.current_period_end)) > now() THEN
+      v_period_start := greatest(now(), v_sub.current_period_end);
+    END IF;
+
+    INSERT INTO public.subscriptions AS s
+      (id, user_id, plan_id, status, price_locked_vnd, started_at, current_period_end,
+       pending_plan_id, grace_until, renewal_notified_at)
+    VALUES
+      (gen_random_uuid(), v_tx.user_id, v_tx.plan_id, 'active', v_tx.amount_vnd, now(),
+       v_period_start + interval '1 month', NULL, NULL, NULL)
+    ON CONFLICT (user_id) DO UPDATE SET
+      plan_id = EXCLUDED.plan_id,
+      status = EXCLUDED.status,
+      price_locked_vnd = EXCLUDED.price_locked_vnd,
+      started_at = CASE WHEN s.plan_id = EXCLUDED.plan_id AND v_period_start > now()
+                        THEN s.started_at ELSE EXCLUDED.started_at END,
+      current_period_end = EXCLUDED.current_period_end,
+      pending_plan_id = NULL,
+      grace_until = NULL,
+      renewal_notified_at = NULL
+    RETURNING s.id INTO v_sub_id;
+    v_activated := true;
+  EXCEPTION WHEN OTHERS THEN
+    v_sub_id := NULL;
+    v_activated := false;
+    v_activation_error := SQLERRM;
+  END;
+
+  IF NOT v_activated THEN
+    INSERT INTO public.payment_issues (id, transaction_id, description, status, created_at)
+    VALUES (gen_random_uuid(), v_tx.id, 'Thanh toán thành công nhưng chưa kích hoạt gói', 'open', now())
+    ON CONFLICT DO NOTHING;
+    v_issue_created := FOUND;
+  END IF;
 
   RETURN jsonb_build_object(
     'processed', true,
     'status', 'success',
     'user_id', v_tx.user_id,
     'plan_id', v_tx.plan_id,
+    'plan_name', v_plan_name,
+    'amount_vnd', v_tx.amount_vnd,
     'transaction_id', v_tx.id,
     'subscription_id', v_sub_id,
     'activated', v_activated,
-    'activation_error', v_activation_error
+    'activation_error', v_activation_error,
+    'issue_created', v_issue_created
   );
 END;
 $$;
