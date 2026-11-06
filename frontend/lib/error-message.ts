@@ -130,6 +130,12 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Không thể kết thúc sự kiện Jam đã bị hủy bỏ.": { en: "A cancelled Jam event can't be ended.", vi: "Không thể kết thúc sự kiện Jam đã bị hủy bỏ." },
   "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại.": { en: "Couldn't save the final track of the Jam event. Please try again.", vi: "Không thể lưu trữ bản nhạc cuối cùng của sự kiện Jam. Vui lòng thử lại." },
   "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau.": { en: "A system error occurred while updating the event status. Please try again later.", vi: "Lỗi hệ thống khi cập nhật trạng thái sự kiện. Vui lòng thử lại sau." },
+  "Order not found": { en: "Payment order not found. It may belong to another account.", vi: "Không tìm thấy đơn thanh toán. Có thể đơn thuộc tài khoản khác." },
+  "Could not read the order": { en: "Couldn't load the payment order. Please try again.", vi: "Không tải được đơn thanh toán. Hãy thử lại." },
+  "Could not complete the order": { en: "Couldn't record the payment result. Please try again.", vi: "Không ghi nhận được kết quả thanh toán. Hãy thử lại." },
+  "Could not read subscription": { en: "Couldn't load your current plan. Please try again.", vi: "Không tải được gói bạn đang dùng. Hãy thử lại." },
+  "Could not read plans": { en: "Couldn't load the plans. Please try again.", vi: "Không tải được danh sách gói. Hãy thử lại." },
+  "Default plan is not configured": { en: "The free plan isn't set up yet. Please contact an administrator.", vi: "Gói miễn phí chưa được thiết lập. Hãy liên hệ quản trị viên." },
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
