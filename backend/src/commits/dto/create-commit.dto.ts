@@ -52,7 +52,7 @@ export class DraftNoteDto {
   duration!: number;
 
   @IsInt()
-  @Min(0)
+  @Min(1)
   @Max(127)
   velocity!: number;
 }
@@ -147,6 +147,7 @@ export class DraftSnapshotDto {
   meta!: DraftMetaDto;
 
   @IsArray()
+  @ArrayMaxSize(32)
   @ValidateNested({ each: true })
   @Type(() => DraftTrackDto)
   tracks!: DraftTrackDto[];

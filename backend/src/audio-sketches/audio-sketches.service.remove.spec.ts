@@ -33,8 +33,8 @@ function makeService(options: SupabaseMockOptions) {
   return { service: new AudioSketchesService(mock.client), ...mock };
 }
 
-describe('AudioSketchesService.remove', () => {
-  it('deletes the row first and then the stored file', async () => {
+describe('BE-SKT-06 AudioSketchesService.remove', () => {
+  it('UTCID01 deletes the row first and then the stored file', async () => {
     const { service, builders, storage } = makeService({
       tables: {
         projects: [{ data: { owner_id: ownerId } }],
@@ -47,7 +47,7 @@ describe('AudioSketchesService.remove', () => {
     expect(storage.from).toHaveBeenCalledWith('audio-sketches');
   });
 
-  it('restores the entry and reports failure when the file cannot be removed', async () => {
+  it('UTCID02 restores the entry and reports failure when the file cannot be removed', async () => {
     const { service, builders } = makeService({
       tables: {
         projects: [{ data: { owner_id: ownerId } }],
@@ -69,7 +69,7 @@ describe('AudioSketchesService.remove', () => {
     expect(builders.audio_sketches.insert).toHaveBeenCalledWith(sketchRow);
   });
 
-  it('answers not found for a sketch that is not in the project', async () => {
+  it('UTCID03 answers not found for a sketch that is not in the project', async () => {
     const { service, builders } = makeService({
       tables: {
         projects: [{ data: { owner_id: ownerId } }],
@@ -82,7 +82,34 @@ describe('AudioSketchesService.remove', () => {
     expect(builders.audio_sketches.delete).not.toHaveBeenCalled();
   });
 
-  it('refuses a user who cannot edit the project', async () => {
+  it('UTCID04 reports internal server error when sketch row read fails', async () => {
+    const { service } = makeService({
+      tables: {
+        projects: [{ data: { owner_id: ownerId } }],
+        audio_sketches: [{ data: null, error: { message: 'read fail' } }],
+      },
+    });
+    await expect(service.remove(projectId, sketchId, ownerId)).rejects.toThrow(
+      new InternalServerErrorException('Could not read audio sketch'),
+    );
+  });
+
+  it('UTCID05 reports internal server error when sketch row delete fails', async () => {
+    const { service } = makeService({
+      tables: {
+        projects: [{ data: { owner_id: ownerId } }],
+        audio_sketches: [
+          { data: sketchRow },
+          { data: null, error: { message: 'delete fail' } },
+        ],
+      },
+    });
+    await expect(service.remove(projectId, sketchId, ownerId)).rejects.toThrow(
+      new InternalServerErrorException('Could not delete audio sketch'),
+    );
+  });
+
+  it('UTCID06 refuses a user who cannot edit the project', async () => {
     const { service, builders } = makeService({
       tables: {
         projects: [{ data: { owner_id: ownerId } }],
@@ -94,6 +121,28 @@ describe('AudioSketchesService.remove', () => {
       service.remove(projectId, sketchId, otherId),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(builders.audio_sketches.delete).not.toHaveBeenCalled();
+  });
+
+  it('UTCID07 logs error when restoring sketch fails after storage removal failure', async () => {
+    const { service, builders } = makeService({
+      tables: {
+        projects: [{ data: { owner_id: ownerId } }],
+        audio_sketches: [
+          { data: sketchRow },
+          { data: null, error: null },
+          { data: null, error: { message: 'insert fail' } },
+        ],
+      },
+      storage: {
+        'audio-sketches': {
+          remove: { data: null, error: { message: 'storage down' } },
+        },
+      },
+    });
+    await expect(
+      service.remove(projectId, sketchId, ownerId),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(builders.audio_sketches.insert).toHaveBeenCalledWith(sketchRow);
   });
 });
 
