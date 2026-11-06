@@ -99,7 +99,7 @@ function makeCtx2d() {
 }
 
 let uuidCounter = 0;
-const clipboardWriteText = vi.fn(async (_: string) => {});
+const clipboardWriteText = vi.fn(async () => {});
 
 beforeEach(() => {
   uuidCounter = 0;
@@ -1279,5 +1279,330 @@ describe("FE-EDT-12 handleMouseMove [resize drag]", () => {
     const n = r.onNotesChange.mock.calls.length;
     r.move(RX + 120, yOf(60));
     expect(r.onNotesChange.mock.calls.length).toBe(n);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// FE-EDT-13: PianoRoll eraser (UC-27)
+// ═════════════════════════════════════════════════════════════
+describe("FE-EDT-13 PianoRoll.handleMouseDown [eraser branch]", () => {
+  it("FE-EDT-13 UTCID01 (N): eraser click on a note deletes it", () => {
+    const r = renderRoll([note("a", { start: 480, duration: 480 })], { tool: "eraser" });
+    r.down(xOf(600), yOf(60));
+    expect(lastCall(r.onNotesChange)).toEqual([]);
+  });
+
+  it("FE-EDT-13 UTCID02 (N): right-click on a note also deletes it regardless of tool", () => {
+    const r = renderRoll([note("a", { start: 480, duration: 480 })], { tool: "pointer" });
+    r.down(xOf(600), yOf(60), { button: 2 });
+    expect(lastCall(r.onNotesChange)).toEqual([]);
+  });
+
+  it("FE-EDT-13 UTCID03 (N): eraser click on empty canvas does nothing", () => {
+    const r = renderRoll([note("a", { start: 480, duration: 480 })], { tool: "eraser" });
+    r.down(xOf(120), yOf(60));
+    expect(r.onNotesChange).not.toHaveBeenCalled();
+  });
+
+  it("FE-EDT-13 UTCID04 (N): eraser deletes only the clicked note and leaves others", () => {
+    const r = renderRoll(
+      [note("a", { start: 480, duration: 240 }), note("b", { start: 960, duration: 240 })],
+      { tool: "eraser" },
+    );
+    r.down(xOf(600), yOf(60));
+    const out = lastCall(r.onNotesChange);
+    expect(out.map((n) => n.id)).toEqual(["b"]);
+  });
+
+  it("FE-EDT-13 UTCID05 (N): eraser deletes note belonging to unselected track", () => {
+    const r = renderRoll(
+      [note("a", { start: 480, trackId: "t2" })],
+      { tool: "eraser", selectedTrackId: "t1" },
+    );
+    r.down(xOf(600), yOf(60));
+    expect(lastCall(r.onNotesChange)).toEqual([]);
+  });
+
+  it("FE-EDT-13 UTCID06 (A): frozen grid (isReadOnly) — eraser click on empty space warns", () => {
+    const r = renderRoll([note("a", { start: 480 })], { tool: "eraser", isReadOnly: true });
+    r.down(xOf(120), yOf(60));
+    expect(r.onNotesChange).not.toHaveBeenCalled();
+    expect(r.onNotify).toHaveBeenCalledWith(
+      "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+      "warning",
+    );
+  });
+
+  it("FE-EDT-13 UTCID07 (A): frozen grid (isReadOnly) — right-click warns and blocks delete", () => {
+    const r = renderRoll([note("a", { start: 480 })], { isReadOnly: true });
+    r.down(xOf(600), yOf(60), { button: 2 });
+    expect(r.onNotesChange).not.toHaveBeenCalled();
+    expect(r.onNotify).toHaveBeenCalledWith(
+      "Sự kiện đã kết thúc. Bạn không thể chỉnh sửa kết quả này.",
+      "warning",
+    );
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// FE-EDT-14: Delete/Backspace shortcuts (UC-27)
+// ═════════════════════════════════════════════════════════════
+describe("FE-EDT-14 MidiEditor [Delete/Backspace keys]", () => {
+  it("FE-EDT-14 UTCID01 (N): Delete key deletes selected notes and clears selection", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSelectedNotesChange", new Set(["a"]));
+    fireEvent.keyDown(window, { key: "Delete" });
+    expect(ed.props.snapshot.notes.map((n: DraftNote) => n.id)).toEqual(["b", "c"]);
+    expect(ed.props.selectedNoteIds.size).toBe(0);
+  });
+
+  it("FE-EDT-14 UTCID02 (N): Backspace key deletes selected notes and clears selection", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSelectedNotesChange", new Set(["b"]));
+    fireEvent.keyDown(window, { key: "Backspace" });
+    expect(ed.props.snapshot.notes.map((n: DraftNote) => n.id)).toEqual(["a", "c"]);
+    expect(ed.props.selectedNoteIds.size).toBe(0);
+  });
+
+  it("FE-EDT-14 UTCID03 (N): Delete key with no selected notes does not alter notes", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSelectedNotesChange", new Set());
+    fireEvent.keyDown(window, { key: "Delete" });
+    expect(ed.props.snapshot.notes.length).toBe(3);
+  });
+
+  it("FE-EDT-14 UTCID04 (A): Delete key inside an input element does not delete notes", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSelectedNotesChange", new Set(["a"]));
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: "Delete" });
+    expect(ed.props.snapshot.notes.length).toBe(3);
+    document.body.removeChild(input);
+  });
+
+  it("FE-EDT-14 UTCID05 (A): Delete key inside a textarea element does not delete notes", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSelectedNotesChange", new Set(["a"]));
+    const textarea = document.createElement("textarea");
+    document.body.appendChild(textarea);
+    fireEvent.keyDown(textarea, { key: "Delete" });
+    expect(ed.props.snapshot.notes.length).toBe(3);
+    document.body.removeChild(textarea);
+  });
+
+  it("FE-EDT-14 UTCID06 (N): Escape key clears selected notes without deleting", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSelectedNotesChange", new Set(["a", "b"]));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(ed.props.snapshot.notes.length).toBe(3);
+    expect(ed.props.selectedNoteIds.size).toBe(0);
+  });
+
+  it("FE-EDT-14 UTCID07 (A): Delete key does nothing when modifier key (Ctrl/Cmd) is held", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSelectedNotesChange", new Set(["a"]));
+    fireEvent.keyDown(window, { key: "Delete", ctrlKey: true });
+    expect(ed.props.snapshot.notes.length).toBe(3);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// FE-EDT-15: handleAddTrack (UC-28)
+// ═════════════════════════════════════════════════════════════
+describe("FE-EDT-15 MidiEditor.handleAddTrack", () => {
+  it("FE-EDT-15 UTCID01 (N): adds track with sequential name, volume 1, pan 0, instrument null", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onAddTrack");
+    const tracks = ed.props.snapshot.tracks;
+    expect(tracks).toHaveLength(3);
+    const added = tracks[2];
+    expect(added.name).toBe("Track 3");
+    expect(added.order).toBe(2);
+    expect(added.volume).toBe(1);
+    expect(added.pan).toBe(0);
+    expect(added.instrument).toBeNull();
+  });
+
+  it("FE-EDT-15 UTCID02 (N): selects the newly added track", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onAddTrack");
+    const addedId = ed.props.snapshot.tracks[2].id;
+    expect(ed.props.selectedTrackId).toBe(addedId);
+  });
+
+  it("FE-EDT-15 UTCID03 (N): assigns color distinct from existing colors", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onAddTrack");
+    const added = ed.props.snapshot.tracks[2];
+    expect(added.color).toBeDefined();
+    expect(typeof added.color).toBe("string");
+  });
+
+  it("FE-EDT-15 UTCID04 (B): at 32 tracks (MAX_TRACKS boundary), adding track is rejected", async () => {
+    const maxTracksSnap = snap({
+      tracks: Array.from({ length: 32 }, (_, i) => track(`t${i}`, i)),
+      notes: [],
+    });
+    const ed = await renderEditor(maxTracksSnap);
+    ed.call("onAddTrack");
+    expect(ed.props.snapshot.tracks).toHaveLength(32);
+  });
+
+  it("FE-EDT-15 UTCID05 (B): at 32 tracks, triggers track limit warning", async () => {
+    const maxTracksSnap = snap({
+      tracks: Array.from({ length: 32 }, (_, i) => track(`t${i}`, i)),
+      notes: [],
+    });
+    const ed = await renderEditor(maxTracksSnap);
+    ed.call("onAddTrack");
+    expect(ed.props.trackLimitWarning).toBe(true);
+  });
+
+  it("FE-EDT-15 UTCID06 (B): track limit warning auto-dismisses after 3 seconds", async () => {
+    const maxTracksSnap = snap({
+      tracks: Array.from({ length: 32 }, (_, i) => track(`t${i}`, i)),
+      notes: [],
+    });
+    const ed = await renderEditor(maxTracksSnap);
+    vi.useFakeTimers();
+    ed.call("onAddTrack");
+    expect(ed.props.trackLimitWarning).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(ed.props.trackLimitWarning).toBe(false);
+    vi.useRealTimers();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// FE-EDT-16: handleSetTrackVolume (UC-40)
+// ═════════════════════════════════════════════════════════════
+describe("FE-EDT-16 MidiEditor.handleSetTrackVolume", () => {
+  it("FE-EDT-16 UTCID01 (N): sets valid volume within range (0.7)", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackVolume", "t1", 0.7);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.volume).toBe(0.7);
+  });
+
+  it("FE-EDT-16 UTCID02 (B): sets volume to minimum boundary 0", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackVolume", "t1", 0);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.volume).toBe(0);
+  });
+
+  it("FE-EDT-16 UTCID03 (B): sets volume to maximum boundary 1", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackVolume", "t1", 1);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.volume).toBe(1);
+  });
+
+  it("FE-EDT-16 UTCID04 (B): clamps negative volume to 0", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackVolume", "t1", -0.5);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.volume).toBe(0);
+  });
+
+  it("FE-EDT-16 UTCID05 (B): clamps volume > 1 to 1", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackVolume", "t1", 1.8);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.volume).toBe(1);
+  });
+
+  it("FE-EDT-16 UTCID06 (N): leaves other tracks' volume unchanged", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackVolume", "t1", 0.3);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t2")?.volume).toBe(1);
+  });
+
+  it("FE-EDT-16 UTCID07 (A): does not affect tracks if trackId does not match", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackVolume", "non-existent", 0.5);
+    expect(ed.props.snapshot.tracks.map((t: DraftTrack) => t.volume)).toEqual([1, 1]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// FE-EDT-17: handleSetTrackPan (UC-41)
+// ═════════════════════════════════════════════════════════════
+describe("FE-EDT-17 MidiEditor.handleSetTrackPan", () => {
+  it("FE-EDT-17 UTCID01 (N): sets valid pan within range (0.5)", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackPan", "t1", 0.5);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.pan).toBe(0.5);
+  });
+
+  it("FE-EDT-17 UTCID02 (B): sets pan to minimum boundary -1 (full left)", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackPan", "t1", -1);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.pan).toBe(-1);
+  });
+
+  it("FE-EDT-17 UTCID03 (B): sets pan to maximum boundary 1 (full right)", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackPan", "t1", 1);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.pan).toBe(1);
+  });
+
+  it("FE-EDT-17 UTCID04 (B): sets pan to center 0", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackPan", "t1", 0);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.pan).toBe(0);
+  });
+
+  it("FE-EDT-17 UTCID05 (B): clamps pan < -1 to -1", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackPan", "t1", -1.5);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.pan).toBe(-1);
+  });
+
+  it("FE-EDT-17 UTCID06 (B): clamps pan > 1 to 1", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackPan", "t1", 2.0);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.pan).toBe(1);
+  });
+
+  it("FE-EDT-17 UTCID07 (N): leaves other tracks' pan unchanged", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackPan", "t1", -0.4);
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t2")?.pan).toBe(0);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// FE-EDT-18: handleSetTrackColor (UC-34)
+// ═════════════════════════════════════════════════════════════
+describe("FE-EDT-18 MidiEditor.handleSetTrackColor", () => {
+  it("FE-EDT-18 UTCID01 (N): sets valid hex color (#ef4444)", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackColor", "t1", "#ef4444");
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.color).toBe("#ef4444");
+  });
+
+  it("FE-EDT-18 UTCID02 (N): sets another valid hex color (#10b981)", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackColor", "t1", "#10b981");
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.color).toBe("#10b981");
+  });
+
+  it("FE-EDT-18 UTCID03 (N): stores non-hex color string as-is without client-side check", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    ed.call("onSetTrackColor", "t1", "red");
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t1")?.color).toBe("red");
+  });
+
+  it("FE-EDT-18 UTCID04 (N): leaves other tracks' color unchanged", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    const originalColorT2 = ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t2")?.color;
+    ed.call("onSetTrackColor", "t1", "#3b82f6");
+    expect(ed.props.snapshot.tracks.find((t: DraftTrack) => t.id === "t2")?.color).toBe(originalColorT2);
+  });
+
+  it("FE-EDT-18 UTCID05 (A): does not affect tracks if trackId does not match", async () => {
+    const ed = await renderEditor(twoTrackSnap());
+    const originalTracks = ed.props.snapshot.tracks;
+    ed.call("onSetTrackColor", "non-existent", "#3b82f6");
+    expect(ed.props.snapshot.tracks).toEqual(originalTracks);
   });
 });

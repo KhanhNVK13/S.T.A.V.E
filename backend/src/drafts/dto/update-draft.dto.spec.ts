@@ -132,7 +132,7 @@ describe('BE-DRF-03 DraftTrackDto.validate(dto)', () => {
     );
   });
 
-  it.failing('UTCID09 (A) rejects volume 1.5 [DFID003]', async () => {
+  it('UTCID09 (A) rejects volume 1.5', async () => {
     // DEFECT (BR-38): DTO chỉ có @IsNumber, chưa chặn volume > 1.
     const messages = await validationMessages(
       validate(DraftTrackDto, { ...validTrack(), volume: 1.5 }),
@@ -141,7 +141,7 @@ describe('BE-DRF-03 DraftTrackDto.validate(dto)', () => {
     expect(messages).toContain('volume must not be greater than 1');
   });
 
-  it.failing('UTCID10 (A) rejects pan -1.5 [DFID004]', async () => {
+  it('UTCID10 (A) rejects pan -1.5', async () => {
     // DEFECT (BR-38): DTO chỉ có @IsNumber, chưa chặn pan < -1.
     const messages = await validationMessages(
       validate(DraftTrackDto, { ...validTrack(), pan: -1.5 }),
@@ -208,7 +208,7 @@ describe('BE-DRF-04 DraftNoteDto.validate(dto)', () => {
     expect(messages).toContain('pitch must not be greater than 127');
   });
 
-  it.failing('UTCID08 (A) rejects velocity 0 [DFID007]', async () => {
+  it('UTCID08 (A) rejects velocity 0', async () => {
     // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn velocity < 1.
     const messages = await validationMessages(
       validate(DraftNoteDto, { ...validNote(), velocity: 0 }),
@@ -229,7 +229,7 @@ describe('BE-DRF-04 DraftNoteDto.validate(dto)', () => {
     );
   });
 
-  it.failing('UTCID11 (A) rejects velocity 128 [DFID008]', async () => {
+  it('UTCID11 (A) rejects velocity 128', async () => {
     // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn velocity > 127.
     const messages = await validationMessages(
       validate(DraftNoteDto, { ...validNote(), velocity: 128 }),
@@ -238,7 +238,7 @@ describe('BE-DRF-04 DraftNoteDto.validate(dto)', () => {
     expect(messages).toContain('velocity must not be greater than 127');
   });
 
-  it.failing('UTCID12 (A) rejects start -1 [DFID009]', async () => {
+  it('UTCID12 (A) rejects start -1', async () => {
     // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn start < 0.
     const messages = await validationMessages(
       validate(DraftNoteDto, { ...validNote(), start: -1 }),
@@ -253,7 +253,7 @@ describe('BE-DRF-04 DraftNoteDto.validate(dto)', () => {
     );
   });
 
-  it.failing('UTCID14 (A) rejects duration 0 [DFID010]', async () => {
+  it('UTCID14 (A) rejects duration 0', async () => {
     // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn duration < 1.
     const messages = await validationMessages(
       validate(DraftNoteDto, { ...validNote(), duration: 0 }),
@@ -383,20 +383,15 @@ describe('BE-DRF-05 UpdateDraftDto.validate(dto)', () => {
     );
   });
 
-  it.failing(
-    'UTCID12 (A) rejects a note with velocity 128 [DFID011]',
-    async () => {
-      // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn velocity > 127.
-      const messages = await validationMessages(
-        validate(UpdateDraftDto, {
-          ...validDraftDto(),
-          notes: [{ ...validNote(), velocity: 128 }],
-        }),
-      );
+  it('UTCID12 (A) rejects a note with velocity 128', async () => {
+    // DEFECT (BR-27): DTO chỉ kiểm tra integer, chưa chặn velocity > 127.
+    const messages = await validationMessages(
+      validate(UpdateDraftDto, {
+        ...validDraftDto(),
+        notes: [{ ...validNote(), velocity: 128 }],
+      }),
+    );
 
-      expect(messages).toContain(
-        'notes.0.velocity must not be greater than 127',
-      );
-    },
-  );
+    expect(messages).toContain('notes.0.velocity must not be greater than 127');
+  });
 });

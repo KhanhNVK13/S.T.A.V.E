@@ -726,29 +726,14 @@ describe('BE-CMT-03 CommitsService.getCommitById', () => {
     );
   });
 
-  it('BE-CMT-03 UTCID07 (A): returns the commit without an ownership check when the row has no branch join', async () => {
+  it('BE-CMT-03 UTCID07 (A): throws NotFoundException when the commit row has no branch join', async () => {
     const { service } = buildService({
       commits: [{ data: commitRow('c1', { branch: null }) }],
-      commit_tags: [{ data: [] }],
-      users: [
-        {
-          data: [
-            {
-              id: USER,
-              username: 'alice',
-              display_name: 'Alice',
-              avatar_url: null,
-            },
-          ],
-        },
-      ],
     });
 
-    const result = await service.getCommitById('c1', USER);
-
-    expect(result.id).toBe('c1');
-    expect(result.author.username).toBe('alice');
-    expect(result.tags).toEqual([]);
+    await expect(service.getCommitById('c1', USER)).rejects.toThrow(
+      new NotFoundException('Commit not found'),
+    );
   });
 
   it('BE-CMT-03 UTCID08 (N): allows a collaborator to read a commit of the project', async () => {

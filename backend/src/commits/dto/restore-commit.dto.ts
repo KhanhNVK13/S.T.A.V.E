@@ -1,4 +1,10 @@
-import { IsUUID, IsString, IsOptional, MaxLength } from 'class-validator';
+import {
+  IsUUID,
+  IsString,
+  IsOptional,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 /**
  * UC-46: Restore Previous Version DTO
@@ -13,6 +19,7 @@ export class RestoreCommitDto {
 
   @IsOptional()
   @IsString({ message: 'Message must be a string' })
+  @MinLength(1, { message: 'Message must be at least 1 character' })
   @MaxLength(200, { message: 'Message must not exceed 200 characters' })
   message?: string;
 }
