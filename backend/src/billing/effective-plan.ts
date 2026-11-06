@@ -1,5 +1,6 @@
 import type {
   EffectiveSubscriptionStatus,
+  PlanListItem,
   SubscriptionPlan,
 } from '@stave/shared-types';
 
@@ -95,4 +96,22 @@ export function toSubscriptionPlan(row: PlanRow): SubscriptionPlan {
     sortOrder: row.sort_order,
     priceEffectiveAt: row.price_effective_at,
   };
+}
+
+export function listVisiblePlans(
+  plans: readonly PlanRow[],
+  currentPlanId: string,
+): PlanListItem[] {
+  return plans
+    .filter((plan) => plan.is_active || plan.id === currentPlanId)
+    .sort(
+      (a, b) =>
+        a.sort_order - b.sort_order ||
+        a.price_vnd - b.price_vnd ||
+        a.name.localeCompare(b.name),
+    )
+    .map((plan) => ({
+      ...toSubscriptionPlan(plan),
+      isCurrent: plan.id === currentPlanId,
+    }));
 }

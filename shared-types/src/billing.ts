@@ -43,3 +43,8 @@ export interface PaymentOrder {
 
 export const FAKE_PAYMENT_RESULTS = ["success", "fail", "cancel"] as const;
 export type FakePaymentResult = (typeof FAKE_PAYMENT_RESULTS)[number];
+
+/** GET /subscription-plans — active plans plus the caller's current plan when it was deactivated. */
+export interface PlanListItem extends SubscriptionPlan {
+  isCurrent: boolean;
+}

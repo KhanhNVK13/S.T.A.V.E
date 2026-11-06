@@ -9,6 +9,7 @@ import {
   type BillingEnv,
 } from './payment-gateway.factory';
 import { PaymentsService } from './payments.service';
+import { SubscriptionPlansController } from './subscription-plans.controller';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -20,6 +21,7 @@ export class BillingModule {
       global: true,
       controllers: [
         SubscriptionsController,
+        SubscriptionPlansController,
         ...(isFakePaymentEnabled(env) ? [DevFakePaymentController] : []),
       ],
       providers: [

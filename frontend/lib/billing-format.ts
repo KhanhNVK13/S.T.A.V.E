@@ -1,11 +1,3 @@
-import { APP_LOCALE } from "./format-date";
-
-const VND = new Intl.NumberFormat(APP_LOCALE, { style: "currency", currency: "VND" });
-
-export function formatVnd(amount: number): string {
-  return VND.format(amount);
-}
-
 export function isFakePaymentPageEnabled(nodeEnv: string | undefined, provider: string | undefined): boolean {
   return nodeEnv !== "production" && provider?.trim().toLowerCase() === "fake";
 }

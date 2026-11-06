@@ -4,14 +4,16 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { EffectiveSubscription } from '@stave/shared-types';
+import type { EffectiveSubscription, PlanListItem } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import {
   PLAN_COLUMNS,
   SUBSCRIPTION_COLUMNS,
+  listVisiblePlans,
   resolveEffectivePlan,
   toSubscriptionPlan,
   type PlanRow,
+  type ResolvedPlan,
   type SubscriptionRow,
 } from './effective-plan';
 
@@ -26,6 +28,28 @@ export class SubscriptionsService {
     userId: string,
     now: Date = new Date(),
   ): Promise<EffectiveSubscription> {
+    const { resolved } = await this.loadState(userId, now);
+    return {
+      ...resolved,
+      plan: toSubscriptionPlan(resolved.plan),
+      pendingPlan: resolved.pendingPlan
+        ? toSubscriptionPlan(resolved.pendingPlan)
+        : null,
+    };
+  }
+
+  async listPlans(
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<PlanListItem[]> {
+    const { plans, resolved } = await this.loadState(userId, now);
+    return listVisiblePlans(plans, resolved.plan.id);
+  }
+
+  private async loadState(
+    userId: string,
+    now: Date,
+  ): Promise<{ plans: PlanRow[]; resolved: ResolvedPlan }> {
     const [subResult, plansResult] = await Promise.all([
       this.supabase
         .from('subscriptions')
@@ -56,12 +80,6 @@ export class SubscriptionsService {
       defaultPlan,
       now,
     );
-    return {
-      ...resolved,
-      plan: toSubscriptionPlan(resolved.plan),
-      pendingPlan: resolved.pendingPlan
-        ? toSubscriptionPlan(resolved.pendingPlan)
-        : null,
-    };
+    return { plans, resolved };
   }
 }

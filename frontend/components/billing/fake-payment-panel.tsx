@@ -6,10 +6,9 @@ import { useRouter } from "next/navigation";
 import { CircleCheck, CircleX, FlaskConical, Loader2, RefreshCw, TriangleAlert, Undo2 } from "lucide-react";
 import type { FakePaymentResult } from "@stave/shared-types";
 import { getFakePaymentOrder, submitFakePaymentResult } from "../../lib/api-billing";
-import { formatVnd } from "../../lib/billing-format";
+import { formatVnd } from "../../lib/format-vnd";
 import { apiErrorMessage } from "../../lib/error-message";
 import { useApiResource } from "../../lib/use-api-resource";
-import { useT } from "../../context/i18n-context";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -19,7 +18,6 @@ const STATUS_LABEL = { pending: "Đang chờ thanh toán", success: "Thành côn
 const STATUS_VARIANT = { pending: "warning", success: "success", failed: "danger" } as const;
 
 export function FakePaymentPanel({ orderCode }: { orderCode: number | null }) {
-  const t = useT();
   const router = useRouter();
   const [attempt, setAttempt] = useState(0);
   const [submitting, setSubmitting] = useState<FakePaymentResult | null>(null);
@@ -62,7 +60,7 @@ export function FakePaymentPanel({ orderCode }: { orderCode: number | null }) {
         </Card>
       ) : loading ? (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted">
-          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-accent" /> {t("ui.loading")}
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-accent" /> Đang tải…
         </div>
       ) : error || !order ? (
         <Card className="p-5" role="alert">
@@ -71,7 +69,7 @@ export function FakePaymentPanel({ orderCode }: { orderCode: number | null }) {
           </p>
           <div className="mt-3 flex gap-2">
             <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
-              <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> {t("ui.retry")}
+              <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> Thử lại
             </Button>
             <Link href="/plans" className="inline-flex items-center text-sm text-accent hover:underline">
               Quay lại trang gói dịch vụ

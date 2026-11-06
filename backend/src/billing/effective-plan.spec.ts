@@ -1,4 +1,5 @@
 import {
+  listVisiblePlans,
   resolveEffectivePlan,
   toSubscriptionPlan,
   type PlanRow,
@@ -156,5 +157,49 @@ describe('BE-BIL-02 toSubscriptionPlan', () => {
       sortOrder: 1,
       priceEffectiveAt: null,
     });
+  });
+});
+
+describe('BE-BIL-16 listVisiblePlans', () => {
+  const premium: PlanRow = {
+    ...plus,
+    id: 'premium',
+    name: 'Premium',
+    price_vnd: 99000,
+    sort_order: 2,
+  };
+  const all = [premium, retired, plus, free];
+
+  it('UTCID01 lists active plans by sort order and marks the current plan', () => {
+    const result = listVisiblePlans(all, 'free');
+    expect(result.map((p) => p.id)).toEqual(['free', 'plus', 'premium']);
+    expect(result.map((p) => p.isCurrent)).toEqual([true, false, false]);
+  });
+
+  it('UTCID02 keeps a deactivated plan only for the user still on it', () => {
+    const result = listVisiblePlans(all, 'retired');
+    expect(result.map((p) => p.id)).toEqual([
+      'free',
+      'retired',
+      'plus',
+      'premium',
+    ]);
+    expect(result.find((p) => p.id === 'retired')).toMatchObject({
+      isActive: false,
+      isCurrent: true,
+    });
+  });
+
+  it('UTCID03 never shows a deactivated plan to other users', () => {
+    expect(listVisiblePlans(all, 'plus').map((p) => p.id)).not.toContain(
+      'retired',
+    );
+  });
+
+  it('UTCID04 breaks sort order ties by price', () => {
+    const tie = { ...premium, sort_order: 1, price_vnd: 10000, id: 'cheap' };
+    expect(
+      listVisiblePlans([plus, tie, free], 'free').map((p) => p.id),
+    ).toEqual(['free', 'cheap', 'plus']);
   });
 });

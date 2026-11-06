@@ -117,3 +117,52 @@ describe('BE-BIL-09 SubscriptionsService.getEffective', () => {
     );
   });
 });
+
+describe('BE-BIL-17 SubscriptionsService.listPlans', () => {
+  const retired: PlanRow = { ...plus, id: 'retired', is_active: false };
+
+  it('UTCID01 includes the deactivated plan the user still has', async () => {
+    const { service } = makeService(
+      { data: { ...subscription, plan_id: 'retired' }, error: null },
+      { data: [plus, retired, free], error: null },
+    );
+    const result = await service.listPlans(userId, NOW);
+    expect(result.map((p) => [p.id, p.isCurrent])).toEqual([
+      ['free', false],
+      ['plus', false],
+      ['retired', true],
+    ]);
+  });
+
+  it('UTCID02 marks the free plan as current for a user without a subscription', async () => {
+    const { service } = makeService(
+      { data: null, error: null },
+      { data: [plus, retired, free], error: null },
+    );
+    const result = await service.listPlans(userId, NOW);
+    expect(result.map((p) => [p.id, p.isCurrent])).toEqual([
+      ['free', true],
+      ['plus', false],
+    ]);
+  });
+
+  it('UTCID03 throws instead of returning a partial list when plans cannot be read', async () => {
+    const { service } = makeService(
+      { data: null, error: null },
+      { data: null, error: { message: 'down' } },
+    );
+    await expect(service.listPlans(userId, NOW)).rejects.toThrow(
+      'Could not read plans',
+    );
+  });
+
+  it('UTCID04 throws when the subscription cannot be read', async () => {
+    const { service } = makeService(
+      { data: null, error: { message: 'down' } },
+      { data: [free], error: null },
+    );
+    await expect(service.listPlans(userId, NOW)).rejects.toThrow(
+      'Could not read subscription',
+    );
+  });
+});

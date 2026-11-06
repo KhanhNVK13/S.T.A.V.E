@@ -5,6 +5,7 @@ import { validate } from 'class-validator';
 import { BillingModule } from './billing.module';
 import { DevFakePaymentController } from './dev-fake-payment.controller';
 import { FakePaymentResultParamsDto } from './dto/fake-payment.dto';
+import { SubscriptionPlansController } from './subscription-plans.controller';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 import { PaymentsService } from './payments.service';
@@ -21,13 +22,17 @@ describe('BE-BIL-12 BillingModule.register', () => {
   it('UTCID01 registers the fake payment controller for PAYMENT_PROVIDER=fake outside production', () => {
     expect(
       controllersFor({ PAYMENT_PROVIDER: 'fake', NODE_ENV: 'development' }),
-    ).toEqual([SubscriptionsController, DevFakePaymentController]);
+    ).toEqual([
+      SubscriptionsController,
+      SubscriptionPlansController,
+      DevFakePaymentController,
+    ]);
   });
 
   it('UTCID02 never registers the fake payment controller in production', () => {
     expect(
       controllersFor({ PAYMENT_PROVIDER: 'fake', NODE_ENV: 'production' }),
-    ).toEqual([SubscriptionsController]);
+    ).toEqual([SubscriptionsController, SubscriptionPlansController]);
   });
 
   it('UTCID03 does not register it for PayOS or when PAYMENT_PROVIDER is not set', () => {
