@@ -487,3 +487,4 @@ export type * from "./collaboration";
 export type * from "./comments";
 // Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
 export type * from "./jam";
+export * from "./billing";
