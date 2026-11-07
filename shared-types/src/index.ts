@@ -487,3 +487,25 @@ export type * from "./collaboration";
 export type * from "./comments";
 // Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
 export type * from "./jam";
+
+export const ACTIVITY_TYPES = [
+  "signin",
+  "projects",
+  "subscription",
+  "community",
+] as const;
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+export interface ActivityItem {
+  id: string;
+  action: string;
+  targetType: string | null;
+  targetName: string | null;
+  targetDeleted: boolean;
+  occurredAt: string;
+  ipMasked: string | null;
+  locationApprox: null;
+}
+export interface ActivityPage {
+  items: ActivityItem[];
+  nextCursor: string | null;
+}
