@@ -13,6 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import { chromium } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
+import { randomUUID } from "node:crypto";
 
 const FRONTEND = process.env.FRONTEND_URL ?? "http://localhost:3000";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:3001";
@@ -24,7 +25,7 @@ const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshSession: false, persistSession: false },
 });
 
-const PASSWORD = "Verify-Password-123!";
+const PASSWORD = randomUUID();
 const BASE = [
   { id: "c1", pitch: 60, start: 3840 },
   { id: "c2", pitch: 64, start: 13440 },
