@@ -487,3 +487,56 @@ export type * from "./collaboration";
 export type * from "./comments";
 // Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
 export type * from "./jam";
+
+// Moderation reports (UC-101) — shapes shared with `backend/src/reports/`.
+export const REPORT_DETAILS_MAX_LENGTH = 500;
+
+export const REPORT_STATUS_FILTERS = ["open", "upheld", "dismissed"] as const;
+export type ReportStatusFilter = (typeof REPORT_STATUS_FILTERS)[number];
+
+export type ReportResolution = "upheld" | "dismissed";
+
+export interface ReportGroup {
+  /** `null` only for reports whose project row no longer exists. */
+  projectId: string | null;
+  projectName: string | null;
+  projectExists: boolean;
+  ownerDisplayName: string | null;
+  reportCount: number;
+  reasons: { reason: ReportReason; count: number }[];
+  latestAt: string;
+  resolution?: ReportResolution;
+  resolutionNote?: string | null;
+  resolvedAt?: string | null;
+}
+
+export interface ReportDetail {
+  id: string;
+  reason: ReportReason;
+  details: string | null;
+  createdAt: string;
+  /** Only ever present on the admin detail endpoint. */
+  reporter: { id: string; displayName: string | null } | null;
+  status: "pending" | "resolved";
+  resolution: ReportResolution | null;
+}
+
+/** Metadata only: never carries note content. */
+export interface ReportPreview {
+  project: { id: string; name: string; description: string | null; genre: string | null };
+  hasCommit: boolean;
+  trackCount: number;
+  noteCount: number;
+  tracks: { name: string; instrument: string | null }[];
+}
+
+export interface AdminReportListResponse {
+  items: ReportGroup[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CreateReportResponse {
+  id: string;
+}
