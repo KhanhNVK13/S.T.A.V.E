@@ -509,3 +509,160 @@ export interface ActivityPage {
   items: ActivityItem[];
   nextCursor: string | null;
 }
+
+export type SettingType = "number" | "boolean";
+export type SettingUnit = "bytes" | "days" | "seconds";
+export type SettingGroup = "limits" | "community" | "registration" | "retention";
+export type SettingValue = number | boolean;
+export interface SettingDef {
+  key: string;
+  group: SettingGroup;
+  type: SettingType;
+  min?: number;
+  max?: number;
+  default: SettingValue;
+  unit?: SettingUnit;
+}
+
+export const BYTES_PER_MB = 1024 * 1024;
+export const CUSTOM_SOUND_QUOTA_KEY = "custom_sound_quota_bytes";
+
+export const PLATFORM_SETTING_CATALOG: SettingDef[] = [
+  {
+    key: CUSTOM_SOUND_QUOTA_KEY,
+    group: "limits",
+    type: "number",
+    min: 5 * BYTES_PER_MB,
+    max: 1024 * BYTES_PER_MB,
+    default: 50 * BYTES_PER_MB,
+    unit: "bytes",
+  },
+  { key: "price_change_notice_days", group: "limits", type: "number", min: 1, max: 60, default: 7, unit: "days" },
+  { key: "jam_edit_cooldown_sec", group: "community", type: "number", min: 1, max: 3600, default: 5, unit: "seconds" },
+  { key: "registration_enabled", group: "registration", type: "boolean", default: true },
+  { key: "moderation_retention_days", group: "retention", type: "number", min: 7, max: 365, default: 30, unit: "days" },
+];
+
+export type SettingErrorCode =
+  | "not_integer"
+  | "not_boolean"
+  | "out_of_range"
+  | "unknown_key"
+  | "duplicate_key"
+  | "empty_changes"
+  | "invalid_entry";
+
+export interface SettingErrorParams {
+  min?: number;
+  max?: number;
+  unit?: SettingUnit;
+}
+
+export interface SettingsValidationError {
+  /** Rỗng khi lỗi thuộc cả yêu cầu (mảng rỗng, mục không hợp lệ). */
+  key: string;
+  code: SettingErrorCode;
+  params?: SettingErrorParams;
+}
+
+export type SettingValidation =
+  | { ok: true }
+  | { ok: false; code: SettingErrorCode; params?: SettingErrorParams };
+
+export interface SettingChange {
+  key: string;
+  value: SettingValue;
+}
+
+export type ChangesValidation =
+  | { ok: true; changes: SettingChange[] }
+  | { ok: false; errors: SettingsValidationError[] };
+
+export function findSettingDef(key: string): SettingDef | undefined {
+  return PLATFORM_SETTING_CATALOG.find((def) => def.key === key);
+}
+
+export function validateSettingValue(def: SettingDef, value: unknown): SettingValidation {
+  if (def.type === "boolean") {
+    return typeof value === "boolean" ? { ok: true } : { ok: false, code: "not_boolean" };
+  }
+  const params: SettingErrorParams = { min: def.min, max: def.max, unit: def.unit };
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    return { ok: false, code: "not_integer", params };
+  }
+  if ((def.min !== undefined && value < def.min) || (def.max !== undefined && value > def.max)) {
+    return { ok: false, code: "out_of_range", params };
+  }
+  return { ok: true };
+}
+
+export function validateChanges(input: unknown): ChangesValidation {
+  if (!Array.isArray(input) || input.length === 0) {
+    return { ok: false, errors: [{ key: "", code: "empty_changes" }] };
+  }
+  const errors: SettingsValidationError[] = [];
+  const changes: SettingChange[] = [];
+  const seen = new Set<string>();
+  const reportedDuplicates = new Set<string>();
+  for (const entry of input as unknown[]) {
+    if (
+      typeof entry !== "object" ||
+      entry === null ||
+      typeof (entry as { key?: unknown }).key !== "string"
+    ) {
+      errors.push({ key: "", code: "invalid_entry" });
+      continue;
+    }
+    const { key, value } = entry as { key: string; value: unknown };
+    const def = findSettingDef(key);
+    if (!def) {
+      errors.push({ key, code: "unknown_key" });
+      continue;
+    }
+    if (seen.has(key)) {
+      if (!reportedDuplicates.has(key)) {
+        reportedDuplicates.add(key);
+        errors.push({ key, code: "duplicate_key" });
+      }
+      continue;
+    }
+    seen.add(key);
+    const result = validateSettingValue(def, value);
+    if (!result.ok) {
+      errors.push({ key, code: result.code, ...(result.params ? { params: result.params } : {}) });
+      continue;
+    }
+    changes.push({ key, value: value as SettingValue });
+  }
+  return errors.length > 0 ? { ok: false, errors } : { ok: true, changes };
+}
+
+export function bytesToMb(bytes: number): number {
+  return bytes / BYTES_PER_MB;
+}
+
+export function mbToBytes(mb: number): number {
+  return Math.round(mb * BYTES_PER_MB);
+}
+
+export function needsReductionConfirmation(key: string, newValue: number, maxUsageBytes: number): boolean {
+  return key === CUSTOM_SOUND_QUOTA_KEY && newValue < maxUsageBytes;
+}
+
+export interface PlatformSettingItem extends SettingDef {
+  value: SettingValue;
+}
+export interface PlatformSettingsResponse {
+  groups: { group: SettingGroup; items: PlatformSettingItem[] }[];
+}
+export interface UpdateSettingsRequest {
+  changes: SettingChange[];
+  confirmReduction?: boolean;
+}
+export interface UpdateSettingsResponse {
+  updated: string[];
+}
+export interface ReductionConfirmationRequired {
+  requiresConfirmation: true;
+  maxUsageBytes: number;
+}
