@@ -402,8 +402,7 @@ export class CollaborationService {
     userId: string,
     query: ListContributionsQueryDto,
   ): Promise<ProjectContributionsDto> {
-    // BR-43/65: only the owner or an accepted collaborator may view.
-    await this.projectAccess.assertCanView(projectId, userId);
+    await this.projectAccess.assertCanRead(projectId, userId);
 
     try {
       const branches = await this.listProjectBranchIds(

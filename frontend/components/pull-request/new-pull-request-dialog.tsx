@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import { DiffBadge } from "../project/diff-ui";
 import { Field, INPUT_CLASS } from "../ui/form";
 import {
   ApiError,
@@ -181,13 +182,17 @@ export function NewPullRequestDialog({
 
           <div aria-live="polite" className="rounded-card border border-border bg-surface-subtle px-3 py-2.5 text-xs">
             {previewing && <span className="text-muted">{t("pr.dlgComparing")}</span>}
-            {previewError && <span className="text-danger">{previewError}</span>}
+            {previewError && (
+              <span role="alert" className="text-danger">
+                {previewError}
+              </span>
+            )}
             {preview && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-semibold">{t("pr.dlgNewCommits", { n: preview.newCommitCount })}</span>
-                <Badge variant="success">{t("pr.dlgNotes", { n: preview.notes.added })}</Badge>
-                <Badge variant="danger">{t("pr.dlgNotesRemoved", { n: preview.notes.removed })}</Badge>
-                <Badge variant="warning">{t("pr.dlgNotesModified", { n: preview.notes.modified })}</Badge>
+                <DiffBadge kind="add" signed={false}>{t("pr.dlgNotes", { n: preview.notes.added })}</DiffBadge>
+                <DiffBadge kind="remove" signed={false}>{t("pr.dlgNotesRemoved", { n: preview.notes.removed })}</DiffBadge>
+                <DiffBadge kind="modify">{t("pr.dlgNotesModified", { n: preview.notes.modified })}</DiffBadge>
                 {preview.hasConflicts && <Badge variant="warning">{t("pr.dlgConflicts", { n: preview.conflictsCount })}</Badge>}
               </div>
             )}

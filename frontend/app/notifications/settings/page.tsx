@@ -5,6 +5,7 @@ import { Lock } from "lucide-react";
 import { RequireAuth } from "../../../components/require-auth";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Button } from "../../../components/ui/button";
+import { Switch } from "../../../components/ui/switch";
 import { Toast } from "../../../components/ui/toast";
 import { getNotificationPreferences, setNotificationPreference } from "../../../lib/api-client";
 import type { NotificationChannel, NotificationPreference } from "../../../lib/api-client";
@@ -13,39 +14,6 @@ import { useI18n } from "../../../context/i18n-context";
 import { tNow } from "../../../lib/i18n";
 
 const MANDATORY_CATEGORY = "Bảo mật và thanh toán";
-
-function Switch({
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-        checked ? "border-accent bg-accent" : "border-border-strong bg-surface-muted"
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface transition-all ${
-          checked ? "left-[22px]" : "left-0.5"
-        }`}
-      />
-    </button>
-  );
-}
 
 function SettingsView() {
   const { t } = useI18n();

@@ -1,22 +1,51 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import { CurrentUser } from '../common/decorators';
+import { CommitMessageService } from './commit-message.service';
+import { CommitMessageDto } from './dto/commit-message.dto';
 import { MergeRiskService, type MergeRiskResult } from './merge-risk.service';
 import { MergeRiskDto } from './dto/merge-risk.dto';
 
 /**
- * UC-71 Controller — cảnh báo rủi ro merge.
+ * AI endpoints.
  *
- * Endpoints:
- * GET /ai/merge-risk?sourceBranchId=&targetBranchId=
+ * POST /ai/commit-message (UC-70) — gợi ý commit message.
+ * GET  /ai/merge-risk?sourceBranchId=&targetBranchId= (UC-71) — cảnh báo
+ * rủi ro merge.
  *
  * Guards: JwtAuthGuard + SessionAuthGuard (both required)
  */
 @Controller('ai')
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
 export class AiController {
-  constructor(private readonly mergeRiskService: MergeRiskService) {}
+  constructor(
+    private readonly commitMessage: CommitMessageService,
+    private readonly mergeRiskService: MergeRiskService,
+  ) {}
+
+  @Post('commit-message')
+  @HttpCode(HttpStatus.OK)
+  async suggestCommitMessage(
+    @Body() dto: CommitMessageDto,
+    @CurrentUser() userId: string,
+  ): Promise<{ suggestion: string | null }> {
+    return this.commitMessage.suggest(
+      dto.projectId,
+      dto.branchId ?? null,
+      userId,
+      dto.lang,
+    );
+  }
 
   /**
    * GET /ai/merge-risk

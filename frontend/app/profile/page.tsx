@@ -3,31 +3,31 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  Smartphone,
-  TriangleAlert,
-  CircleUserRound,
-  Lock,
-  Music,
-} from "lucide-react";
+import { Smartphone, TriangleAlert, Music } from "lucide-react";
 import { RequireAuth } from "../../components/require-auth";
 import { useAuth } from "../../context/auth-context";
 import { apiFetch, removeAvatar } from "../../lib/api-client";
 import { uploadAvatar, validateAvatarFile } from "../../lib/avatar-upload";
 import type { Profile } from "../../lib/types";
 import { useI18n } from "../../context/i18n-context";
+import type { TKey } from "../../lib/i18n";
 import { Button } from "../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
 import { ConnectedAccounts } from "../../components/settings/connected-accounts";
 import { Dialog } from "../../components/ui/dialog";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import { PageHeader } from "../../components/ui/page-header";
+import { Switch } from "../../components/ui/switch";
+import { Tabs } from "../../components/ui/tabs";
+import { useAccessibility } from "../../context/accessibility-context";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
 import { apiErrorMessage } from "../../lib/error-message";
 import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
-type SettingsTab = "profile" | "security";
+type SettingsTab = "profile" | "security" | "accessibility";
 
 function ProfileForm() {
   const { t } = useI18n();
@@ -131,152 +131,154 @@ function ProfileForm() {
   }
 
   return (
-    <>
-      <h2 className="text-lg font-semibold">{t("profile.tabProfile")}</h2>
-      <p className="mb-5 mt-1.5 text-xs text-muted">
-        {t("profile.publicNote")}
-      </p>
-
-      <div className="mb-5 flex items-center gap-3">
+    <div className="mb-6 grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
+      <aside className="flex flex-col items-start gap-3">
         <Avatar
           id={profile?.id ?? ""}
           label={displayName || profile?.email || "?"}
           imageUrl={avatarUrl}
           size="lg"
         />
-        <div className="min-w-0">
+        <div className="min-w-0 max-w-full">
           <p className="truncate text-[13px] font-semibold">{profile?.email}</p>
           <p className="text-xs text-muted">{t("profile.emailLocked")}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <input
-              ref={avatarInputRef}
-              type="file"
-              name="avatarFile"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => void handleAvatarFile(e)}
-              className="hidden"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={avatarBusy}
-              onClick={() => avatarInputRef.current?.click()}
-            >
-              {avatarBusy ? t("profile.busy") : t("profile.upload")}
-            </Button>
-            {profile?.avatar_url && (
-              <Button type="button" variant="ghost" disabled={avatarBusy} onClick={() => void handleAvatarRemove()}>
-                {t("profile.removePhoto")}
-              </Button>
-            )}
-            <span className="text-xs text-muted">{t("profile.avatarHint")}</span>
-          </div>
-          {avatarMessage && (
-            <p
-              role={avatarMessage.ok ? "status" : "alert"}
-              className={`mt-1.5 text-xs ${avatarMessage.ok ? "text-success-foreground" : "text-danger"}`}
-            >
-              {avatarMessage.text}
-            </p>
-          )}
         </div>
-      </div>
-
-      {profile && (
-        <p className="mb-5 text-xs text-muted">
-          {t("profile.publicAddress")}{" "}
-          <Link href={`/creator/${profile.id}`} className="font-mono text-accent hover:underline">
-            /creator/{profile.id}
-          </Link>
-        </p>
-      )}
-
-      <form onSubmit={handleSubmit} noValidate className="flex max-w-[560px] flex-col gap-3.5">
-        <Field label={t("profile.displayName")} error={displayNameError}>
+        <div className="flex flex-wrap items-center gap-2">
           <input
-            name="displayName"
-            autoComplete="name"
-            value={displayName}
-            onChange={(e) => {
-              setDisplayName(e.target.value);
-              setDisplayNameError(null);
-            }}
-            className={`${INPUT_CLASS} h-[37px]`}
+            ref={avatarInputRef}
+            type="file"
+            name="avatarFile"
+            accept="image/jpeg,image/png,image/webp"
+            aria-label={t("accountPages.avatarFile")}
+            onChange={(e) => void handleAvatarFile(e)}
+            className="hidden"
           />
-        </Field>
-        <Field label="Username" error={usernameError}>
-          <input
-            name="username"
-            autoComplete="username"
-            spellCheck={false}
-            value={username}
-            onChange={(e) => {
-              setUsername(e.target.value);
-              setUsernameError(null);
-            }}
-            className={`${INPUT_CLASS} h-[37px] font-mono`}
-          />
-        </Field>
-        <Field label={t("profile.bio")}>
-          <textarea
-            name="bio"
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            rows={3}
-            className={INPUT_CLASS}
-          />
-          <span
-            className={`text-right font-mono text-xs tabular-nums ${bio.length > 500 ? "text-danger" : "text-muted"}`}
-          >
-            {bio.length}/500
-          </span>
-        </Field>
-        <Field label="Avatar URL">
-          <input
-            name="avatarUrl"
-            inputMode="url"
-            autoComplete="url"
-            spellCheck={false}
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://…"
-            className={`${INPUT_CLASS} h-[37px]`}
-          />
-        </Field>
-        {error && (
-          <p role="alert" className="text-xs text-danger">
-            {error}
-          </p>
-        )}
-        {success && (
-          <p role="status" className="text-xs text-success-foreground">
-            {t("profile.saved")}
-          </p>
-        )}
-        <div className="flex gap-2">
-          <Button type="submit" disabled={submitting}>
-            {submitting ? t("profile.saving") : t("profile.save")}
-          </Button>
           <Button
             type="button"
             variant="secondary"
-            disabled={submitting}
-            onClick={() => {
-              setDisplayName(profile?.display_name ?? "");
-              setUsername(profile?.username ?? "");
-              setBio(profile?.bio ?? "");
-              setAvatarUrl(profile?.avatar_url ?? "");
-              setDisplayNameError(null);
-              setUsernameError(null);
-              setError(null);
-              setSuccess(false);
-            }}
+            disabled={avatarBusy}
+            onClick={() => avatarInputRef.current?.click()}
           >
-            {t("profile.discard")}
+            {avatarBusy ? t("profile.busy") : t("profile.upload")}
           </Button>
+          {profile?.avatar_url && (
+            <Button type="button" variant="ghost" disabled={avatarBusy} onClick={() => void handleAvatarRemove()}>
+              {t("profile.removePhoto")}
+            </Button>
+          )}
         </div>
-      </form>
-    </>
+        <p className="text-xs text-muted">{t("profile.avatarHint")}</p>
+        {avatarMessage && (
+          <p
+            role={avatarMessage.ok ? "status" : "alert"}
+            className={`text-xs ${avatarMessage.ok ? "text-success-foreground" : "text-danger"}`}
+          >
+            {avatarMessage.text}
+          </p>
+        )}
+        {profile && (
+          <p className="max-w-full break-all text-xs text-muted">
+            {t("profile.publicAddress")}{" "}
+            <Link href={`/creator/${profile.id}`} className="font-mono text-accent hover:underline">
+              /creator/{profile.id}
+            </Link>
+          </p>
+        )}
+      </aside>
+
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold">{t("profile.tabProfile")}</h2>
+        <p className="mb-5 mt-1.5 text-xs text-muted">
+          {t("profile.publicNote")}
+        </p>
+
+        <form onSubmit={handleSubmit} noValidate className="flex max-w-[560px] flex-col gap-3.5">
+          <Field label={t("profile.displayName")} error={displayNameError}>
+            <input
+              name="displayName"
+              autoComplete="name"
+              value={displayName}
+              onChange={(e) => {
+                setDisplayName(e.target.value);
+                setDisplayNameError(null);
+              }}
+              className={`${INPUT_CLASS} h-[37px]`}
+            />
+          </Field>
+          <Field label={t("accountPages.username")} error={usernameError}>
+            <input
+              name="username"
+              autoComplete="username"
+              spellCheck={false}
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setUsernameError(null);
+              }}
+              className={`${INPUT_CLASS} h-[37px] font-mono`}
+            />
+          </Field>
+          <Field label={t("profile.bio")}>
+            <textarea
+              name="bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={3}
+              className={INPUT_CLASS}
+            />
+            <span
+              className={`text-right font-mono text-xs tabular-nums ${bio.length > 500 ? "text-danger" : "text-muted"}`}
+            >
+              {bio.length}/500
+            </span>
+          </Field>
+          <Field label={t("accountPages.avatarUrl")}>
+            <input
+              name="avatarUrl"
+              inputMode="url"
+              autoComplete="url"
+              spellCheck={false}
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              placeholder="https://…"
+              className={`${INPUT_CLASS} h-[37px]`}
+            />
+          </Field>
+          {error && (
+            <p role="alert" className="text-xs text-danger">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p role="status" className="text-xs text-success-foreground">
+              {t("profile.saved")}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button type="submit" disabled={submitting}>
+              {submitting ? t("profile.saving") : t("profile.save")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={submitting}
+              onClick={() => {
+                setDisplayName(profile?.display_name ?? "");
+                setUsername(profile?.username ?? "");
+                setBio(profile?.bio ?? "");
+                setAvatarUrl(profile?.avatar_url ?? "");
+                setDisplayNameError(null);
+                setUsernameError(null);
+                setError(null);
+                setSuccess(false);
+              }}
+            >
+              {t("profile.discard")}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -328,17 +330,19 @@ function ProfileTab() {
 /** Một dòng cài đặt: mô tả bên trái, hành động/trạng thái bên phải. */
 function SettingRow({
   title,
+  titleId,
   description,
   children,
 }: {
   title: string;
+  titleId?: string;
   description?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-[75px] flex-wrap items-center justify-between gap-3 border-t border-border py-3">
       <div className="min-w-0">
-        <p className="text-xs font-semibold">{title}</p>
+        <p id={titleId} className="text-xs font-semibold">{title}</p>
         {description && <div className="mt-1 text-xs text-muted">{description}</div>}
       </div>
       {children}
@@ -466,6 +470,12 @@ function DeleteAccountSection() {
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  function close() {
+    setConfirming(false);
+    setPassword("");
+    setError(null);
+  }
+
   async function handleDelete() {
     setError(null);
     setSubmitting(true);
@@ -489,41 +499,73 @@ function DeleteAccountSection() {
         title={t("profile.deleteAccount")}
         description={t("profile.deleteHint")}
       >
-        {!confirming && (
-          <Button variant="danger" onClick={() => setConfirming(true)}>
-            <TriangleAlert className="h-3.5 w-3.5" /> {t("profile.deleteAccount")}
-          </Button>
-        )}
+        <Button variant="danger" onClick={() => setConfirming(true)}>
+          <TriangleAlert className="h-3.5 w-3.5" /> {t("profile.deleteAccount")}
+        </Button>
       </SettingRow>
 
-      {confirming && (
-        <div className="flex max-w-[420px] flex-col gap-3 pb-4">
-          <p className="text-xs text-danger">{t("profile.deleteConfirmLead")}</p>
-          <input
-            name="password"
-            autoComplete="current-password"
-            type="password"
-            placeholder={t("auth.password")}
-            aria-label={t("auth.password")}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={`${INPUT_CLASS} h-[37px]`}
-          />
-          {error && <p className="text-xs text-danger">{error}</p>}
-          <div className="flex gap-2">
-            <Button
-              variant="danger"
-              onClick={() => void handleDelete()}
-              disabled={submitting || !password}
-            >
-              {submitting ? t("profile.deleting") : t("profile.deleteConfirm")}
-            </Button>
-            <Button variant="secondary" onClick={() => setConfirming(false)}>
-              {t("ui.cancel")}
-            </Button>
+      <ConfirmDialog
+        open={confirming}
+        title={t("profile.deleteAccount")}
+        message={
+          <div className="flex flex-col gap-3">
+            <p className="text-danger">{t("profile.deleteConfirmLead")}</p>
+            <input
+              name="password"
+              autoComplete="current-password"
+              type="password"
+              placeholder={t("auth.password")}
+              aria-label={t("auth.password")}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              data-autofocus
+              className={`${INPUT_CLASS} h-[37px]`}
+            />
           </div>
+        }
+        confirmLabel={t("profile.deleteConfirm")}
+        danger
+        loading={submitting}
+        confirmDisabled={!password}
+        error={error}
+        onConfirm={() => void handleDelete()}
+        onCancel={close}
+      />
+    </>
+  );
+}
+
+const SETTINGS_TABS: { id: SettingsTab; label: TKey }[] = [
+  { id: "profile", label: "profile.tabProfile" },
+  { id: "security", label: "profile.tabSecurity" },
+  { id: "accessibility", label: "accessibilityPage.tab" },
+];
+
+function AccessibilityTab() {
+  const { t } = useI18n();
+  const { colorBlindMode, setColorBlindMode } = useAccessibility();
+  return (
+    <>
+      <h2 className="text-lg font-semibold">{t("accessibilityPage.title")}</h2>
+      <p className="mb-2 mt-1.5 text-xs text-muted">{t("accessibilityPage.lead")}</p>
+      <SettingRow
+        title={t("accessibilityPage.cvdTitle")}
+        titleId="cvd-title"
+        description={<span id="cvd-desc">{t("accessibilityPage.cvdDesc")}</span>}
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-muted" aria-hidden="true">
+            {colorBlindMode ? t("accessibilityPage.stateOn") : t("accessibilityPage.stateOff")}
+          </span>
+          <Switch
+            checked={colorBlindMode}
+            onChange={setColorBlindMode}
+            labelledBy="cvd-title"
+            describedBy="cvd-desc"
+          />
         </div>
-      )}
+      </SettingRow>
+      <p className="border-t border-border pt-3 text-xs text-muted">{t("accessibilityPage.localNote")}</p>
     </>
   );
 }
@@ -536,71 +578,60 @@ export default function ProfilePage() {
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- tham số URL chỉ đọc được ở client
-    if (requested === "security") setTab("security");
+    if (requested === "security" || requested === "accessibility") setTab(requested);
   }, []);
-
-  const navItemClass = (id: SettingsTab) =>
-    `flex h-9 items-center gap-2.5 rounded-md px-2.5 text-left text-xs transition-colors ${
-      tab === id
-        ? "bg-accent-muted font-bold text-accent"
-        : "text-muted hover:bg-surface-subtle hover:text-foreground"
-    }`;
 
   return (
     <RequireAuth>
       <div className="mx-auto max-w-5xl px-5 py-8">
-        <div className="mb-6">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
-            {t("profile.eyebrow")}
-          </p>
-          <h1 className="mb-1 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
-            {profile?.display_name ?? profile?.username ?? t("profile.myProfile")}
-          </h1>
-          <p className="text-sm text-muted">
-            {t("profile.lead")}
-          </p>
-        </div>
+        <PageHeader
+          breadcrumbs={[{ label: t("profile.eyebrow") }]}
+          title={profile?.display_name ?? profile?.username ?? t("profile.myProfile")}
+          description={t("profile.lead")}
+        />
 
-        <div className="grid gap-5 md:grid-cols-[210px_minmax(0,1fr)]">
-          <nav className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
-            <button onClick={() => setTab("profile")} className={navItemClass("profile")}>
-              <CircleUserRound className="h-4 w-4" /> {t("profile.tabProfile")}
-            </button>
-            <button onClick={() => setTab("security")} className={navItemClass("security")}>
-              <Lock className="h-4 w-4" /> {t("profile.tabSecurity")}
-            </button>
-          </nav>
+        <Tabs
+          tabs={SETTINGS_TABS.map((item) => ({ id: item.id, label: t(item.label) }))}
+          active={tab}
+          onChange={(id) => setTab(id as SettingsTab)}
+        />
 
-          <section className="min-h-[480px] rounded-card border border-border bg-surface/80 p-6">
-            {tab === "profile" ? (
-              <ProfileTab />
-            ) : (
-              <>
-                <h2 className="text-lg font-semibold">{t("profile.tabSecurity")}</h2>
-                <p className="mb-2 mt-1.5 text-xs text-muted">
-                  {t("profile.securityLead")}
-                </p>
+        <section
+          role="tabpanel"
+          aria-label={t(SETTINGS_TABS.find((item) => item.id === tab)?.label ?? "profile.tabProfile")}
+          className="mt-5 min-h-[480px] rounded-card border border-border bg-surface/80 p-6"
+        >
+          {tab === "profile" ? (
+            <ProfileTab />
+          ) : tab === "accessibility" ? (
+            <AccessibilityTab />
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold">{t("profile.tabSecurity")}</h2>
+              <p className="mb-2 mt-1.5 text-xs text-muted">
+                {t("profile.securityLead")}
+              </p>
 
-                <ChangePasswordForm />
+              <ChangePasswordForm />
 
-                <ConnectedAccounts />
+              <ConnectedAccounts />
 
-                <SettingRow
-                  title={t("profile.devices")}
-                  description={t("profile.devicesDesc")}
+              <SettingRow
+                title={t("profile.devices")}
+                description={t("profile.devicesDesc")}
+              >
+                <Link
+                  href="/profile/sessions"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border-strong bg-surface-subtle/60 px-3 text-[13px] font-semibold text-foreground transition-colors hover:bg-surface-muted"
                 >
-                  <Link href="/profile/sessions">
-                    <Button variant="secondary">
-                      <Smartphone className="h-3.5 w-3.5" /> {t("profile.manage")}
-                    </Button>
-                  </Link>
-                </SettingRow>
+                  <Smartphone aria-hidden="true" className="h-3.5 w-3.5" /> {t("profile.manage")}
+                </Link>
+              </SettingRow>
 
-                <DeleteAccountSection />
-              </>
-            )}
-          </section>
-        </div>
+              <DeleteAccountSection />
+            </>
+          )}
+        </section>
       </div>
     </RequireAuth>
   );

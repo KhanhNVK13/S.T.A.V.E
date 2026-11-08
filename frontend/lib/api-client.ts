@@ -536,6 +536,21 @@ export async function getCommit(commitId: string): Promise<CommitWithAuthor> {
   return apiFetch<CommitWithAuthor>(`/commits/${commitId}`);
 }
 
+export async function suggestCommitMessage(
+  payload: {
+    projectId: string;
+    branchId?: string;
+    lang?: "en" | "vi";
+  },
+  signal?: AbortSignal,
+): Promise<{ suggestion: string | null }> {
+  return apiFetch<{ suggestion: string | null }>("/ai/commit-message", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // UC-45 Compare versions — hình dạng lấy đúng từ `backend/src/commits/diff.service.ts`
 // ---------------------------------------------------------------------------

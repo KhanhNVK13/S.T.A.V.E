@@ -277,9 +277,10 @@ export class CommitsService {
     // Verify user has access to the project
     const projectId = (commitData as { branch?: { project_id: string } }).branch
       ?.project_id;
-    if (projectId) {
-      await this.verifyProjectAccess(projectId, userId, 'view');
+    if (!projectId) {
+      throw new NotFoundException('Commit not found');
     }
+    await this.verifyProjectAccess(projectId, userId, 'view');
 
     const commit = commitData as unknown as CommitDbRow;
     const tags = await this.getTagsForCommits([commitId]);
@@ -907,6 +908,6 @@ export class CommitsService {
   ): Promise<void> {
     return level === 'edit'
       ? this.access.assertCanEdit(projectId, userId)
-      : this.access.assertCanView(projectId, userId);
+      : this.access.assertCanRead(projectId, userId);
   }
 }

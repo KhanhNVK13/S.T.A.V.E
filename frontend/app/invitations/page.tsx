@@ -19,8 +19,11 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { EmptyState } from "../../components/ui/empty-state";
+import { RowHeader, RowItem, RowList, RowTime } from "../../components/ui/row-list";
 import { Toast } from "../../components/ui/toast";
 import { useI18n } from "../../context/i18n-context";
+
+const COLS = "md:grid-cols-[minmax(0,1fr)_110px_110px_auto]";
 
 function InvitationsContent() {
   const { t, tx } = useI18n();
@@ -95,7 +98,7 @@ function InvitationsContent() {
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
-          <Loader2 className="h-4 w-4 animate-spin text-accent" /> {t("inv.loading")}
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-accent" /> {t("inv.loading")}
         </div>
       ) : invitations.length === 0 ? (
         <EmptyState
@@ -115,44 +118,49 @@ function InvitationsContent() {
               {actionError}
             </p>
           )}
-          <ul className="flex flex-col gap-3">
+          <RowList cols={COLS}>
+            <RowHeader>
+              <span>{t("accountPages.invColProject")}</span>
+              <span>{t("accountPages.invColAccess")}</span>
+              <span>{t("accountPages.invColSent")}</span>
+              <span />
+            </RowHeader>
             {invitations.map((invitation) => {
               const busy = actingId === invitation.id;
               return (
-                <li
-                  key={invitation.id}
-                  className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-semibold">{invitationTitle(invitation)}</span>
-                      <Badge variant={invitation.permissionLevel === "edit" ? "info" : "neutral"}>
-                        {t(PERMISSION_KEYS[invitation.permissionLevel])}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-[13px] text-muted">
-                      {invitation.inviterName ? t("inv.invitedBy", { name: invitation.inviterName }) : t("inv.invitedByUser")} ·{" "}
-                      {formatRelativeTime(invitation.invitedAt)}
-                    </p>
+                <RowItem key={invitation.id}>
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="truncate text-[13px] font-semibold">{invitationTitle(invitation)}</span>
+                    <span className="truncate text-xs text-muted">
+                      {invitation.inviterName
+                        ? t("inv.invitedBy", { name: invitation.inviterName })
+                        : t("inv.invitedByUser")}
+                    </span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <span>
+                    <Badge variant={invitation.permissionLevel === "edit" ? "info" : "neutral"}>
+                      {t(PERMISSION_KEYS[invitation.permissionLevel])}
+                    </Badge>
+                  </span>
+                  <RowTime>{formatRelativeTime(invitation.invitedAt)}</RowTime>
+                  <div className="flex shrink-0 items-center gap-2 md:justify-end">
                     <Button
                       variant="secondary"
                       onClick={() => setDeclineTarget(invitation)}
                       disabled={busy}
                       className="gap-1.5"
                     >
-                      <X size={14} /> {t("inv.decline")}
+                      <X aria-hidden="true" size={14} /> {t("inv.decline")}
                     </Button>
                     <Button onClick={() => handleAccept(invitation)} disabled={busy} className="gap-1.5">
-                      {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {busy && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
                       {t("inv.accept")}
                     </Button>
                   </div>
-                </li>
+                </RowItem>
               );
             })}
-          </ul>
+          </RowList>
           <p className="mt-4 text-[13px] text-muted">
             {tx("inv.after", { link: <Link href="/projects" className="font-semibold text-accent hover:underline">{t("nav.projects")}</Link> })}
           </p>

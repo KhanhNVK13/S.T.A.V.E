@@ -17,12 +17,12 @@ interface ProjectRow extends RecentProject {
 const RECENT_LIMIT = 5;
 const REFRESH_AFTER_MS = 30_000;
 
-export function useRecentProjects(): RecentProject[] {
+export function useRecentProjects(enabled = true): RecentProject[] {
   const pathname = usePathname();
   const [state, setState] = useState<{ items: RecentProject[]; at: number }>({ items: [], at: 0 });
 
   useEffect(() => {
-    if (Date.now() - state.at < REFRESH_AFTER_MS) return;
+    if (!enabled || Date.now() - state.at < REFRESH_AFTER_MS) return;
     let cancelled = false;
     listProjects()
       .then((rows) => {
@@ -41,7 +41,7 @@ export function useRecentProjects(): RecentProject[] {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, enabled]);
 
   return state.items;
 }

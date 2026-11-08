@@ -43,8 +43,8 @@ function makeService(
   return { service, projects, ...mock };
 }
 
-describe('DraftsService per-user drafts', () => {
-  it('reads the draft of the calling user on the active branch', async () => {
+describe('BE-DRF-01 DraftsService.getDraft', () => {
+  it('UTCID01 reads the draft of the calling user on the active branch', async () => {
     const { service, builders } = makeService({
       drafts: [{ data: { snapshot } }],
     });
@@ -53,15 +53,17 @@ describe('DraftsService per-user drafts', () => {
     expect(builders.drafts.eq).toHaveBeenCalledWith('user_id', userId);
   });
 
-  it('falls back to the head commit when the user has no draft yet', async () => {
+  it('UTCID02 falls back to the head commit when the user has no draft yet', async () => {
     const { service } = makeService(
       { drafts: [{ data: null }], commits: [{ data: { snapshot } }] },
       { id: branchId, head_commit_id: headId },
     );
     await expect(service.getDraft(projectId, userId)).resolves.toBe(snapshot);
   });
+});
 
-  it('writes the draft keyed by branch and user', async () => {
+describe('BE-DRF-02 DraftsService.putDraft', () => {
+  it('UTCID01 writes the draft keyed by branch and user', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: userId } }],
       drafts: [{ data: { snapshot, updated_at: '2026-10-28T10:00:00Z' } }],
@@ -75,7 +77,7 @@ describe('DraftsService per-user drafts', () => {
     );
   });
 
-  it('updates only the row still at the expected version', async () => {
+  it('UTCID02 updates only the row still at the expected version', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: userId } }],
       drafts: [{ data: { updated_at: '2026-10-28T10:05:00Z' } }],
@@ -90,7 +92,7 @@ describe('DraftsService per-user drafts', () => {
     expect(builders.drafts.upsert).not.toHaveBeenCalled();
   });
 
-  it('answers 409 DRAFT_STALE when another tab changed the draft', async () => {
+  it('UTCID03 answers 409 DRAFT_STALE when another tab changed the draft', async () => {
     const { service } = makeService({
       projects: [{ data: { owner_id: userId } }],
       drafts: [{ data: null }],
@@ -104,7 +106,7 @@ describe('DraftsService per-user drafts', () => {
     });
   });
 
-  it('inserts only when no draft exists yet for the "none" version', async () => {
+  it('UTCID04 inserts only when no draft exists yet for the "none" version', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: userId } }],
       drafts: [{ data: { updated_at: '2026-10-28T10:00:00Z' } }],
@@ -113,7 +115,7 @@ describe('DraftsService per-user drafts', () => {
     expect(builders.drafts.insert).toHaveBeenCalled();
   });
 
-  it('answers 409 DRAFT_STALE when a draft appeared meanwhile for "none"', async () => {
+  it('UTCID05 answers 409 DRAFT_STALE when a draft appeared meanwhile for "none"', async () => {
     const { service } = makeService({
       projects: [{ data: { owner_id: userId } }],
       drafts: [{ data: null, error: { code: '23505', message: 'dup' } }],
@@ -123,7 +125,7 @@ describe('DraftsService per-user drafts', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('refuses a write from someone without edit access', async () => {
+  it('UTCID06 refuses a write from someone without edit access', async () => {
     const { service, builders } = makeService({
       projects: [{ data: { owner_id: 'someone-else' } }],
     });
@@ -133,7 +135,7 @@ describe('DraftsService per-user drafts', () => {
     expect(builders.drafts).toBeUndefined();
   });
 
-  it('discards only the given user drafts across the project branches', async () => {
+  it('UTCID07 discards only the given user drafts across the project branches', async () => {
     const { service, builders } = makeService({
       branches: [{ data: [{ id: branchId }] }],
       drafts: [{ data: null }],
@@ -145,7 +147,7 @@ describe('DraftsService per-user drafts', () => {
   });
 });
 
-describe('DraftsService.getRecovery', () => {
+describe('DraftsService.getRecovery — UC-116 recovery', () => {
   const edited = {
     ...snapshot,
     notes: [
@@ -160,7 +162,7 @@ describe('DraftsService.getRecovery', () => {
     ],
   };
 
-  it('reports nothing to recover when the user has no draft', async () => {
+  it('UTCID01 reports nothing to recover when the user has no draft', async () => {
     const { service } = makeService({ drafts: [{ data: null }] });
     await expect(service.getRecovery(projectId, userId)).resolves.toEqual({
       recovered: false,
@@ -169,7 +171,7 @@ describe('DraftsService.getRecovery', () => {
     });
   });
 
-  it('reports a recovered draft with its save time when it differs from the head commit', async () => {
+  it('UTCID02 reports a recovered draft with its save time when it differs from the head commit', async () => {
     const { service } = makeService(
       {
         drafts: [
@@ -186,7 +188,7 @@ describe('DraftsService.getRecovery', () => {
     });
   });
 
-  it('reports nothing to recover when the draft equals the head commit', async () => {
+  it('UTCID03 reports nothing to recover when the draft equals the head commit', async () => {
     const { service } = makeService(
       {
         drafts: [{ data: { snapshot, updated_at: '2026-10-26T10:00:00Z' } }],

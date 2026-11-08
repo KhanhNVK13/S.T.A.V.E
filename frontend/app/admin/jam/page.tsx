@@ -25,6 +25,7 @@ import { PageHeader } from "../../../components/ui/page-header";
 import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { Tabs } from "../../../components/ui/tabs";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { Dialog, DialogActions, DialogError } from "../../../components/ui/dialog";
 import { Toast } from "../../../components/ui/toast";
@@ -211,23 +212,11 @@ function AdminJamManager() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5" role="tablist">
-        {STATUS_TABS.map((st) => (
-          <button
-            key={st.key || "all"}
-            role="tab"
-            aria-selected={tab === st.key}
-            onClick={() => setTab(st.key)}
-            className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
-              tab === st.key
-                ? "bg-accent-muted text-accent"
-                : "text-muted hover:bg-surface-subtle"
-            }`}
-          >
-            {t(st.label)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={STATUS_TABS.map((st) => ({ id: st.key || "all", label: t(st.label) }))}
+        active={tab || "all"}
+        onChange={(id) => setTab(id === "all" ? "" : (id as JamEventStatus))}
+      />
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
       {error && (
@@ -289,6 +278,7 @@ function AdminJamManager() {
                   </span>
                 </div>
                 <span className="font-mono text-xs tabular-nums text-muted">
+                  <span className="font-sans md:hidden">{t("aj.colJoined")}: </span>
                   {e.currentParticipantCount}
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
@@ -384,7 +374,7 @@ export default function AdminJamPage() {
 
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-page px-5 py-8">
+      <div>
         <PageHeader
           breadcrumbs={[{ label: t("aj.crumb") }]}
           title={t("aj.title")}

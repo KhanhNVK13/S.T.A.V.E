@@ -278,12 +278,15 @@ function ProjectOverview({ id }: { id: string }) {
 
   const ownerName = data.owner?.display_name ?? data.owner?.username ?? t("project.user");
 
+  const canViewHistory = data.isOwner || isCollaborator || (!!user && data.visibility === "public");
+  const readOnly = !data.isOwner;
+
   const tabs: { id: TabId; label: string; visible: boolean }[] = [
     { id: "overview", label: t("project.tabOverview"), visible: true },
-    { id: "commits", label: t("project.tabCommits"), visible: data.isOwner },
-    { id: "branches", label: t("project.tabBranches"), visible: data.isOwner },
+    { id: "commits", label: t("project.tabCommits"), visible: canViewHistory },
+    { id: "branches", label: t("project.tabBranches"), visible: canViewHistory },
     { id: "pulls", label: t("project.tabPulls"), visible: !!user && (data.isOwner || data.visibility === "public") },
-    { id: "contributions", label: t("project.tabContributions"), visible: data.isOwner || isCollaborator },
+    { id: "contributions", label: t("project.tabContributions"), visible: canViewHistory },
   ];
   const visibleTabs = tabs.filter((tb) => tb.visible);
   const activeTab = visibleTabs.some((tb) => tb.id === tab) ? tab : "overview";
@@ -395,9 +398,10 @@ function ProjectOverview({ id }: { id: string }) {
             key={`${searchParams.get("branch") ?? "default"}-${refreshKey}`}
             projectId={data.id}
             initialBranchId={searchParams.get("branch")}
+            readOnly={readOnly}
           />
         ) : activeTab === "branches" ? (
-          <BranchList key={refreshKey} projectId={data.id} />
+          <BranchList key={refreshKey} projectId={data.id} readOnly={readOnly} />
         ) : activeTab === "pulls" ? (
           <ProjectPullRequests projectId={data.id} canCreate={data.isOwner} />
         ) : activeTab === "contributions" ? (
@@ -409,18 +413,18 @@ function ProjectOverview({ id }: { id: string }) {
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
-              {(data.isOwner || isCollaborator) && (
+              {canViewHistory && (
                 <ProjectHistory
-                  key={refreshKey}
+                  key={`history-${refreshKey}`}
                   projectId={data.id}
                   canEdit={data.isOwner && !data.archivedAt}
-                  canOpenHistory={data.isOwner}
+                  canOpenHistory={canViewHistory}
                 />
               )}
 
-              {data.isOwner && <VersionSummary key={refreshKey} projectId={data.id} onOpenTab={switchTab} />}
+              {canViewHistory && <VersionSummary key={`summary-${refreshKey}`} projectId={data.id} onOpenTab={switchTab} />}
 
-              <section className={data.isOwner || isCollaborator ? "mt-6 border-t border-border pt-4" : ""}>
+              <section className={canViewHistory ? "mt-6 border-t border-border pt-4" : ""}>
                 <h2 className="mb-2 text-[15px] font-semibold">{t("project.about")}</h2>
                 <p className="max-w-3xl text-[13px] leading-relaxed text-muted">
                   {data.description ?? t("project.noDescription")}

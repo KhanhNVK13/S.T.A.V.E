@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
+import { AccessibilityProvider } from "../context/accessibility-context";
 import { AuthProvider } from "../context/auth-context";
 import { I18nProvider } from "../context/i18n-context";
 import { ShellSwitch } from "../components/shell/shell-switch";
@@ -38,14 +39,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${staveSans.variable} ${staveMono.variable} ${staveDisplay.variable} h-full antialiased`}
     >
       <body className="h-full bg-background font-sans text-foreground">
-        <I18nProvider>
-          <AuthProvider>
-            <SpaceBackdrop />
-            <SkipLink />
-            <ShellSwitch>{children}</ShellSwitch>
-            <FlashToastHost />
-          </AuthProvider>
-        </I18nProvider>
+        <AccessibilityProvider>
+          <I18nProvider>
+            <AuthProvider>
+              <SpaceBackdrop />
+              <SkipLink />
+              <ShellSwitch>{children}</ShellSwitch>
+              <FlashToastHost />
+            </AuthProvider>
+          </I18nProvider>
+        </AccessibilityProvider>
       </body>
     </html>
   );
