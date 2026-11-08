@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { formatDate, formatMonthYear } from './format-date';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatDate, formatMonthYear, formatRelativeTime } from './format-date';
 import { setLang } from './i18n';
 
 beforeEach(() => setLang('vi'));
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('Vitest runner smoke test', () => {
   it('runs in a jsdom environment', () => {
@@ -63,5 +67,81 @@ describe('FE-LIB-16 formatDate(dateStr)', () => {
 
   it('UTCID06 (B) "2026-12-31T17:00:00Z" returns "01/01/2027" (local day rolls over)', () => {
     expect(formatDate('2026-12-31T17:00:00Z')).toBe('01/01/2027');
+  });
+});
+
+// =============================================================================
+// FE-LIB-14 — format-date.formatRelativeTime(dateStr)
+// Sheet precondition: Date.now = 2026-10-08T12:00:00Z, TZ = Asia/Ho_Chi_Minh
+// =============================================================================
+
+describe('FE-LIB-14 formatRelativeTime(dateStr)', () => {
+  const NOW = '2026-10-08T12:00:00Z';
+
+  const at = (offsetMs: number) => new Date(Date.parse(NOW) + offsetMs).toISOString();
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
+  });
+
+  it('UTCID01 (A) null returns an empty string', () => {
+    expect(formatRelativeTime(null)).toBe('');
+  });
+
+  it('UTCID02 (A) an empty string returns an empty string', () => {
+    expect(formatRelativeTime('')).toBe('');
+  });
+
+  it('UTCID03 (A) an unparsable date string returns an empty string', () => {
+    expect(formatRelativeTime('not-a-date')).toBe('');
+  });
+
+  it('UTCID04 (B) 30 seconds ago returns "vừa xong"', () => {
+    expect(formatRelativeTime(at(-30_000))).toBe('vừa xong');
+  });
+
+  it('UTCID05 (B) 59 seconds ago returns "vừa xong"', () => {
+    expect(formatRelativeTime(at(-59_000))).toBe('vừa xong');
+  });
+
+  it('UTCID06 (B) exactly 60 seconds ago returns "1 phút trước"', () => {
+    expect(formatRelativeTime(at(-60_000))).toBe('1 phút trước');
+  });
+
+  it('UTCID07 (B) 59 minutes ago returns "59 phút trước"', () => {
+    expect(formatRelativeTime(at(-59 * 60_000))).toBe('59 phút trước');
+  });
+
+  it('UTCID08 (B) exactly 60 minutes ago returns "1 giờ trước"', () => {
+    expect(formatRelativeTime(at(-60 * 60_000))).toBe('1 giờ trước');
+  });
+
+  it('UTCID09 (B) 23 h 59 min ago returns "23 giờ trước"', () => {
+    expect(formatRelativeTime(at(-(23 * 60 + 59) * 60_000))).toBe('23 giờ trước');
+  });
+
+  it('UTCID10 (B) exactly 24 hours ago returns "1 ngày trước"', () => {
+    expect(formatRelativeTime(at(-24 * 60 * 60_000))).toBe('1 ngày trước');
+  });
+
+  it('UTCID11 (B) 6 days ago returns "6 ngày trước"', () => {
+    expect(formatRelativeTime(at(-6 * 24 * 60 * 60_000))).toBe('6 ngày trước');
+  });
+
+  it('UTCID12 (B) exactly 7 days ago returns "1 tuần trước"', () => {
+    expect(formatRelativeTime(at(-7 * 24 * 60 * 60_000))).toBe('1 tuần trước');
+  });
+
+  it('UTCID13 (B) 29 days ago returns "4 tuần trước"', () => {
+    expect(formatRelativeTime(at(-29 * 24 * 60 * 60_000))).toBe('4 tuần trước');
+  });
+
+  it('UTCID14 (B) 30 days ago falls back to the local date "08/09/2026"', () => {
+    expect(formatRelativeTime(at(-30 * 24 * 60 * 60_000))).toBe('08/09/2026');
+  });
+
+  it('UTCID15 (A) a timestamp one hour in the future returns "vừa xong"', () => {
+    expect(formatRelativeTime(at(60 * 60_000))).toBe('vừa xong');
   });
 });
