@@ -1,4 +1,4 @@
-import { Bell, Compass, FolderOpen, House, Music4, Shield, Trophy, type LucideIcon } from "lucide-react";
+import { Bell, Compass, Flag, FolderOpen, House, Music4, Shield, Trophy, type LucideIcon } from "lucide-react";
 import type { TKey } from "../../lib/i18n";
 
 export interface ShellNavItem {
@@ -31,6 +31,7 @@ export const APP_NAV: ShellNavItem[] = [
 export const ADMIN_NAV: ShellNavItem[] = [
   { id: "admin-users", href: "/admin/users", label: "nav.admin", icon: Shield },
   { id: "admin-jam", href: "/admin/jam", label: "nav.jam", icon: Music4 },
+  { id: "admin-reports", href: "/admin/reports", label: "nav.reports", icon: Flag },
 ];
 
 export const PUBLIC_NAV: Pick<ShellNavItem, "id" | "href" | "label">[] = [
