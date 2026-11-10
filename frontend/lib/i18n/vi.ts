@@ -30,6 +30,7 @@ export const vi: Record<keyof typeof en, string> = {
   "nav.newProject": "Dự án mới",
   "nav.admin": "Quản trị",
   "nav.jam": "Sự kiện Jam",
+  "nav.transactions": "Giao dịch",
   "nav.signOut": "Đăng xuất",
   "nav.signIn": "Đăng nhập",
   "nav.startFree": "Bắt đầu miễn phí",

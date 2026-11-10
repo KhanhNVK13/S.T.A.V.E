@@ -7,6 +7,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module';
+import { AdminBillingModule } from './admin-billing/admin-billing.module';
 import { ProjectsModule } from './projects/projects.module';
 import { DraftsModule } from './drafts/drafts.module';
 import { ExploreModule } from './explore/explore.module';
@@ -43,6 +44,7 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     AuthModule,
     UsersModule,
     AdminModule,
+    AdminBillingModule,
     ProjectsModule,
     DraftsModule,
     ExploreModule,
