@@ -1082,3 +1082,30 @@ export async function getPullRequestTargetBranches(projectId: string): Promise<{
 }> {
   return apiFetch(`/projects/${projectId}/pull-requests/target-branches`);
 }
+
+export type MergeRiskLevel = "low" | "medium" | "high";
+
+export interface MergeRiskMetrics {
+  sourceChanged: number;
+  targetChanged: number;
+  overlap: number;
+  conflictsCount: number;
+  sourceCommits: number;
+  targetCommits: number;
+}
+
+export interface MergeRiskResult {
+  level: MergeRiskLevel;
+  metrics: MergeRiskMetrics;
+  explanation: string | null;
+}
+
+export async function getMergeRisk(
+  sourceBranchId: string,
+  targetBranchId: string,
+  lang?: "en" | "vi",
+): Promise<MergeRiskResult> {
+  const search = new URLSearchParams({ sourceBranchId, targetBranchId });
+  if (lang) search.set("lang", lang);
+  return apiFetch<MergeRiskResult>(`/ai/merge-risk?${search.toString()}`);
+}

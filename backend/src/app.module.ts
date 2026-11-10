@@ -26,6 +26,8 @@ import { JamModule } from './jam/jam.module';
 import { AiModule } from './ai/ai.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { BillingModule } from './billing/billing.module';
+import { ReportsModule } from './reports/reports.module';
+import { ActivityLogModule } from './activity-log/activity-log.module';
 
 @Module({
   imports: [
@@ -59,6 +61,8 @@ import { BillingModule } from './billing/billing.module';
     AiModule,
     PlatformSettingsModule,
     BillingModule.register(),
+    ReportsModule,
+    ActivityLogModule,
   ],
   controllers: [AppController],
   providers: [AppService],

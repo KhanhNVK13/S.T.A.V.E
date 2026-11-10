@@ -30,6 +30,7 @@ import { BranchList } from "../../../components/project/branch-list";
 import { VersionSummary } from "../../../components/project/version-summary";
 import { ImportMidiDialog } from "../../../components/project/import-midi-dialog";
 import { ProjectPullRequests } from "../../../components/pull-request/project-pull-requests";
+import { ReportProjectButton } from "../../../components/moderation/report-project-button";
 import { ContributionsView } from "../../../components/collaboration/contributions-view";
 import { formatRelativeTime } from "../../../lib/format-date";
 import { tNow } from "../../../lib/i18n";
@@ -358,6 +359,7 @@ function ProjectOverview({ id }: { id: string }) {
                 )}
               </Button>
             )}
+            {data.visibility === "public" && !data.isOwner && <ReportProjectButton projectId={id} />}
 
             <Button variant="secondary" disabled title={t("project.previewTitle")}>
               <Play className="h-3.5 w-3.5" /> {t("project.preview")}
