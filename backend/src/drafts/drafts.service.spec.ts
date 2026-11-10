@@ -1,4 +1,8 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import type { DraftSnapshot } from '@stave/shared-types';
 import { createSupabaseMock } from '../test-utils/supabase-mock';
 import { ProjectAccessService } from '../project-access/project-access.service';
@@ -59,6 +63,15 @@ describe('BE-DRF-01 DraftsService.getDraft', () => {
       { id: branchId, head_commit_id: headId },
     );
     await expect(service.getDraft(projectId, userId)).resolves.toBe(snapshot);
+  });
+
+  it('UTCID10 throws InternalServerErrorException "Could not read draft" when the drafts query errors', async () => {
+    const { service } = makeService({
+      drafts: [{ data: null, error: { message: 'relation missing' } }],
+    });
+    await expect(service.getDraft(projectId, userId)).rejects.toThrow(
+      new InternalServerErrorException('Could not read draft'),
+    );
   });
 });
 
@@ -133,6 +146,16 @@ describe('BE-DRF-02 DraftsService.putDraft', () => {
       service.putDraft(projectId, userId, snapshot),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(builders.drafts).toBeUndefined();
+  });
+
+  it('UTCID08 throws InternalServerErrorException "Could not write draft" when the upsert returns no row', async () => {
+    const { service } = makeService({
+      projects: [{ data: { owner_id: userId } }],
+      drafts: [{ data: null, error: null }],
+    });
+    await expect(service.putDraft(projectId, userId, snapshot)).rejects.toThrow(
+      new InternalServerErrorException('Could not write draft'),
+    );
   });
 
   it('UTCID07 discards only the given user drafts across the project branches', async () => {

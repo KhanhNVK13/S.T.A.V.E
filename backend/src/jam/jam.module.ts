@@ -4,6 +4,7 @@ import { AdminJamController } from './admin-jam.controller';
 import { JamService } from './jam.service';
 import { JamGateway } from './jam.gateway';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 
 /**
  * UC-66/67/68/94 — Community Jam: HTTP listing/join/result surface + the live
@@ -15,7 +16,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
  * notices, CLAUDE.md §4.6).
  */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, PlatformSettingsModule],
   controllers: [JamController, AdminJamController],
   providers: [JamService, JamGateway],
   exports: [JamService],

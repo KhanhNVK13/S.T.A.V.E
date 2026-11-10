@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PlatformSettingsService } from './platform-settings.service';
+import { PlatformSettingsAdminService } from './platform-settings-admin.service';
+import { PlatformSettingsAdminController } from './platform-settings-admin.controller';
 
 /**
  * UC-109 (foundation): `PlatformSettingsService` (typed, cached read of
@@ -11,7 +13,8 @@ import { PlatformSettingsService } from './platform-settings.service';
  * project's per-feature module style.
  */
 @Module({
-  providers: [PlatformSettingsService],
+  controllers: [PlatformSettingsAdminController],
+  providers: [PlatformSettingsService, PlatformSettingsAdminService],
   exports: [PlatformSettingsService],
 })
 export class PlatformSettingsModule {}

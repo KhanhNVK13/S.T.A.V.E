@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Search } from "lucide-react";
 import { apiFetch } from "../../../lib/api-client";
 import { PageHeader } from "../../../components/ui/page-header";
@@ -358,6 +359,12 @@ function AdminUsersTable() {
                 )}
               </span>
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+                <Link
+                  href={`/admin/users/${user.id}/activity`}
+                  className="inline-flex h-8 items-center whitespace-nowrap rounded-md border border-transparent px-3 text-[13px] font-semibold text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
+                >
+                  {t("aact.viewActivity")}
+                </Link>
                 {user.role !== "admin" && (
                   <>
                     {user.status === "active" && (
