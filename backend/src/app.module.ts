@@ -26,6 +26,7 @@ import { JamModule } from './jam/jam.module';
 import { AiModule } from './ai/ai.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { BillingModule } from './billing/billing.module';
+import { CustomThemesModule } from './custom-themes/custom-themes.module';
 import { ReportsModule } from './reports/reports.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
 
@@ -61,6 +62,7 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     AiModule,
     PlatformSettingsModule,
     BillingModule.register(),
+    CustomThemesModule,
     ReportsModule,
     ActivityLogModule,
   ],

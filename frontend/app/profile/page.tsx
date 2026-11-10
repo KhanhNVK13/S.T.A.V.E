@@ -15,6 +15,7 @@ import { Button } from "../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
 import { ConnectedAccounts } from "../../components/settings/connected-accounts";
+import { ThemeFromImage } from "../../components/settings/theme-from-image";
 import { Dialog } from "../../components/ui/dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { PageHeader } from "../../components/ui/page-header";
@@ -27,7 +28,7 @@ import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid 
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
-type SettingsTab = "profile" | "security" | "accessibility";
+type SettingsTab = "profile" | "security" | "accessibility" | "personalisation";
 
 function ProfileForm() {
   const { t } = useI18n();
@@ -539,6 +540,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: TKey }[] = [
   { id: "profile", label: "profile.tabProfile" },
   { id: "security", label: "profile.tabSecurity" },
   { id: "accessibility", label: "accessibilityPage.tab" },
+  { id: "personalisation", label: "profile.tabPersonalisation" },
 ];
 
 function AccessibilityTab() {
@@ -570,6 +572,17 @@ function AccessibilityTab() {
   );
 }
 
+function PersonalisationTab() {
+  const { t } = useI18n();
+  return (
+    <>
+      <h2 className="text-lg font-semibold">{t("profile.tabPersonalisation")}</h2>
+
+      <ThemeFromImage returnTo="/profile?tab=personalisation" />
+    </>
+  );
+}
+
 export default function ProfilePage() {
   const { t } = useI18n();
   const { profile } = useAuth();
@@ -577,8 +590,14 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- tham số URL chỉ đọc được ở client
-    if (requested === "security" || requested === "accessibility") setTab(requested);
+    const isTab =
+      requested === "security" ||
+      requested === "accessibility" ||
+      requested === "personalisation";
+    if (isTab) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- tham số URL chỉ đọc được ở client
+      setTab(requested as SettingsTab);
+    }
   }, []);
 
   return (
@@ -605,6 +624,8 @@ export default function ProfilePage() {
             <ProfileTab />
           ) : tab === "accessibility" ? (
             <AccessibilityTab />
+          ) : tab === "personalisation" ? (
+            <PersonalisationTab />
           ) : (
             <>
               <h2 className="text-lg font-semibold">{t("profile.tabSecurity")}</h2>

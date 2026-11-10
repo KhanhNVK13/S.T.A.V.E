@@ -163,6 +163,10 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Resume your plan before scheduling a change": { en: "Your plan is canceled. Resume it before scheduling a change.", vi: "Gói của bạn đã được huỷ. Hãy tiếp tục gói trước khi đặt lịch đổi gói." },
   "Renew your plan before scheduling a change": { en: "Your paid period has ended. Renew it before scheduling a change.", vi: "Kỳ đã trả đã kết thúc. Hãy gia hạn trước khi đặt lịch đổi gói." },
   "Could not read your theme": { en: "Couldn't load your theme settings. Please try again.", vi: "Không tải được thiết lập giao diện của bạn. Hãy thử lại." },
+  "Could not save theme": { en: "Couldn't save your theme. Please try again.", vi: "Không lưu được theme của bạn. Hãy thử lại." },
+  "Could not apply theme": { en: "Couldn't apply your theme. Please try again.", vi: "Không áp dụng được theme của bạn. Hãy thử lại." },
+  "Paid access required": { en: "This feature requires a STAVE+ plan.", vi: "Tính năng này yêu cầu gói STAVE+." },
+  "palette must contain exactly the 10 allowed CSS variables with valid oklch(L C H) values": { en: "The generated palette couldn't be saved. Please try again.", vi: "Không lưu được bảng màu vừa tạo. Hãy thử lại." },
   "Cannot renew while downgrade is scheduled": { en: "Cancel the scheduled plan change before renewing.", vi: "Hãy huỷ lịch chuyển gói trước khi gia hạn." },
 };
 

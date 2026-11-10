@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 import { AccessibilityProvider } from "../context/accessibility-context";
 import { AuthProvider } from "../context/auth-context";
+import { ThemeProvider } from "../context/theme-context";
 import { I18nProvider } from "../context/i18n-context";
 import { ShellSwitch } from "../components/shell/shell-switch";
 import { FlashToastHost } from "../components/flash-toast";
@@ -42,10 +43,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <AccessibilityProvider>
           <I18nProvider>
             <AuthProvider>
-              <SpaceBackdrop />
-              <SkipLink />
-              <ShellSwitch>{children}</ShellSwitch>
-              <FlashToastHost />
+              <ThemeProvider>
+                <SpaceBackdrop />
+                <SkipLink />
+                <ShellSwitch>{children}</ShellSwitch>
+                <FlashToastHost />
+              </ThemeProvider>
             </AuthProvider>
           </I18nProvider>
         </AccessibilityProvider>

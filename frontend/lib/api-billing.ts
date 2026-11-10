@@ -3,7 +3,9 @@ import type {
   CancelPreview,
   CheckoutResponse,
   EffectiveSubscription,
+  EffectiveTheme,
   FakePaymentResult,
+  SaveCustomThemeResponse,
   PaymentIssueCreated,
   PaymentOrder,
   PlanChangePreview,
@@ -15,6 +17,21 @@ import type {
 
 export async function getMySubscription(): Promise<EffectiveSubscription> {
   return apiFetch<EffectiveSubscription>("/subscriptions/me");
+}
+
+/** UC-79 — theme có hiệu lực (kèm cờ quyền trả phí). */
+export async function getMyEffectiveTheme(): Promise<EffectiveTheme> {
+  return apiFetch<EffectiveTheme>("/themes/me/effective");
+}
+
+/** UC-79 — lưu palette theme tạo từ ảnh. */
+export async function saveMyCustomTheme(
+  palette: Record<string, string>,
+): Promise<SaveCustomThemeResponse> {
+  return apiFetch<SaveCustomThemeResponse>("/themes/me/custom", {
+    method: "PUT",
+    body: JSON.stringify({ palette }),
+  });
 }
 
 export async function getFakePaymentOrder(orderCode: number): Promise<PaymentOrder> {
