@@ -61,14 +61,16 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Quét định kỳ — mỗi bước bọc try/catch riêng để lỗi một bước không chặn bước khác. */
-  async sweep(): Promise<void> {
-    await this.runStep('openGracePeriods', () => this.openGracePeriods());
-    await this.runStep('sendRenewalReminders', () => this.sendRenewalReminders());
+  async sweep(now: Date = new Date()): Promise<void> {
+    await this.runStep('openGracePeriods', () => this.openGracePeriods(now));
+    await this.runStep('sendRenewalReminders', () =>
+      this.sendRenewalReminders(now),
+    );
     await this.runStep('applyScheduledDowngrades', () =>
-      this.applyScheduledDowngrades(),
+      this.applyScheduledDowngrades(now),
     );
     await this.runStep('failStalePendingOrders', () =>
-      this.failStalePendingOrders(),
+      this.failStalePendingOrders(now),
     );
   }
 
@@ -97,8 +99,8 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
    * lịch chuyển gói. PostgREST không cho phép cộng khoảng thời gian vào cột
    * nên giá trị được tính bằng JS; update có điều kiện an toàn đa instance.
    */
-  async openGracePeriods(): Promise<void> {
-    const nowIso = new Date().toISOString();
+  async openGracePeriods(now: Date = new Date()): Promise<void> {
+    const nowIso = now.toISOString();
     const { data, error } = await this.supabase
       .from('subscriptions')
       .select(SUBSCRIPTION_COLUMNS)
@@ -142,8 +144,7 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
    * xác định mốc bằng hàm thuần rồi update có điều kiện — chỉ gửi thông báo cho
    * dòng thật sự được cập nhật.
    */
-  async sendRenewalReminders(): Promise<void> {
-    const now = new Date();
+  async sendRenewalReminders(now: Date = new Date()): Promise<void> {
     const nowIso = now.toISOString();
     const leadWindow = addDays(now, REMINDER_LEAD_DAYS).toISOString();
 
@@ -198,8 +199,8 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
    * Áp dụng hạ cấp đã đặt lịch khi kỳ hiện tại kết thúc. Hạ về gói miễn phí
    * thì chỉ gỡ lịch; hạ sang gói trả phí thì đổi gói và khoá giá gói mới.
    */
-  async applyScheduledDowngrades(): Promise<void> {
-    const nowIso = new Date().toISOString();
+  async applyScheduledDowngrades(now: Date = new Date()): Promise<void> {
+    const nowIso = now.toISOString();
     const { data, error } = await this.supabase
       .from('subscriptions')
       .select(SUBSCRIPTION_COLUMNS)
@@ -261,8 +262,8 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
    * thì hoàn tất đơn, cổng lỗi thì bỏ qua lượt này để thử lại lần quét sau.
    * Cổng giả hoặc đơn thất bại thật thì đánh dấu thất bại.
    */
-  async failStalePendingOrders(): Promise<void> {
-    const cutoff = new Date(Date.now() - PENDING_EXPIRY_MS).toISOString();
+  async failStalePendingOrders(now: Date = new Date()): Promise<void> {
+    const cutoff = new Date(now.getTime() - PENDING_EXPIRY_MS).toISOString();
     const { data, error } = await this.supabase
       .from('transactions')
       .select('id, order_code')

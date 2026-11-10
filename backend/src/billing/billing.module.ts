@@ -56,7 +56,12 @@ export class BillingModule {
             createPaymentGateway(env, supabase, new Logger('BillingModule')),
         },
       ],
-      exports: [SubscriptionsService, PaymentsService, PAYMENT_GATEWAY],
+      exports: [
+        SubscriptionsService,
+        PaymentsService,
+        PAYMENT_GATEWAY,
+        BILLING_PAYMENT_PROVIDER,
+      ],
     };
   }
 }

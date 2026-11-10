@@ -142,7 +142,7 @@ describe('BE-BIL-37 currentReminderMilestone', () => {
 
   it('UTCID03 returns the period end on the expiry day', () => {
     const milestone = currentReminderMilestone(
-      { current_period_end: periodEnd, grace_until },
+      { current_period_end: periodEnd, grace_until: graceUntil },
       iso('2026-11-10T12:00:00.000Z'),
     );
     expect(milestone?.toISOString()).toBe(periodEnd);
@@ -150,15 +150,15 @@ describe('BE-BIL-37 currentReminderMilestone', () => {
 
   it('UTCID04 returns one milestone per grace day', () => {
     const first = currentReminderMilestone(
-      { current_period_end: periodEnd, grace_until },
+      { current_period_end: periodEnd, grace_until: graceUntil },
       iso('2026-11-11T09:00:00.000Z'),
     );
     const second = currentReminderMilestone(
-      { current_period_end: periodEnd, grace_until },
+      { current_period_end: periodEnd, grace_until: graceUntil },
       iso('2026-11-12T09:00:00.000Z'),
     );
     const third = currentReminderMilestone(
-      { current_period_end: periodEnd, grace_until },
+      { current_period_end: periodEnd, grace_until: graceUntil },
       iso('2026-11-13T09:00:00.000Z'),
     );
     expect(first?.toISOString()).toBe('2026-11-11T00:00:00.000Z');
@@ -169,7 +169,7 @@ describe('BE-BIL-37 currentReminderMilestone', () => {
   it('UTCID05 returns null once the grace period has passed', () => {
     expect(
       currentReminderMilestone(
-        { current_period_end: periodEnd, grace_until },
+        { current_period_end: periodEnd, grace_until: graceUntil },
         iso('2026-11-14T00:00:00.000Z'),
       ),
     ).toBeNull();
