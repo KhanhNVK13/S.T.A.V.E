@@ -720,3 +720,7 @@ export interface AdminReportListResponse {
 export interface CreateReportResponse {
   id: string;
 }
+
+// Theme từ ảnh (UC-79) — palette token, hợp đồng regex/validate dùng chung FE/BE.
+export type * from "./theme";
+export { PALETTE_KEYS, OKLCH_STRICT_REGEX, isValidOklch, isValidPalette } from "./theme";
