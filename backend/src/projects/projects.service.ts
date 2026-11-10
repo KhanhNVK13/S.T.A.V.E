@@ -4,7 +4,9 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { CreateProjectDto } from './dto/create-project.dto';
@@ -26,6 +28,7 @@ export class ProjectsService {
     private readonly access: ProjectAccessService,
     private readonly activeBranch: ActiveBranchService,
     private readonly audioSketches: AudioSketchesService,
+    @Optional() private readonly activityLog?: ActivityLogService,
   ) {}
 
   /** UC-18 (core): tạo project + branch mặc định 'main' đi kèm. */
@@ -62,6 +65,13 @@ export class ProjectsService {
       );
     }
 
+    void this.activityLog?.record({
+      userId: ownerId,
+      action: 'project.created',
+      targetType: 'project',
+      targetId: project.id,
+      targetName: project.name,
+    });
     return project;
   }
 

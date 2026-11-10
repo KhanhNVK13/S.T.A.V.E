@@ -4,8 +4,10 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 import { ConfigService } from '@nestjs/config';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import type { Request } from 'express';
@@ -34,6 +36,7 @@ export class AuthService {
     private readonly supabase: SupabaseClient,
     private readonly config: ConfigService,
     private readonly accountRemoval: AccountRemovalService,
+    @Optional() private readonly activityLog?: ActivityLogService,
   ) {}
 
   /**
@@ -179,6 +182,11 @@ export class AuthService {
     if (error || !session) {
       throw new UnauthorizedException('Could not create session');
     }
+    void this.activityLog?.record({
+      userId,
+      action: 'auth.sign_in',
+      ip: req.ip ?? null,
+    });
     return { sessionId: session.id };
   }
 

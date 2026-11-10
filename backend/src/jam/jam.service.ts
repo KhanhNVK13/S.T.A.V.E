@@ -40,6 +40,7 @@ import type { EditJamNoteRequestDto } from './dto/edit-jam-note.dto';
 import type { CreateJamEventDto } from './dto/create-jam-event.dto';
 import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { JamEventQueryDto } from './dto/jam-event-query.dto';
 
@@ -261,6 +262,8 @@ export class JamService {
     // without the full DI graph; guarded with `?.` at every call site.
     @Optional()
     private readonly notifications?: NotificationsService,
+    @Optional()
+    private readonly platformSettings?: PlatformSettingsService,
   ) {}
 
   // ------------------------------------------------------------------
@@ -622,6 +625,18 @@ export class JamService {
   // UC-93 — admin: create a jam event (+ its private jam project)
   // ------------------------------------------------------------------
 
+  private async defaultCooldownSec(): Promise<number> {
+    const configured = await this.platformSettings?.get<unknown>(
+      'jam_edit_cooldown_sec',
+      JamService.DEFAULT_COOLDOWN_SEC,
+    );
+    return typeof configured === 'number' &&
+      Number.isInteger(configured) &&
+      configured > 0
+      ? configured
+      : JamService.DEFAULT_COOLDOWN_SEC;
+  }
+
   /**
    * UC-93 (report 3 §3.2.93) — create a Community Jam event. The event and
    * its dedicated workspace project are created together: if the
@@ -695,7 +710,8 @@ export class JamService {
       scheduled_end_at: dto.scheduledEndAt,
       starting_project_id: dto.startingProjectId ?? null,
       jam_project_id: jamProject.id,
-      edit_cooldown_sec: dto.editCooldownSec ?? JamService.DEFAULT_COOLDOWN_SEC,
+      edit_cooldown_sec:
+        dto.editCooldownSec ?? (await this.defaultCooldownSec()),
       no_result: false,
       created_at: nowIso,
       updated_at: nowIso,

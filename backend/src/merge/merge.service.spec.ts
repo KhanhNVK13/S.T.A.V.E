@@ -365,6 +365,45 @@ describe('BE-MRG-03 MergeService.mergeBranch', () => {
       new ForbiddenException('You do not have edit permission on this project'),
     );
   });
+
+  it('UTCID12 lets an accepted edit collaborator merge a branch (BR-26)', async () => {
+    const resultCommit = commitRow('merge-1');
+    const { service } = makeService(
+      {
+        branches: [{ data: branch(sourceId) }, { data: branch(targetId) }],
+        projects: [{ data: { owner_id: otherUserId, archived_at: null } }],
+        project_collaborators: [
+          {
+            data: {
+              id: 'collab-1',
+              project_id: projectId,
+              user_id: userId,
+              permission_level: 'edit',
+              invited_by: otherUserId,
+              created_at: '2026-10-25T00:00:00.000Z',
+              status: 'accepted',
+            },
+          },
+        ],
+        commits: [
+          { data: { snapshot: emptySnapshot } },
+          { data: { snapshot: emptySnapshot } },
+          { data: { snapshot: emptySnapshot } },
+        ],
+      },
+      { create_merge_commit_atomic: { data: resultCommit, error: null } },
+    );
+
+    const result = await service.mergeBranch(userId, {
+      sourceBranchId: sourceId,
+      targetBranchId: targetId,
+    });
+
+    expect(result).toEqual({
+      hasConflicts: false,
+      commit: expect.objectContaining({ id: 'merge-1', created_by: userId }),
+    });
+  });
 });
 
 describe('BE-MRG-04 MergeService.fastForward', () => {
@@ -1315,6 +1354,46 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
     ).rejects.toThrow(
       new ForbiddenException('You do not have edit permission on this project'),
     );
+  });
+
+  it('UTCID13 lets an accepted edit collaborator merge (BR-26)', async () => {
+    const { service } = makeService(
+      {
+        branches: [{ data: branch(sourceId) }, { data: branch(targetId) }],
+        projects: [{ data: { owner_id: otherUserId, archived_at: null } }],
+        project_collaborators: [
+          {
+            data: {
+              id: 'collab-1',
+              project_id: projectId,
+              user_id: userId,
+              permission_level: 'edit',
+              invited_by: otherUserId,
+              created_at: '2026-10-25T00:00:00.000Z',
+              status: 'accepted',
+            },
+          },
+        ],
+        commits: [
+          { data: { snapshot: conflictBase } },
+          { data: { snapshot: sourceChanged } },
+          { data: { snapshot: targetChanged } },
+        ],
+      },
+      rpcSuccess,
+      baseId,
+    );
+
+    const result = await service.resolveConflictsAndMerge(userId, {
+      ...dtoBase,
+      resolutions: pickSource,
+      message: 'Resolve merge',
+    });
+
+    expect(result).toEqual({
+      hasConflicts: false,
+      commit: expect.objectContaining({ id: 'resolved' }),
+    });
   });
 });
 
