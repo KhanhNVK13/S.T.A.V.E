@@ -29,6 +29,7 @@
     "@nestjs/platform-socket.io": "^11.2.8",
     "@nestjs/throttler": "^6.7.1",
     "@nestjs/websockets": "^11.2.8",
+    "@payos/node": "^2.0.5",
     "@stave/shared-types": "0.0.1",
     "@supabase/supabase-js": "^2.112.4",
     "@types/uuid": "^10.0.0",

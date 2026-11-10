@@ -7,6 +7,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module';
+import { AdminBillingModule } from './admin-billing/admin-billing.module';
 import { ProjectsModule } from './projects/projects.module';
 import { DraftsModule } from './drafts/drafts.module';
 import { ExploreModule } from './explore/explore.module';
@@ -25,6 +26,8 @@ import { CommentsModule } from './comments/comments.module';
 import { JamModule } from './jam/jam.module';
 import { AiModule } from './ai/ai.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { BillingModule } from './billing/billing.module';
+import { CustomThemesModule } from './custom-themes/custom-themes.module';
 import { ReportsModule } from './reports/reports.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
 
@@ -41,6 +44,7 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     AuthModule,
     UsersModule,
     AdminModule,
+    AdminBillingModule,
     ProjectsModule,
     DraftsModule,
     ExploreModule,
@@ -59,6 +63,8 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     JamModule,
     AiModule,
     PlatformSettingsModule,
+    BillingModule.register(),
+    CustomThemesModule,
     ReportsModule,
     ActivityLogModule,
   ],
