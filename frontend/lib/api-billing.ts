@@ -88,3 +88,7 @@ export async function cancelSubscription(): Promise<EffectiveSubscription> {
 export async function resumeSubscription(): Promise<EffectiveSubscription> {
   return apiFetch<EffectiveSubscription>("/subscriptions/resume", { method: "POST" });
 }
+
+export async function renewSubscription(): Promise<CheckoutResponse> {
+  return apiFetch<CheckoutResponse>("/subscriptions/renew", { method: "POST" });
+}

@@ -132,12 +132,12 @@ export class BillingHistoryService {
       throw new ConflictException('This transaction already has an open issue');
     }
 
-    // TODO(P7): ghi reported_by khi migration đợt 2 thêm cột này.
     const issue = {
       id: randomUUID(),
       transaction_id: id,
       description,
       status: 'open' as const,
+      reported_by: userId,
       created_at: new Date().toISOString(),
     };
     const { error } = await this.supabase.from('payment_issues').insert(issue);

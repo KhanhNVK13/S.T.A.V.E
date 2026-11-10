@@ -57,6 +57,7 @@ function effective(
     plan: plan('plus', 49000),
     status: 'active',
     currentPeriodEnd: END,
+    graceUntil: null,
     cancelAtPeriodEnd: false,
     pendingPlan: null,
     hasPaidAccess: true,
@@ -369,6 +370,44 @@ describe('BE-BIL-34 SubscriptionChangesService.previewCancel', () => {
     const { service } = makeService({ users: [fail()] });
     await expect(service.previewCancel(userId)).rejects.toThrow(
       'Could not read your account',
+    );
+  });
+});
+
+describe('BE-BIL-44 SubscriptionChangesService.renew', () => {
+  it('UTCID01 creates a renewal checkout for the current paid plan', async () => {
+    const { service, payments } = makeService({}, [effective()]);
+
+    await expect(service.renew(userId)).resolves.toEqual({
+      checkoutUrl: 'https://pay.example/1',
+      orderCode: 9,
+    });
+    expect(payments.createCheckout).toHaveBeenCalledWith(
+      userId,
+      'plus',
+      'renew',
+    );
+  });
+
+  it('UTCID02 refuses to renew while a downgrade is scheduled', async () => {
+    const { service, payments } = makeService(
+      {},
+      [effective({ pendingPlan: plan('free', 0) })],
+    );
+
+    await expect(service.renew(userId)).rejects.toThrow(
+      'Cannot renew while downgrade is scheduled',
+    );
+    expect(payments.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('UTCID03 refuses to renew a free plan or a canceled plan', async () => {
+    const free = makeService({}, [FREE_EFFECTIVE]);
+    await expect(free.service.renew(userId)).rejects.toThrow(ConflictException);
+
+    const canceled = makeService({}, [effective({ status: 'canceled' })]);
+    await expect(canceled.service.renew(userId)).rejects.toThrow(
+      ConflictException,
     );
   });
 });

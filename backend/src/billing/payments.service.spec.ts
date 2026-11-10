@@ -64,6 +64,7 @@ function effective(paid: boolean): EffectiveSubscription {
     plan,
     status: paid ? 'active' : 'none',
     currentPeriodEnd: paid ? '2026-12-01T00:00:00.000Z' : null,
+    graceUntil: null,
     cancelAtPeriodEnd: false,
     pendingPlan: null,
     hasPaidAccess: paid,

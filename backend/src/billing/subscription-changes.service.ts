@@ -8,6 +8,7 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   CancelPreview,
+  CheckoutResponse,
   EffectiveSubscription,
   PlanChangeKind,
   PlanChangePreview,
@@ -167,6 +168,21 @@ export class SubscriptionChangesService {
       );
     }
     return this.subscriptions.getEffective(userId);
+  }
+
+  /**
+   * Gia hạn gói đang dùng. Gói đã bị admin tắt vẫn gia hạn được (BR-120);
+   * gói đang có lịch hạ cấp thì không gia hạn được (phải huỷ lịch trước).
+   */
+  async renew(userId: string): Promise<CheckoutResponse> {
+    const effective = await this.subscriptions.getEffective(userId);
+    if (!effective.hasPaidAccess || effective.status !== 'active') {
+      throw new ConflictException('Only your current paid plan can be renewed');
+    }
+    if (effective.pendingPlan) {
+      throw new ConflictException('Cannot renew while downgrade is scheduled');
+    }
+    return this.payments.createCheckout(userId, effective.plan.id, 'renew');
   }
 
   private async resolveChange(

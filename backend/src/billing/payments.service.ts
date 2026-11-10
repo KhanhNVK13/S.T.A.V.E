@@ -23,6 +23,7 @@ import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { formatVnd } from './billing-format';
 import { PLAN_COLUMNS, type PlanRow } from './effective-plan';
 import { PAYMENT_GATEWAY, type PaymentGateway } from './payment-gateway';
+import { computeRenewalPrice } from './renewal';
 import { isSafeReturnTo } from './return-to';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -137,12 +138,14 @@ export class PaymentsService {
     }
     const effective = await this.subscriptions.getEffective(userId);
     this.assertPurpose(purpose, plan, effective);
-    if (!Number.isSafeInteger(plan.price_vnd) || plan.price_vnd <= 0) {
+
+    const amountVnd =
+      purpose === 'renew'
+        ? await this.renewalAmount(userId, plan)
+        : plan.price_vnd;
+    if (!Number.isSafeInteger(amountVnd) || amountVnd <= 0) {
       throw new BadRequestException('This plan does not need payment');
     }
-
-    // TODO(P7): giá gia hạn theo price_locked_vnd / price_effective_at.
-    const amountVnd = plan.price_vnd;
     const retryOf = await this.findRetryTarget(userId, plan.id);
     const { id, orderCode } = await this.insertPendingOrder({
       user_id: userId,
@@ -307,6 +310,21 @@ export class PaymentsService {
     ) {
       throw new ConflictException('Only your current paid plan can be renewed');
     }
+  }
+
+  /**
+   * Số tiền gia hạn: giá gói mới khi đã có hiệu lực, nếu không thì giá đang
+   * khoá của người dùng (BR-119).
+   */
+  private async renewalAmount(
+    userId: string,
+    plan: PlanRow,
+  ): Promise<number> {
+    const subscription = await this.subscriptions.getSubscriptionRow(userId);
+    if (!subscription) {
+      throw new ConflictException('Only your current paid plan can be renewed');
+    }
+    return computeRenewalPrice(plan, subscription, new Date());
   }
 
   private async loadPayer(userId: string): Promise<PayerRow> {

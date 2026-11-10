@@ -18,11 +18,12 @@ import {
   listSubscriptionPlans,
   previewCancellation,
   previewPlanChange,
+  renewSubscription,
   resumeSubscription,
   startCheckout,
 } from "../../lib/api-billing";
 import { apiErrorMessage } from "../../lib/error-message";
-import { formatDate } from "../../lib/format-date";
+import { daysUntil, formatDate } from "../../lib/format-date";
 import { formatVnd } from "../../lib/format-vnd";
 import { planFeatureList } from "../../lib/plan-features";
 import { useApiResource } from "../../lib/use-api-resource";
@@ -165,7 +166,21 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
         "Gói của bạn sẽ tiếp tục gia hạn như bình thường.",
         "Không tiếp tục được gói.",
       ),
+    onRenew: () => void renew(),
   };
+
+  async function renew() {
+    setPreparing("renew");
+    setPageError(null);
+    setNotice(null);
+    try {
+      const { checkoutUrl } = await renewSubscription();
+      window.location.assign(checkoutUrl);
+    } catch (err) {
+      setPageError(apiErrorMessage(err, "Không tạo được đơn gia hạn."));
+      setPreparing(null);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
@@ -229,6 +244,17 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
         </Card>
       ) : (
         <>
+          {subscription.inGrace && subscription.graceUntil && (
+            <Card role="alert" className="mb-4 flex items-center gap-2 border-warning bg-warning-muted p-4 text-sm">
+              <TriangleAlert aria-hidden="true" className="h-4 w-4 shrink-0 text-warning-foreground" />
+              Gói {subscription.plan.name} đã hết hạn. Bạn vẫn dùng được đến{" "}
+              <strong className="text-foreground">
+                {formatDate(subscription.graceUntil)}
+              </strong>
+              , sau đó tài khoản quay về gói miễn phí.
+            </Card>
+          )}
+
           {subscription.pendingPlan && (
             <Card className="mb-4 flex flex-wrap items-center gap-3 p-4">
               <CalendarClock aria-hidden="true" className="h-5 w-5 shrink-0 text-muted" />
@@ -364,6 +390,7 @@ interface PlanCardHandlers {
   onChange: (plan: PlanListItem) => void;
   onCancel: () => void;
   onResume: () => void;
+  onRenew: () => void;
 }
 
 function PlanCard({
@@ -383,6 +410,13 @@ function PlanCard({
   const onPaidPlan = subscription.hasPaidAccess;
   const retiredButCurrent = plan.isCurrent && !plan.isActive;
   const busy = handlers.busyKey !== null;
+  const daysLeft = daysUntil(subscription.currentPeriodEnd);
+  const canRenew =
+    onPaidPlan &&
+    plan.isCurrent &&
+    !subscription.cancelAtPeriodEnd &&
+    !subscription.pendingPlan &&
+    (subscription.inGrace || (daysLeft !== null && daysLeft <= 3));
 
   return (
     <Card
@@ -446,6 +480,11 @@ function PlanCard({
         {onPaidPlan && !plan.isCurrent && (
           <Button variant="secondary" disabled={busy} onClick={() => handlers.onChange(plan)}>
             {handlers.busyKey === plan.id ? "Đang kiểm tra…" : "Đổi gói"}
+          </Button>
+        )}
+        {onPaidPlan && plan.isCurrent && canRenew && (
+          <Button disabled={busy} onClick={handlers.onRenew}>
+            {handlers.busyKey === "renew" ? "Đang xử lý…" : "Gia hạn ngay"}
           </Button>
         )}
         {onPaidPlan && plan.isCurrent && !subscription.cancelAtPeriodEnd && (

@@ -26,6 +26,8 @@ export interface EffectiveSubscription {
   plan: SubscriptionPlan;
   status: EffectiveSubscriptionStatus;
   currentPeriodEnd: string | null;
+  /** End of the 3-day grace period; null when the plan is not in grace. */
+  graceUntil: string | null;
   cancelAtPeriodEnd: boolean;
   pendingPlan: SubscriptionPlan | null;
   hasPaidAccess: boolean;

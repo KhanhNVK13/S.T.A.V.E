@@ -69,6 +69,7 @@ describe('BE-BIL-09 SubscriptionsService.getEffective', () => {
       }),
       status: 'canceled',
       currentPeriodEnd: '2026-11-20T00:00:00.000Z',
+      graceUntil: null,
       cancelAtPeriodEnd: true,
       pendingPlan: null,
       hasPaidAccess: true,

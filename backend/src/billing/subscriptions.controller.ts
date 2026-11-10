@@ -81,4 +81,11 @@ export class SubscriptionsController {
   resume(@Req() req: AuthenticatedRequest) {
     return this.changes.resume(req.user.id);
   }
+
+  @UseGuards(UserThrottlerGuard)
+  @Post('renew')
+  @HttpCode(201)
+  renew(@Req() req: AuthenticatedRequest) {
+    return this.changes.renew(req.user.id);
+  }
 }

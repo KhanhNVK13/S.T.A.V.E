@@ -284,6 +284,7 @@ describe('BE-BIL-28 BillingHistoryService.reportIssue', () => {
     expect(mock.builders.payment_issues.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         transaction_id: txId,
+        reported_by: userId,
         description: 'Chưa có gói',
         status: 'open',
       }),

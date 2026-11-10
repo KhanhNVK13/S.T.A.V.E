@@ -46,6 +46,19 @@ export class SubscriptionsService {
     return listVisiblePlans(plans, resolved.plan.id);
   }
 
+  /** Dòng đăng ký thô — cần cho việc tính giá gia hạn (giá đang khoá). */
+  async getSubscriptionRow(userId: string): Promise<SubscriptionRow | null> {
+    const { data, error } = await this.supabase
+      .from('subscriptions')
+      .select(SUBSCRIPTION_COLUMNS)
+      .eq('user_id', userId)
+      .maybeSingle<SubscriptionRow>();
+    if (error) {
+      throw new InternalServerErrorException('Could not read subscription');
+    }
+    return data ?? null;
+  }
+
   private async loadState(
     userId: string,
     now: Date,

@@ -64,6 +64,16 @@ export function formatDate(dateStr: string | null | undefined): string {
 }
 
 /**
+ * Số ngày còn lại tới một mốc thời gian (âm = đã qua).
+ */
+export function daysUntil(dateStr: string | null | undefined, now: Date = new Date()): number | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+  return Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
+}
+
+/**
  * Format a date string to date and time (locale-driven)
  */
 export function formatDateTime(dateStr: string | null | undefined): string {

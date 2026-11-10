@@ -163,6 +163,7 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Resume your plan before scheduling a change": { en: "Your plan is canceled. Resume it before scheduling a change.", vi: "Gói của bạn đã được huỷ. Hãy tiếp tục gói trước khi đặt lịch đổi gói." },
   "Renew your plan before scheduling a change": { en: "Your paid period has ended. Renew it before scheduling a change.", vi: "Kỳ đã trả đã kết thúc. Hãy gia hạn trước khi đặt lịch đổi gói." },
   "Could not read your theme": { en: "Couldn't load your theme settings. Please try again.", vi: "Không tải được thiết lập giao diện của bạn. Hãy thử lại." },
+  "Cannot renew while downgrade is scheduled": { en: "Cancel the scheduled plan change before renewing.", vi: "Hãy huỷ lịch chuyển gói trước khi gia hạn." },
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;

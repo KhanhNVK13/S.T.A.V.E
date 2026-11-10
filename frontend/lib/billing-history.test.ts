@@ -20,6 +20,7 @@ const sub = (overrides: Partial<EffectiveSubscription> = {}): EffectiveSubscript
   plan: plan("STAVE+"),
   status: "active",
   currentPeriodEnd: END,
+  graceUntil: null,
   cancelAtPeriodEnd: false,
   pendingPlan: null,
   hasPaidAccess: true,

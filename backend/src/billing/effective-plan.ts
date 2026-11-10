@@ -39,6 +39,7 @@ export interface ResolvedPlan {
   plan: PlanRow;
   status: EffectiveSubscriptionStatus;
   currentPeriodEnd: string | null;
+  graceUntil: string | null;
   cancelAtPeriodEnd: boolean;
   pendingPlan: PlanRow | null;
   hasPaidAccess: boolean;
@@ -64,6 +65,7 @@ export function resolveEffectivePlan(
       plan: defaultPlan,
       status: 'none',
       currentPeriodEnd: null,
+      graceUntil: null,
       cancelAtPeriodEnd: false,
       pendingPlan: null,
       hasPaidAccess: !defaultPlan.is_default,
@@ -75,6 +77,7 @@ export function resolveEffectivePlan(
     plan: subPlan,
     status: sub.status,
     currentPeriodEnd: sub.current_period_end,
+    graceUntil: inGrace ? sub.grace_until : null,
     cancelAtPeriodEnd: sub.status === 'canceled',
     pendingPlan: sub.pending_plan_id
       ? (plansById.get(sub.pending_plan_id) ?? null)

@@ -64,6 +64,7 @@ describe('BE-BIL-01 resolveEffectivePlan', () => {
       plan: free,
       status: 'none',
       currentPeriodEnd: null,
+      graceUntil: null,
       cancelAtPeriodEnd: false,
       pendingPlan: null,
       hasPaidAccess: false,
