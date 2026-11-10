@@ -1,4 +1,4 @@
-import { Bell, Compass, Flag, FolderOpen, House, Music4, Receipt, Shield, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
+import { Bell, Compass, Flag, FolderOpen, House, Music4, Package, Receipt, Shield, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
 import type { TKey } from "../../lib/i18n";
 
 export interface ShellNavItem {
@@ -31,6 +31,7 @@ export const APP_NAV: ShellNavItem[] = [
 export const ADMIN_NAV: ShellNavItem[] = [
   { id: "admin-users", href: "/admin/users", label: "nav.admin", icon: Shield },
   { id: "admin-transactions", href: "/admin/transactions", label: "nav.transactions", icon: Receipt },
+  { id: "admin-plans", href: "/admin/plans", label: "nav.plans", icon: Package },
   { id: "admin-jam", href: "/admin/jam", label: "nav.jam", icon: Music4 },
   { id: "admin-settings", href: "/admin/settings", label: "nav.settings", icon: SlidersHorizontal },
   { id: "admin-reports", href: "/admin/reports", label: "nav.reports", icon: Flag },

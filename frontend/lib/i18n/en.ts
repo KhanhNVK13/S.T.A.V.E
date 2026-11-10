@@ -29,6 +29,7 @@ export const en = {
   "nav.admin": "Admin",
   "nav.jam": "Jam events",
   "nav.transactions": "Transactions",
+  "nav.plans": "Plans",
   "nav.signOut": "Sign out",
   "nav.signIn": "Sign in",
   "nav.startFree": "Get started free",
