@@ -23,7 +23,7 @@ import { Switch } from "../../components/ui/switch";
 import { Tabs } from "../../components/ui/tabs";
 import { useAccessibility } from "../../context/accessibility-context";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
-import { apiErrorMessage } from "../../lib/error-message";
+import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
@@ -37,7 +37,7 @@ function ProfileForm() {
   const [username, setUsername] = useState(profile?.username ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? "");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
@@ -108,7 +108,7 @@ function ProfileForm() {
       return;
     }
     if (bio.length > 500) {
-      setError(t("profile.bioMax"));
+      setError(errorSource(null, "profile.bioMax"));
       return;
     }
     setSubmitting(true);
@@ -125,7 +125,7 @@ function ProfileForm() {
       await refreshProfile();
       setSuccess(true);
     } catch (err) {
-      setError(apiErrorMessage(err, t("profile.saveFail")));
+      setError(errorSource(err, "profile.saveFail"));
     } finally {
       setSubmitting(false);
     }
@@ -247,7 +247,7 @@ function ProfileForm() {
           </Field>
           {error && (
             <p role="alert" className="text-xs text-danger">
-              {error}
+              {renderError(error)}
             </p>
           )}
           {success && (
@@ -355,7 +355,7 @@ function ChangePasswordForm() {
   const { t } = useI18n();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -392,7 +392,7 @@ function ChangePasswordForm() {
       setSuccess(true);
       setOpen(false);
     } catch (err) {
-      setError(apiErrorMessage(err, t("profile.changeFail")));
+      setError(errorSource(err, "profile.changeFail"));
     } finally {
       setSubmitting(false);
     }
@@ -448,7 +448,7 @@ function ChangePasswordForm() {
           </Field>
           {error && (
             <p role="alert" className="text-xs text-danger">
-              {error}
+              {renderError(error)}
             </p>
           )}
           <div>
@@ -467,7 +467,7 @@ function DeleteAccountSection() {
   const router = useRouter();
   const { signOut } = useAuth();
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -488,7 +488,7 @@ function DeleteAccountSection() {
       await signOut();
       router.push("/");
     } catch (err) {
-      setError(apiErrorMessage(err, t("profile.deleteFail")));
+      setError(errorSource(err, "profile.deleteFail"));
     } finally {
       setSubmitting(false);
     }
@@ -528,7 +528,7 @@ function DeleteAccountSection() {
         danger
         loading={submitting}
         confirmDisabled={!password}
-        error={error}
+        error={renderError(error)}
         onConfirm={() => void handleDelete()}
         onCancel={close}
       />

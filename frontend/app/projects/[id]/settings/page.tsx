@@ -23,11 +23,10 @@ import { Button } from "../../../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../../../components/ui/form";
 import { Dialog, DialogActions, DialogError } from "../../../../components/ui/dialog";
 import { ConfirmDialog } from "../../../../components/ui/confirm-dialog";
-import { apiErrorMessage } from "../../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../../lib/error-message";
 import { useI18n } from "../../../../context/i18n-context";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../../lib/validation";
 import { SkyLoading } from "../../../../components/project/sky-state";
-import { tNow } from "../../../../lib/i18n";
 
 const NAME_MAX = 100;
 
@@ -54,7 +53,7 @@ function ProjectInfoCard({
   const [description, setDescription] = useState(project.description ?? "");
   const [genre, setGenre] = useState(project.genre ?? "");
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<ErrorSource | null>(null);
   const [saved, setSaved] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const isArchived = !!project.archived_at;
@@ -82,7 +81,7 @@ function ProjectInfoCard({
       onSaved({ name: name.trim(), description: description || null, genre: genre || null });
       setSaved(true);
     } catch (err) {
-      setSaveError(apiErrorMessage(err, t("pset.saveFail")));
+      setSaveError(errorSource(err, "pset.saveFail"));
     } finally {
       setSaving(false);
     }
@@ -160,7 +159,7 @@ function ProjectInfoCard({
         </dl>
         {saveError && (
           <p role="alert" className="text-sm text-danger">
-            {saveError}
+            {renderError(saveError)}
           </p>
         )}
         {!isArchived && (
@@ -209,7 +208,7 @@ export default function ProjectSettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [visibilitySuccess, setVisibilitySuccess] = useState<string | null>(null);
   const [settingVisibility, setSettingVisibility] = useState(false);
@@ -225,7 +224,7 @@ export default function ProjectSettingsPage() {
         const data = (await getProject(projectId)) as Project;
         setProject(data);
       } catch (err) {
-        setError(apiErrorMessage(err, tNow("pset.loadFail")));
+        setError(errorSource(err, "pset.loadFail"));
       } finally {
         setLoading(false);
       }
@@ -242,7 +241,7 @@ export default function ProjectSettingsPage() {
       setShowDeleteConfirm(false);
       setArchiveNotice("archived");
     } catch (err) {
-      setError(apiErrorMessage(err, t("pset.archiveFail")));
+      setError(errorSource(err, "pset.archiveFail"));
     } finally {
       setArchiving(false);
     }
@@ -257,7 +256,7 @@ export default function ProjectSettingsPage() {
       setShowUnarchiveConfirm(false);
       setArchiveNotice("restored");
     } catch (err) {
-      setError(apiErrorMessage(err, t("pset.restoreFail")));
+      setError(errorSource(err, "pset.restoreFail"));
     } finally {
       setUnarchiving(false);
     }
@@ -270,7 +269,7 @@ export default function ProjectSettingsPage() {
       await deleteProject(projectId);
       router.push("/projects");
     } catch (err) {
-      setError(apiErrorMessage(err, t("pset.deleteFail")));
+      setError(errorSource(err, "pset.deleteFail"));
       setDeleting(false);
     }
   }
@@ -292,7 +291,7 @@ export default function ProjectSettingsPage() {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2500);
     } catch {
-      setError(t("pset.copyFail"));
+      setError(errorSource(null, "pset.copyFail"));
     }
   }
 
@@ -311,7 +310,7 @@ export default function ProjectSettingsPage() {
       // Auto-dismiss success banner after 4 seconds
       setTimeout(() => setVisibilitySuccess(null), 4000);
     } catch (err) {
-      setError(apiErrorMessage(err, t("pset.visibilityFail")));
+      setError(errorSource(err, "pset.visibilityFail"));
     } finally {
       setSettingVisibility(false);
       setPendingVisibility(null);
@@ -342,7 +341,7 @@ export default function ProjectSettingsPage() {
             role="alert"
             className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger"
           >
-            <span>{error}</span>
+            <span>{renderError(error)}</span>
             {!project && (
               <Button
                 variant="secondary"
@@ -510,7 +509,7 @@ export default function ProjectSettingsPage() {
         <p className="mb-6 text-sm text-muted">
           {t("pset.restoreDialogBody", { name: project?.name ?? "" })}
         </p>
-        <DialogError message={error} />
+        <DialogError message={renderError(error)} />
         <DialogActions>
           <Button
             variant="secondary"
@@ -542,7 +541,7 @@ export default function ProjectSettingsPage() {
         <p className="mb-6 text-sm text-muted">
           {t("pset.archiveDialogBody", { name: project?.name ?? "" })}
         </p>
-        <DialogError message={error} />
+        <DialogError message={renderError(error)} />
         <DialogActions>
           <Button
             variant="secondary"
@@ -615,7 +614,7 @@ export default function ProjectSettingsPage() {
             className={INPUT_CLASS}
           />
         </label>
-        <DialogError message={error} />
+        <DialogError message={renderError(error)} />
         <DialogActions>
           <Button
             variant="secondary"

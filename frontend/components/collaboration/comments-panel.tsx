@@ -25,7 +25,7 @@ import {
   getComments,
 } from "../../lib/api-comments";
 import { barToTick, tickToBar } from "../../lib/piano-roll-geometry";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { useApiResource } from "../../lib/use-api-resource";
 import { Avatar } from "../ui/avatar";
@@ -105,18 +105,18 @@ export function CommentsPanel({
   const [anchorBar, setAnchorBar] = useState<string>("");
   const [anchorNoteId, setAnchorNoteId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<ErrorSource | null>(null);
 
   // Reply targeting one top-level comment (single level).
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [replySending, setReplySending] = useState(false);
-  const [replyError, setReplyError] = useState<string | null>(null);
+  const [replyError, setReplyError] = useState<ErrorSource | null>(null);
 
   // Delete confirmation (BR-69).
   const [deleteTarget, setDeleteTarget] = useState<CommentItem | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<ErrorSource | null>(null);
 
   // The selected note in the roll pre-fills the anchor (if exactly one).
   const prefillNote = useMemo(() => {
@@ -159,7 +159,7 @@ export function CommentsPanel({
       setAnchorNoteId(null);
       refresh();
     } catch (err) {
-      setSendError(apiErrorMessage(err, t("cm.postFail")));
+      setSendError(errorSource(err, "cm.postFail"));
     } finally {
       setSending(false);
     }
@@ -180,7 +180,7 @@ export function CommentsPanel({
       setReplyBody("");
       refresh();
     } catch (err) {
-      setReplyError(apiErrorMessage(err, t("cm.replyFail")));
+      setReplyError(errorSource(err, "cm.replyFail"));
     } finally {
       setReplySending(false);
     }
@@ -195,7 +195,7 @@ export function CommentsPanel({
       setDeleteTarget(null);
       refresh();
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, t("cm.deleteFail")));
+      setDeleteError(errorSource(err, "cm.deleteFail"));
     } finally {
       setDeleting(false);
     }
@@ -380,7 +380,7 @@ export function CommentsPanel({
                                   role="alert"
                                   className="rounded-card bg-danger-muted px-2.5 py-1.5 text-[12px] text-danger"
                                 >
-                                  {replyError}
+                                  {renderError(replyError)}
                                 </p>
                               )}
                               <textarea
@@ -447,7 +447,7 @@ export function CommentsPanel({
             role="alert"
             className="mb-2 rounded-card bg-danger-muted px-3 py-2 text-[13px] text-danger"
           >
-            {sendError}
+            {renderError(sendError)}
           </p>
         )}
 
@@ -576,7 +576,7 @@ export function CommentsPanel({
         cancelLabel={t("ui.cancel")}
         danger
         loading={deleting}
-        error={deleteError}
+        error={renderError(deleteError)}
         onConfirm={() => void confirmDelete()}
         onCancel={() => {
           setDeleteTarget(null);

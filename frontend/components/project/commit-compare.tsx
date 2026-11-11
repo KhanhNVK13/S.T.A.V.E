@@ -14,7 +14,7 @@ import { DiffDialogShell } from "./diff-dialog-shell";
 import { BLACK_KEYS, buildBarChanges, buildGridNotes, countAffected } from "./compare-model";
 import type { GridNote, NoteKind } from "./compare-model";
 import { INPUT_CLASS } from "../ui/form";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { appLocale } from "../../lib/format-date";
 import { tNow } from "../../lib/i18n";
 import { useI18n } from "../../context/i18n-context";
@@ -130,7 +130,7 @@ export function CommitCompare({
   const [diff, setDiff] = useState<SnapshotDiff | null>(null);
   const [baseSnap, setBaseSnap] = useState<DraftSnapshot | null>(null);
   const [targetSnap, setTargetSnap] = useState<DraftSnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackFilter, setTrackFilter] = useState<string>("all");
   const [changedOnly, setChangedOnly] = useState(false);
@@ -138,7 +138,7 @@ export function CommitCompare({
   const playerRef = useRef<SnapshotPlayer | null>(null);
   const [playing, setPlaying] = useState<"base" | "target" | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
-  const [playError, setPlayError] = useState<string | null>(null);
+  const [playError, setPlayError] = useState<ErrorSource | null>(null);
 
   const stopPlayback = useCallback(() => {
     playerRef.current?.stop();
@@ -175,13 +175,13 @@ export function CommitCompare({
         setPlayBusy(false);
       });
       if (!started) {
-        setPlayError(tt("cmp.nothingToPlay"));
+        setPlayError(errorSource(null, "cmp.nothingToPlay"));
         setPlayBusy(false);
         return;
       }
       setPlaying(side);
     } catch (err) {
-      setPlayError(apiErrorMessage(err, tt("cmp.playFail")));
+      setPlayError(errorSource(err, "cmp.playFail"));
     } finally {
       setPlayBusy(false);
     }
@@ -204,7 +204,7 @@ export function CommitCompare({
         ]
           .filter(Boolean)
           .join(tNow("cmp.and"));
-        setError(tNow("cmp.readFail", { which }));
+        setError(errorSource(null, "cmp.readFail", { which }));
         setLoading(false);
         return;
       }
@@ -216,7 +216,7 @@ export function CommitCompare({
         setDiff(result);
       } catch (err) {
         if (!cancelled)
-          setError(apiErrorMessage(err, tNow("cmp.compareFail")));
+          setError(errorSource(err, "cmp.compareFail"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -293,7 +293,7 @@ export function CommitCompare({
           {playBusy && <span className="text-xs text-muted">{tt("cmp.preparing")}</span>}
           {playError && (
             <span role="alert" className="text-xs text-danger">
-              {playError}
+              {renderError(playError)}
             </span>
           )}
         </div>
@@ -316,7 +316,7 @@ export function CommitCompare({
           </p>
         ) : error ? (
           <div role="alert" className="rounded-card border border-danger/30 bg-danger-muted px-4 py-3">
-            <p className="text-sm text-danger">{error}</p>
+            <p className="text-sm text-danger">{renderError(error)}</p>
             <Button variant="secondary" className="mt-3" onClick={() => setReloadKey((k) => k + 1)}>
               {tt("ui.retry")}
             </Button>

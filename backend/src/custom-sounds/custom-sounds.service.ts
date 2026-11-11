@@ -521,8 +521,8 @@ export class CustomSoundsService {
     await this.removeFiles([path]);
   }
 
-  private async removeFiles(paths: string[]): Promise<void> {
-    await removeStorageFiles(
+  async removeFiles(paths: string[]): Promise<string[]> {
+    return removeStorageFiles(
       this.supabase,
       CUSTOM_SOUNDS_BUCKET,
       paths,

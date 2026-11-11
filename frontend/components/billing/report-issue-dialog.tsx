@@ -4,7 +4,8 @@ import { useState } from "react";
 import { PAYMENT_ISSUE_DESCRIPTION_MAX, type TransactionHistoryItem } from "@stave/shared-types";
 import { reportPaymentIssue } from "../../lib/api-billing";
 import { validateIssueDescription } from "../../lib/billing-history";
-import { apiErrorMessage } from "../../lib/error-message";
+import { useI18n } from "../../context/i18n-context";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatDate } from "../../lib/format-date";
 import { formatVnd } from "../../lib/format-vnd";
 import { Button } from "../ui/button";
@@ -20,8 +21,9 @@ interface ReportIssueDialogProps {
 }
 
 export function ReportIssueDialog({ transaction, text, onTextChange, onClose, onReported }: ReportIssueDialogProps) {
+  const { t } = useI18n();
   const [fieldError, setFieldError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<ErrorSource | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const length = text.trim().length;
 
@@ -36,19 +38,18 @@ export function ReportIssueDialog({ transaction, text, onTextChange, onClose, on
       await reportPaymentIssue(transaction.id, text.trim());
       onReported();
     } catch (err) {
-      setSubmitError(apiErrorMessage(err, "Không gửi được sự cố."));
+      setSubmitError(errorSource(err, "bill.report.failed"));
       setSubmitting(false);
     }
   }
 
   return (
-    <Dialog title="Báo sự cố thanh toán" onClose={onClose} closeDisabled={submitting}>
+    <Dialog title={t("bill.report.title")} onClose={onClose} closeDisabled={submitting}>
       <form onSubmit={(event) => void submit(event)} noValidate>
         <p className="mb-4 text-[13px] text-muted">
-          Giao dịch ngày {formatDate(transaction.createdAt)}, {formatVnd(transaction.amountVnd)}. Quản trị viên sẽ kiểm tra
-          và phản hồi qua thông báo.
+          {t("bill.report.intro", { date: formatDate(transaction.createdAt), amount: formatVnd(transaction.amountVnd) })}
         </p>
-        <Field label="Mô tả sự cố" error={fieldError}>
+        <Field label={t("bill.report.label")} error={fieldError}>
           <textarea
             data-autofocus
             name="description"
@@ -64,13 +65,13 @@ export function ReportIssueDialog({ transaction, text, onTextChange, onClose, on
         >
           {length}/{PAYMENT_ISSUE_DESCRIPTION_MAX}
         </p>
-        <DialogError message={submitError} />
+        <DialogError message={renderError(submitError)} />
         <DialogActions>
           <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
-            Huỷ
+            {t("bill.report.cancel")}
           </Button>
           <Button type="submit" disabled={submitting}>
-            {submitting ? "Đang gửi…" : "Gửi sự cố"}
+            {submitting ? t("bill.report.sending") : t("bill.report.submit")}
           </Button>
         </DialogActions>
       </form>

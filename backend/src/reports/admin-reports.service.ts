@@ -7,17 +7,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type {
-  AdminReportListResponse,
-  ReportDetail,
-  ReportGroup,
-  ReportPreview,
-  ReportResolution,
-  ReportStatusFilter,
+import {
+  MODERATION_DEFAULT_RETENTION_DAYS,
+  type AdminReportListResponse,
+  type ReportDetail,
+  type ReportGroup,
+  type ReportPreview,
+  type ReportResolution,
+  type ReportStatusFilter,
 } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import {
   mapStatusFilter,
+  resolveRetentionDays,
+  retainUntilFrom,
   summarizeSnapshot,
   toReportReason,
 } from './reports.logic';
@@ -45,6 +49,7 @@ interface ProjectNameRow {
   id: string;
   name: string;
   owner_id: string;
+  moderation_hidden_at: string | null;
 }
 
 interface UserNameRow {
@@ -76,6 +81,7 @@ export class AdminReportsService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    private readonly settings: PlatformSettingsService,
   ) {}
 
   async listGroups(params: ListGroupsParams): Promise<AdminReportListResponse> {
@@ -101,6 +107,14 @@ export class AdminReportsService {
       'owner',
     );
 
+    const retentionDays = resolveRetentionDays(
+      await this.settings.get<unknown>(
+        'moderation_retention_days',
+        MODERATION_DEFAULT_RETENTION_DAYS,
+      ),
+      MODERATION_DEFAULT_RETENTION_DAYS,
+    );
+
     const items = rows.map((row): ReportGroup => {
       const project = row.project_id ? projects.get(row.project_id) : undefined;
       const group: ReportGroup = {
@@ -117,6 +131,14 @@ export class AdminReportsService {
         })),
         latestAt: row.latest_at,
       };
+      if (project?.moderation_hidden_at) {
+        group.projectHidden = true;
+        group.retainUntil = retainUntilFrom(
+          project.moderation_hidden_at,
+          retentionDays,
+        );
+        group.retentionEnded = Date.parse(group.retainUntil) < Date.now();
+      }
       if (row.resolution) {
         group.resolution = row.resolution;
         group.resolutionNote = row.resolution_note;
@@ -284,7 +306,7 @@ export class AdminReportsService {
     if (ids.length === 0) return new Map();
     const { data, error } = await this.supabase
       .from('projects')
-      .select('id, name, owner_id')
+      .select('id, name, owner_id, moderation_hidden_at')
       .in('id', ids)
       .returns<ProjectNameRow[]>();
     if (error) {

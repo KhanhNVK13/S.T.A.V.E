@@ -8,7 +8,7 @@ import {
   type AdminPaymentIssueItem,
   type PaymentIssueStatus,
 } from "../../../lib/api-admin-payment-issues";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { formatDateTime } from "../../../lib/format-date";
 import { formatVnd } from "../../../lib/format-vnd";
 import { useI18n } from "../../../context/i18n-context";
@@ -60,7 +60,7 @@ function AdminPaymentIssuesContent() {
     cursor: string | null;
   } | null>(null);
   const [moreLoading, setMoreLoading] = useState(false);
-  const [moreError, setMoreError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<ErrorSource | null>(null);
 
   const { data, loading, error } = useApiResource(
     () => listAdminPaymentIssues(status),
@@ -89,11 +89,11 @@ function AdminPaymentIssuesContent() {
         };
       });
     } catch (err) {
-      setMoreError(apiErrorMessage(err, t("pi.loadFail")));
+      setMoreError(errorSource(err, "pi.loadFail"));
     } finally {
       setMoreLoading(false);
     }
-  }, [nextCursor, moreLoading, status, viewKey, t]);
+  }, [nextCursor, moreLoading, status, viewKey]);
 
   function changeTab(id: string) {
     router.replace(`/admin/payment-issues?status=${id}`);
@@ -207,7 +207,7 @@ function AdminPaymentIssuesContent() {
                 role="alert"
                 className="mt-3 rounded-card bg-danger-muted px-3 py-2 text-sm text-danger"
               >
-                {moreError}
+                {renderError(moreError)}
               </p>
             )}
 

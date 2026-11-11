@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { EffectiveSubscription, SubscriptionPlan } from "@stave/shared-types";
 import { formatDate } from "./format-date";
+import { setLang } from "./i18n";
 import { subscriptionSummary, validateIssueDescription } from "./billing-history";
 
 const plan = (name: string, isDefault = false): SubscriptionPlan => ({
@@ -14,6 +15,8 @@ const plan = (name: string, isDefault = false): SubscriptionPlan => ({
   sortOrder: 0,
   priceEffectiveAt: null,
 });
+
+beforeEach(() => setLang("vi"));
 
 const END = "2026-12-06T10:00:00.000Z";
 const sub = (overrides: Partial<EffectiveSubscription> = {}): EffectiveSubscription => ({
@@ -38,10 +41,20 @@ describe("FE-BIL-08 validateIssueDescription", () => {
     expect(validateIssueDescription("   ")).toBe("Hãy mô tả sự cố bạn gặp.");
     expect(validateIssueDescription("a".repeat(501))).toBe("Mô tả tối đa 500 ký tự.");
   });
+
+  it("UTCID03 explains what is wrong in English", () => {
+    setLang("en");
+    expect(validateIssueDescription("   ")).toBe("Describe the problem you ran into.");
+    expect(validateIssueDescription("a".repeat(501))).toBe("The description can be at most 500 characters.");
+  });
 });
 
 describe("FE-BIL-09 subscriptionSummary", () => {
-  const end = formatDate(END);
+  let end = "";
+
+  beforeEach(() => {
+    end = formatDate(END);
+  });
 
   it("UTCID01 shows the next payment date of a running subscription", () => {
     expect(subscriptionSummary(sub())).toEqual([`Thanh toán kế tiếp: ${end}.`]);

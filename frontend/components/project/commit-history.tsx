@@ -31,10 +31,9 @@ import { CommitCompare } from "./commit-compare";
 import { VersionPickerDialog } from "./version-picker-dialog";
 import { SkyEmpty, SkyLoading } from "./sky-state";
 import type { CompareSide } from "./commit-compare";
-import { apiErrorMessage } from "../../lib/error-message";
+import { apiErrorMessage, errorSource, rawErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
 import { useI18n } from "../../context/i18n-context";
-import { tNow } from "../../lib/i18n";
 
 /** Chọn | commit | tác giả | mã | thời điểm | thao tác. */
 const COLS = "md:grid-cols-[20px_minmax(0,1fr)_150px_88px_96px_auto]";
@@ -75,7 +74,7 @@ export function CommitHistory({
   const [commits, setCommits] = useState<BranchHistoryCommit[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const [taggingId, setTaggingId] = useState<string | null>(null);
@@ -84,19 +83,19 @@ export function CommitHistory({
   const [tagError, setTagError] = useState<string | null>(null);
   const [removeTag, setRemoveTag] = useState<{ commitId: string; name: string } | null>(null);
   const [removeTagBusy, setRemoveTagBusy] = useState(false);
-  const [removeTagError, setRemoveTagError] = useState<string | null>(null);
+  const [removeTagError, setRemoveTagError] = useState<ErrorSource | null>(null);
   const [changeCounts, setChangeCounts] = useState<
     Record<string, "loading" | "error" | "first" | { added: number; removed: number; modified: number }>
   >({});
   const [branchFrom, setBranchFrom] = useState<BranchHistoryCommit | null>(null);
   const [branchFromName, setBranchFromName] = useState("");
-  const [branchFromError, setBranchFromError] = useState<string | null>(null);
+  const [branchFromError, setBranchFromError] = useState<ErrorSource | null>(null);
   const [branchFromBusy, setBranchFromBusy] = useState(false);
   const [replaceTag, setReplaceTag] = useState<{ commitId: string; oldName: string; newName: string } | null>(null);
 
   const [restoreTarget, setRestoreTarget] = useState<BranchHistoryCommit | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
-  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<ErrorSource | null>(null);
 
   /** Tối đa 2 commit được chọn để so sánh; chọn cái thứ 3 thì bỏ cái chọn sớm nhất. */
   const [selected, setSelected] = useState<string[]>([]);
@@ -116,7 +115,7 @@ export function CommitHistory({
       // 2.E2: báo lỗi kèm nút thử lại, không hiện danh sách rỗng dễ gây hiểu
       // nhầm là mất lịch sử.
       setCommits([]);
-      setError(apiErrorMessage(err, tNow("chist.loadFail")));
+      setError(errorSource(err, "chist.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -138,7 +137,7 @@ export function CommitHistory({
       setError(null);
     } catch (err) {
       setCommits([]);
-      setError(apiErrorMessage(err, tNow("chist.loadFail")));
+      setError(errorSource(err, "chist.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -161,12 +160,12 @@ export function CommitHistory({
         if (target) {
           await loadHistory(target.id);
         } else {
-          setError(tNow("chist.noBranches"));
+          setError(errorSource(null, "chist.noBranches"));
           setLoading(false);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(apiErrorMessage(err, tNow("chist.branchesFail")));
+          setError(errorSource(err, "chist.branchesFail"));
           setLoading(false);
         }
       }
@@ -220,7 +219,7 @@ export function CommitHistory({
       setNotice(t("chist.tagged", { name }));
       if (branch) await loadHistory(branch.id);
     } catch (err) {
-      setError(apiErrorMessage(err, t("chist.tagFail")));
+      setError(errorSource(err, "chist.tagFail"));
     } finally {
       setTagBusy(false);
       setReplaceTag(null);
@@ -237,7 +236,7 @@ export function CommitHistory({
       setRemoveTag(null);
       if (branch) await loadHistory(branch.id);
     } catch (err) {
-      setRemoveTagError(apiErrorMessage(err, t("chist.untagFail")));
+      setRemoveTagError(errorSource(err, "chist.untagFail"));
     } finally {
       setRemoveTagBusy(false);
     }
@@ -263,7 +262,7 @@ export function CommitHistory({
     const invalid =
       validateRequired(name, t("chist.branchNameRequired")) ?? validateMaxLength(name, 50, t("chist.branchNameLabel"));
     if (invalid) {
-      setBranchFromError(invalid);
+      setBranchFromError(rawErrorSource(invalid));
       return;
     }
     setBranchFromBusy(true);
@@ -281,7 +280,7 @@ export function CommitHistory({
       setBranchFrom(null);
       setBranchFromName("");
     } catch (err) {
-      setBranchFromError(apiErrorMessage(err, t("chist.branchFail")));
+      setBranchFromError(errorSource(err, "chist.branchFail"));
     } finally {
       setBranchFromBusy(false);
     }
@@ -299,7 +298,7 @@ export function CommitHistory({
       setSelected([]);
       await loadHistory(branch.id);
     } catch (err) {
-      setRestoreError(apiErrorMessage(err, t("chist.restoreFail")));
+      setRestoreError(errorSource(err, "chist.restoreFail"));
     } finally {
       setRestoreBusy(false);
     }
@@ -402,7 +401,7 @@ export function CommitHistory({
 
       {error && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-danger/20 bg-danger-muted px-4 py-3">
-          <p className="text-xs text-danger">{error}</p>
+          <p className="text-xs text-danger">{renderError(error)}</p>
           {(branch || allView) && (
             <Button variant="secondary" onClick={retryLoad}>
               {t("ui.retry")}
@@ -695,7 +694,7 @@ export function CommitHistory({
         confirmLabel={t("chist.removeTagShort")}
         danger
         loading={removeTagBusy}
-        error={removeTagError}
+        error={renderError(removeTagError)}
         onConfirm={() => void handleRemoveTag()}
         onCancel={() => setRemoveTag(null)}
       />
@@ -725,7 +724,7 @@ export function CommitHistory({
             placeholder={t("chist.newBranchPlaceholder")}
             className={`${INPUT_CLASS} w-full font-mono`}
           />
-          {branchFromError && <FieldError>{branchFromError}</FieldError>}
+          {branchFromError && <FieldError>{renderError(branchFromError)}</FieldError>}
         </label>
         <DialogActions>
           <Button variant="secondary" onClick={() => setBranchFrom(null)} disabled={branchFromBusy}>
@@ -761,7 +760,7 @@ export function CommitHistory({
         }
         confirmLabel={t("chist.restore")}
         loading={restoreBusy}
-        error={restoreError}
+        error={renderError(restoreError)}
         onConfirm={() => void handleRestore()}
         onCancel={() => {
           setRestoreTarget(null);

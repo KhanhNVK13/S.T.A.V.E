@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Kết quả thanh toán" };
+export const metadata: Metadata = { title: "Payment result" };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;

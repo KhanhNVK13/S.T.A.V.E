@@ -9,7 +9,7 @@ import {
   patchCollaboratorPermission,
   removeCollaborator,
 } from "../../lib/api-collab";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { useApiResource } from "../../lib/use-api-resource";
 import { Avatar } from "../ui/avatar";
@@ -51,17 +51,17 @@ export function CollaboratorsDialog({
   const [identifier, setIdentifier] = useState("");
   const [permission, setPermission] = useState<CollaboratorPermissionLevel>("edit");
   const [inviting, setInviting] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<ErrorSource | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
 
   // UC-61: đổi quyền từng hàng.
   const [permissionBusy, setPermissionBusy] = useState<string | null>(null);
-  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [permissionError, setPermissionError] = useState<ErrorSource | null>(null);
 
   // UC-62: gỡ (qua ConfirmDialog).
   const [removeTarget, setRemoveTarget] = useState<CollaboratorItem | null>(null);
   const [removing, setRemoving] = useState(false);
-  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<ErrorSource | null>(null);
 
   // Danh sách tải bằng useApiResource (khuyến nghị của repo) để tránh setState
   // đồng bộ trong effect. `open` làm dep nên mở hộp = tải mới; tăng `attempt`
@@ -79,7 +79,7 @@ export function CollaboratorsDialog({
   async function handleInvite() {
     const trimmed = identifier.trim();
     if (!trimmed) {
-      setInviteError(t("col.inviteRequired"));
+      setInviteError(errorSource(null, "col.inviteRequired"));
       return;
     }
     setInviting(true);
@@ -93,7 +93,7 @@ export function CollaboratorsDialog({
       );
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setInviteError(apiErrorMessage(err, t("col.inviteFail")));
+      setInviteError(errorSource(err, "col.inviteFail"));
     } finally {
       setInviting(false);
     }
@@ -108,7 +108,7 @@ export function CollaboratorsDialog({
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
       // 3.E2: giữ quyền cũ — không refetch nên dropdown tự hoàn về giá trị cũ.
-      setPermissionError(apiErrorMessage(err, t("col.permissionFail")));
+      setPermissionError(errorSource(err, "col.permissionFail"));
     } finally {
       setPermissionBusy(null);
     }
@@ -123,7 +123,7 @@ export function CollaboratorsDialog({
       setRemoveTarget(null);
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setRemoveError(apiErrorMessage(err, t("col.removeFail")));
+      setRemoveError(errorSource(err, "col.removeFail"));
     } finally {
       setRemoving(false);
     }
@@ -212,7 +212,7 @@ export function CollaboratorsDialog({
 
         {permissionError && (
           <p role="alert" className="mt-3 rounded-card bg-danger-muted px-3 py-2 text-[13px] text-danger">
-            {permissionError}
+            {renderError(permissionError)}
           </p>
         )}
 
@@ -220,7 +220,7 @@ export function CollaboratorsDialog({
         {isOwner && !listError && (
           <div className="mt-5 border-t border-border pt-4">
             <p className="mb-2.5 text-xs font-semibold text-muted">{t("col.inviteNew")}</p>
-            <DialogError message={inviteError} />
+            <DialogError message={renderError(inviteError)} />
             {inviteSuccess && (
               <p className="mb-3 rounded-card bg-success-muted px-3 py-2 text-[13px] text-success-foreground">{inviteSuccess}</p>
             )}
@@ -284,7 +284,7 @@ export function CollaboratorsDialog({
         cancelLabel={t("ui.cancel")}
         danger={removeTarget?.status !== "pending"}
         loading={removing}
-        error={removeError}
+        error={renderError(removeError)}
         onConfirm={confirmRemove}
         onCancel={() => {
           setRemoveTarget(null);

@@ -15,7 +15,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from './api-client';
 import { setLang } from './i18n';
-import { apiErrorMessage, authErrorMessage } from './error-message';
+import { apiErrorMessage, authErrorMessage, errorSource, renderError } from './error-message';
 
 const FALLBACK = 'Lưu thất bại.';
 
@@ -173,5 +173,19 @@ describe('FE-LIB-13 authErrorMessage(error)', () => {
 
   it('returns the generic message for an empty error object', () => {
     expect(authErrorMessage({})).toBe('Có lỗi xảy ra. Hãy thử lại.');
+  });
+});
+
+describe('renderError', () => {
+  it('translates a stored error source in the language active at render time', () => {
+    const source = errorSource(new TypeError('Failed to fetch'), 'bill.plans.loadFailed');
+    setLang('en');
+    expect(renderError(source)).toContain("Couldn't load the plans.");
+    setLang('vi');
+    expect(renderError(source)).toContain('Không tải được danh sách gói.');
+  });
+
+  it('returns null when there is no error', () => {
+    expect(renderError(null)).toBeNull();
   });
 });

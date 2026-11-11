@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import { Flag, Loader2 } from "lucide-react";
-import type { ReportStatusFilter } from "@stave/shared-types";
+import type { ReportGroup, ReportStatusFilter } from "@stave/shared-types";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Tabs } from "../../../components/ui/tabs";
 import { RowHeader, RowList } from "../../../components/ui/row-list";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { Button } from "../../../components/ui/button";
-import { ADMIN_REPORTS_PAGE_SIZE, listReportGroups } from "../../../lib/admin-reports-api";
+import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
+import { Toast } from "../../../components/ui/toast";
+import { ADMIN_REPORTS_PAGE_SIZE, listReportGroups, restoreReportedProject } from "../../../lib/admin-reports-api";
+import { ApiError } from "../../../lib/api-client";
 import { useApiResource } from "../../../lib/use-api-resource";
 import { useI18n } from "../../../context/i18n-context";
 import type { TKey } from "../../../lib/i18n";
+import { DismissReportsDialog } from "./dismiss-reports-dialog";
 import { ProjectPreviewDialog } from "./project-preview-dialog";
+import { RemoveProjectDialog } from "./remove-project-dialog";
 import { REPORT_COLS, ReportGroupRow } from "./report-group-row";
 
 const TABS = [
@@ -37,6 +42,12 @@ export default function AdminReportsPage() {
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<ReportGroup | null>(null);
+  const [dismissing, setDismissing] = useState<ReportGroup | null>(null);
+  const [restoring, setRestoring] = useState<ReportGroup | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const { data, loading, error } = useApiResource(
     () => listReportGroups(tab, page),
@@ -50,6 +61,29 @@ export default function AdminReportsPage() {
   function changeTab(id: string) {
     setTab(id as ReportStatusFilter);
     setPage(1);
+  }
+
+  function finish(message: string) {
+    setRemoving(null);
+    setDismissing(null);
+    setNotice(message);
+    setReload((n) => n + 1);
+  }
+
+  async function confirmRestore() {
+    if (!restoring?.projectId) return;
+    setRestoreBusy(true);
+    setRestoreError(null);
+    try {
+      await restoreReportedProject(restoring.projectId);
+      setRestoring(null);
+      setNotice(t("rpt.restoreDone"));
+      setReload((n) => n + 1);
+    } catch (err) {
+      setRestoreError(err instanceof ApiError && err.status === 410 ? t("rpt.restoreExpired") : t("rpt.restoreErr"));
+    } finally {
+      setRestoreBusy(false);
+    }
   }
 
   return (
@@ -92,6 +126,12 @@ export default function AdminReportsPage() {
                   group={group}
                   status={tab}
                   onView={setViewing}
+                  onRemove={setRemoving}
+                  onDismiss={setDismissing}
+                  onRestore={(target) => {
+                    setRestoreError(null);
+                    setRestoring(target);
+                  }}
                 />
               ))}
             </RowList>
@@ -112,6 +152,37 @@ export default function AdminReportsPage() {
       </div>
 
       {viewing && <ProjectPreviewDialog projectId={viewing} onClose={() => setViewing(null)} />}
+
+      {removing?.projectId && (
+        <RemoveProjectDialog
+          projectId={removing.projectId}
+          projectName={removing.projectName ?? ""}
+          onClose={() => setRemoving(null)}
+          onRemoved={() => finish(t("rpt.rmDone"))}
+        />
+      )}
+
+      {dismissing?.projectId && (
+        <DismissReportsDialog
+          projectId={dismissing.projectId}
+          projectName={dismissing.projectName ?? ""}
+          onClose={() => setDismissing(null)}
+          onDismissed={() => finish(t("rpt.dismissDone"))}
+        />
+      )}
+
+      <ConfirmDialog
+        open={restoring !== null}
+        title={t("rpt.restoreTitle", { name: restoring?.projectName ?? "" })}
+        message={t("rpt.restoreMsg")}
+        confirmLabel={t("rpt.restoreConfirm")}
+        loading={restoreBusy}
+        error={restoreError}
+        onConfirm={confirmRestore}
+        onCancel={() => setRestoring(null)}
+      />
+
+      {notice && <Toast message={notice} variant="success" onDismiss={() => setNotice(null)} />}
     </div>
   );
 }

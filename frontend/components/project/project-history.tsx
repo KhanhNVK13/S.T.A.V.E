@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Piano } from "lucide-react";
 import type { Branch, BranchHistoryCommit } from "../../lib/api-client";
 import { loadProjectGraph } from "../../lib/project-graph";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { Button } from "../ui/button";
 import { CommitGraph } from "./commit-graph";
 import { SkyLoading } from "./sky-state";
@@ -28,7 +28,7 @@ export function ProjectHistory({
 }) {
   const { t } = useI18n();
   const [data, setData] = useState<GraphData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -36,9 +36,9 @@ export function ProjectHistory({
       const graph = await loadProjectGraph(projectId);
       setData({ branches: graph.branches, commits: graph.commits, partial: graph.failed });
     } catch (err) {
-      setError(apiErrorMessage(err, t("projectPage.historyLoadFail")));
+      setError(errorSource(err, "projectPage.historyLoadFail"));
     }
-  }, [projectId, t]);
+  }, [projectId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch of the commit graph
@@ -59,7 +59,7 @@ export function ProjectHistory({
           role="alert"
           className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-danger/20 bg-danger-muted px-4 py-3"
         >
-          <p className="text-xs text-danger">{error}</p>
+          <p className="text-xs text-danger">{renderError(error)}</p>
           <Button variant="secondary" onClick={() => void load()}>
             {t("ui.retry")}
           </Button>

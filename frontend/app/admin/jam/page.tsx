@@ -12,7 +12,7 @@ import {
   adminListJamEvents,
 } from "../../../lib/api-jam";
 import { listPublicProjects } from "../../../lib/api-client";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import type {
   AvailableJamProjectDto,
   JamEvent,
@@ -66,7 +66,7 @@ function CancelJamDialog({
   onCancelled: (message: string) => void;
 }) {
   const { t, tx } = useI18n();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleConfirm() {
@@ -79,7 +79,7 @@ function CancelJamDialog({
       );
       onClose();
     } catch (err) {
-      setError(apiErrorMessage(err, t("aj.cancelFail")));
+      setError(errorSource(err, "aj.cancelFail"));
     } finally {
       setSubmitting(false);
     }
@@ -97,7 +97,7 @@ function CancelJamDialog({
       <p className="mb-3 text-[13px] text-muted">
         {tx("aj.cancelBody", { cancelled: <strong>{t("aj.cancelledWord")}</strong>, code: <em>jam.cancelled</em> })}
       </p>
-      <DialogError message={error} />
+      <DialogError message={renderError(error)} />
       <DialogActions>
         <Button variant="secondary" onClick={onClose} disabled={submitting}>
           {t("aj.close")}
@@ -123,7 +123,7 @@ function AdminJamManager() {
   const [tab, setTab] = useState<JamEventStatus | "">("");
   const [events, setEvents] = useState<JamEventListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<JamEvent | null>(null);
   const [cancelling, setCancelling] = useState<JamEvent | null>(null);
@@ -138,7 +138,7 @@ function AdminJamManager() {
       const data = await adminListJamEvents(status || undefined);
       setEvents(data);
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("aj.listFail")));
+      setError(errorSource(err, "aj.listFail"));
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ function AdminJamManager() {
         }
       } catch (err) {
         if (active) {
-          setError(apiErrorMessage(err, tNow("aj.listFail")));
+          setError(errorSource(err, "aj.listFail"));
         }
       } finally {
         if (active) {
@@ -224,7 +224,7 @@ function AdminJamManager() {
           role="alert"
           className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
         >
-          <span>{error}</span>
+          <span>{renderError(error)}</span>
           <Button variant="secondary" onClick={() => void load(tab)}>
             {t("ui.retry")}
           </Button>

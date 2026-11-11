@@ -9,7 +9,7 @@ import {
   adminGetJamEvent,
   adminListJamEvents,
 } from "../../../../lib/api-jam";
-import { apiErrorMessage } from "../../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../../lib/error-message";
 import type { JamEvent, JamEventListItem } from "@stave/shared-types";
 import { PageHeader } from "../../../../components/ui/page-header";
 import { EmptyState } from "../../../../components/ui/empty-state";
@@ -49,7 +49,7 @@ function AdminJamEventContent({
 
   const [event, setEvent] = useState<JamEvent | null>(null);
   const [online, setOnline] = useState<number | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<ErrorSource | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
 
@@ -68,7 +68,7 @@ function AdminJamEventContent({
     } catch (err) {
       // 3.E1 (404): sự kiện không tồn tại → empty state "Quay lại danh sách".
       setEvent(null);
-      setLoadError(apiErrorMessage(err, tNow("aj.ctlLoadFail")));
+      setLoadError(errorSource(err, "aj.ctlLoadFail"));
     } finally {
       setLoadingEvent(false);
     }
@@ -114,7 +114,7 @@ function AdminJamEventContent({
               ? { ...event, currentParticipantCount: online }
               : event
           }
-          loadError={loadError}
+          loadError={renderError(loadError)}
           onRetry={() => void load()}
           loading={loadingEvent}
           onEnded={handleEnded}

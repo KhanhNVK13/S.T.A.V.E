@@ -23,7 +23,7 @@ import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Toast } from "../ui/toast";
 import { EmptyState } from "../ui/empty-state";
 import { INPUT_CLASS } from "../ui/form";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
 import { useI18n } from "../../context/i18n-context";
 import { tNow } from "../../lib/i18n";
@@ -162,7 +162,7 @@ export function AudioSketchPanel({
 
   const [sketches, setSketches] = useState<AudioSketch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   // Bản ghi vừa thu, đang chờ cắt + đặt tên
   const [buffer, setBuffer] = useState<AudioBuffer | null>(null);
@@ -175,7 +175,7 @@ export function AudioSketchPanel({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AudioSketch | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<ErrorSource | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const dismissNotice = useCallback(() => setNotice(null), []);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -186,7 +186,7 @@ export function AudioSketchPanel({
       setSketches(await listAudioSketches(projectId));
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("sk.loadFail")));
+      setError(errorSource(err, "sk.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -206,7 +206,7 @@ export function AudioSketchPanel({
       setPendingDelete(null);
       setNotice(tNow("sk.deleted"));
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, tNow("sk.deleteFail")));
+      setDeleteError(errorSource(err, "sk.deleteFail"));
     } finally {
       setDeleting(false);
     }
@@ -240,7 +240,7 @@ export function AudioSketchPanel({
           })}`,
         );
       } catch {
-        if (!cancelled) setError(tNow("sk.unreadable"));
+        if (!cancelled) setError(errorSource(null, "sk.unreadable"));
       }
     })();
 
@@ -287,9 +287,7 @@ export function AudioSketchPanel({
       if (wav.size > MAX_SIZE_BYTES) {
         // UC-53 ngoại lệ 6.E1 — báo rõ giới hạn, giữ nguyên bản ghi để người
         // dùng cắt ngắn rồi thử lại.
-        setError(
-          tNow("sk.tooBig", { size: (wav.size / 1024 / 1024).toFixed(1) }),
-        );
+        setError(errorSource(null, "sk.tooBig", { size: (wav.size / 1024 / 1024).toFixed(1) }));
         return;
       }
 
@@ -320,7 +318,7 @@ export function AudioSketchPanel({
       discardRecording();
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("sk.attachFail")));
+      setError(errorSource(err, "sk.attachFail"));
     } finally {
       setAttaching(false);
     }
@@ -384,7 +382,7 @@ export function AudioSketchPanel({
 
       {(error || recorder.error) && (
         <div className="rounded-card border border-danger/20 bg-danger-muted px-4 py-3">
-          <p className="text-xs text-danger">{error ?? recorder.error}</p>
+          <p className="text-xs text-danger">{renderError(error) ?? recorder.error}</p>
         </div>
       )}
       {recorder.warning && (
@@ -570,7 +568,7 @@ export function AudioSketchPanel({
         confirmLabel={t("sk.deleteConfirm")}
         danger
         loading={deleting}
-        error={deleteError}
+        error={renderError(deleteError)}
         onConfirm={() => void confirmDelete()}
         onCancel={() => setPendingDelete(null)}
       />

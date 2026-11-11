@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Eye, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye, Loader2, RotateCcw } from "lucide-react";
 import type { ReportDetail, ReportGroup, ReportStatusFilter } from "@stave/shared-types";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
@@ -28,10 +28,16 @@ export function ReportGroupRow({
   group,
   status,
   onView,
+  onRemove,
+  onDismiss,
+  onRestore,
 }: {
   group: ReportGroup;
   status: ReportStatusFilter;
   onView: (projectId: string) => void;
+  onRemove: (group: ReportGroup) => void;
+  onDismiss: (group: ReportGroup) => void;
+  onRestore: (group: ReportGroup) => void;
 }) {
   const { t, locale } = useI18n();
   const projectId = group.projectExists ? group.projectId : null;
@@ -66,6 +72,9 @@ export function ReportGroupRow({
   }
 
   const count = t("rpt.reportCount", { n: group.reportCount });
+  const retentionEnded = group.retentionEnded === true;
+  const retainDate = group.retainUntil ? formatWhen(group.retainUntil, locale) : "";
+  const projectName = group.projectName ?? "";
 
   return (
     <>
@@ -81,6 +90,19 @@ export function ReportGroupRow({
                 <span className="text-xs text-muted">{t("rpt.orphanedHint")}</span>
               </span>
             </>
+          )}
+          {group.resolution === "upheld" && projectId !== null && (
+            <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
+              {group.projectHidden ? (
+                <>
+                  <Badge variant={retentionEnded ? "neutral" : "warning"}>
+                    {retentionEnded ? t("rpt.retentionEnded") : t("rpt.retainUntil", { date: retainDate })}
+                  </Badge>
+                </>
+              ) : (
+                <Badge variant="success">{t("rpt.restored")}</Badge>
+              )}
+            </span>
           )}
           {group.resolution && (
             <span className="break-words text-xs text-muted">
@@ -121,6 +143,26 @@ export function ReportGroupRow({
             <Button variant="secondary" onClick={() => onView(projectId)}>
               <Eye aria-hidden="true" className="h-3.5 w-3.5" /> {t("rpt.viewProject")}
             </Button>
+            {status === "open" && (
+              <>
+                <Button variant="secondary" onClick={() => onDismiss(group)} aria-label={`${t("rpt.dismissBtn")}: ${projectName}`}>
+                  {t("rpt.dismissBtn")}
+                </Button>
+                <Button variant="danger" onClick={() => onRemove(group)} aria-label={`${t("rpt.removeBtn")}: ${projectName}`}>
+                  {t("rpt.removeBtn")}
+                </Button>
+              </>
+            )}
+            {status === "upheld" && group.projectHidden && (
+              <Button
+                variant="secondary"
+                disabled={retentionEnded}
+                onClick={() => onRestore(group)}
+                aria-label={`${t("rpt.restoreBtn")}: ${projectName}`}
+              >
+                <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> {t("rpt.restoreBtn")}
+              </Button>
+            )}
           </div>
         )}
       </RowItem>

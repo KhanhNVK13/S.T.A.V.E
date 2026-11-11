@@ -20,7 +20,6 @@ import type {
 } from '@stave/shared-types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
-import { formatVnd } from './billing-format';
 import { PLAN_COLUMNS, type PlanRow } from './effective-plan';
 import { PAYMENT_GATEWAY, type PaymentGateway } from './payment-gateway';
 import { computeRenewalPrice } from './renewal';
@@ -229,7 +228,7 @@ export class PaymentsService {
         : 'billing.payment_failed',
       {
         planName: result.planName ?? '',
-        amount: formatVnd(result.amountVnd ?? 0),
+        amount: result.amountVnd ?? 0,
         orderCode,
       },
     );

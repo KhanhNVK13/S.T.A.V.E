@@ -1,5 +1,5 @@
 import { ApiError } from "./api-client";
-import { getLang, tNow, type Lang, type TKey } from "./i18n";
+import { getLang, tNow, type Lang, type TKey, type Vars } from "./i18n";
 
 const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Project not found": { en: "Project not found. It may have been deleted, or you may not have permission to view it.", vi: "Không tìm thấy dự án. Có thể dự án đã bị xoá hoặc bạn không có quyền xem." },
@@ -152,6 +152,16 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Transaction not found": { en: "Transaction not found. It may belong to another account.", vi: "Không tìm thấy giao dịch. Có thể giao dịch thuộc tài khoản khác." },
   "This transaction already has an open issue": { en: "This transaction already has an issue being handled.", vi: "Giao dịch này đã có sự cố đang được xử lý." },
   "Could not report the issue": { en: "Couldn't send the issue. Please try again.", vi: "Không gửi được sự cố. Hãy thử lại." },
+  "Default plan cannot be deactivated": { en: "The default plan can't be disabled.", vi: "Không thể tắt gói mặc định." },
+  "Plan name already exists": { en: "A plan with this name already exists. Choose another name.", vi: "Đã có gói trùng tên. Hãy chọn tên khác." },
+  "Subscription plan not found": { en: "Plan not found. Reload the page.", vi: "Không tìm thấy gói. Hãy tải lại trang." },
+  "Payment issue not found": { en: "Payment issue not found. Reload the page.", vi: "Không tìm thấy sự cố thanh toán. Hãy tải lại trang." },
+  "The from date must be before the to date": { en: "The start date must be before the end date.", vi: "Ngày bắt đầu phải trước ngày kết thúc." },
+  "Could not update plan price": { en: "Couldn't schedule the price change. Please try again.", vi: "Không hẹn được lịch đổi giá. Hãy thử lại." },
+  "Could not update plan status": { en: "Couldn't change the plan status. Please try again.", vi: "Không đổi được trạng thái gói. Hãy thử lại." },
+  "Could not read default plan": { en: "Couldn't load the plans. Please try again.", vi: "Không tải được danh sách gói. Hãy thử lại." },
+  "Could not read transaction": { en: "Couldn't load the transaction. Please try again.", vi: "Không tải được giao dịch. Hãy thử lại." },
+  "Could not read the reporter": { en: "Couldn't load the payment issue. Please try again.", vi: "Không tải được sự cố thanh toán. Hãy thử lại." },
   "Could not read payment issues": { en: "Couldn't load payment issues. Please try again.", vi: "Không tải được sự cố thanh toán. Hãy thử lại." },
   "Invalid cursor": { en: "The list is out of date. Reload the page.", vi: "Danh sách đã cũ. Hãy tải lại trang." },
   "Description must be 1 to 500 characters": { en: "The description must be 1 to 500 characters.", vi: "Mô tả phải có từ 1 đến 500 ký tự." },
@@ -237,4 +247,33 @@ export function authErrorMessage(error: { code?: string; message?: string; statu
   if (error.status === 429) return tNow("autherr.over_request_rate_limit");
   if (error.message && /fetch/i.test(error.message)) return tNow("err.network");
   return tNow("err.generic");
+}
+
+export interface ErrorSource {
+  err: unknown;
+  fallback: TKey;
+  vars?: Vars;
+  text?: string;
+  auth?: AuthErrorLike;
+}
+
+type AuthErrorLike = { code?: string; message?: string; status?: number } | null | undefined;
+
+export function errorSource(err: unknown, fallback: TKey, vars?: Vars): ErrorSource {
+  return { err, fallback, vars };
+}
+
+export function authErrorSource(error: AuthErrorLike): ErrorSource {
+  return { err: null, fallback: "err.generic", auth: error ?? null };
+}
+
+export function rawErrorSource(text: string): ErrorSource {
+  return { err: null, fallback: "err.generic", text };
+}
+
+export function renderError(source: ErrorSource | null | undefined): string | null {
+  if (!source) return null;
+  if (source.text !== undefined) return source.text;
+  if (source.auth !== undefined) return authErrorMessage(source.auth);
+  return apiErrorMessage(source.err, tNow(source.fallback, source.vars));
 }

@@ -12,7 +12,7 @@ import { PLAN_FEATURES } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
-import { formatDateVi, formatVnd } from '../billing/billing-format';
+import { formatVnd } from '../billing/billing-format';
 import type { CreatePlanDto } from './dto/create-plan.dto';
 import { MAX_EXTRA_STORAGE_MB } from './dto/create-plan.dto';
 import type { UpdatePlanPriceDto } from './dto/update-plan-price.dto';
@@ -320,8 +320,8 @@ export class AdminPlansService {
       if (!stillInEffect) continue;
       await this.notifications.notify(row.user_id, 'billing.price_change', {
         planName: plan.name,
-        newPrice: formatVnd(newPrice),
-        effectiveDate: formatDateVi(updated.price_effective_at),
+        newPrice,
+        effectiveDate: updated.price_effective_at,
       });
     }
   }

@@ -314,7 +314,14 @@ export class AdminPaymentIssuesService {
       await this.notifications.notify(
         notifiedUserId,
         'billing.issue_resolved',
-        { summary: this.buildSummary(dto.remedy, dto) },
+        {
+          remedy: dto.remedy,
+          summary: this.buildSummary(dto.remedy, dto),
+          ...(dto.days !== undefined ? { days: dto.days } : {}),
+          ...(dto.refundAmountVnd !== undefined
+            ? { refundAmountVnd: dto.refundAmountVnd }
+            : {}),
+        },
       );
     }
 

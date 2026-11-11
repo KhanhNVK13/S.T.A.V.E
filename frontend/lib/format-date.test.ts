@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatDate, formatMonthYear, formatRelativeTime } from './format-date';
+import { formatDate, formatDateTime, formatMonthYear, formatRelativeTime } from './format-date';
 import { setLang } from './i18n';
 
 beforeEach(() => setLang('vi'));
@@ -143,5 +143,25 @@ describe('FE-LIB-14 formatRelativeTime(dateStr)', () => {
 
   it('UTCID15 (A) a timestamp one hour in the future returns "vừa xong"', () => {
     expect(formatRelativeTime(at(60 * 60_000))).toBe('vừa xong');
+  });
+});
+
+describe('formatDate and formatDateTime follow the selected language', () => {
+  it('shows dd/MM/yyyy in Vietnamese', () => {
+    expect(formatDate('2026-12-06T10:00:00Z')).toBe('06/12/2026');
+    expect(formatDateTime('2026-12-06T10:00:00Z')).toContain('06/12/2026');
+  });
+
+  it('shows an unambiguous month name in English', () => {
+    setLang('en');
+    expect(formatDate('2026-12-06T10:00:00Z')).toBe('Dec 6, 2026');
+    expect(formatDateTime('2026-12-06T10:00:00Z')).toContain('Dec 6, 2026');
+  });
+
+  it('returns an empty string for invalid input in both languages', () => {
+    expect(formatDateTime('abc')).toBe('');
+    setLang('en');
+    expect(formatDate('abc')).toBe('');
+    expect(formatDateTime(null)).toBe('');
   });
 });

@@ -7,7 +7,7 @@ import { useEffect, useState, type DependencyList } from 'react';
 interface ResourceState<T> {
   key: string;
   data: T | null;
-  error: string | null;
+  failed: boolean;
 }
 
 /**
@@ -29,17 +29,17 @@ export function useApiResource<T>(
   const [state, setState] = useState<ResourceState<T>>({
     key: '',
     data: null,
-    error: null,
+    failed: false,
   });
 
   useEffect(() => {
     let cancelled = false;
     fetcher()
       .then((result) => {
-        if (!cancelled) setState({ key, data: result, error: null });
+        if (!cancelled) setState({ key, data: result, failed: false });
       })
       .catch(() => {
-        if (!cancelled) setState({ key, data: null, error: errorMessage });
+        if (!cancelled) setState({ key, data: null, failed: true });
       });
     return () => {
       cancelled = true;
@@ -47,5 +47,5 @@ export function useApiResource<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  return { data: state.data, loading: state.key !== key, error: state.error };
+  return { data: state.data, loading: state.key !== key, error: state.failed ? errorMessage : null };
 }

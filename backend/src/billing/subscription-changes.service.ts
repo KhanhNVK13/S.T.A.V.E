@@ -16,7 +16,6 @@ import type {
 } from '@stave/shared-types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
-import { formatDateVi } from './billing-format';
 import { PLAN_COLUMNS, type PlanRow } from './effective-plan';
 import { classifyChange } from './plan-change';
 import { PaymentsService } from './payments.service';
@@ -88,7 +87,7 @@ export class SubscriptionChangesService {
 
     await this.notifications.notify(userId, 'billing.plan_changed', {
       planName: target.name,
-      effectiveDate: formatDateVi(effective.currentPeriodEnd),
+      effectiveDate: effective.currentPeriodEnd,
     });
     return {
       kind: 'downgrade',
@@ -139,7 +138,7 @@ export class SubscriptionChangesService {
 
     await this.notifications.notify(userId, 'billing.canceled', {
       planName: effective.plan.name,
-      endDate: formatDateVi(effective.currentPeriodEnd),
+      endDate: effective.currentPeriodEnd,
     });
     return this.subscriptions.getEffective(userId);
   }

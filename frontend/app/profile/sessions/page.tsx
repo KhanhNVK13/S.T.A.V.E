@@ -11,22 +11,21 @@ import { Button } from "../../../components/ui/button";
 import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { RowHeader, RowItem, RowList, RowTime } from "../../../components/ui/row-list";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { appLocale } from "../../../lib/format-date";
 import { useI18n } from "../../../context/i18n-context";
-import { tNow } from "../../../lib/i18n";
 
 const COLS = "md:grid-cols-[minmax(0,1fr)_150px_190px_auto]";
 
 function SessionsContent() {
   const { t } = useI18n();
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<ErrorSource | null>(null);
+  const [actionError, setActionError] = useState<ErrorSource | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [confirmOthers, setConfirmOthers] = useState(false);
   const [revokingOthers, setRevokingOthers] = useState(false);
-  const [othersError, setOthersError] = useState<string | null>(null);
+  const [othersError, setOthersError] = useState<ErrorSource | null>(null);
 
   async function load() {
     try {
@@ -34,7 +33,7 @@ function SessionsContent() {
       setSessions(data);
       setLoadError(null);
     } catch (err) {
-      setLoadError(apiErrorMessage(err, tNow("ses.loadFail")));
+      setLoadError(errorSource(err, "ses.loadFail"));
     }
   }
 
@@ -50,7 +49,7 @@ function SessionsContent() {
       await apiFetch(`/auth/sessions/${id}`, { method: "DELETE" });
       await load();
     } catch (err) {
-      setActionError(apiErrorMessage(err, tNow("ses.revokeFail")));
+      setActionError(errorSource(err, "ses.revokeFail"));
     } finally {
       setRevokingId(null);
     }
@@ -64,7 +63,7 @@ function SessionsContent() {
       setConfirmOthers(false);
       await load();
     } catch (err) {
-      setOthersError(apiErrorMessage(err, tNow("accountPages.revokeOthersFail")));
+      setOthersError(errorSource(err, "accountPages.revokeOthersFail"));
     } finally {
       setRevokingOthers(false);
     }
@@ -76,7 +75,7 @@ function SessionsContent() {
   if (!sessions && loadError) {
     body = (
       <div role="alert" className="flex flex-wrap items-center gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
-        {loadError}
+        {renderError(loadError)}
         <Button variant="secondary" onClick={() => void load()}>
           {t("ui.retry")}
         </Button>
@@ -97,7 +96,7 @@ function SessionsContent() {
       <>
         {actionError && (
           <p role="alert" className="mb-3 rounded-card bg-danger-muted px-3 py-2 text-sm text-danger">
-            {actionError}
+            {renderError(actionError)}
           </p>
         )}
         {sessions.length === 1 && <p className="mb-3 text-sm text-muted">{t("ses.only")}</p>}
@@ -166,7 +165,7 @@ function SessionsContent() {
         confirmLabel={t("accountPages.revokeOthers")}
         danger
         loading={revokingOthers}
-        error={othersError}
+        error={renderError(othersError)}
         onConfirm={() => void handleRevokeOthers()}
         onCancel={() => {
           setConfirmOthers(false);

@@ -9,6 +9,7 @@ import type {
 import { supabase } from "../../lib/supabase-browser";
 import { getStoredSessionId } from "../../lib/api-client";
 import { useAuth } from "../../context/auth-context";
+import { useI18n } from "../../context/i18n-context";
 
 /**
  * UC-64 — client side of the real-time presence gateway (`/collab`
@@ -50,7 +51,7 @@ export interface UsePresenceResult {
   /** Everyone currently in the room (the caller is included). */
   users: PresenceUser[];
   status: PresenceStatus;
-  /** Vietnamese status line for reconnecting/failed — null otherwise. */
+  /** Status line for reconnecting/failed in the selected language — null otherwise. */
   statusMessage: string | null;
   /**
    * UC-62 5.E1: my access was just revoked and every one of my tabs is
@@ -59,18 +60,12 @@ export interface UsePresenceResult {
   accessRevoked: boolean;
 }
 
-/** Message shown while the socket retries after a drop (2.E1). */
-export const PRESENCE_RECONNECTING_MESSAGE =
-  "Mất kết nối thời gian thực. Đang thử kết nối lại…";
-/** Message shown after the retries are exhausted (2.E2). */
-export const PRESENCE_FAILED_MESSAGE =
-  "Không thể kết nối đến máy chủ thời gian thực. Vui lòng làm mới trang.";
-
 export function usePresence(
   projectId: string,
   options: UsePresenceOptions = {},
 ): UsePresenceResult {
   const { user } = useAuth();
+  const { t } = useI18n();
   const myId = user?.id ?? null;
 
   /**
@@ -201,9 +196,9 @@ export function usePresence(
     status,
     statusMessage:
       status === "reconnecting"
-        ? PRESENCE_RECONNECTING_MESSAGE
+        ? t("presence.reconnecting")
         : status === "failed"
-          ? PRESENCE_FAILED_MESSAGE
+          ? t("presence.failed")
           : null,
     accessRevoked: revokedProject === projectId,
   };

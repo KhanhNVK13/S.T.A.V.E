@@ -5,12 +5,11 @@ import {
   type TransactionKind,
 } from "@stave/shared-types";
 import { formatDate } from "./format-date";
+import { tNow } from "./i18n";
 
-export const DISPLAY_STATUS_LABEL: Record<TransactionDisplayStatus, string> = {
-  success: "Thành công",
-  failed: "Thất bại",
-  incomplete: "Chưa hoàn tất",
-};
+export function displayStatusLabel(status: TransactionDisplayStatus): string {
+  return tNow(`bill.status.${status}`);
+}
 
 export const DISPLAY_STATUS_VARIANT = {
   success: "success",
@@ -18,33 +17,34 @@ export const DISPLAY_STATUS_VARIANT = {
   incomplete: "neutral",
 } as const satisfies Record<TransactionDisplayStatus, string>;
 
-export const KIND_LABEL: Partial<Record<TransactionKind, string>> = {
-  refund: "Hoàn tiền",
-  compensation: "Đền bù",
-};
+export function kindLabel(kind: TransactionKind): string | null {
+  if (kind === "refund") return tNow("bill.kind.refund");
+  if (kind === "compensation") return tNow("bill.kind.compensation");
+  return null;
+}
 
 export function validateIssueDescription(text: string): string | null {
   const trimmed = text.trim();
-  if (trimmed.length === 0) return "Hãy mô tả sự cố bạn gặp.";
+  if (trimmed.length === 0) return tNow("bill.issue.required");
   if (trimmed.length > PAYMENT_ISSUE_DESCRIPTION_MAX) {
-    return `Mô tả tối đa ${PAYMENT_ISSUE_DESCRIPTION_MAX} ký tự.`;
+    return tNow("bill.issue.tooLong", { max: PAYMENT_ISSUE_DESCRIPTION_MAX });
   }
   return null;
 }
 
 export function subscriptionSummary(subscription: EffectiveSubscription): string[] {
-  if (!subscription.hasPaidAccess) return ["Bạn đang dùng gói miễn phí."];
+  if (!subscription.hasPaidAccess) return [tNow("bill.sub.free")];
   const lines: string[] = [];
   const end = formatDate(subscription.currentPeriodEnd);
   if (subscription.cancelAtPeriodEnd) {
-    lines.push(`Đã huỷ gia hạn. Hiệu lực đến ${end}.`);
+    lines.push(tNow("bill.sub.canceled", { date: end }));
   } else if (subscription.inGrace) {
-    lines.push(`Kỳ đã trả kết thúc ngày ${end}. Hãy gia hạn để tiếp tục dùng gói.`);
+    lines.push(tNow("bill.sub.grace", { date: end }));
   } else {
-    lines.push(`Thanh toán kế tiếp: ${end}.`);
+    lines.push(tNow("bill.sub.next", { date: end }));
   }
   if (subscription.pendingPlan) {
-    lines.push(`Sẽ chuyển sang ${subscription.pendingPlan.name} vào ${end}.`);
+    lines.push(tNow("bill.sub.pending", { plan: subscription.pendingPlan.name, date: end }));
   }
   return lines;
 }

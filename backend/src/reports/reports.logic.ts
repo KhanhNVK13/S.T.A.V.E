@@ -182,3 +182,34 @@ export function summarizeSnapshot(snapshot: unknown): SnapshotSummary {
     }),
   };
 }
+
+export function extractSoundIds(snapshot: unknown): string[] {
+  if (typeof snapshot !== 'object' || snapshot === null) return [];
+  const { tracks } = snapshot as { tracks?: unknown };
+  if (!Array.isArray(tracks)) return [];
+  const ids = new Set<string>();
+  for (const track of tracks as unknown[]) {
+    const soundMap =
+      typeof track === 'object' && track !== null
+        ? (track as { soundMap?: unknown }).soundMap
+        : undefined;
+    if (typeof soundMap !== 'object' || soundMap === null) continue;
+    for (const value of Object.values(soundMap as Record<string, unknown>)) {
+      if (typeof value === 'string') ids.add(value);
+    }
+  }
+  return [...ids];
+}
+
+export function resolveRetentionDays(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 1
+    ? Math.floor(value)
+    : fallback;
+}
+
+export function retainUntilFrom(hiddenAt: string, days: number): string {
+  const base = Date.parse(hiddenAt);
+  return new Date(
+    (Number.isNaN(base) ? Date.now() : base) + days * 86_400_000,
+  ).toISOString();
+}

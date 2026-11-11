@@ -35,10 +35,9 @@ import { MergeConflictDialog } from "./merge-conflict-dialog";
 import { CommitGraph } from "./commit-graph";
 import { fetchHistories } from "../../lib/project-graph";
 import { SkyLoading } from "./sky-state";
-import { apiErrorMessage } from "../../lib/error-message";
+import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
 import { useI18n } from "../../context/i18n-context";
-import { tNow } from "../../lib/i18n";
 
 /** Nhánh | so với mặc định | tác giả | tạo lúc | thao tác. */
 const COLS = "md:grid-cols-[minmax(0,1fr)_150px_140px_96px_auto]";
@@ -63,7 +62,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
   const [graphState, setGraphState] = useState<"loading" | "ready" | "error">("loading");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [infoNotice, setInfoNotice] = useState<string | null>(null);
   const mergeSummaryForRef = useRef<string | null>(null);
@@ -81,12 +80,12 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
   const [deletePreview, setDeletePreview] = useState<BranchDeletePreview | null>(null);
   const [deletePreviewState, setDeletePreviewState] = useState<"loading" | "ready" | "error">("loading");
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<ErrorSource | null>(null);
+  const [resolveError, setResolveError] = useState<ErrorSource | null>(null);
 
   const [mergeSource, setMergeSource] = useState<Branch | null>(null);
   const [mergeConfirm, setMergeConfirm] = useState<Branch | null>(null);
-  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [mergeError, setMergeError] = useState<ErrorSource | null>(null);
   const [mergeBusy, setMergeBusy] = useState(false);
   const [conflicts, setConflicts] = useState<MergeConflictResult | null>(null);
 
@@ -119,7 +118,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
       setCommitsById(byId);
       setGraphState(failed ? "error" : "ready");
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("blist.loadFail")));
+      setError(errorSource(err, "blist.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -160,7 +159,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
       );
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, t("blist.createFail")));
+      setError(errorSource(err, "blist.createFail"));
     } finally {
       setCreateBusy(false);
     }
@@ -190,7 +189,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
       setDeletePreview(null);
       await load();
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, t("blist.deleteFail")));
+      setDeleteError(errorSource(err, "blist.deleteFail"));
     } finally {
       setDeleteBusy(false);
     }
@@ -248,7 +247,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
         await load();
       }
     } catch (err) {
-      setMergeError(apiErrorMessage(err, t("blist.mergeFail")));
+      setMergeError(errorSource(err, "blist.mergeFail"));
       setMergeSource(null);
     } finally {
       setMergeBusy(false);
@@ -270,7 +269,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
       setMergeSource(null);
       await load();
     } catch (err) {
-      setResolveError(apiErrorMessage(err, t("blist.resolveFail")));
+      setResolveError(errorSource(err, "blist.resolveFail"));
     } finally {
       setMergeBusy(false);
     }
@@ -364,7 +363,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
           role="alert"
           className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-danger/20 bg-danger-muted px-4 py-3"
         >
-          <p className="text-xs text-danger">{error}</p>
+          <p className="text-xs text-danger">{renderError(error)}</p>
           <Button variant="secondary" onClick={() => void load()} disabled={loading}>
             {t("ui.retry")}
           </Button>
@@ -563,7 +562,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
         danger
         loading={deleteBusy}
         confirmDisabled={deletePreviewState === "loading"}
-        error={deleteError}
+        error={renderError(deleteError)}
         onConfirm={() => void handleDelete()}
         onCancel={() => {
           setDeleteTarget(null);
@@ -605,7 +604,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
         }
         confirmLabel={t("blist.mergeConfirm")}
         loading={mergeBusy}
-        error={mergeError}
+        error={renderError(mergeError)}
         onConfirm={() => mergeConfirm && void handleMerge(mergeConfirm)}
         onCancel={() => {
           setMergeConfirm(null);
@@ -620,7 +619,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
           sourceName={mergeSource.name}
           targetName={defaultBranch.name}
           submitting={mergeBusy}
-          error={resolveError}
+          error={renderError(resolveError)}
           onCancel={() => {
             setConflicts(null);
             setMergeSource(null);

@@ -1,7 +1,13 @@
-import { APP_LOCALE } from "./format-date";
+import { appLocale } from "./format-date";
 
-const VND = new Intl.NumberFormat(APP_LOCALE, { style: "currency", currency: "VND" });
+const formatters = new Map<string, Intl.NumberFormat>();
 
 export function formatVnd(amount: number): string {
-  return VND.format(amount);
+  const locale = appLocale();
+  let formatter = formatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { style: "currency", currency: "VND" });
+    formatters.set(locale, formatter);
+  }
+  return formatter.format(amount);
 }

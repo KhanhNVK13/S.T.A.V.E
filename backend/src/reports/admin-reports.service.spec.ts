@@ -8,6 +8,7 @@ import {
   type QueryResult,
 } from '../test-utils/supabase-mock';
 import { AdminReportsService } from './admin-reports.service';
+import type { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 
 const P1 = '33333333-3333-4333-8333-333333333333';
 const P2 = '55555555-5555-4555-8555-555555555555';
@@ -31,7 +32,14 @@ function build({ rpc, tables = {} }: Setup = {}) {
     tables,
     rpc: rpc ? { admin_report_groups: rpc } : undefined,
   });
-  return { mock, service: new AdminReportsService(mock.client) };
+  const settings = { get: jest.fn().mockResolvedValue(30) };
+  return {
+    mock,
+    service: new AdminReportsService(
+      mock.client,
+      settings as unknown as PlatformSettingsService,
+    ),
+  };
 }
 
 const touched = (mock: ReturnType<typeof build>['mock'], table: string) =>

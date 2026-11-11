@@ -15,9 +15,8 @@ import {
   previewPullRequest,
 } from "../../lib/api-client";
 import type { Branch, PullRequestPreview } from "../../lib/api-client";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { useI18n } from "../../context/i18n-context";
-import { tNow } from "../../lib/i18n";
 
 const TITLE_MAX = 150;
 const DESCRIPTION_MAX = 2000;
@@ -37,18 +36,18 @@ export function NewPullRequestDialog({
   const [targetProjectName, setTargetProjectName] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [targetId, setTargetId] = useState("");
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<ErrorSource | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [preview, setPreview] = useState<PullRequestPreview | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<ErrorSource | null>(null);
   const [previewing, setPreviewing] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<ErrorSource | null>(null);
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,7 +65,7 @@ export function NewPullRequestDialog({
         setSourceId((source.find((b) => b.is_active) ?? source.find((b) => b.is_default) ?? source[0])?.id ?? "");
         setTargetId((target.branches.find((b) => b.is_default) ?? target.branches[0])?.id ?? "");
       } catch (err) {
-        if (!cancelled) setLoadError(apiErrorMessage(err, tNow("pr.dlgBranchesFail")));
+        if (!cancelled) setLoadError(errorSource(err, "pr.dlgBranchesFail"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -87,7 +86,7 @@ export function NewPullRequestDialog({
         const result = await previewPullRequest(projectId, sourceId, targetId);
         if (!cancelled) setPreview(result);
       } catch (err) {
-        if (!cancelled) setPreviewError(apiErrorMessage(err, tNow("pr.dlgCompareFail")));
+        if (!cancelled) setPreviewError(errorSource(err, "pr.dlgCompareFail"));
       } finally {
         if (!cancelled) setPreviewing(false);
       }
@@ -127,7 +126,7 @@ export function NewPullRequestDialog({
         const body = err.body as { pullRequestId?: string } | undefined;
         if (body?.pullRequestId) setDuplicateId(body.pullRequestId);
       }
-      setSubmitError(apiErrorMessage(err, t("pr.dlgCreateFail")));
+      setSubmitError(errorSource(err, "pr.dlgCreateFail"));
       setSubmitting(false);
     }
   }
@@ -140,7 +139,7 @@ export function NewPullRequestDialog({
         <p className="text-sm text-muted">{t("ui.loading")}</p>
       ) : loadError ? (
         <>
-          <DialogError message={loadError} />
+          <DialogError message={renderError(loadError)} />
           <DialogActions>
             <Button variant="secondary" onClick={onClose}>
               {t("ui.close")}
@@ -184,7 +183,7 @@ export function NewPullRequestDialog({
             {previewing && <span className="text-muted">{t("pr.dlgComparing")}</span>}
             {previewError && (
               <span role="alert" className="text-danger">
-                {previewError}
+                {renderError(previewError)}
               </span>
             )}
             {preview && (
@@ -229,7 +228,7 @@ export function NewPullRequestDialog({
             </span>
           </Field>
 
-          <DialogError message={submitError} />
+          <DialogError message={renderError(submitError)} />
           {duplicateId && (
             <p className="-mt-2 text-xs">
               <Link href={`/pull-requests/${duplicateId}`} className="font-semibold text-accent hover:underline">

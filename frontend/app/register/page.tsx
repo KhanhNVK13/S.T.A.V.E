@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase-browser";
-import { authErrorMessage } from "../../lib/error-message";
+import { authErrorSource, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { useI18n } from "../../context/i18n-context";
@@ -27,7 +27,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string;
     password?: string;
@@ -74,7 +74,7 @@ export default function RegisterPage() {
     if (!(await isRegistrationOpen().catch(() => true))) {
       setSubmitting(false);
       setClosed(true);
-      setError(t("auth.register.closed"));
+      setError(errorSource(null, "auth.register.closed"));
       return;
     }
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -92,14 +92,14 @@ export default function RegisterPage() {
         setMailFailed(true);
         return;
       }
-      setError(authErrorMessage(signUpError));
+      setError(authErrorSource(signUpError));
       return;
     }
 
     // Supabase trả về error: null kể cả khi email đã đăng ký (chống dò email),
     // nhưng identities rỗng cho biết đây không phải tài khoản mới — không có email nào được gửi.
     if (signUpData.user && signUpData.user.identities?.length === 0) {
-      setError(t("auth.register.alreadyRegistered"));
+      setError(errorSource(null, "auth.register.alreadyRegistered"));
       return;
     }
 
@@ -120,7 +120,7 @@ export default function RegisterPage() {
     });
     if (resendError) {
       setResendState("idle");
-      setError(authErrorMessage(resendError));
+      setError(authErrorSource(resendError));
       return;
     }
     setError(null);
@@ -137,7 +137,7 @@ export default function RegisterPage() {
           </p>
           {error && (
             <p role="alert" className="mt-3 text-sm text-danger">
-              {error}
+              {renderError(error)}
             </p>
           )}
           <Button
@@ -225,7 +225,7 @@ export default function RegisterPage() {
         )}
         {error && (
           <p role="alert" className="text-sm text-danger">
-            {error}
+            {renderError(error)}
           </p>
         )}
         <Button type="submit" disabled={submitting || closed} className="w-full">

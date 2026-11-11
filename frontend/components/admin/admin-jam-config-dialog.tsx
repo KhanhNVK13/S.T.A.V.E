@@ -11,7 +11,7 @@ import { Dialog, DialogActions } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { FieldError, INPUT_CLASS } from "../ui/form";
 import { adminCancelJamEvent, adminConfigureJamEvent } from "../../lib/api-jam";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { useI18n } from "../../context/i18n-context";
 
 export interface AdminJamConfigDialogProps {
@@ -58,7 +58,7 @@ export function AdminJamConfigDialog({
   );
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -134,7 +134,7 @@ export function AdminJamConfigDialog({
       onSaved(t("ac.saved"));
       onClose();
     } catch (err) {
-      setError(apiErrorMessage(err, t("ac.saveFail")));
+      setError(errorSource(err, "ac.saveFail"));
     } finally {
       setSubmitting(false);
     }
@@ -150,7 +150,7 @@ export function AdminJamConfigDialog({
       );
       onClose();
     } catch (err) {
-      setError(apiErrorMessage(err, t("ac.cancelFail")));
+      setError(errorSource(err, "ac.cancelFail"));
     } finally {
       setCancelling(false);
     }
@@ -427,7 +427,7 @@ export function AdminJamConfigDialog({
         >
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            <span>{renderError(error)}</span>
           </div>
           <Button
             type="button"

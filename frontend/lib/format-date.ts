@@ -29,11 +29,7 @@ export function formatRelativeTime(dateStr: string | null | undefined): string {
   if (diffDay < 7) return tNow('time.day', { n: diffDay });
   if (diffDay < 30) return tNow('time.week', { n: Math.floor(diffDay / 7) });
 
-  // Fallback to dd/MM/yyyy
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+  return formatDate(dateStr);
 }
 
 /**
@@ -49,7 +45,7 @@ export function formatMonthYear(dateStr: string | null | undefined): string {
 }
 
 /**
- * Format a date string to dd/MM/yyyy
+ * Format a date string to dd/MM/yyyy (vi) or day-month-name (en)
  */
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
@@ -57,10 +53,11 @@ export function formatDate(dateStr: string | null | undefined): string {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
 
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+  const options: Intl.DateTimeFormatOptions =
+    getLang() === 'vi'
+      ? { day: '2-digit', month: '2-digit', year: 'numeric' }
+      : { day: 'numeric', month: 'short', year: 'numeric' };
+  return new Intl.DateTimeFormat(appLocale(), options).format(date);
 }
 
 /**
@@ -82,11 +79,9 @@ export function formatDateTime(dateStr: string | null | undefined): string {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
 
-  return date.toLocaleString(appLocale(), {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const options: Intl.DateTimeFormatOptions =
+    getLang() === 'vi'
+      ? { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }
+      : { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+  return date.toLocaleString(appLocale(), options);
 }

@@ -16,7 +16,7 @@ import {
   type PublicProject,
 } from "../../lib/api-client";
 import { getJamEvents } from "../../lib/api-jam";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatAuthorName } from "../../lib/format-name";
 import { formatRelativeTime } from "../../lib/format-date";
 import { useApiResource } from "../../lib/use-api-resource";
@@ -25,6 +25,7 @@ import { SiteCredits } from "../site-footer";
 import { NOTIFICATIONS_CHANGED_EVENT } from "../notification-bell";
 import { JamCountdownTimer } from "../jam/jam-countdown-timer";
 import { Badge } from "../ui/badge";
+import { notificationText } from "../../lib/notification-text";
 import { Card } from "../ui/card";
 import { ProjectThumb } from "../ui/project-thumb";
 import { RowHeader, RowItem, RowList, RowTime, RowTitle } from "../ui/row-list";
@@ -269,7 +270,7 @@ function Notifications({
 }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   async function readAll() {
     setBusy(true);
@@ -279,7 +280,7 @@ function Notifications({
       window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
       onChanged();
     } catch (err) {
-      setError(apiErrorMessage(err, t("home.markFail")));
+      setError(errorSource(err, "home.markFail"));
     } finally {
       setBusy(false);
     }
@@ -308,7 +309,7 @@ function Notifications({
       </div>
       {error && (
         <p role="alert" className="mb-2 text-xs text-danger">
-          {error}
+          {renderError(error)}
         </p>
       )}
       {items.length > 0 ? (
@@ -318,7 +319,7 @@ function Notifications({
               <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />
               <span className="min-w-0">
                 <Link href="/notifications" className="block text-[13px] font-semibold leading-snug hover:underline">
-                  {n.payload.title ?? t("home.notifFallback")}
+                  {notificationText(n, t).title ?? t("home.notifFallback")}
                 </Link>
                 <span className="font-mono text-xs text-muted">{formatRelativeTime(n.created_at)}</span>
               </span>

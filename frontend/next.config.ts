@@ -17,6 +17,7 @@ const supabaseOrigin = originOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
 const connectSources = [
   "'self'",
   apiOrigin,
+  apiOrigin?.replace(/^http/, "ws") ?? null,
   supabaseOrigin,
   supabaseOrigin?.replace(/^http/, "ws") ?? null,
   "https://*.supabase.co",

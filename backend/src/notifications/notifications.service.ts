@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { getNotificationType, renderTemplate } from './notification-types';
+import { fallbackValues } from './notification-params';
 
 @Injectable()
 export class NotificationsService {
@@ -31,13 +32,16 @@ export class NotificationsService {
       const subject = template?.subject ?? definition?.defaultSubject ?? type;
       const body = template?.body ?? definition?.defaultBody ?? '';
 
+      const values = fallbackValues(payload);
       const { error } = await this.supabase.from('notifications').insert({
         user_id: userId,
         type,
         payload: {
           ...payload,
-          title: renderTemplate(subject, payload),
-          body: renderTemplate(body, payload),
+          params: payload,
+          title: renderTemplate(subject, values),
+          body: renderTemplate(body, values),
+          ...(template ? { customText: true } : {}),
         },
       });
 

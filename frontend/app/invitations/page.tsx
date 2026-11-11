@@ -9,7 +9,7 @@ import {
   declineInvitation,
   listMyInvitations,
 } from "../../lib/api-collab";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { useApiResource } from "../../lib/use-api-resource";
 import { RequireAuth } from "../../components/require-auth";
@@ -29,7 +29,7 @@ function InvitationsContent() {
   const { t, tx } = useI18n();
   const [attempt, setAttempt] = useState(0);
   const [actingId, setActingId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<ErrorSource | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [declineTarget, setDeclineTarget] = useState<CollaborationInvitation | null>(null);
 
@@ -54,7 +54,7 @@ function InvitationsContent() {
       );
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setActionError(apiErrorMessage(err, t("inv.acceptFail")));
+      setActionError(errorSource(err, "inv.acceptFail"));
     } finally {
       setActingId(null);
     }
@@ -70,7 +70,7 @@ function InvitationsContent() {
       setToastMessage(t("inv.declined"));
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setActionError(apiErrorMessage(err, t("inv.declineFail")));
+      setActionError(errorSource(err, "inv.declineFail"));
     } finally {
       setActingId(null);
     }
@@ -115,7 +115,7 @@ function InvitationsContent() {
         <>
           {actionError && (
             <p role="alert" className="mb-3 rounded-card bg-danger-muted px-3 py-2 text-[13px] text-danger">
-              {actionError}
+              {renderError(actionError)}
             </p>
           )}
           <RowList cols={COLS}>

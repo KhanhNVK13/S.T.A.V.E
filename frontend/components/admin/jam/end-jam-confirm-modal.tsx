@@ -6,7 +6,7 @@ import type { JamEvent } from "@stave/shared-types";
 import { Dialog, DialogActions, DialogError } from "../../ui/dialog";
 import { Button } from "../../ui/button";
 import { adminEndJamEvent } from "../../../lib/api-jam";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { useI18n } from "../../../context/i18n-context";
 
 export interface EndJamConfirmModalProps {
@@ -30,7 +30,7 @@ export function EndJamConfirmModal({
   onEnded,
 }: EndJamConfirmModalProps) {
   const { t, tx } = useI18n();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleConfirm() {
@@ -41,7 +41,7 @@ export function EndJamConfirmModal({
       onEnded(event.id);
     } catch (err) {
       // Hiển thị nguyên văn thông báo tiếng Việt (error-message.ts).
-      setError(apiErrorMessage(err, t("aj.endFail")));
+      setError(errorSource(err, "aj.endFail"));
       setSubmitting(false);
     }
   }
@@ -66,7 +66,7 @@ export function EndJamConfirmModal({
       <div className="mt-3 rounded-card border border-danger/40 bg-danger-muted p-3 text-xs text-danger">
         {t("aj.endWarn")}
       </div>
-      <DialogError message={error} />
+      <DialogError message={renderError(error)} />
       <DialogActions>
         <Button variant="secondary" onClick={onClosed} disabled={submitting}>
           {t("aj.endBack")}

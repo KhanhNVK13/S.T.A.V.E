@@ -5,7 +5,7 @@ import type { UserIdentity } from "@supabase/supabase-js";
 import { Link2, Unlink } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
 import { apiFetch } from "../../lib/api-client";
-import { authErrorMessage } from "../../lib/error-message";
+import { authErrorMessage, authErrorSource, errorSource, rawErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -42,7 +42,7 @@ function clearReturnParams() {
 export function ConnectedAccounts() {
   const { t, tx } = useI18n();
   const [identities, setIdentities] = useState<UserIdentity[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -53,7 +53,7 @@ export function ConnectedAccounts() {
   const load = useCallback(async () => {
     const { data, error: loadError } = await supabase.auth.getUserIdentities();
     if (loadError) {
-      setError(authErrorMessage(loadError));
+      setError(authErrorSource(loadError));
       return null;
     }
     setIdentities(data.identities);
@@ -65,7 +65,7 @@ export function ConnectedAccounts() {
     void (async () => {
       const returnError = readReturnError();
       if (returnError) {
-        if (!cancelled) setError(returnError);
+        if (!cancelled) setError(rawErrorSource(returnError));
         clearReturnParams();
       }
       const loaded = await load();
@@ -105,7 +105,7 @@ export function ConnectedAccounts() {
       try {
         window.sessionStorage.removeItem(LINK_PENDING_KEY);
       } catch {}
-      setError(authErrorMessage(linkError));
+      setError(authErrorSource(linkError));
       setBusy(false);
     }
   }
@@ -124,18 +124,18 @@ export function ConnectedAccounts() {
     e.preventDefault();
     setError(null);
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(t("conn.passwordMin", { n: MIN_PASSWORD_LENGTH }));
+      setError(errorSource(null, "conn.passwordMin", { n: MIN_PASSWORD_LENGTH }));
       return;
     }
     if (password !== confirmPassword) {
-      setError(t("auth.passwordMismatch"));
+      setError(errorSource(null, "auth.passwordMismatch"));
       return;
     }
     setBusy(true);
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (updateError) {
-      setError(authErrorMessage(updateError));
+      setError(authErrorSource(updateError));
       return;
     }
     setPassword("");
@@ -153,7 +153,7 @@ export function ConnectedAccounts() {
     setBusy(false);
     setConfirmOpen(false);
     if (unlinkError) {
-      setError(authErrorMessage(unlinkError));
+      setError(authErrorSource(unlinkError));
       return;
     }
     notifyBackend("disconnected", googleEmail || undefined);
@@ -239,7 +239,7 @@ export function ConnectedAccounts() {
 
       {error && (
         <p role="alert" className="mt-2 text-xs text-danger">
-          {error}
+          {renderError(error)}
         </p>
       )}
       {info && (

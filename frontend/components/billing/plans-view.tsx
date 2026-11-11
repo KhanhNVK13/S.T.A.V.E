@@ -22,7 +22,9 @@ import {
   resumeSubscription,
   startCheckout,
 } from "../../lib/api-billing";
-import { apiErrorMessage } from "../../lib/error-message";
+import { useI18n, type I18n } from "../../context/i18n-context";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
+import type { TKey } from "../../lib/i18n";
 import { daysUntil, formatDate } from "../../lib/format-date";
 import { formatVnd } from "../../lib/format-vnd";
 import { planFeatureList } from "../../lib/plan-features";
@@ -47,18 +49,19 @@ type PendingAction =
 const planAnchor = (planId: string) => `plan-${planId}`;
 
 export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
+  const { t, tx } = useI18n();
   const [attempt, setAttempt] = useState(0);
   const [action, setAction] = useState<PendingAction | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<ErrorSource | null>(null);
   const [preparing, setPreparing] = useState<string | null>(null);
-  const [pageError, setPageError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<ErrorSource | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const { data, loading, error } = useApiResource(
     () => Promise.all([listSubscriptionPlans(), getMySubscription()]),
     [attempt],
-    "Không tải được danh sách gói.",
+    t("bill.plans.loadFailed"),
   );
   const [plans, subscription] = data ?? [null, null];
   const highlightedPlanId = feature ? plans?.find((plan) => plan.features[feature] === true)?.id ?? null : null;
@@ -77,14 +80,14 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
     setAction(next);
   }
 
-  async function prepare(key: string, load: () => Promise<PendingAction>, fallback: string) {
+  async function prepare(key: string, load: () => Promise<PendingAction>, fallback: TKey) {
     setPreparing(key);
     setPageError(null);
     setNotice(null);
     try {
       openAction(await load());
     } catch (err) {
-      setPageError(apiErrorMessage(err, fallback));
+      setPageError(errorSource(err, fallback));
     } finally {
       setPreparing(null);
     }
@@ -113,23 +116,20 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
           window.location.assign(result.checkoutUrl);
           return;
         }
-        finish(`Đã đặt lịch chuyển sang ${result.planName} vào ${formatDate(result.scheduledAt)}.`);
+        finish(t("bill.plans.switchScheduled", { plan: result.planName, date: formatDate(result.scheduledAt) }));
         return;
       }
       const updated = await cancelSubscription();
-      finish(`Đã huỷ gia hạn. Bạn vẫn dùng ${updated.plan.name} đến ${formatDate(updated.currentPeriodEnd)}.`);
-    } catch (err) {
-      setActionError(
-        apiErrorMessage(
-          err,
-          action.type === "cancel" ? "Không huỷ được gói, gói của bạn vẫn gia hạn." : "Không thực hiện được thao tác.",
-        ),
+      finish(
+        t("bill.plans.renewalCanceled", { plan: updated.plan.name, date: formatDate(updated.currentPeriodEnd) }),
       );
+    } catch (err) {
+      setActionError(errorSource(err, action.type === "cancel" ? "bill.plans.cancelFailed" : "bill.plans.actionFailed"));
       setActionLoading(false);
     }
   }
 
-  async function runDirect(key: string, run: () => Promise<unknown>, success: string, fallback: string) {
+  async function runDirect(key: string, run: () => Promise<unknown>, success: string, fallback: TKey) {
     setPreparing(key);
     setPageError(null);
     setNotice(null);
@@ -138,7 +138,7 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
       setNotice(success);
       setAttempt((n) => n + 1);
     } catch (err) {
-      setPageError(apiErrorMessage(err, fallback));
+      setPageError(errorSource(err, fallback));
     } finally {
       setPreparing(null);
     }
@@ -151,20 +151,20 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
       void prepare(
         plan.id,
         async () => ({ type: "change", plan, preview: await previewPlanChange(plan.id) }),
-        "Không kiểm tra được việc đổi gói.",
+        "bill.plans.changeCheckFailed",
       ),
     onCancel: () =>
       void prepare(
         "cancel",
         async () => ({ type: "cancel", preview: await previewCancellation() }),
-        "Không kiểm tra được việc huỷ gói.",
+        "bill.plans.cancelCheckFailed",
       ),
     onResume: () =>
       void runDirect(
         "resume",
         resumeSubscription,
-        "Gói của bạn sẽ tiếp tục gia hạn như bình thường.",
-        "Không tiếp tục được gói.",
+        t("bill.plans.resumed"),
+        "bill.plans.resumeFailed",
       ),
     onRenew: () => void renew(),
   };
@@ -177,7 +177,7 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
       const { checkoutUrl } = await renewSubscription();
       window.location.assign(checkoutUrl);
     } catch (err) {
-      setPageError(apiErrorMessage(err, "Không tạo được đơn gia hạn."));
+      setPageError(errorSource(err, "bill.plans.renewFailed"));
       setPreparing(null);
     }
   }
@@ -185,14 +185,14 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
       <PageHeader
-        title="Gói dịch vụ"
-        description="Chọn gói phù hợp. Bạn có thể đổi hoặc huỷ bất cứ lúc nào."
+        title={t("bill.plans.title")}
+        description={t("bill.plans.subtitle")}
         action={
           <Link
             href="/billing"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
           >
-            <Receipt aria-hidden="true" className="h-4 w-4" /> Lịch sử giao dịch
+            <Receipt aria-hidden="true" className="h-4 w-4" /> {t("bill.history.link")}
           </Link>
         }
       />
@@ -200,7 +200,7 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
       {canceled && (
         <Card role="status" className="mb-4 flex items-center gap-2 p-4 text-sm">
           <Info aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
-          Bạn đã huỷ thanh toán, chưa có gì thay đổi.
+          {t("bill.plans.canceledNotice")}
         </Card>
       )}
 
@@ -215,17 +215,16 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
 
       {pageError && (
         <p role="alert" className="mb-4 rounded-card bg-danger-muted px-3 py-2 text-sm text-danger">
-          {pageError}
+          {renderError(pageError)}
         </p>
       )}
 
       <Card className="mb-6 flex items-start gap-3 p-4">
         <ShieldCheck aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-success-foreground" />
         <div>
-          <p className="text-sm font-semibold">Quản lý phiên bản luôn miễn phí</p>
+          <p className="text-sm font-semibold">{t("bill.plans.versionFreeTitle")}</p>
           <p className="mt-0.5 text-sm text-muted">
-            Commit, tạo nhánh, gộp nhánh, so sánh và khôi phục phiên bản dùng không giới hạn ở mọi gói. Gói trả phí chỉ
-            thêm tiện ích cá nhân hoá.
+            {t("bill.plans.versionFreeBody")}
           </p>
         </div>
       </Card>
@@ -236,10 +235,10 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
         <Card role="alert" className="p-5">
           <p className="flex items-center gap-2 text-sm text-danger">
             <TriangleAlert aria-hidden="true" className="h-4 w-4 shrink-0" />
-            {error ?? "Không tải được danh sách gói."}
+            {error ?? t("bill.plans.loadFailed")}
           </p>
           <Button variant="secondary" className="mt-3" onClick={() => setAttempt((n) => n + 1)}>
-            <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> Thử lại
+            <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> {t("bill.retry")}
           </Button>
         </Card>
       ) : (
@@ -247,11 +246,11 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
           {subscription.inGrace && subscription.graceUntil && (
             <Card role="alert" className="mb-4 flex items-center gap-2 border-warning bg-warning-muted p-4 text-sm">
               <TriangleAlert aria-hidden="true" className="h-4 w-4 shrink-0 text-warning-foreground" />
-              Gói {subscription.plan.name} đã hết hạn. Bạn vẫn dùng được đến{" "}
-              <strong className="text-foreground">
-                {formatDate(subscription.graceUntil)}
-              </strong>
-              , sau đó tài khoản quay về gói miễn phí.
+              {tx(
+                "bill.plans.grace",
+                { date: <strong className="text-foreground">{formatDate(subscription.graceUntil)}</strong> },
+                { plan: subscription.plan.name },
+              )}
             </Card>
           )}
 
@@ -259,8 +258,11 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
             <Card className="mb-4 flex flex-wrap items-center gap-3 p-4">
               <CalendarClock aria-hidden="true" className="h-5 w-5 shrink-0 text-muted" />
               <p className="flex-1 text-sm">
-                Sẽ chuyển sang <strong>{subscription.pendingPlan.name}</strong> vào{" "}
-                {formatDate(subscription.currentPeriodEnd)}.
+                {tx(
+                  "bill.plans.pending",
+                  { plan: <strong>{subscription.pendingPlan.name}</strong> },
+                  { date: formatDate(subscription.currentPeriodEnd) },
+                )}
               </p>
               <Button
                 variant="secondary"
@@ -269,12 +271,12 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
                   void runDirect(
                     "cancel-downgrade",
                     cancelScheduledDowngrade,
-                    `Đã huỷ lịch chuyển gói. Bạn tiếp tục dùng ${subscription.plan.name}.`,
-                    "Không huỷ được lịch chuyển gói.",
+                    t("bill.plans.downgradeCanceled", { plan: subscription.plan.name }),
+                    "bill.plans.downgradeCancelFailed",
                   )
                 }
               >
-                {preparing === "cancel-downgrade" ? "Đang huỷ…" : "Huỷ lịch hạ cấp"}
+                {preparing === "cancel-downgrade" ? t("bill.plans.cancelingDowngrade") : t("bill.plans.cancelDowngrade")}
               </Button>
             </Card>
           )}
@@ -298,13 +300,13 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
       {action && subscription && (
         <ConfirmDialog
           open
-          title={dialogTitle(action, subscription)}
+          title={dialogTitle(action, subscription, t)}
           message={<ActionMessage action={action} subscription={subscription} />}
-          confirmLabel={dialogConfirmLabel(action)}
-          cancelLabel={action.type === "cancel" ? "Giữ gói" : "Để sau"}
+          confirmLabel={dialogConfirmLabel(action, t)}
+          cancelLabel={action.type === "cancel" ? t("bill.plans.keepPlan") : t("bill.plans.later")}
           danger={action.type === "cancel"}
           loading={actionLoading}
-          error={actionError}
+          error={renderError(actionError)}
           onConfirm={() => void confirmAction()}
           onCancel={() => setAction(null)}
         />
@@ -313,30 +315,28 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
   );
 }
 
-function dialogTitle(action: PendingAction, subscription: EffectiveSubscription): string {
-  if (action.type === "subscribe") return `Nâng cấp lên ${action.plan.name}`;
-  if (action.type === "change") return `Đổi sang ${action.plan.name}`;
-  return `Huỷ gói ${subscription.plan.name}`;
+function dialogTitle(action: PendingAction, subscription: EffectiveSubscription, t: I18n["t"]): string {
+  if (action.type === "subscribe") return t("bill.plans.upgradeTo", { plan: action.plan.name });
+  if (action.type === "change") return t("bill.plans.switchTo", { plan: action.plan.name });
+  return t("bill.plans.cancelTitle", { plan: subscription.plan.name });
 }
 
-function dialogConfirmLabel(action: PendingAction): string {
-  if (action.type === "cancel") return "Huỷ gói";
-  if (action.type === "change" && action.preview.kind === "downgrade") return "Đặt lịch chuyển gói";
-  return "Tiếp tục thanh toán";
+function dialogConfirmLabel(action: PendingAction, t: I18n["t"]): string {
+  if (action.type === "cancel") return t("bill.plans.cancelAction");
+  if (action.type === "change" && action.preview.kind === "downgrade") return t("bill.plans.scheduleSwitch");
+  return t("bill.plans.continuePay");
 }
 
 function ActionMessage({ action, subscription }: { action: PendingAction; subscription: EffectiveSubscription }) {
+  const { t, tx } = useI18n();
   const strong = (text: string) => <strong className="text-foreground">{text}</strong>;
 
   if (action.type === "subscribe") {
     return (
       <div className="space-y-2">
-        <p>
-          Bạn sẽ thanh toán {strong(formatVnd(action.plan.priceVnd))} cho 1 tháng sử dụng, tính từ lúc thanh toán thành
-          công.
-        </p>
-        <p>Huỷ bất cứ lúc nào: bạn vẫn dùng đến hết kỳ đã trả, không hoàn tiền.</p>
-        <p>Bạn sẽ được chuyển tới trang thanh toán.</p>
+        <p>{tx("bill.plans.subscribeBody", { amount: strong(formatVnd(action.plan.priceVnd)) })}</p>
+        <p>{t("bill.plans.noRefundNote")}</p>
+        <p>{t("bill.plans.redirectNote")}</p>
       </div>
     );
   }
@@ -346,22 +346,22 @@ function ActionMessage({ action, subscription }: { action: PendingAction; subscr
     if (preview.kind === "upgrade") {
       return (
         <div className="space-y-2">
-          <p>
-            Thanh toán {strong(formatVnd(preview.chargeVnd))} ngay. Gói {preview.planName} có hiệu lực ngay khi thanh toán
-            thành công và kỳ mới 1 tháng bắt đầu từ hôm nay.
-          </p>
-          <p>Không tính tiền theo phần còn lại của gói {subscription.plan.name}.</p>
-          <p>Bạn sẽ được chuyển tới trang thanh toán.</p>
+          <p>{tx("bill.plans.upgradeBody", { amount: strong(formatVnd(preview.chargeVnd)) }, { plan: preview.planName })}</p>
+          <p>{t("bill.plans.upgradeNoProrate", { plan: subscription.plan.name })}</p>
+          <p>{t("bill.plans.redirectNote")}</p>
         </div>
       );
     }
     return (
       <div className="space-y-2">
         <p>
-          Không thu tiền. Bạn vẫn dùng {subscription.plan.name} đến hết kỳ đã trả, rồi chuyển sang{" "}
-          {strong(preview.planName)} vào {strong(formatDate(preview.effectiveAt))}.
+          {tx(
+            "bill.plans.downgradeBody",
+            { next: strong(preview.planName), date: strong(formatDate(preview.effectiveAt)) },
+            { current: subscription.plan.name },
+          )}
         </p>
-        <p>Bạn có thể huỷ lịch này trước ngày đó.</p>
+        <p>{t("bill.plans.downgradeUndo")}</p>
       </div>
     );
   }
@@ -370,15 +370,11 @@ function ActionMessage({ action, subscription }: { action: PendingAction; subscr
   return (
     <div className="space-y-2">
       <p>
-        Gói sẽ không gia hạn. Bạn vẫn dùng {subscription.plan.name} đến {strong(formatDate(preview.endDate))}, sau đó tài
-        khoản quay về gói miễn phí.
+        {tx("bill.plans.cancelBody", { date: strong(formatDate(preview.endDate)) }, { plan: subscription.plan.name })}
       </p>
-      <p>Không dự án hay dữ liệu nào bị xoá. Không hoàn tiền cho kỳ đã trả.</p>
+      <p>{t("bill.plans.cancelNoDelete")}</p>
       {preview.paidOnlySettings.length > 0 && (
-        <p>
-          Khi hết kỳ, các thiết lập sau sẽ quay về mặc định: {strong(preview.paidOnlySettings.join(", "))}. Bảng màu vẫn
-          được giữ để khôi phục khi bạn đăng ký lại.
-        </p>
+        <p>{tx("bill.plans.cancelSettings", { settings: strong(preview.paidOnlySettings.join(", ")) })}</p>
       )}
     </div>
   );
@@ -406,6 +402,7 @@ function PlanCard({
   highlighted: boolean;
   handlers: PlanCardHandlers;
 }) {
+  const { t } = useI18n();
   const features = planFeatureList(plan.features);
   const onPaidPlan = subscription.hasPaidAccess;
   const retiredButCurrent = plan.isCurrent && !plan.isActive;
@@ -425,17 +422,17 @@ function PlanCard({
     >
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold">{plan.name}</h2>
-        {plan.isCurrent && <Badge variant="success">Gói hiện tại</Badge>}
+        {plan.isCurrent && <Badge variant="success">{t("bill.plans.current")}</Badge>}
         {highlighted && (
           <Badge variant="info">
-            <Sparkles aria-hidden="true" className="h-3 w-3" /> Có tính năng bạn cần
+            <Sparkles aria-hidden="true" className="h-3 w-3" /> {t("bill.plans.hasFeature")}
           </Badge>
         )}
       </div>
 
       <p className="mt-3">
-        <span className="text-2xl font-semibold">{plan.isDefault ? "Miễn phí" : formatVnd(plan.priceVnd)}</span>
-        {!plan.isDefault && <span className="text-sm text-muted"> / 1 tháng</span>}
+        <span className="text-2xl font-semibold">{plan.isDefault ? t("bill.plans.free") : formatVnd(plan.priceVnd)}</span>
+        {!plan.isDefault && <span className="text-sm text-muted"> {t("bill.plans.perMonth")}</span>}
       </p>
 
       {plan.description && <p className="mt-2 text-sm text-muted">{plan.description}</p>}
@@ -447,7 +444,7 @@ function PlanCard({
               key={item.key}
               className={`flex items-center gap-2 ${item.key === feature ? "font-semibold text-accent" : ""}`}
             >
-              <Check aria-hidden="true" className="h-4 w-4 shrink-0 text-success-foreground" /> {item.label}
+              <Check aria-hidden="true" className="h-4 w-4 shrink-0 text-success-foreground" /> {t(`bill.feature.${item.key}`)}
             </li>
           ))}
         </ul>
@@ -455,46 +452,46 @@ function PlanCard({
 
       {retiredButCurrent && (
         <p className="mt-4 text-sm text-warning-foreground">
-          Gói này không còn mở bán, bạn vẫn dùng đến {formatDate(subscription.currentPeriodEnd)}.
+          {t("bill.plans.retired", { date: formatDate(subscription.currentPeriodEnd) })}
         </p>
       )}
 
       {plan.isCurrent && onPaidPlan && subscription.cancelAtPeriodEnd && (
         <p className="mt-4 text-sm font-semibold text-warning-foreground">
-          Đã huỷ, hiệu lực đến {formatDate(subscription.currentPeriodEnd)}.
+          {t("bill.plans.canceledUntil", { date: formatDate(subscription.currentPeriodEnd) })}
         </p>
       )}
 
       {!plan.isDefault && (
         <p className="mt-4 text-xs text-muted">
-          Thanh toán theo chu kỳ 1 tháng. Huỷ bất cứ lúc nào: bạn vẫn dùng đến hết kỳ đã trả, không hoàn tiền.
+          {t("bill.plans.cycle")}
         </p>
       )}
 
       <div className="mt-auto flex flex-wrap gap-2 pt-5">
         {!onPaidPlan && !plan.isCurrent && !plan.isDefault && (
           <Button disabled={busy} onClick={() => handlers.onSubscribe(plan)}>
-            Nâng cấp lên {plan.name}
+            {t("bill.plans.upgradeBtn", { plan: plan.name })}
           </Button>
         )}
         {onPaidPlan && !plan.isCurrent && (
           <Button variant="secondary" disabled={busy} onClick={() => handlers.onChange(plan)}>
-            {handlers.busyKey === plan.id ? "Đang kiểm tra…" : "Đổi gói"}
+            {handlers.busyKey === plan.id ? t("bill.plans.checking") : t("bill.plans.change")}
           </Button>
         )}
         {onPaidPlan && plan.isCurrent && canRenew && (
           <Button disabled={busy} onClick={handlers.onRenew}>
-            {handlers.busyKey === "renew" ? "Đang xử lý…" : "Gia hạn ngay"}
+            {handlers.busyKey === "renew" ? t("bill.plans.processing") : t("bill.plans.renew")}
           </Button>
         )}
         {onPaidPlan && plan.isCurrent && !subscription.cancelAtPeriodEnd && (
           <Button variant="secondary" disabled={busy} onClick={handlers.onCancel}>
-            {handlers.busyKey === "cancel" ? "Đang kiểm tra…" : "Huỷ gói"}
+            {handlers.busyKey === "cancel" ? t("bill.plans.checking") : t("bill.plans.cancelAction")}
           </Button>
         )}
         {onPaidPlan && plan.isCurrent && subscription.cancelAtPeriodEnd && (
           <Button disabled={busy} onClick={handlers.onResume}>
-            {handlers.busyKey === "resume" ? "Đang xử lý…" : "Tiếp tục gói"}
+            {handlers.busyKey === "resume" ? t("bill.plans.processing") : t("bill.plans.resume")}
           </Button>
         )}
       </div>
@@ -503,8 +500,9 @@ function PlanCard({
 }
 
 function PlansSkeleton() {
+  const { t } = useI18n();
   return (
-    <div aria-busy="true" aria-label="Đang tải danh sách gói…" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div aria-busy="true" aria-label={t("bill.plans.loadingAria")} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {[0, 1].map((i) => (
         <Card key={i} className="animate-pulse p-5">
           <div className="h-5 w-24 rounded-md bg-surface-subtle" />

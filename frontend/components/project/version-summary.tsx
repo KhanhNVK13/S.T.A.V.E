@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import { GitBranch, GitCommitHorizontal, History } from "lucide-react";
 import { getBranchHistory, listProjectBranches } from "../../lib/api-client";
 import type { BranchHistoryCommit } from "../../lib/api-client";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { formatAuthorName } from "../../lib/format-name";
 import { SkyLoading } from "./sky-state";
 import { useI18n } from "../../context/i18n-context";
-import { tNow } from "../../lib/i18n";
 
 interface Summary {
   defaultBranchName: string;
@@ -27,7 +26,7 @@ export function VersionSummary({
 }) {
   const { t } = useI18n();
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +44,7 @@ export function VersionSummary({
           latest: commits[commits.length - 1] ?? null,
         });
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, tNow("vsum.loadFail")));
+        if (!cancelled) setError(errorSource(err, "vsum.loadFail"));
       }
     })();
     return () => {
@@ -81,7 +80,7 @@ export function VersionSummary({
       <div className="px-4 py-3 text-[13px]">
         {error ? (
           <p role="alert" className="text-danger">
-            {error}
+            {renderError(error)}
           </p>
         ) : !summary ? (
           <SkyLoading compact label={t("vsum.loading")} />
