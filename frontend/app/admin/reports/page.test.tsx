@@ -16,6 +16,9 @@ vi.mock("../../../lib/admin-reports-api", () => ({
   listReportGroups: vi.fn(),
   getReportDetails: vi.fn(),
   getReportPreview: vi.fn(),
+  getRemovalImpact: vi.fn(),
+  removeProject: vi.fn(),
+  restoreProject: vi.fn(),
 }));
 
 const P1 = "33333333-3333-4333-8333-333333333333";
@@ -563,14 +566,51 @@ describe("AdminReportsPage: an toàn dữ liệu và vòng đời", () => {
     expect(container.ownerDocument.body.innerHTML).not.toMatch(/@|e-?mail/i);
   });
 
-  it("không có nút hành động xử lý (gỡ, bỏ qua) ở giai đoạn này", async () => {
+  it("tab Đang mở có nút 'Gỡ dự án'; tab Đã gỡ có dòng 'lưu giữ đến' + nút 'Khôi phục' khi restorable", async () => {
     render(<AdminReportsPage />);
     await screen.findByText("Song A");
-    fireEvent.click(toggle(2));
-    await screen.findByText("Reported by Bob");
-    for (const name of [/remove/i, /dismiss report/i, /restore/i]) {
-      expect(screen.queryByRole("button", { name })).toBeNull();
-    }
+    expect(screen.getByRole("button", { name: "Remove project" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    cleanup();
+
+    vi.mocked(listReportGroups).mockResolvedValue(
+      listOf([
+        group({
+          resolution: "upheld",
+          resolutionNote: "copyright",
+          resolvedAt: "2026-11-01T00:00:00.000Z",
+          hiddenAt: "2026-11-01T00:00:00.000Z",
+          retainedUntil: "2026-12-01T00:00:00.000Z",
+          restorable: true,
+        }),
+      ]),
+    );
+    const view = render(<AdminReportsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Removed" }));
+    await screen.findByText("Song A");
+    expect(screen.getByRole("button", { name: "Restore" })).toBeTruthy();
+    expect(screen.getByText(/Removed — kept until/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Remove project" })).toBeNull();
+    view.unmount();
+  });
+
+  it("tab Đã gỡ: nhóm không thể khôi phục (restorable false) không có nút 'Khôi phục', hiện dòng quá hạn", async () => {
+    vi.mocked(listReportGroups).mockResolvedValue(
+      listOf([
+        group({
+          resolution: "upheld",
+          hiddenAt: "2026-01-01T00:00:00.000Z",
+          retainedUntil: "2026-02-01T00:00:00.000Z",
+          restorable: false,
+        }),
+      ]),
+    );
+    const view = render(<AdminReportsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Removed" }));
+    await screen.findByText("Song A");
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    expect(screen.getByText(/retention deadline passed/)).toBeTruthy();
+    view.unmount();
   });
 
   it("unmount khi danh sách đang tải: không lỗi, không cập nhật state", async () => {

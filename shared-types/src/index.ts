@@ -508,6 +508,12 @@ export interface ReportGroup {
   resolution?: ReportResolution;
   resolutionNote?: string | null;
   resolvedAt?: string | null;
+  /** Set when the project was removed by moderation (UC-102). */
+  hiddenAt?: string | null;
+  /** End of the retention window; the project can be restored until then. */
+  retainedUntil?: string | null;
+  /** False once the retention window has passed. */
+  restorable?: boolean;
 }
 
 export interface ReportDetail {
@@ -539,4 +545,54 @@ export interface AdminReportListResponse {
 
 export interface CreateReportResponse {
   id: string;
+}
+
+// Removing a violating project (UC-102).
+export const REMOVAL_REASON_MIN_LENGTH = 10;
+export const REMOVAL_REASON_MAX_LENGTH = 1000;
+export const REMOVE_SOUND_IDS_MAX = 50;
+export const DEFAULT_MODERATION_RETENTION_DAYS = 30;
+
+export const REMOVAL_POLICIES = [
+  "copyright",
+  "inappropriate_content",
+  "spam_or_fraud",
+  "harassment",
+  "other",
+] as const;
+
+export type RemovalPolicy = (typeof REMOVAL_POLICIES)[number];
+
+/** Labels for the removal policy picker; wording pending sign-off. */
+export const REMOVAL_POLICY_LABELS: Record<RemovalPolicy, string> = {
+  copyright: "Vi phạm bản quyền",
+  inappropriate_content: "Nội dung không phù hợp",
+  spam_or_fraud: "Spam hoặc lừa đảo",
+  harassment: "Quấy rối",
+  other: "Khác",
+};
+
+export interface RemovalImpact {
+  /** Projects forked from this one; they are not affected by the removal. */
+  forkCount: number;
+  retentionDays: number;
+  /** Custom sounds owned by the project owner and used by this project. */
+  ownerSounds: { id: string; name: string | null }[];
+}
+
+export interface RemoveSoundResult {
+  id: string;
+  removed: boolean;
+  error?: string;
+}
+
+export interface RemoveProjectResult {
+  hiddenAt: string;
+  retainedUntil: string;
+  closedReports: number;
+  soundResults: RemoveSoundResult[];
+}
+
+export interface RestoreProjectResponse {
+  restored: boolean;
 }

@@ -8,6 +8,7 @@ import {
   type QueryResult,
 } from '../test-utils/supabase-mock';
 import { AdminReportsService } from './admin-reports.service';
+import type { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 
 const P1 = '33333333-3333-4333-8333-333333333333';
 const P2 = '55555555-5555-4555-8555-555555555555';
@@ -24,14 +25,23 @@ const ok = (data: unknown, extra: Partial<QueryResult> = {}): QueryResult => ({
 interface Setup {
   rpc?: QueryResult | QueryResult[];
   tables?: Record<string, QueryResult[]>;
+  retentionDays?: number;
 }
 
-function build({ rpc, tables = {} }: Setup = {}) {
+function build({ rpc, tables = {}, retentionDays = 30 }: Setup = {}) {
   const mock = createSupabaseMock([], {
     tables,
     rpc: rpc ? { admin_report_groups: rpc } : undefined,
   });
-  return { mock, service: new AdminReportsService(mock.client) };
+  const getSetting = jest.fn().mockResolvedValue(retentionDays);
+  const platformSettings = {
+    get: getSetting,
+  } as unknown as PlatformSettingsService;
+  return {
+    mock,
+    service: new AdminReportsService(mock.client, platformSettings),
+    getSetting,
+  };
 }
 
 const touched = (mock: ReturnType<typeof build>['mock'], table: string) =>
@@ -363,6 +373,87 @@ describe('AdminReportsService.listGroups', () => {
     await expect(
       service.listGroups({ status: 'open', page: 1, limit: 20 }),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  it('tab Đã gỡ (upheld): dự án bị ẩn trả hiddenAt/retainedUntil/restorable; tab khác không trả', async () => {
+    const { service, getSetting } = build({
+      rpc: ok([
+        groupRow({ resolution: 'upheld', resolution_note: 'copyright' }),
+      ]),
+      tables: {
+        projects: [
+          ok([
+            {
+              id: P1,
+              name: 'A',
+              owner_id: OWNER1,
+              moderation_hidden_at: '2026-11-01T00:00:00.000Z',
+            },
+          ]),
+        ],
+        users: [ok([{ id: OWNER1, display_name: 'Alice' }])],
+      },
+      retentionDays: 30,
+    });
+    const { items } = await service.listGroups({
+      status: 'upheld',
+      page: 1,
+      limit: 20,
+    });
+    expect(getSetting).toHaveBeenCalledWith('moderation_retention_days', 30);
+    expect(items[0]).toMatchObject({
+      hiddenAt: '2026-11-01T00:00:00.000Z',
+      retainedUntil: '2026-12-01T00:00:00.000Z',
+    });
+    // now (2026-11) is within 30 days of 2026-11-01 -> restorable true.
+    expect(items[0].restorable).toBe(true);
+
+    // A project with no hiddenAt in the upheld tab keeps no retention fields.
+    const noHidden = build({
+      rpc: ok([groupRow({ resolution: 'upheld' })]),
+      tables: {
+        projects: [
+          ok([
+            { id: P1, name: 'A', owner_id: OWNER1, moderation_hidden_at: null },
+          ]),
+        ],
+        users: [ok([{ id: OWNER1, display_name: 'Alice' }])],
+      },
+      retentionDays: 30,
+    });
+    const noHiddenItems = await noHidden.service.listGroups({
+      status: 'upheld',
+      page: 1,
+      limit: 20,
+    });
+    expect(noHiddenItems.items[0]).not.toHaveProperty('hiddenAt');
+
+    // The open tab never reads the retention setting nor populates the fields.
+    const open = build({
+      rpc: ok([groupRow()]),
+      tables: {
+        projects: [
+          ok([
+            {
+              id: P1,
+              name: 'A',
+              owner_id: OWNER1,
+              moderation_hidden_at: '2026-11-01T00:00:00.000Z',
+            },
+          ]),
+        ],
+        users: [ok([{ id: OWNER1, display_name: 'Alice' }])],
+      },
+      retentionDays: 30,
+    });
+    const openItems = await open.service.listGroups({
+      status: 'open',
+      page: 1,
+      limit: 20,
+    });
+    expect(open.getSetting).not.toHaveBeenCalled();
+    expect(openItems.items[0]).not.toHaveProperty('hiddenAt');
+    expect(openItems.items[0]).not.toHaveProperty('restorable');
   });
 });
 

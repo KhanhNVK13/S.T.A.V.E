@@ -16,11 +16,16 @@ import type {
   ReportStatusFilter,
 } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import {
   mapStatusFilter,
   summarizeSnapshot,
   toReportReason,
 } from './reports.logic';
+import { isWithinRetention, retainedUntil } from './moderation-removal.logic';
+
+const MODERATION_RETENTION_KEY = 'moderation_retention_days';
+const MODERATION_RETENTION_DEFAULT = 30;
 
 export const MAX_DETAIL_REPORTS = 500;
 
@@ -45,6 +50,7 @@ interface ProjectNameRow {
   id: string;
   name: string;
   owner_id: string;
+  moderation_hidden_at: string | null;
 }
 
 interface UserNameRow {
@@ -76,6 +82,7 @@ export class AdminReportsService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    private readonly platformSettings: PlatformSettingsService,
   ) {}
 
   async listGroups(params: ListGroupsParams): Promise<AdminReportListResponse> {
@@ -101,6 +108,17 @@ export class AdminReportsService {
       'owner',
     );
 
+    // The "removed" (upheld) tab shows the retention window; the other tabs do
+    // not, so only read the setting when we are listing those projects.
+    const retentionDays =
+      params.status === 'upheld'
+        ? await this.platformSettings.get<number>(
+            MODERATION_RETENTION_KEY,
+            MODERATION_RETENTION_DEFAULT,
+          )
+        : null;
+
+    const now = new Date();
     const items = rows.map((row): ReportGroup => {
       const project = row.project_id ? projects.get(row.project_id) : undefined;
       const group: ReportGroup = {
@@ -121,6 +139,15 @@ export class AdminReportsService {
         group.resolution = row.resolution;
         group.resolutionNote = row.resolution_note;
         group.resolvedAt = row.resolved_at;
+      }
+      if (retentionDays !== null && project?.moderation_hidden_at) {
+        const hiddenAt = project.moderation_hidden_at;
+        group.hiddenAt = hiddenAt;
+        group.retainedUntil = retainedUntil(
+          hiddenAt,
+          retentionDays,
+        ).toISOString();
+        group.restorable = isWithinRetention(now, hiddenAt, retentionDays);
       }
       return group;
     });

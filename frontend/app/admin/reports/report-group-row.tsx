@@ -9,6 +9,8 @@ import { RowItem, RowTime } from "../../../components/ui/row-list";
 import { REPORT_REASON_LABEL_KEYS } from "../../../components/moderation/reason-labels";
 import { getReportDetails } from "../../../lib/admin-reports-api";
 import { useI18n } from "../../../context/i18n-context";
+import { RemoveDialog } from "./remove-dialog";
+import { RestoreDialog } from "./restore-dialog";
 
 export const REPORT_COLS = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_64px_136px_auto]";
 
@@ -28,15 +30,21 @@ export function ReportGroupRow({
   group,
   status,
   onView,
+  onRemoved,
+  onRestored,
 }: {
   group: ReportGroup;
   status: ReportStatusFilter;
   onView: (projectId: string) => void;
+  onRemoved: () => void;
+  onRestored: () => void;
 }) {
   const { t, locale } = useI18n();
   const projectId = group.projectExists ? group.projectId : null;
   const [expanded, setExpanded] = useState(false);
   const [details, setDetails] = useState<DetailsState>({ kind: "idle" });
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const mounted = useRef(true);
   const panelId = useId();
 
@@ -87,6 +95,15 @@ export function ReportGroupRow({
               {t("rpt.decisionNote", { note: group.resolutionNote || t("rpt.noNote") })}
             </span>
           )}
+          {group.hiddenAt ? (
+            <span className="break-words text-xs text-warning-foreground">
+              {group.restorable
+                ? t("rmv.removedLabel", {
+                    date: formatWhen(group.retainedUntil ?? group.hiddenAt, locale),
+                  })
+                : t("rmv.deadlinePassed")}
+            </span>
+          ) : null}
         </div>
 
         <span className="truncate text-[13px] text-muted">
@@ -121,9 +138,26 @@ export function ReportGroupRow({
             <Button variant="secondary" onClick={() => onView(projectId)}>
               <Eye aria-hidden="true" className="h-3.5 w-3.5" /> {t("rpt.viewProject")}
             </Button>
+            {status === "open" && (
+              <Button variant="danger" onClick={() => setRemoveOpen(true)}>
+                {t("rmv.removeButton")}
+              </Button>
+            )}
+            {status === "upheld" && group.restorable !== false && group.hiddenAt !== undefined && (
+              <Button variant="secondary" onClick={() => setRestoreOpen(true)}>
+                {t("rmv.restoreButton")}
+              </Button>
+            )}
           </div>
         )}
       </RowItem>
+
+      {removeOpen && projectId !== null && (
+        <RemoveDialog projectId={projectId} onClose={() => setRemoveOpen(false)} onRemoved={onRemoved} />
+      )}
+      {restoreOpen && projectId !== null && (
+        <RestoreDialog projectId={projectId} onClose={() => setRestoreOpen(false)} onRestored={onRestored} />
+      )}
 
       {projectId !== null && expanded && (
         <div id={panelId} className="border-b border-border bg-surface-subtle/40 px-3.5 py-3 last:border-b-0">

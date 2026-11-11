@@ -1,8 +1,11 @@
 import type {
   AdminReportListResponse,
+  RemovalImpact,
+  RemoveProjectResult,
   ReportDetail,
   ReportPreview,
   ReportStatusFilter,
+  RestoreProjectResponse,
 } from "@stave/shared-types";
 import { apiFetch } from "./api-client";
 
@@ -24,4 +27,28 @@ export function getReportDetails(projectId: string, status: ReportStatusFilter):
 
 export function getReportPreview(projectId: string): Promise<ReportPreview> {
   return apiFetch<ReportPreview>(`/admin/reports/${encodeURIComponent(projectId)}/preview`);
+}
+
+export function getRemovalImpact(projectId: string): Promise<RemovalImpact> {
+  return apiFetch<RemovalImpact>(`/admin/reports/${encodeURIComponent(projectId)}/removal-impact`);
+}
+
+export interface RemoveProjectPayload {
+  reason: string;
+  policy: string;
+  removeSoundIds?: string[];
+}
+
+export function removeProject(projectId: string, payload: RemoveProjectPayload): Promise<RemoveProjectResult> {
+  return apiFetch<RemoveProjectResult>(`/admin/reports/${encodeURIComponent(projectId)}/remove`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function restoreProject(projectId: string, reason: string): Promise<RestoreProjectResponse> {
+  return apiFetch<RestoreProjectResponse>(`/admin/projects/${encodeURIComponent(projectId)}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }
