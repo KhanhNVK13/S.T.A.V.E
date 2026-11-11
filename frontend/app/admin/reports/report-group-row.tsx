@@ -9,6 +9,8 @@ import { RowItem, RowTime } from "../../../components/ui/row-list";
 import { REPORT_REASON_LABEL_KEYS } from "../../../components/moderation/reason-labels";
 import { getReportDetails } from "../../../lib/admin-reports-api";
 import { useI18n } from "../../../context/i18n-context";
+import { DismissForm } from "./dismiss-form";
+import { ReportDetailItem, formatWhen } from "./report-detail-item";
 
 export const REPORT_COLS = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_64px_136px_auto]";
 
@@ -18,20 +20,16 @@ type DetailsState =
   | { kind: "ready"; items: ReportDetail[] }
   | { kind: "error" };
 
-function formatWhen(iso: string, locale: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
-}
-
 export function ReportGroupRow({
   group,
   status,
   onView,
+  onDismissed,
 }: {
   group: ReportGroup;
   status: ReportStatusFilter;
   onView: (projectId: string) => void;
+  onDismissed: (count: number) => void;
 }) {
   const { t, locale } = useI18n();
   const projectId = group.projectExists ? group.projectId : null;
@@ -56,6 +54,15 @@ export function ReportGroupRow({
       .catch(() => {
         if (mounted.current) setDetails({ kind: "error" });
       });
+  }
+
+  async function refreshDetails(id: string) {
+    try {
+      const items = await getReportDetails(id, status);
+      if (mounted.current) setDetails({ kind: "ready", items });
+    } catch {
+      if (mounted.current) setDetails({ kind: "error" });
+    }
   }
 
   function toggle() {
@@ -144,32 +151,18 @@ export function ReportGroupRow({
               </Button>
             </div>
           )}
-          {details.kind === "ready" && (
+          {details.kind === "ready" && status === "open" && (
+            <DismissForm
+              projectId={projectId}
+              items={details.items}
+              onRefresh={() => refreshDetails(projectId)}
+              onDismissed={onDismissed}
+            />
+          )}
+          {details.kind === "ready" && status !== "open" && (
             <ul className="flex flex-col gap-3">
               {details.items.map((item) => (
-                <li key={item.id} className="flex flex-col gap-1.5">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                    <Badge variant="neutral">{t(REPORT_REASON_LABEL_KEYS[item.reason])}</Badge>
-                    {item.resolution && (
-                      <Badge variant={item.resolution === "upheld" ? "danger" : "neutral"}>
-                        {item.resolution === "upheld" ? t("rpt.resUpheld") : t("rpt.resDismissed")}
-                      </Badge>
-                    )}
-                    <span>
-                      {item.reporter?.displayName
-                        ? t("rpt.reportedBy", { name: item.reporter.displayName })
-                        : t("rpt.reporterUnknown")}
-                    </span>
-                    <time dateTime={item.createdAt} className="font-mono">
-                      {formatWhen(item.createdAt, locale)}
-                    </time>
-                  </div>
-                  {item.details ? (
-                    <p className="whitespace-pre-wrap break-words text-[13px]">{item.details}</p>
-                  ) : (
-                    <p className="text-xs text-muted">{t("rpt.noDetails")}</p>
-                  )}
-                </li>
+                <ReportDetailItem key={item.id} item={item} />
               ))}
             </ul>
           )}

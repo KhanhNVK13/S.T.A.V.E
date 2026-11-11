@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Flag, Loader2 } from "lucide-react";
 import type { ReportStatusFilter } from "@stave/shared-types";
 import { PageHeader } from "../../../components/ui/page-header";
@@ -8,6 +8,7 @@ import { Tabs } from "../../../components/ui/tabs";
 import { RowHeader, RowList } from "../../../components/ui/row-list";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { Button } from "../../../components/ui/button";
+import { Toast } from "../../../components/ui/toast";
 import { ADMIN_REPORTS_PAGE_SIZE, listReportGroups } from "../../../lib/admin-reports-api";
 import { useApiResource } from "../../../lib/use-api-resource";
 import { useI18n } from "../../../context/i18n-context";
@@ -37,6 +38,8 @@ export default function AdminReportsPage() {
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [notice, setNotice] = useState<number | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
 
   const { data, loading, error } = useApiResource(
     () => listReportGroups(tab, page),
@@ -46,6 +49,11 @@ export default function AdminReportsPage() {
 
   const activeTab = TABS.find((entry) => entry.id === tab) ?? TABS[0];
   const totalPages = data ? Math.max(1, Math.ceil(data.total / (data.limit || ADMIN_REPORTS_PAGE_SIZE))) : 1;
+
+  function handleDismissed(count: number) {
+    setNotice(count);
+    setReload((n) => n + 1);
+  }
 
   function changeTab(id: string) {
     setTab(id as ReportStatusFilter);
@@ -92,6 +100,7 @@ export default function AdminReportsPage() {
                   group={group}
                   status={tab}
                   onView={setViewing}
+                  onDismissed={handleDismissed}
                 />
               ))}
             </RowList>
@@ -110,6 +119,10 @@ export default function AdminReportsPage() {
           </>
         ) : null}
       </div>
+
+      {notice !== null && (
+        <Toast message={t("rpt.dismissedToast", { n: notice })} variant="success" onDismiss={dismissNotice} />
+      )}
 
       {viewing && <ProjectPreviewDialog projectId={viewing} onClose={() => setViewing(null)} />}
     </div>

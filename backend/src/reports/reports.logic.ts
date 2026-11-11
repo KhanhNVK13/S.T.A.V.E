@@ -142,6 +142,29 @@ export function groupReportRows(rows: readonly ReportRow[]): ReportGroupCore[] {
   );
 }
 
+export interface ReportIdDiff {
+  extra: string[];
+  missing: string[];
+}
+
+function unique(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
+}
+
+export function diffReportIds(
+  selectedIds: readonly string[],
+  pendingIds: readonly string[],
+): ReportIdDiff {
+  const selected = unique(selectedIds);
+  const pending = unique(pendingIds);
+  const selectedSet = new Set(selected);
+  const pendingSet = new Set(pending);
+  return {
+    extra: pending.filter((id) => !selectedSet.has(id)),
+    missing: selected.filter((id) => !pendingSet.has(id)),
+  };
+}
+
 const MAX_TRACK_LABEL_LENGTH = 80;
 const MAX_PREVIEW_TRACKS = 32;
 

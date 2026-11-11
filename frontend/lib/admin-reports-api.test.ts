@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getReportDetails, getReportPreview, listReportGroups } from "./admin-reports-api";
+import {
+  dismissReports,
+  getReportDetails,
+  getReportPreview,
+  listReportGroups,
+} from "./admin-reports-api";
 import { apiFetch } from "./api-client";
 
 vi.mock("./api-client", () => ({ apiFetch: vi.fn() }));
@@ -29,6 +34,17 @@ describe("admin-reports-api", () => {
     vi.mocked(apiFetch).mockResolvedValue({});
     await getReportPreview("p 1");
     expect(apiFetch).toHaveBeenCalledWith("/admin/reports/p%201/preview");
+  });
+
+  it("dismissReports POST tới /dismiss với đúng body và mã hoá id", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ dismissedCount: 2 });
+    await expect(dismissReports("a/b", { reportIds: ["r1", "r2"], reason: "ok" })).resolves.toEqual({
+      dismissedCount: 2,
+    });
+    expect(apiFetch).toHaveBeenCalledWith("/admin/reports/a%2Fb/dismiss", {
+      method: "POST",
+      body: JSON.stringify({ reportIds: ["r1", "r2"], reason: "ok" }),
+    });
   });
 
   it("để lỗi của apiFetch đi tiếp", async () => {

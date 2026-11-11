@@ -16,6 +16,7 @@ vi.mock("../../../lib/admin-reports-api", () => ({
   listReportGroups: vi.fn(),
   getReportDetails: vi.fn(),
   getReportPreview: vi.fn(),
+  dismissReports: vi.fn(),
 }));
 
 const P1 = "33333333-3333-4333-8333-333333333333";
@@ -563,14 +564,28 @@ describe("AdminReportsPage: an toàn dữ liệu và vòng đời", () => {
     expect(container.ownerDocument.body.innerHTML).not.toMatch(/@|e-?mail/i);
   });
 
-  it("không có nút hành động xử lý (gỡ, bỏ qua) ở giai đoạn này", async () => {
+  it("chi tiết nhóm tab Đang mở có nút 'Bỏ qua báo cáo'; tab Đã gỡ thì không có", async () => {
     render(<AdminReportsPage />);
     await screen.findByText("Song A");
     fireEvent.click(toggle(2));
     await screen.findByText("Reported by Bob");
-    for (const name of [/remove/i, /dismiss report/i, /restore/i]) {
-      expect(screen.queryByRole("button", { name })).toBeNull();
-    }
+    expect(screen.getByRole("button", { name: "Dismiss reports" })).toBeTruthy();
+    cleanup();
+
+    vi.mocked(listReportGroups).mockResolvedValue(
+      listOf([
+        group({
+          resolution: "upheld",
+          resolutionNote: "copyright",
+          resolvedAt: "2026-11-01T00:00:00.000Z",
+        }),
+      ]),
+    );
+    const view = render(<AdminReportsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Removed" }));
+    await screen.findByText("Song A");
+    expect(screen.queryByRole("button", { name: "Dismiss reports" })).toBeNull();
+    view.unmount();
   });
 
   it("unmount khi danh sách đang tải: không lỗi, không cập nhật state", async () => {

@@ -540,3 +540,11 @@ export interface AdminReportListResponse {
 export interface CreateReportResponse {
   id: string;
 }
+
+// Dismissing reports (UC-103).
+export const DISMISS_MAX_REPORT_IDS = 100;
+export const DISMISS_REASON_MAX_LENGTH = 1000;
+
+export interface DismissReportsResponse {
+  dismissedCount: number;
+}
