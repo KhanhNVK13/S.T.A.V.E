@@ -1,8 +1,6 @@
 import { PLAN_FEATURES } from '@stave/shared-types';
 
-export const PLAN_FEATURE_KEYS: string[] = PLAN_FEATURES.map(
-  ({ key }) => key,
-);
+export const PLAN_FEATURE_KEYS: string[] = PLAN_FEATURES.map(({ key }) => key);
 
 export const ADMIN_PLAN_COLUMNS =
   'id,name,description,price_vnd,features,is_active,is_default,sort_order,price_effective_at';

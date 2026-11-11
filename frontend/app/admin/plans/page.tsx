@@ -144,6 +144,7 @@ function CreatePlanDialog({
 
   useEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- đặt lại biểu mẫu khi đóng hộp
       setName("");
       setPrice("");
       setExtraStorage("0");
@@ -353,6 +354,7 @@ function PriceDialog({
   useEffect(() => {
     if (!plan) return;
     const limit = earliestPriceChange();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- nạp giá trị mặc định khi mở hộp
     setEarliest(limit);
     setPrice(String(plan.priceVnd));
     setEffectiveAt(toDateTimeLocal(limit));
@@ -493,6 +495,7 @@ export default function AdminPlansPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tải danh sách khi vào trang
     void loadPlans();
   }, []);
 

@@ -1,5 +1,8 @@
 import 'reflect-metadata';
-import { ForbiddenException, InternalServerErrorException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import {
   createSupabaseMock,
   type SupabaseMockOptions,
@@ -68,9 +71,9 @@ describe('BE-THM-01 CustomThemesService.saveCustomTheme', () => {
       themes: [{ error: 'rls denied', data: null }],
     });
 
-    await expect(
-      service.saveCustomTheme(userId, validPalette),
-    ).rejects.toThrow(InternalServerErrorException);
+    await expect(service.saveCustomTheme(userId, validPalette)).rejects.toThrow(
+      InternalServerErrorException,
+    );
   });
 
   it('UTCID04 không ghi gì khi không có quyền', async () => {

@@ -61,13 +61,9 @@ export function addOneMonth(from: Date): Date {
 }
 
 /** Kỳ mới sau khi gia hạn: max(now, kỳ đang chạy) + 1 tháng. */
-export function computeNewPeriodEnd(
-  currentPeriodEnd: string,
-  now: Date,
-): Date {
+export function computeNewPeriodEnd(currentPeriodEnd: string, now: Date): Date {
   const periodEnd = new Date(currentPeriodEnd);
-  const start =
-    periodEnd.getTime() > now.getTime() ? periodEnd : now;
+  const start = periodEnd.getTime() > now.getTime() ? periodEnd : now;
   return addOneMonth(start);
 }
 

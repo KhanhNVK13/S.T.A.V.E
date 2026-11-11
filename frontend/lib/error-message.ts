@@ -168,6 +168,14 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Paid access required": { en: "This feature requires a STAVE+ plan.", vi: "Tính năng này yêu cầu gói STAVE+." },
   "palette must contain exactly the 10 allowed CSS variables with valid oklch(L C H) values": { en: "The generated palette couldn't be saved. Please try again.", vi: "Không lưu được bảng màu vừa tạo. Hãy thử lại." },
   "Cannot renew while downgrade is scheduled": { en: "Cancel the scheduled plan change before renewing.", vi: "Hãy huỷ lịch chuyển gói trước khi gia hạn." },
+  "Payment provider unavailable, issue stays open": { en: "The payment provider could not be checked, so the issue stays open. Dismiss it instead, or try again later.", vi: "Chưa đối chiếu được với cổng thanh toán, sự cố vẫn mở. Hãy đánh dấu bỏ qua hoặc thử lại sau." },
+  "Payment issue is already resolved": { en: "This issue was already resolved.", vi: "Sự cố này đã được xử lý." },
+  "A note is required to resolve the issue": { en: "Add a note explaining the remedy, then try again.", vi: "Cần ghi chú giải thích biện pháp. Hãy bổ sung rồi thử lại." },
+  "The note can be at most 1000 characters": { en: "The note is too long. Keep it under 1000 characters.", vi: "Ghi chú quá dài. Hãy giữ dưới 1000 ký tự." },
+  "The original transaction was not successful": { en: "The original transaction was not successful, so this remedy cannot be applied.", vi: "Giao dịch gốc chưa thành công nên không áp dụng được biện pháp này." },
+  "The original transaction has no account or plan": { en: "The original transaction has no account or plan, so this remedy cannot be applied.", vi: "Giao dịch gốc không gắn với tài khoản hay gói nên không áp dụng được biện pháp này." },
+  "The account has no subscription to compensate": { en: "The account has no subscription to compensate.", vi: "Tài khoản không có đăng ký nào để đền bù." },
+  "Could not resolve the payment issue": { en: "The remedy could not be applied. The issue stays open — please try again.", vi: "Không áp dụng được biện pháp. Sự cố vẫn mở — hãy thử lại." },
 };
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;

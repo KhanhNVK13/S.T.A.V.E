@@ -12,7 +12,8 @@ export type PaymentIssueRemedy = 'extend' | 'refund' | 'activate' | 'dismiss';
  * - `unavailable`: cổng không phản hồi — không được áp dụng biện pháp dựa
  *   trên thông tin chưa kiểm chứng
  */
-export type PaymentIssueVerification = 'match' | 'mismatch' | 'skipped' | 'unavailable';
+export type PaymentIssueVerification =
+  'match' | 'mismatch' | 'skipped' | 'unavailable';
 
 export interface AdminIssueAccount {
   id: string;

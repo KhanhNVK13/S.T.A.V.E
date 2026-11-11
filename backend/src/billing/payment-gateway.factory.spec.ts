@@ -56,6 +56,21 @@ describe('BE-BIL-06 createPaymentGateway', () => {
   });
 });
 
+describe('BE-BIL-06 production guard', () => {
+  it('UTCID06 refuses the fake gateway when NODE_ENV=production', () => {
+    expect(() => build({ NODE_ENV: 'production' })).toThrow(/payos/);
+    expect(() =>
+      build({ NODE_ENV: 'production', PAYMENT_PROVIDER: 'fake' }),
+    ).toThrow(/payos/);
+  });
+
+  it('UTCID07 allows PayOS in production', () => {
+    expect(() =>
+      build({ NODE_ENV: 'production', PAYMENT_PROVIDER: 'payos', ...keys }),
+    ).not.toThrow();
+  });
+});
+
 describe('BE-BIL-07 billing environment helpers', () => {
   it('UTCID01 resolves the provider case-insensitively', () => {
     expect(resolvePaymentProvider({ PAYMENT_PROVIDER: ' PayOS ' })).toBe(

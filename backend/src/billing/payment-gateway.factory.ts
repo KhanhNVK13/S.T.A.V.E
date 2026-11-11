@@ -40,6 +40,11 @@ export function createPaymentGateway(
   logger: Pick<Logger, 'warn'>,
 ): PaymentGateway {
   const provider = resolvePaymentProvider(env);
+  if (provider === 'fake' && env.NODE_ENV === 'production') {
+    throw new Error(
+      'PAYMENT_PROVIDER must be "payos" when NODE_ENV=production; the fake gateway never takes real money',
+    );
+  }
   if (provider === 'payos') {
     const [clientId, apiKey, checksumKey] = PAYOS_KEYS.map(
       (key) => env[key]?.trim() ?? '',

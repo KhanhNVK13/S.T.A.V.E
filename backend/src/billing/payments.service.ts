@@ -316,10 +316,7 @@ export class PaymentsService {
    * Số tiền gia hạn: giá gói mới khi đã có hiệu lực, nếu không thì giá đang
    * khoá của người dùng (BR-119).
    */
-  private async renewalAmount(
-    userId: string,
-    plan: PlanRow,
-  ): Promise<number> {
+  private async renewalAmount(userId: string, plan: PlanRow): Promise<number> {
     const subscription = await this.subscriptions.getSubscriptionRow(userId);
     if (!subscription) {
       throw new ConflictException('Only your current paid plan can be renewed');

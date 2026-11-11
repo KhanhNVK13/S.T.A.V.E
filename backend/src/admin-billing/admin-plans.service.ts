@@ -54,10 +54,14 @@ export class AdminPlansService {
         .returns<AdminPlanSubscription[]>(),
     ]);
     if (plansResult.error || !plansResult.data) {
-      throw new InternalServerErrorException('Could not read subscription plans');
+      throw new InternalServerErrorException(
+        'Could not read subscription plans',
+      );
     }
     if (subsResult.error) {
-      throw new InternalServerErrorException('Could not count plan subscribers');
+      throw new InternalServerErrorException(
+        'Could not count plan subscribers',
+      );
     }
 
     const counts = this.countActiveSubscribers(subsResult.data ?? [], now);
@@ -71,7 +75,9 @@ export class AdminPlansService {
   ): Promise<{ plan: AdminPlanItem; warnings: PlanFeatureOverlapWarning[] }> {
     const name = dto.name.trim();
     if (name.length === 0 || name.length > 60) {
-      throw new BadRequestException('Plan name must be between 1 and 60 characters');
+      throw new BadRequestException(
+        'Plan name must be between 1 and 60 characters',
+      );
     }
     const features = this.buildFeatures(dto.features);
     const free = await this.findDefaultPlan();
@@ -95,9 +101,14 @@ export class AdminPlansService {
       if (error.code === '23505') {
         throw new ConflictException('Plan name already exists');
       }
-      throw new InternalServerErrorException('Could not create subscription plan');
+      throw new InternalServerErrorException(
+        'Could not create subscription plan',
+      );
     }
-    if (!data) throw new InternalServerErrorException('Could not create subscription plan');
+    if (!data)
+      throw new InternalServerErrorException(
+        'Could not create subscription plan',
+      );
 
     await this.writeAuditLog(
       adminId,
@@ -118,11 +129,16 @@ export class AdminPlansService {
   ): Promise<AdminPlanItem> {
     const plan = await this.getPlan(id);
     const noticeDays =
-      (await this.platformSettings.get('price_change_notice_days', DEFAULT_NOTICE_DAYS)) ??
-      DEFAULT_NOTICE_DAYS;
+      (await this.platformSettings.get(
+        'price_change_notice_days',
+        DEFAULT_NOTICE_DAYS,
+      )) ?? DEFAULT_NOTICE_DAYS;
     const earliest = new Date(now.getTime() + noticeDays * DAY_MS);
     const effectiveAt = new Date(dto.effectiveAt);
-    if (Number.isNaN(effectiveAt.getTime()) || effectiveAt.getTime() < earliest.getTime()) {
+    if (
+      Number.isNaN(effectiveAt.getTime()) ||
+      effectiveAt.getTime() < earliest.getTime()
+    ) {
       throw new BadRequestException({
         message: 'Price change takes effect too soon',
         earliestEffectiveAt: earliest.toISOString(),
@@ -132,7 +148,10 @@ export class AdminPlansService {
 
     const { data, error } = await this.supabase
       .from('subscription_plans')
-      .update({ price_vnd: dto.priceVnd, price_effective_at: effectiveAt.toISOString() })
+      .update({
+        price_vnd: dto.priceVnd,
+        price_effective_at: effectiveAt.toISOString(),
+      })
       .eq('id', id)
       .select(ADMIN_PLAN_COLUMNS)
       .single<AdminPlanRow>();
@@ -140,7 +159,7 @@ export class AdminPlansService {
       throw new InternalServerErrorException('Could not update plan price');
     }
 
-    await this.notifySubscribersOfPriceChange(plan, data, dto.priceVnd, effectiveAt);
+    await this.notifySubscribersOfPriceChange(plan, data, dto.priceVnd);
     await this.writeAuditLog(
       adminId,
       'plan.price_change',
@@ -176,7 +195,9 @@ export class AdminPlansService {
       adminId,
       active ? 'plan.activate' : 'plan.deactivate',
       id,
-      active ? `Mở bán lại gói "${plan.name}"` : `Ngừng mở bán gói "${plan.name}"`,
+      active
+        ? `Mở bán lại gói "${plan.name}"`
+        : `Ngừng mở bán gói "${plan.name}"`,
     );
 
     return this.toItem(data, new Map());
@@ -203,7 +224,9 @@ export class AdminPlansService {
    * Chỉ giữ các tính năng hợp lệ: cờ có trong danh mục `PLAN_FEATURES` hoặc
    * `extra_storage_mb` (số MB 0–102400). Từ chối mọi thứ khác.
    */
-  private buildFeatures(input: Record<string, unknown>): Record<string, unknown> {
+  private buildFeatures(
+    input: Record<string, unknown>,
+  ): Record<string, unknown> {
     const features: Record<string, unknown> = {};
     const known = new Set([...PLAN_FEATURE_KEYS, 'extra_storage_mb']);
     for (const [key, value] of Object.entries(input)) {
@@ -211,7 +234,11 @@ export class AdminPlansService {
         throw new BadRequestException(`Unknown plan feature: ${key}`);
       }
       if (key === 'extra_storage_mb') {
-        if (typeof value !== 'number' || value < 0 || value > MAX_EXTRA_STORAGE_MB) {
+        if (
+          typeof value !== 'number' ||
+          value < 0 ||
+          value > MAX_EXTRA_STORAGE_MB
+        ) {
           throw new BadRequestException(
             `extra_storage_mb must be between 0 and ${MAX_EXTRA_STORAGE_MB} MB`,
           );
@@ -248,7 +275,10 @@ export class AdminPlansService {
       .select(ADMIN_PLAN_COLUMNS)
       .eq('id', id)
       .maybeSingle<AdminPlanRow>();
-    if (error) throw new InternalServerErrorException('Could not read subscription plan');
+    if (error)
+      throw new InternalServerErrorException(
+        'Could not read subscription plan',
+      );
     if (!data) throw new NotFoundException('Subscription plan not found');
     return data;
   }
@@ -259,7 +289,8 @@ export class AdminPlansService {
       .select(ADMIN_PLAN_COLUMNS)
       .eq('is_default', true)
       .maybeSingle<AdminPlanRow>();
-    if (error) throw new InternalServerErrorException('Could not read default plan');
+    if (error)
+      throw new InternalServerErrorException('Could not read default plan');
     return data;
   }
 
@@ -268,7 +299,6 @@ export class AdminPlansService {
     plan: AdminPlanRow,
     updated: AdminPlanRow,
     newPrice: number,
-    effectiveAt: Date,
   ): Promise<void> {
     const now = new Date();
     const { data, error } = await this.supabase
@@ -317,7 +347,10 @@ export class AdminPlansService {
     }
   }
 
-  private toItem(plan: AdminPlanRow, counts: Map<string, number>): AdminPlanItem {
+  private toItem(
+    plan: AdminPlanRow,
+    counts: Map<string, number>,
+  ): AdminPlanItem {
     return {
       id: plan.id,
       name: plan.name,
