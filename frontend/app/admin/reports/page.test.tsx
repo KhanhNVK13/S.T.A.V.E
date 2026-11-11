@@ -16,6 +16,10 @@ vi.mock("../../../lib/admin-reports-api", () => ({
   listReportGroups: vi.fn(),
   getReportDetails: vi.fn(),
   getReportPreview: vi.fn(),
+  getRemovalContext: vi.fn(),
+  removeReportedProject: vi.fn(),
+  dismissReports: vi.fn(),
+  restoreReportedProject: vi.fn(),
 }));
 
 const P1 = "33333333-3333-4333-8333-333333333333";
@@ -563,14 +567,14 @@ describe("AdminReportsPage: an toàn dữ liệu và vòng đời", () => {
     expect(container.ownerDocument.body.innerHTML).not.toMatch(/@|e-?mail/i);
   });
 
-  it("không có nút hành động xử lý (gỡ, bỏ qua) ở giai đoạn này", async () => {
+  it("tab đang mở có nút gỡ và bỏ qua, nhưng chưa có nút khôi phục", async () => {
     render(<AdminReportsPage />);
     await screen.findByText("Song A");
     fireEvent.click(toggle(2));
     await screen.findByText("Reported by Bob");
-    for (const name of [/remove/i, /dismiss report/i, /restore/i]) {
-      expect(screen.queryByRole("button", { name })).toBeNull();
-    }
+    expect(screen.getByRole("button", { name: /remove project/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /dismiss/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /restore/i })).toBeNull();
   });
 
   it("unmount khi danh sách đang tải: không lỗi, không cập nhật state", async () => {

@@ -11,10 +11,10 @@ import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
 import { FieldError, INPUT_CLASS } from "../../../components/ui/form";
 import { Dialog, DialogActions, DialogError } from "../../../components/ui/dialog";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { Toast } from "../../../components/ui/toast";
 import { useI18n } from "../../../context/i18n-context";
-import { tNow, type TKey } from "../../../lib/i18n";
+import { type TKey } from "../../../lib/i18n";
 
 interface AdminUserRow {
   id: string;
@@ -72,7 +72,7 @@ function ActionPanel({
   const [category, setCategory] = useState<string>("");
   const [reason, setReason] = useState("");
   const [confirmUsername, setConfirmUsername] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reasonError, setReasonError] = useState<string | null>(null);
 
@@ -118,7 +118,7 @@ function ActionPanel({
             : t("au.doneRemove", { name: user.username }),
       );
     } catch (err) {
-      setError(apiErrorMessage(err, t("au.actionFail")));
+      setError(errorSource(err, "au.actionFail"));
     } finally {
       setSubmitting(false);
     }
@@ -212,7 +212,7 @@ function ActionPanel({
           />
         </label>
       )}
-      <DialogError message={error} />
+      <DialogError message={renderError(error)} />
       <DialogActions>
         <Button variant="secondary" onClick={onCancel} disabled={submitting}>
           {t("ui.cancel")}
@@ -237,7 +237,7 @@ function AdminUsersTable() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<ListUsersResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<{
@@ -259,7 +259,7 @@ function AdminUsersTable() {
       setPageNumber(targetPage);
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("au.loadFail")));
+      setError(errorSource(err, "au.loadFail"));
     }
   }
 
@@ -316,7 +316,7 @@ function AdminUsersTable() {
           role="alert"
           className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
         >
-          <span>{error}</span>
+          <span>{renderError(error)}</span>
           <Button variant="secondary" onClick={() => void load(pageNumber)}>
             {t("ui.retry")}
           </Button>

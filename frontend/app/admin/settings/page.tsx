@@ -15,7 +15,7 @@ import { Switch } from "../../../components/ui/switch";
 import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
 import { FieldError, INPUT_CLASS } from "../../../components/ui/form";
 import { useI18n } from "../../../context/i18n-context";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import type { TKey } from "../../../lib/i18n";
 import {
   getPlatformSettings,
@@ -156,7 +156,7 @@ export default function AdminSettingsPage() {
   const [drafts, setDrafts] = useState<Record<string, FieldDraft>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<ErrorSource | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState<PendingReduction | null>(null);
   const [pendingRegistrationOff, setPendingRegistrationOff] = useState(false);
@@ -273,10 +273,10 @@ export default function AdminSettingsPage() {
           else unmatched = true;
         }
         setFieldErrors(mapped);
-        if (unmatched) setSaveError(t("aps.err.generic"));
+        if (unmatched) setSaveError(errorSource(null, "aps.err.generic"));
         return;
       }
-      setSaveError(apiErrorMessage(err, t("aps.saveFail")));
+      setSaveError(errorSource(err, "aps.saveFail"));
       await load();
     } finally {
       setSaving(false);
@@ -289,7 +289,7 @@ export default function AdminSettingsPage() {
 
       {saveError && (
         <div role="alert" className="mb-4 rounded-card border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
-          {saveError}
+          {renderError(saveError)}
         </div>
       )}
 

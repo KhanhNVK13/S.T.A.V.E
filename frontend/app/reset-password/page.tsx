@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
-import { authErrorMessage } from "../../lib/error-message";
+import { authErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { apiFetch, setStoredSessionId } from "../../lib/api-client";
 import { setFlashToast } from "../../lib/flash-toast";
 import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
@@ -20,7 +20,7 @@ export default function ResetPasswordPage() {
   const { session, loading } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ password?: string; confirmPassword?: string }>({});
   const [submitting, setSubmitting] = useState(false);
   const [waited, setWaited] = useState(false);
@@ -53,7 +53,7 @@ export default function ResetPasswordPage() {
     });
     if (updateError) {
       setSubmitting(false);
-      setError(authErrorMessage(updateError));
+      setError(authErrorSource(updateError));
       return;
     }
 
@@ -132,7 +132,7 @@ export default function ResetPasswordPage() {
         </AuthField>
         {error && (
           <p role="alert" className="text-sm text-danger">
-            {error}
+            {renderError(error)}
           </p>
         )}
         <Button type="submit" disabled={submitting} className="w-full">

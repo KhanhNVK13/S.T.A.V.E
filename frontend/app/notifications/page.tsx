@@ -17,7 +17,8 @@ import {
   openNotification,
 } from "../../lib/api-client";
 import type { NotificationFilter, NotificationItem } from "../../lib/api-client";
-import { apiErrorMessage } from "../../lib/error-message";
+import { notificationText } from "../../lib/notification-text";
+import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { tNow, type TKey } from "../../lib/i18n";
 import { useI18n } from "../../context/i18n-context";
@@ -42,7 +43,7 @@ function NotificationsView() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [missing, setMissing] = useState<Set<string>>(new Set());
   const [markingAll, setMarkingAll] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -61,7 +62,7 @@ function NotificationsView() {
       setMissing(new Set());
     } catch (err) {
       if (request !== requestRef.current) return;
-      setError(apiErrorMessage(err, tNow("nt.loadFail")));
+      setError(errorSource(err, "nt.loadFail"));
     } finally {
       if (request === requestRef.current) setLoading(false);
     }
@@ -156,7 +157,7 @@ function NotificationsView() {
 
         {!loading && error && (
           <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
-            <p>{error}</p>
+            <p>{renderError(error)}</p>
             <Button variant="secondary" onClick={() => void load()}>
               {t("ui.retry")}
             </Button>
@@ -182,6 +183,7 @@ function NotificationsView() {
                 <ul className="overflow-hidden rounded-card border border-border bg-surface/80">
                   {group.items.map((item) => {
                     const unread = !item.read_at;
+                    const text = notificationText(item, t);
                     return (
                       <li
                         key={item.id}
@@ -203,14 +205,14 @@ function NotificationsView() {
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline justify-between gap-3">
                               <span className={`truncate text-[13px] ${unread ? "font-bold" : "font-semibold"}`}>
-                                {item.payload.title ?? t("nt.fallback")}
+                                {text.title ?? t("nt.fallback")}
                               </span>
                               <span className="shrink-0 font-mono text-xs text-muted">
                                 {formatRelativeTime(item.created_at)}
                               </span>
                             </span>
-                            {item.payload.body && (
-                              <span className="mt-0.5 block text-[13px] text-muted">{item.payload.body}</span>
+                            {text.body && (
+                              <span className="mt-0.5 block text-[13px] text-muted">{text.body}</span>
                             )}
                             {unread && <span className="sr-only">{t("nt.unreadSr")}</span>}
                             {missing.has(item.id) && (

@@ -65,6 +65,58 @@ describe('BE-NTF-01 notification types', () => {
 });
 
 describe('BE-NTF-02 NotificationsService.notify', () => {
+  it('UTCID09 keeps raw params and formats money and dates only in the fallback text', async () => {
+    const { service, builders } = makeService({
+      notification_preferences: [{ data: null }],
+      notification_templates: [{ data: null }],
+      notifications: [{ data: null, error: null }],
+    });
+    await service.notify(userId, 'billing.price_change', {
+      planName: 'PLUS',
+      newPrice: 59000,
+      effectiveDate: '2026-12-06T10:00:00.000Z',
+    });
+    const call = builders.notifications.insert.mock.calls[0][0] as {
+      payload: Record<string, unknown>;
+    };
+    expect(call.payload.params).toEqual({
+      planName: 'PLUS',
+      newPrice: 59000,
+      effectiveDate: '2026-12-06T10:00:00.000Z',
+    });
+    expect(call.payload.body).toContain('06/12/2026');
+    expect(call.payload.body).toMatch(/59\.000/);
+    expect(call.payload.customText).toBeUndefined();
+  });
+
+  it('UTCID10 marks the payload as custom text when an admin template exists', async () => {
+    const { service, builders } = makeService({
+      notification_preferences: [{ data: null }],
+      notification_templates: [
+        {
+          data: {
+            subject: 'Tiêu đề riêng',
+            body_template: 'Chào {{forkerName}}',
+          },
+        },
+      ],
+      notifications: [{ data: null, error: null }],
+    });
+    await service.notify(userId, 'fork.created', {
+      forkerName: 'An',
+      projectName: 'P',
+      projectId: 'p1',
+    });
+    const call = builders.notifications.insert.mock.calls[0][0] as {
+      payload: Record<string, unknown>;
+    };
+    expect(call.payload).toMatchObject({
+      customText: true,
+      title: 'Tiêu đề riêng',
+      body: 'Chào An',
+    });
+  });
+
   it('UTCID01 writes the rendered title and body into the payload', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: null }],
@@ -83,6 +135,7 @@ describe('BE-NTF-02 NotificationsService.notify', () => {
         forkerName: 'An',
         projectName: 'Bài hát',
         projectId: 'p1',
+        params: { forkerName: 'An', projectName: 'Bài hát', projectId: 'p1' },
         title: 'Dự án của bạn được fork',
         body: 'An đã fork dự án "Bài hát" của bạn.',
       },

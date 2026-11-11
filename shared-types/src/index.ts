@@ -685,6 +685,10 @@ export interface ReportGroup {
   reportCount: number;
   reasons: { reason: ReportReason; count: number }[];
   latestAt: string;
+  /** Present only when the project is currently hidden by moderation. */
+  retainUntil?: string | null;
+  retentionEnded?: boolean;
+  projectHidden?: boolean;
   resolution?: ReportResolution;
   resolutionNote?: string | null;
   resolvedAt?: string | null;
@@ -721,6 +725,128 @@ export interface CreateReportResponse {
   id: string;
 }
 
+export const MODERATION_POLICIES = [
+  "copyright",
+  "hateful_content",
+  "sexual_content",
+  "harassment",
+  "spam",
+  "other",
+] as const;
+export type ModerationPolicy = (typeof MODERATION_POLICIES)[number];
+
+export const MODERATION_NOTE_MIN_LENGTH = 10;
+export const MODERATION_NOTE_MAX_LENGTH = 500;
+export const MODERATION_DEFAULT_RETENTION_DAYS = 30;
+
+export interface ReportRemovalContext {
+  forkCount: number;
+  sounds: { id: string; name: string }[];
+  retentionDays: number;
+}
+
+export interface RemoveReportedProjectResponse {
+  closedReports: number;
+  removedSounds: number;
+  retainUntil: string;
+}
+
+export interface DismissReportsResponse {
+  dismissed: number;
+}
+
+export interface RestoreProjectResponse {
+  restored: true;
+}
+
+export const NOTIFICATION_TEMPLATE_NAME_MAX_LENGTH = 100;
+export const NOTIFICATION_TEMPLATE_SUBJECT_MAX_LENGTH = 150;
+export const NOTIFICATION_TEMPLATE_BODY_MAX_LENGTH = 1000;
+
+export interface NotificationTemplateInfo {
+  type: string;
+  mandatory: boolean;
+  placeholders: string[];
+  defaultSubject: string;
+  defaultBody: string;
+  custom: {
+    name: string;
+    subject: string;
+    body: string;
+    updatedAt: string;
+  } | null;
+}
+
+export interface NotificationTemplatePreview {
+  subject: string;
+  body: string;
+}
+
+export type StatsGranularity = "day" | "week" | "month";
+export const STATS_MAX_RANGE_DAYS = 800;
+
+export interface StatsPeriod {
+  from: string;
+  to: string;
+  granularity: StatsGranularity;
+}
+
+export type StatsPart<T> = ({ available: true } & T) | { available: false };
+
+export interface GrowthTotals {
+  newUsers: number;
+  activeUsers: number;
+}
+
+export interface UsageTotals {
+  newProjects: number;
+  commits: number;
+  newBranches: number;
+  merges: number;
+  forks: number;
+  pullRequests: number;
+}
+
+export interface StatsSeriesPoint {
+  date: string;
+  newUsers: number;
+  activeUsers: number;
+  newProjects: number;
+  commits: number;
+  newBranches: number;
+  merges: number;
+  forks: number;
+  pullRequests: number;
+}
+
+export interface GrowthStats {
+  period: StatsPeriod;
+  noData: boolean;
+  totalUsers: number;
+  totals: GrowthTotals;
+  previous: GrowthTotals | null;
+  series: StatsSeriesPoint[];
+}
+
+export interface UsageStats {
+  period: StatsPeriod;
+  noData: boolean;
+  totals: UsageTotals;
+  previous: UsageTotals | null;
+  series: StatsSeriesPoint[];
+}
+
+export interface AdminOverviewStats {
+  period: StatsPeriod;
+  growth: StatsPart<Omit<GrowthStats, "period">>;
+  usage: StatsPart<Omit<UsageStats, "period">>;
+  plans: StatsPart<{ plans: { name: string; count: number }[] }>;
+  finance: StatsPart<{ revenueVnd: number; failedTransactions: number }>;
+  moderation: StatsPart<{ openReports: number; openPaymentIssues: number }>;
+}
+
 // Theme từ ảnh (UC-79) — palette token, hợp đồng regex/validate dùng chung FE/BE.
 export type * from "./theme";
 export { PALETTE_KEYS, OKLCH_STRICT_REGEX, isValidOklch, isValidPalette } from "./theme";
+
+export type * from "./notifications";

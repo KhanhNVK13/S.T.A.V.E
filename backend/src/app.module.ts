@@ -29,6 +29,8 @@ import { PlatformSettingsModule } from './platform-settings/platform-settings.mo
 import { BillingModule } from './billing/billing.module';
 import { CustomThemesModule } from './custom-themes/custom-themes.module';
 import { ReportsModule } from './reports/reports.module';
+import { NotificationTemplatesModule } from './notification-templates/notification-templates.module';
+import { AdminStatsModule } from './admin-stats/admin-stats.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
 
 @Module({
@@ -66,6 +68,8 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     BillingModule.register(),
     CustomThemesModule,
     ReportsModule,
+    NotificationTemplatesModule,
+    AdminStatsModule,
     ActivityLogModule,
   ],
   controllers: [AppController],

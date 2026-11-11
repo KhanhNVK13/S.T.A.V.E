@@ -224,7 +224,7 @@ describe('BE-BIL-31 SubscriptionChangesService.change', () => {
     expect(notifications.notify).toHaveBeenCalledWith(
       userId,
       'billing.plan_changed',
-      { planName: 'Free', effectiveDate: formatDateVi(END) },
+      { planName: 'Free', effectiveDate: END },
     );
   });
 
@@ -288,7 +288,7 @@ describe('BE-BIL-33 SubscriptionChangesService.cancel and resume', () => {
     expect(notifications.notify).toHaveBeenCalledWith(
       userId,
       'billing.canceled',
-      { planName: 'PLUS', endDate: formatDateVi(END) },
+      { planName: 'PLUS', endDate: END },
     );
   });
 

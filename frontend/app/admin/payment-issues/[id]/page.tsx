@@ -9,7 +9,7 @@ import {
   type AdminPaymentIssueTransaction,
   type PaymentIssueVerification,
 } from "../../../../lib/api-admin-payment-issues";
-import { apiErrorMessage } from "../../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../../lib/error-message";
 import { useApiResource } from "../../../../lib/use-api-resource";
 import { formatDateTime } from "../../../../lib/format-date";
 import { formatVnd } from "../../../../lib/format-vnd";
@@ -67,7 +67,7 @@ export default function AdminPaymentIssueDetailPage({
   const [refundRef, setRefundRef] = useState("");
   const [duplicateOf, setDuplicateOf] = useState("");
   const [note, setNote] = useState("");
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<ErrorSource | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [resolved, setResolved] = useState(false);
@@ -116,7 +116,7 @@ export default function AdminPaymentIssueDetailPage({
       setConfirmOpen(false);
       setReloadKey((n) => n + 1);
     } catch (err) {
-      setSubmitError(apiErrorMessage(err, t("pi.resolveFailed")));
+      setSubmitError(errorSource(err, "pi.resolveFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -338,7 +338,7 @@ export default function AdminPaymentIssueDetailPage({
         message={t("pi.confirmBody")}
         confirmLabel={t("pi.submit")}
         loading={submitting}
-        error={submitError}
+        error={renderError(submitError)}
         onConfirm={submit}
         onCancel={() => setConfirmOpen(false)}
       />
@@ -491,6 +491,8 @@ function ResolveForm({
         {remedy === "extend" && (
           <Field label={t("pi.days")}>
             <input
+              name="days"
+              autoComplete="off"
               type="number"
               min={1}
               max={90}
@@ -511,6 +513,8 @@ function ResolveForm({
           <>
             <Field label={t("pi.refundAmount")}>
               <input
+                name="refund-amount"
+                autoComplete="off"
                 type="number"
                 min={1}
                 max={refundMax}
@@ -527,6 +531,8 @@ function ResolveForm({
             </Field>
             <Field label={t("pi.refundRef")}>
               <input
+                name="refund-ref"
+                autoComplete="off"
                 type="text"
                 className={INPUT_CLASS}
                 value={refundRef}
@@ -543,6 +549,8 @@ function ResolveForm({
         {remedy === "dismiss" && (
           <Field label={t("pi.duplicateOf")}>
             <input
+              name="duplicate-of"
+              autoComplete="off"
               type="text"
               className={INPUT_CLASS}
               placeholder="00000000-0000-0000-0000-000000000000"
@@ -558,6 +566,8 @@ function ResolveForm({
 
         <Field label={t("pi.note")} error={noteError}>
           <textarea
+            name="note"
+            autoComplete="off"
             className={INPUT_CLASS}
             rows={3}
             value={note}

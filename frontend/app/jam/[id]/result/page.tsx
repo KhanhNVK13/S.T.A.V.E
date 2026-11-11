@@ -6,12 +6,11 @@ import { Loader2, RefreshCw, TriangleAlert, ArrowLeft } from "lucide-react";
 import type { JamResultResponseDto } from "@stave/shared-types";
 import { getJamResult } from "../../../../lib/api-jam";
 import { ApiError } from "../../../../lib/api-client";
-import { apiErrorMessage } from "../../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../../lib/error-message";
 import { Card } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import { JamResultView } from "../../../../components/jam/jam-result-view";
 import { useI18n } from "../../../../context/i18n-context";
-import { tNow } from "../../../../lib/i18n";
 
 /**
  * UC-68 — the frozen result of one ended Community Jam (`/jam/[id]/result`).
@@ -26,7 +25,7 @@ function ResultContent({ id }: { id: string }) {
   const { t } = useI18n();
   const router = useRouter();
   const [result, setResult] = useState<JamResultResponseDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -44,9 +43,7 @@ function ResultContent({ id }: { id: string }) {
         if (err instanceof ApiError && err.status === 400) {
           // 2.E4 — still running: bounce back to the live room.
           setRedirecting(true);
-          setError(
-            tNow("jam.stillRunningRedirect"),
-          );
+          setError(errorSource(null, "jam.stillRunningRedirect"));
           setTimeout(() => {
             if (!cancelled) router.replace(`/jam/${id}`);
           }, 1500);
@@ -55,11 +52,11 @@ function ResultContent({ id }: { id: string }) {
         // 2.E3 — the id does not exist: exact spec copy (the 404 message in
         // `error-message.ts` belongs to UC-66 and must stay untouched).
         if (err instanceof ApiError && err.status === 404) {
-          setError(tNow("jam.notFound"));
+          setError(errorSource(null, "jam.notFound"));
           return;
         }
         // 2.E2 — everything else is a real server/DB failure.
-        setError(apiErrorMessage(err, tNow("jam.resultFail")));
+        setError(errorSource(err, "jam.resultFail"));
       }
     }
 
@@ -93,7 +90,7 @@ function ResultContent({ id }: { id: string }) {
           className="flex flex-col items-center gap-3 text-center"
         >
           <TriangleAlert className="h-8 w-8 text-danger" />
-          <p className="max-w-sm text-sm text-danger">{error}</p>
+          <p className="max-w-sm text-sm text-danger">{renderError(error)}</p>
           <Button
             variant="secondary"
             onClick={() => {

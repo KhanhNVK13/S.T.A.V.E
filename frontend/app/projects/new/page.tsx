@@ -11,7 +11,7 @@ import { Card } from "../../../components/ui/card";
 import { useT } from "../../../context/i18n-context";
 import { Button } from "../../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../../components/ui/form";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { setFlashToast } from "../../../lib/flash-toast";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../lib/validation";
 
@@ -24,7 +24,7 @@ export default function NewProjectPage() {
   const [description, setDescription] = useState("");
   const [genre, setGenre] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -51,7 +51,7 @@ export default function NewProjectPage() {
       setFlashToast(t("new.created"));
       router.push(created?.id ? `/projects/${created.id}/edit` : "/projects");
     } catch (err) {
-      setError(apiErrorMessage(err, t("new.fail")));
+      setError(errorSource(err, "new.fail"));
     } finally {
       // Only re-enable on error; on success we navigate away anyway
       setSubmitting(false);
@@ -71,7 +71,7 @@ export default function NewProjectPage() {
 
         {error && (
           <div role="alert" className="mb-4 rounded-card border border-danger/20 bg-danger-muted p-4 text-sm text-danger">
-            {error}
+            {renderError(error)}
           </div>
         )}
 

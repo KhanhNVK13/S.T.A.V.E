@@ -62,7 +62,7 @@ describe("FE-ADM-01 AdminJamConfigDialog (UC-94)", () => {
 
     expect(screen.getByText("Cấu hình sự kiện Community Jam")).toBeDefined();
     const nameInput = screen.getByPlaceholderText(
-      "Nhập tên sự kiện Jam...",
+      "Nhập tên sự kiện Jam…",
     ) as HTMLInputElement;
     expect(nameInput.disabled).toBe(false);
     expect(nameInput.value).toBe("Summer Chill Jam");
@@ -100,7 +100,7 @@ describe("FE-ADM-01 AdminJamConfigDialog (UC-94)", () => {
 
     // Name input is disabled
     const nameInput = screen.getByPlaceholderText(
-      "Nhập tên sự kiện Jam...",
+      "Nhập tên sự kiện Jam…",
     ) as HTMLInputElement;
     expect(nameInput.disabled).toBe(true);
 
@@ -178,7 +178,7 @@ describe("FE-ADM-01 AdminJamConfigDialog (UC-94)", () => {
     );
 
     const nameInput = screen.getByPlaceholderText(
-      "Nhập tên sự kiện Jam...",
+      "Nhập tên sự kiện Jam…",
     ) as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: "Renamed Jam" } });
 

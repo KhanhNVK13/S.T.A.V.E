@@ -1,4 +1,4 @@
-import { AlertTriangle, Bell, Compass, Flag, FolderOpen, House, Music4, Package, Receipt, Shield, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Bell, BellRing, Compass, Flag, FolderOpen, House, LayoutDashboard, Music4, Package, Receipt, Shield, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
 import type { TKey } from "../../lib/i18n";
 
 export interface ShellNavItem {
@@ -29,6 +29,7 @@ export const APP_NAV: ShellNavItem[] = [
 ];
 
 export const ADMIN_NAV: ShellNavItem[] = [
+  { id: "admin-dashboard", href: "/admin/dashboard", label: "nav.dashboard", icon: LayoutDashboard },
   { id: "admin-users", href: "/admin/users", label: "nav.admin", icon: Shield },
   { id: "admin-transactions", href: "/admin/transactions", label: "nav.transactions", icon: Receipt },
   { id: "admin-payment-issues", href: "/admin/payment-issues", label: "nav.payment_issues", icon: AlertTriangle },
@@ -36,6 +37,7 @@ export const ADMIN_NAV: ShellNavItem[] = [
   { id: "admin-jam", href: "/admin/jam", label: "nav.jam", icon: Music4 },
   { id: "admin-settings", href: "/admin/settings", label: "nav.settings", icon: SlidersHorizontal },
   { id: "admin-reports", href: "/admin/reports", label: "nav.reports", icon: Flag },
+  { id: "admin-notification-templates", href: "/admin/notification-templates", label: "nav.notification_templates", icon: BellRing },
 ];
 
 export const PUBLIC_NAV: Pick<ShellNavItem, "id" | "href" | "label">[] = [

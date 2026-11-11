@@ -25,7 +25,7 @@ import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { Toast } from '../../components/ui/toast';
 import { INPUT_CLASS } from '../../components/ui/form';
 import { RowList, RowHeader, RowItem, RowTitle, RowTime } from '../../components/ui/row-list';
-import { apiErrorMessage } from "../../lib/error-message";
+import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 
 interface Project {
   id: string;
@@ -86,7 +86,7 @@ function ProjectRow({
   const { t } = useI18n();
   const [showConfirm, setShowConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [archiveError, setArchiveError] = useState<ErrorSource | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
@@ -99,7 +99,7 @@ function ProjectRow({
       await onArchive(project.id);
       setShowConfirm(false);
     } catch (err) {
-      setArchiveError(apiErrorMessage(err, t('projects.archiveFail')));
+      setArchiveError(errorSource(err, 'projects.archiveFail'));
       setArchiving(false);
     }
   }
@@ -171,7 +171,7 @@ function ProjectRow({
         message={t('projects.archiveBody', { name: project.name })}
         confirmLabel={t('projects.archive')}
         loading={archiving}
-        error={archiveError}
+        error={renderError(archiveError)}
         onConfirm={() => void handleArchive()}
         onCancel={() => {
           setShowConfirm(false);
@@ -192,7 +192,7 @@ function ProjectsContent() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   // Filter/sort/pagination state
   const [search, setSearch] = useState('');
@@ -207,7 +207,7 @@ function ProjectsContent() {
       setProjects(data);
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, t('projects.loadFail')));
+      setError(errorSource(err, 'projects.loadFail'));
     }
   }
 
@@ -422,7 +422,7 @@ function ProjectsContent() {
 
       {error && (
         <div className="rounded-card border border-danger/20 bg-danger-muted p-4">
-          <p className="text-sm text-danger">{error}</p>
+          <p className="text-sm text-danger">{renderError(error)}</p>
           <button
             onClick={() => void fetchProjects()}
             className="mt-2 rounded-lg border border-danger/30 px-3 py-1 text-xs text-danger hover:bg-danger-muted"

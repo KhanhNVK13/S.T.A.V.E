@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "../../../context/auth-context";
-import { authErrorMessage } from "../../../lib/error-message";
+import { authErrorMessage, authErrorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { supabase } from "../../../lib/supabase-browser";
 import { setFlashToast } from "../../../lib/flash-toast";
 import { safeRedirectPath } from "../../../lib/safe-redirect";
@@ -38,7 +38,7 @@ function ResendVerification() {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   async function handleResend(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +54,7 @@ function ResendVerification() {
     });
     if (resendError) {
       setState("idle");
-      setError(authErrorMessage(resendError));
+      setError(authErrorSource(resendError));
       return;
     }
     setState("sent");
@@ -89,7 +89,7 @@ function ResendVerification() {
         className={AUTH_INPUT_CLASS}
       />
       {emailError && <FieldError>{emailError}</FieldError>}
-      {error && <FieldError>{error}</FieldError>}
+      {error && <FieldError>{renderError(error)}</FieldError>}
       <Button type="submit" variant="secondary" disabled={state === "sending"}>
         {state === "sending" ? t("auth.sending") : t("auth.cb.sendConfirm")}
       </Button>

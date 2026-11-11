@@ -27,7 +27,7 @@ import {
   isDraftStaleError,
 } from "../../../lib/api-client";
 import type { Branch, CommitWithAuthor } from "../../../lib/api-client";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 
 /**
  * Số commit tải mỗi lần. Response của `GET /commits` kèm nguyên snapshot của
@@ -115,21 +115,21 @@ export function useVersionControl({
   const [branch, setBranch] = useState<Branch | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [switching, setSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [switchErrorSource, setSwitchError] = useState<ErrorSource | null>(null);
   const [branchLoading, setBranchLoading] = useState(true);
-  const [branchError, setBranchError] = useState<string | null>(null);
+  const [branchErrorSource, setBranchError] = useState<ErrorSource | null>(null);
 
   const [commits, setCommits] = useState<CommitWithAuthor[]>([]);
   const [total, setTotal] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyErrorSource, setHistoryError] = useState<ErrorSource | null>(null);
 
   const [committing, setCommitting] = useState(false);
-  const [commitError, setCommitError] = useState<string | null>(null);
+  const [commitErrorSource, setCommitError] = useState<ErrorSource | null>(null);
   const [tagging, setTagging] = useState(false);
-  const [tagError, setTagError] = useState<string | null>(null);
+  const [tagErrorSource, setTagError] = useState<ErrorSource | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreErrorSource, setRestoreError] = useState<ErrorSource | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   /**
@@ -170,7 +170,7 @@ export function useVersionControl({
       setTotal(page.total);
     } catch (err) {
       if (!mountedRef.current) return;
-      setHistoryError(apiErrorMessage(err, tNow("vc.historyFail")));
+      setHistoryError(errorSource(err, "vc.historyFail"));
     } finally {
       if (mountedRef.current) setHistoryLoading(false);
     }
@@ -197,7 +197,7 @@ export function useVersionControl({
           list[0] ??
           null;
         if (!target) {
-          setBranchError(tNow("vc.noBranch"));
+          setBranchError(errorSource(null, "vc.noBranch"));
           return;
         }
         setBranch(target);
@@ -206,7 +206,7 @@ export function useVersionControl({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setBranchError(apiErrorMessage(err, tNow("vc.branchFail")));
+        setBranchError(errorSource(err, "vc.branchFail"));
       })
       .finally(() => {
         if (!cancelled) setBranchLoading(false);
@@ -243,7 +243,7 @@ export function useVersionControl({
   const commit = useCallback(
     async (message: string): Promise<boolean> => {
       if (!branch) {
-        setCommitError(tNow("vc.branchUnknown"));
+        setCommitError(errorSource(null, "vc.branchUnknown"));
         return false;
       }
       setCommitting(true);
@@ -275,7 +275,7 @@ export function useVersionControl({
           await loadHistory(branch.id);
         }
         if (mountedRef.current) {
-          setCommitError(apiErrorMessage(err, tNow("vc.commitFail")));
+          setCommitError(errorSource(err, "vc.commitFail"));
         }
         return false;
       } finally {
@@ -303,7 +303,7 @@ export function useVersionControl({
         return true;
       } catch (err) {
         if (mountedRef.current) {
-          setTagError(apiErrorMessage(err, tNow("vc.tagFail")));
+          setTagError(errorSource(err, "vc.tagFail"));
         }
         return false;
       } finally {
@@ -317,7 +317,7 @@ export function useVersionControl({
   const restore = useCallback(
     async (commitId: string): Promise<boolean> => {
       if (!branch) {
-        setRestoreError(tNow("vc.branchUnknown"));
+        setRestoreError(errorSource(null, "vc.branchUnknown"));
         return false;
       }
       setRestoring(true);
@@ -339,7 +339,7 @@ export function useVersionControl({
         return true;
       } catch (err) {
         if (mountedRef.current) {
-          setRestoreError(apiErrorMessage(err, tNow("vc.restoreFail")));
+          setRestoreError(errorSource(err, "vc.restoreFail"));
         }
         return false;
       } finally {
@@ -353,7 +353,7 @@ export function useVersionControl({
   const switchTo = useCallback(
     async (targetBranchId: string): Promise<boolean> => {
       if (!branch) {
-        setSwitchError(tNow("vc.currentBranchUnknown"));
+        setSwitchError(errorSource(null, "vc.currentBranchUnknown"));
         return false;
       }
       // Đã ở đúng branch đó — không gọi API (backend cũng sẽ lưu đè draft một
@@ -404,7 +404,7 @@ export function useVersionControl({
         if (isDraftStaleError(err)) onDraftStale();
         else resyncDraftVersion();
         if (mountedRef.current) {
-          setSwitchError(apiErrorMessage(err, tNow("vc.switchFail")));
+          setSwitchError(errorSource(err, "vc.switchFail"));
         }
         return false;
       } finally {
@@ -435,29 +435,29 @@ export function useVersionControl({
   return {
     branch,
     branches,
-    branchError,
+    branchError: renderError(branchErrorSource),
     branchLoading,
     switching,
-    switchError,
+    switchError: renderError(switchErrorSource),
     switchTo,
     clearSwitchError,
     commits,
     total,
     historyLoading,
-    historyError,
+    historyError: renderError(historyErrorSource),
     reloadHistory,
     refreshHead: refreshHeadFromServer,
     headCommit,
     committing,
-    commitError,
+    commitError: renderError(commitErrorSource),
     commit,
     clearCommitError,
     tagging,
-    tagError,
+    tagError: renderError(tagErrorSource),
     tag,
     clearTagError,
     restoring,
-    restoreError,
+    restoreError: renderError(restoreErrorSource),
     restore,
     clearRestoreError,
     notice,

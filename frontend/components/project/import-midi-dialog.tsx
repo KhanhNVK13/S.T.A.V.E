@@ -9,7 +9,7 @@ import {
   putDraft,
 } from "../../lib/api-client";
 import { parseMidiBuffer } from "../../lib/midi-parser";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { Button } from "../ui/button";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { useI18n } from "../../context/i18n-context";
@@ -38,7 +38,7 @@ export function ImportMidiDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const [summary, setSummary] = useState<FileSummary | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -108,7 +108,7 @@ export function ImportMidiDialog({
       if (draftReplaced && previousDraft) {
         await putDraft(projectId, previousDraft).catch(() => undefined);
       }
-      setError(apiErrorMessage(err, t("imp.fail")));
+      setError(errorSource(err, "imp.fail"));
       setBusy(false);
     }
   }
@@ -152,7 +152,7 @@ export function ImportMidiDialog({
       )}
 
       <div className="mt-4">
-        <DialogError message={error} />
+        <DialogError message={renderError(error)} />
       </div>
       <DialogActions>
         <Button variant="secondary" onClick={onClose} disabled={busy}>

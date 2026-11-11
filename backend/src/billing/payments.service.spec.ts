@@ -22,7 +22,6 @@ import {
   toOrderStatus,
 } from './payments.service';
 import type { SubscriptionsService } from './subscriptions.service';
-import { formatVnd } from './billing-format';
 
 const userId = '44444444-4444-4444-8444-444444444444';
 const otherUserId = '55555555-5555-4555-8555-555555555555';
@@ -351,7 +350,7 @@ describe('BE-BIL-10 PaymentsService.completeOrder', () => {
     expect(notifications.notify).toHaveBeenCalledWith(
       userId,
       'billing.payment_success',
-      { planName: 'STAVE+', amount: formatVnd(49000), orderCode },
+      { planName: 'STAVE+', amount: 49000, orderCode },
     );
   });
 

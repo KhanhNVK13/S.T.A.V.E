@@ -12,7 +12,7 @@ import {
 } from "../../lib/api-client";
 import type { CustomSound, CustomSoundLibrary, CustomSoundUsage } from "../../lib/api-client";
 import { supabase } from "../../lib/supabase-browser";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, rawErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { encodeWav, normalizeForStorage } from "../../lib/wav-encoder";
 import { useAudioRecorder } from "../../lib/use-audio-recorder";
 import { loadWaveformPeaks } from "../../lib/sound-waveform";
@@ -22,7 +22,7 @@ import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { EmptyState } from "../ui/empty-state";
 import { Field, INPUT_CLASS } from "../ui/form";
 import { useI18n } from "../../context/i18n-context";
-import { tNow } from "../../lib/i18n";
+import { tNow, type TKey } from "../../lib/i18n";
 
 const BUCKET = "custom-sounds";
 export const MAX_SOUND_DURATION_SEC = 30;
@@ -81,9 +81,9 @@ async function saveSound(
   return confirmCustomSoundUpload({ soundId, name, source: kind });
 }
 
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof Error && !("status" in err)) return err.message;
-  return apiErrorMessage(err, fallback);
+function toErrorSource(err: unknown, fallback: TKey): ErrorSource {
+  if (err instanceof Error && !("status" in err)) return rawErrorSource(err.message);
+  return errorSource(err, fallback);
 }
 
 function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
@@ -93,7 +93,7 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
     t("snd.recordingName", { when: new Date().toLocaleString(locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) }),
   );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const previewUrl = useMemo(
     () => (recorder.blob ? URL.createObjectURL(recorder.blob) : null),
     [recorder.blob],
@@ -109,7 +109,7 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
     if (!recorder.blob) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      setError(t("snd.nameRequired"));
+      setError(errorSource(null, "snd.nameRequired"));
       return;
     }
     setSaving(true);
@@ -118,7 +118,7 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
       await saveSound(recorder.blob, trimmed, "recorded");
       onSaved();
     } catch (err) {
-      setError(errorText(err, t("snd.saveRecordingFail")));
+      setError(toErrorSource(err, "snd.saveRecordingFail"));
     } finally {
       setSaving(false);
     }
@@ -168,7 +168,7 @@ function RecordSection({ onSaved, onCancel }: { onSaved: () => void; onCancel: (
         </Field>
       )}
 
-      {error && <p role="alert" className="rounded-card bg-danger-muted px-3 py-2 text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="rounded-card bg-danger-muted px-3 py-2 text-xs text-danger">{renderError(error)}</p>}
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={() => { recorder.reset(); onCancel(); }} disabled={saving}>
@@ -203,7 +203,7 @@ function DeleteSoundDialog({
   const [externalCount, setExternalCount] = useState<number | null>(null);
   const [usage, setUsage] = useState<CustomSoundUsage | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -213,7 +213,7 @@ function DeleteSoundDialog({
         setExternalCount(u.externalProjectCount);
         setUsage(u);
       })
-      .catch((err) => !cancelled && setError(apiErrorMessage(err, tNow("snd.usageFail"))));
+      .catch((err) => !cancelled && setError(errorSource(err, "snd.usageFail")));
     return () => {
       cancelled = true;
     };
@@ -226,7 +226,7 @@ function DeleteSoundDialog({
       await deleteCustomSound(sound.id, mode);
       onDeleted();
     } catch (err) {
-      setError(apiErrorMessage(err, t("snd.deleteFail")));
+      setError(errorSource(err, "snd.deleteFail"));
       setBusy(false);
     }
   }
@@ -260,7 +260,7 @@ function DeleteSoundDialog({
           </>
         )}
       </div>
-      <DialogError message={error} />
+      <DialogError message={renderError(error)} />
       <DialogActions>
         <Button variant="secondary" onClick={onClose} disabled={busy}>{t("ui.cancel")}</Button>
         {shared && (
@@ -421,8 +421,8 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
   const { t } = useI18n();
   const [library, setLibrary] = useState<CustomSoundLibrary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
+  const [loadError, setLoadError] = useState<ErrorSource | null>(null);
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -430,7 +430,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameBusy, setRenameBusy] = useState(false);
-  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameError, setRenameError] = useState<ErrorSource | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const onLibraryChangeRef = useRef(onLibraryChange);
@@ -448,7 +448,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
       setError(null);
       setLoadError(null);
     } catch (err) {
-      setLoadError(apiErrorMessage(err, tNow("snd.loadFail")));
+      setLoadError(errorSource(err, "snd.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -469,11 +469,11 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
     e.target.value = "";
     if (!file) return;
     if (!/\.(wav|mp3)$/i.test(file.name)) {
-      setError(t("snd.onlyWavMp3"));
+      setError(errorSource(null, "snd.onlyWavMp3"));
       return;
     }
     if (file.size > MAX_SIZE_BYTES) {
-      setError(t("snd.fileTooBig", { size: formatSize(file.size) }));
+      setError(errorSource(null, "snd.fileTooBig", { size: formatSize(file.size) }));
       return;
     }
     setUploading(true);
@@ -483,7 +483,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
       await saveSound(file, name, "uploaded");
       await load();
     } catch (err) {
-      setError(errorText(err, t("snd.uploadError")));
+      setError(toErrorSource(err, "snd.uploadError"));
     } finally {
       setUploading(false);
     }
@@ -492,7 +492,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
   async function submitRename(sound: CustomSound) {
     const next = renameValue.trim();
     if (!next) {
-      setRenameError(t("snd.nameRequired"));
+      setRenameError(errorSource(null, "snd.nameRequired"));
       return;
     }
     if (next === sound.name) {
@@ -506,7 +506,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
       setRenamingId(null);
       await load();
     } catch (err) {
-      setRenameError(apiErrorMessage(err, t("snd.renameFail")));
+      setRenameError(errorSource(err, "snd.renameFail"));
     } finally {
       setRenameBusy(false);
     }
@@ -526,7 +526,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
     audio
       .play()
       .then(() => setPlayingId(sound.id))
-      .catch(() => setError(t("snd.playFail")));
+      .catch(() => setError(errorSource(null, "snd.playFail")));
   }
 
   const items = library?.items ?? [];
@@ -574,7 +574,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
 
       {error && (
         <p role="alert" className="rounded-card bg-danger-muted px-3 py-2 text-xs text-danger">
-          {error}
+          {renderError(error)}
         </p>
       )}
 
@@ -583,7 +583,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
           role="alert"
           className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
         >
-          <span>{loadError}</span>
+          <span>{renderError(loadError)}</span>
           <Button variant="secondary" onClick={() => void load()} disabled={loading}>
             {t("ui.retry")}
           </Button>
@@ -647,7 +647,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
                     </Button>
                     {renameError && (
                       <p role="alert" className="basis-full text-xs text-danger">
-                        {renameError}
+                        {renderError(renameError)}
                       </p>
                     )}
                   </form>

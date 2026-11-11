@@ -24,7 +24,7 @@ import {
   resolvePullRequestConflicts,
 } from "../../../lib/api-client";
 import type { ConflictChoice, MergeConflictResult, PullRequestComment, PullRequestDetail } from "../../../lib/api-client";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { formatRelativeTime } from "../../../lib/format-date";
 import { formatAuthorName } from "../../../lib/format-name";
 import { useI18n } from "../../../context/i18n-context";
@@ -37,35 +37,35 @@ function PullRequestView({ id }: { id: string }) {
   const { user } = useAuth();
   const [detail, setDetail] = useState<PullRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [tab, setTab] = useState<"changes" | "commits" | "discussion">("changes");
   const [toast, setToast] = useState<{ message: string; variant: "success" | "danger" } | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
   const [mergeOpen, setMergeOpen] = useState(false);
   const [merging, setMerging] = useState(false);
-  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [mergeError, setMergeError] = useState<ErrorSource | null>(null);
   const [conflicts, setConflicts] = useState<MergeConflictResult | null>(null);
-  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState<ErrorSource | null>(null);
 
   const [closeOpen, setCloseOpen] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [closeError, setCloseError] = useState<string | null>(null);
+  const [closeError, setCloseError] = useState<ErrorSource | null>(null);
   const [closeComment, setCloseComment] = useState("");
 
   const [commentBody, setCommentBody] = useState("");
   const [commenting, setCommenting] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<ErrorSource | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PullRequestComment | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<ErrorSource | null>(null);
 
   const load = useCallback(async () => {
     try {
       setDetail(await getPullRequest(id));
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("prd.loadFail")));
+      setError(errorSource(err, "prd.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ function PullRequestView({ id }: { id: string }) {
       setToast({ message: tNow("prd.merged"), variant: "success" });
       await load();
     } catch (err) {
-      setMergeError(apiErrorMessage(err, tNow("prd.mergeFail")));
+      setMergeError(errorSource(err, "prd.mergeFail"));
     } finally {
       setMerging(false);
     }
@@ -104,7 +104,7 @@ function PullRequestView({ id }: { id: string }) {
       setToast({ message: tNow("prd.resolved"), variant: "success" });
       await load();
     } catch (err) {
-      setResolveError(apiErrorMessage(err, tNow("blist.resolveFail")));
+      setResolveError(errorSource(err, "blist.resolveFail"));
     } finally {
       setMerging(false);
     }
@@ -120,7 +120,7 @@ function PullRequestView({ id }: { id: string }) {
       setToast({ message: tNow("prd.closed"), variant: "success" });
       await load();
     } catch (err) {
-      setCloseError(apiErrorMessage(err, tNow("prd.closeFail")));
+      setCloseError(errorSource(err, "prd.closeFail"));
     } finally {
       setClosing(false);
     }
@@ -137,7 +137,7 @@ function PullRequestView({ id }: { id: string }) {
       setCommentBody("");
       await load();
     } catch (err) {
-      setCommentError(apiErrorMessage(err, tNow("prd.commentFail")));
+      setCommentError(errorSource(err, "prd.commentFail"));
     } finally {
       setCommenting(false);
     }
@@ -152,7 +152,7 @@ function PullRequestView({ id }: { id: string }) {
       setPendingDelete(null);
       await load();
     } catch (err) {
-      setDeleteError(apiErrorMessage(err, tNow("prd.deleteFail")));
+      setDeleteError(errorSource(err, "prd.deleteFail"));
     } finally {
       setDeleting(false);
     }
@@ -172,7 +172,7 @@ function PullRequestView({ id }: { id: string }) {
       <div className="mx-auto max-w-5xl px-5 py-8">
         <h1 className="sr-only">{t("prl.title")}</h1>
         <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-danger/30 bg-danger-muted p-4 text-sm text-danger">
-          <p>{error ?? t("prd.loadFail")}</p>
+          <p>{renderError(error) ?? t("prd.loadFail")}</p>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => void load()}>
               {t("ui.retry")}
@@ -397,7 +397,7 @@ function PullRequestView({ id }: { id: string }) {
                 </div>
                 {commentError && (
                   <p role="alert" className="text-xs text-danger">
-                    {commentError}
+                    {renderError(commentError)}
                   </p>
                 )}
               </form>
@@ -418,7 +418,7 @@ function PullRequestView({ id }: { id: string }) {
         }
         confirmLabel={t("blist.mergeConfirm")}
         loading={merging}
-        error={mergeError}
+        error={renderError(mergeError)}
         onConfirm={() => void handleMerge()}
         onCancel={() => setMergeOpen(false)}
       />
@@ -446,7 +446,7 @@ function PullRequestView({ id }: { id: string }) {
         confirmLabel={t("prd.closeConfirm")}
         danger
         loading={closing}
-        error={closeError}
+        error={renderError(closeError)}
         onConfirm={() => void handleClose()}
         onCancel={() => setCloseOpen(false)}
       />
@@ -458,7 +458,7 @@ function PullRequestView({ id }: { id: string }) {
         confirmLabel={t("cm.delete")}
         danger
         loading={deleting}
-        error={deleteError}
+        error={renderError(deleteError)}
         onConfirm={() => void handleDeleteComment()}
         onCancel={() => setPendingDelete(null)}
       />
@@ -469,7 +469,7 @@ function PullRequestView({ id }: { id: string }) {
           sourceName={sourceLabel}
           targetName={targetLabel}
           submitting={merging}
-          error={resolveError}
+          error={renderError(resolveError)}
           onCancel={() => {
             setConflicts(null);
             setResolveError(null);

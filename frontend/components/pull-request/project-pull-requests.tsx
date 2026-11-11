@@ -7,11 +7,10 @@ import { Button } from "../ui/button";
 import { Tabs } from "../ui/tabs";
 import { getPullRequestTargetBranches, listProjectPullRequests } from "../../lib/api-client";
 import type { PullRequestListItem, PullRequestStatus } from "../../lib/api-client";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { NewPullRequestDialog } from "./new-pull-request-dialog";
 import { PullRequestListState, STATUS_KEY } from "./pull-request-list";
 import { useI18n } from "../../context/i18n-context";
-import { tNow } from "../../lib/i18n";
 
 export function ProjectPullRequests({
   projectId,
@@ -25,7 +24,7 @@ export function ProjectPullRequests({
   const [status, setStatus] = useState<PullRequestStatus>("open");
   const [items, setItems] = useState<PullRequestListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isFork, setIsFork] = useState(false);
 
@@ -35,7 +34,7 @@ export function ProjectPullRequests({
     try {
       setItems(await listProjectPullRequests(projectId, status));
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("pr.loadFail")));
+      setError(errorSource(err, "pr.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -78,7 +77,7 @@ export function ProjectPullRequests({
         )}
       </div>
 
-      <PullRequestListState loading={loading} error={error} items={items} status={status} onRetry={() => void load()} />
+      <PullRequestListState loading={loading} error={renderError(error)} items={items} status={status} onRetry={() => void load()} />
 
       {dialogOpen && (
         <NewPullRequestDialog

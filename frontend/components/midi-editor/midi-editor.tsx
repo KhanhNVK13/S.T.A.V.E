@@ -40,7 +40,7 @@ import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { Toast, type ToastVariant } from "../ui/toast";
 import { buildClipboard, describePaste, pastePattern, type PatternClipboard } from "../../lib/paste-pattern";
 import { getPatternClipboard, setPatternClipboard } from "../../lib/pattern-clipboard";
@@ -91,7 +91,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   const [draftConflict, setDraftConflict] = useState(false);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictBusy, setConflictBusy] = useState(false);
-  const [conflictError, setConflictError] = useState<string | null>(null);
+  const [conflictError, setConflictError] = useState<ErrorSource | null>(null);
   const [draftReloadNonce, setDraftReloadNonce] = useState(0);
   const draftConflictRef = useRef(false);
   const draftVersionRef = useRef<string | null | undefined>(undefined);
@@ -561,7 +561,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       setSaveStatus("saved");
       clearDraftConflict();
     } catch (err) {
-      setConflictError(apiErrorMessage(err, tNow("edc.overwriteFail")));
+      setConflictError(errorSource(err, "edc.overwriteFail"));
     } finally {
       setConflictBusy(false);
     }
@@ -730,7 +730,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       applyRestoredSnapshot(snap);
       setDraftReloadNonce((n) => n + 1);
     } catch (err) {
-      setConflictError(apiErrorMessage(err, tNow("edc.reloadFail")));
+      setConflictError(errorSource(err, "edc.reloadFail"));
     } finally {
       setConflictBusy(false);
     }
@@ -1565,7 +1565,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
             <strong className="text-foreground">{t("edc.overwriteLabel")}</strong>{t("edc.overwriteBody")}
           </li>
         </ul>
-        <DialogError message={conflictError} />
+        <DialogError message={renderError(conflictError)} />
         <DialogActions>
           <Button variant="secondary" disabled={conflictBusy} onClick={() => void reloadDraftFromServer()}>
             {t("edc.reloadLabel")}

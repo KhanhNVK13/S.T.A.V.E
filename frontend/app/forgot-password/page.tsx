@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { MailCheck } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
-import { authErrorMessage } from "../../lib/error-message";
+import { authErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { useI18n } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
@@ -13,7 +13,7 @@ import {validateEmail, focusFirstInvalid } from "../../lib/validation";
 export default function ForgotPasswordPage() {
   const { t, tx } = useI18n();
   const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
     );
     setSubmitting(false);
     if (resetError) {
-      setError(authErrorMessage(resetError));
+      setError(authErrorSource(resetError));
       return;
     }
     setDone(true);
@@ -84,7 +84,7 @@ export default function ForgotPasswordPage() {
         </AuthField>
         {error && (
           <p role="alert" className="text-sm text-danger">
-            {error}
+            {renderError(error)}
           </p>
         )}
         <Button type="submit" disabled={submitting} className="w-full">

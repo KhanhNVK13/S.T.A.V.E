@@ -6,8 +6,8 @@ import type { ActivityItem, ActivityType } from "@stave/shared-types";
 import { getUserActivity, type ActivityQuery } from "../../../../../lib/admin-activity-api";
 import { computeActivityRange, type ActivityRange } from "./activity-range";
 import { formatOccurredAt } from "./format-occurred-at";
-import { apiErrorMessage } from "../../../../../lib/error-message";
-import { tNow, type TKey } from "../../../../../lib/i18n";
+import { errorSource, renderError, type ErrorSource } from "../../../../../lib/error-message";
+import { type TKey } from "../../../../../lib/i18n";
 import { useI18n } from "../../../../../context/i18n-context";
 import { PageHeader } from "../../../../../components/ui/page-header";
 import { RowList, RowHeader, RowItem } from "../../../../../components/ui/row-list";
@@ -68,9 +68,9 @@ export function ActivityView({ userId }: { userId: string }) {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>("loading");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [moreLoading, setMoreLoading] = useState(false);
-  const [moreError, setMoreError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<ErrorSource | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const generation = useRef(0);
   const rangeRef = useRef<ActivityRange | null>(null);
@@ -104,7 +104,7 @@ export function ActivityView({ userId }: { userId: string }) {
         setState("ready");
       } catch (err) {
         if (controller.signal.aborted || current !== generation.current) return;
-        setError(apiErrorMessage(err, tNow("aact.loadFail")));
+        setError(errorSource(err, "aact.loadFail"));
         setState("error");
       }
     })();
@@ -139,7 +139,7 @@ export function ActivityView({ userId }: { userId: string }) {
       setNextCursor(page.nextCursor);
     } catch (err) {
       if (controller.signal.aborted || current !== generation.current) return;
-      setMoreError(apiErrorMessage(err, tNow("aact.loadFail")));
+      setMoreError(errorSource(err, "aact.loadFail"));
     } finally {
       if (!controller.signal.aborted && current === generation.current) setMoreLoading(false);
       if (moreAbort.current === controller) moreAbort.current = null;
@@ -206,7 +206,7 @@ export function ActivityView({ userId }: { userId: string }) {
           role="alert"
           className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
         >
-          <span>{error}</span>
+          <span>{renderError(error)}</span>
           <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
             {t("ui.retry")}
           </Button>
@@ -254,7 +254,7 @@ export function ActivityView({ userId }: { userId: string }) {
           role="alert"
           className="mt-3 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
         >
-          {moreError}
+          {renderError(moreError)}
         </div>
       )}
 

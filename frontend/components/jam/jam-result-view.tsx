@@ -18,7 +18,7 @@ import type {
 import { useAuth } from "../../context/auth-context";
 import { forkProject } from "../../lib/api-client";
 import { resolveAndLoadCustomSounds } from "../../lib/custom-sound-buffers";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatDateTime } from "../../lib/format-date";
 import { setFlashToast } from "../../lib/flash-toast";
 import { SnapshotPlayer } from "../../lib/snapshot-player";
@@ -53,7 +53,7 @@ export function JamResultView({
   } | null>(null);
 
   const [forking, setForking] = useState(false);
-  const [forkError, setForkError] = useState<string | null>(null);
+  const [forkError, setForkError] = useState<ErrorSource | null>(null);
 
   const [playing, setPlaying] = useState(false);
   const [playBusy, setPlayBusy] = useState(false);
@@ -136,7 +136,7 @@ export function JamResultView({
       setFlashToast(t("jam.copied"));
       router.push(`/projects/${created.id}/edit`);
     } catch (err) {
-      setForkError(apiErrorMessage(err, t("jam.copyFail")));
+      setForkError(errorSource(err, "jam.copyFail"));
       setForking(false);
     }
   }
@@ -213,7 +213,7 @@ export function JamResultView({
           className="flex items-center gap-2 rounded-card border border-danger/40 bg-danger-muted px-4 py-2.5 text-sm text-danger"
         >
           <TriangleAlert className="h-4 w-4 shrink-0" />
-          {forkError}
+          {renderError(forkError)}
         </div>
       )}
 

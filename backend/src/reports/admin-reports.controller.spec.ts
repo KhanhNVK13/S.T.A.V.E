@@ -4,6 +4,7 @@ import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { AdminReportsController } from './admin-reports.controller';
 import type { AdminReportsService } from './admin-reports.service';
+import type { ReportModerationService } from './report-moderation.service';
 
 const UUID = '33333333-3333-4333-8333-333333333333';
 
@@ -17,6 +18,7 @@ function makeController() {
     service,
     controller: new AdminReportsController(
       service as unknown as AdminReportsService,
+      {} as unknown as ReportModerationService,
     ),
   };
 }

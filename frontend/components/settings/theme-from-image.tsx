@@ -6,7 +6,7 @@ import { ImageUp, Loader2 } from "lucide-react";
 import { useI18n } from "../../context/i18n-context";
 import { applyCustomPalette, useTheme } from "../../context/theme-context";
 import { saveMyCustomTheme } from "../../lib/api-billing";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { loadImagePixels } from "../../lib/load-image-pixels";
 import {
   ThemeFromImageError,
@@ -29,7 +29,7 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
   const { t } = useI18n();
   const { theme, loading: themeLoading, refresh } = useTheme();
   const [palette, setPalette] = useState<Palette | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -53,11 +53,11 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
     async (file: File) => {
       setError(null);
       if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError(t("themeImage.badType"));
+        setError(errorSource(null, "themeImage.badType"));
         return;
       }
       if (file.size > MAX_BYTES) {
-        setError(t("themeImage.tooBig"));
+        setError(errorSource(null, "themeImage.tooBig"));
         return;
       }
 
@@ -70,15 +70,15 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
         applyCustomPalette(next);
       } catch (err) {
         if (err instanceof ThemeFromImageError && err.code === "not_enough_color") {
-          setError(t("themeImage.notEnoughColor"));
+          setError(errorSource(null, "themeImage.notEnoughColor"));
         } else {
-          setError(t("themeImage.readFail"));
+          setError(errorSource(null, "themeImage.readFail"));
         }
       } finally {
         setBusy(false);
       }
     },
-    [t],
+    [],
   );
 
   async function handleSave() {
@@ -94,7 +94,7 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
       // (không gỡ hết biến — làm vậy sẽ mất theme custom đang lưu).
       setPalette(null);
       await refresh();
-      setError(apiErrorMessage(err, t("themeImage.saveFail")));
+      setError(errorSource(err, "themeImage.saveFail"));
     } finally {
       setSaving(false);
     }
@@ -175,7 +175,7 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
 
       {error && (
         <p role="alert" className="text-xs text-danger">
-          {error}
+          {renderError(error)}
         </p>
       )}
 

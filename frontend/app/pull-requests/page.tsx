@@ -4,11 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { RequireAuth } from "../../components/require-auth";
 import { PageHeader } from "../../components/ui/page-header";
 import { Tabs } from "../../components/ui/tabs";
-import { tNow } from "../../lib/i18n";
 import { PullRequestListState, STATUS_KEY } from "../../components/pull-request/pull-request-list";
 import { listPullRequests } from "../../lib/api-client";
 import type { PullRequestListItem, PullRequestStatus } from "../../lib/api-client";
-import { apiErrorMessage } from "../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { useI18n } from "../../context/i18n-context";
 
 type View = "incoming" | "created";
@@ -19,7 +18,7 @@ function PullRequestsView() {
   const [status, setStatus] = useState<PullRequestStatus>("open");
   const [items, setItems] = useState<PullRequestListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -27,7 +26,7 @@ function PullRequestsView() {
     try {
       setItems(await listPullRequests({ view, status }));
     } catch (err) {
-      setError(apiErrorMessage(err, tNow("pr.loadFail")));
+      setError(errorSource(err, "pr.loadFail"));
     } finally {
       setLoading(false);
     }
@@ -65,7 +64,7 @@ function PullRequestsView() {
           <Tabs tabs={statusTabs} active={status} onChange={(id) => setStatus(id as PullRequestStatus)} />
         </div>
 
-        <PullRequestListState loading={loading} error={error} items={items} status={status} onRetry={() => void load()} />
+        <PullRequestListState loading={loading} error={renderError(error)} items={items} status={status} onRetry={() => void load()} />
       </div>
     </div>
   );

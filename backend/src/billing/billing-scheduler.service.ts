@@ -8,7 +8,6 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
-import { formatDateVi } from './billing-format';
 import {
   PLAN_COLUMNS,
   SUBSCRIPTION_COLUMNS,
@@ -189,7 +188,7 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
         'billing.renewal_due',
         {
           planName,
-          dueDate: formatDateVi(subscription.current_period_end),
+          dueDate: subscription.current_period_end,
         },
       );
     }
@@ -251,7 +250,7 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
         'billing.plan_changed',
         {
           planName: target.name,
-          effectiveDate: formatDateVi(subscription.current_period_end),
+          effectiveDate: subscription.current_period_end,
         },
       );
     }

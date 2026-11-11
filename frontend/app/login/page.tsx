@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase-browser";
-import { authErrorMessage } from "../../lib/error-message";
+import { authErrorSource, rawErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { takeAuthNotice } from "../../lib/auth-notice";
 import { safeRedirectPath } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AuthDivider, GoogleButton, AUTH_INPUT_CLASS } from "../../components/auth-card";
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
@@ -26,7 +26,7 @@ export default function LoginPage() {
   useEffect(() => {
     const notice = takeAuthNotice();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage chỉ đọc được ở client
-    if (notice) setError(notice);
+    if (notice) setError(rawErrorSource(notice));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -51,7 +51,7 @@ export default function LoginPage() {
     });
     setSubmitting(false);
     if (signInError) {
-      setError(authErrorMessage(signInError));
+      setError(authErrorSource(signInError));
       setUnconfirmed(signInError.code === "email_not_confirmed");
       return;
     }
@@ -68,7 +68,7 @@ export default function LoginPage() {
     });
     if (resendError) {
       setResendState("idle");
-      setError(authErrorMessage(resendError));
+      setError(authErrorSource(resendError));
       return;
     }
     setResendState("sent");
@@ -113,7 +113,7 @@ export default function LoginPage() {
         </AuthField>
         {error && (
           <p role="alert" className="text-xs text-danger">
-            {error}
+            {renderError(error)}
           </p>
         )}
         {unconfirmed && (

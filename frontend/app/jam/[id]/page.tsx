@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, TriangleAlert } from "lucide-react";
 import type { JamEvent } from "@stave/shared-types";
 import { getJamEvent } from "../../../lib/api-jam";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { useAuth } from "../../../context/auth-context";
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { JamSession } from "../../../components/jam/jam-session";
 import { useI18n } from "../../../context/i18n-context";
-import { tNow } from "../../../lib/i18n";
 
 function JamRoomContent({ id }: { id: string }) {
   const { t } = useI18n();
@@ -20,7 +19,7 @@ function JamRoomContent({ id }: { id: string }) {
   const router = useRouter();
 
   const [event, setEvent] = useState<JamEvent | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -40,7 +39,7 @@ function JamRoomContent({ id }: { id: string }) {
         setEvent(data);
       } catch (err) {
         if (cancelled) return;
-        setError(apiErrorMessage(err, tNow("jam.eventLoadFail")));
+        setError(errorSource(err, "jam.eventLoadFail"));
       }
     }
 
@@ -66,7 +65,7 @@ function JamRoomContent({ id }: { id: string }) {
         <EmptyState
           icon={TriangleAlert}
           title={t("jam.eventFailTitle")}
-          description={error}
+          description={renderError(error) ?? undefined}
           action={
             <Button
               variant="secondary"

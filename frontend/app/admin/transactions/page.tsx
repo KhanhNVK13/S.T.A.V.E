@@ -20,10 +20,11 @@ import {
   type AdminTransactionSummary,
 } from "../../../lib/api-admin-billing";
 import { listSubscriptionPlans } from "../../../lib/api-billing";
-import { apiErrorMessage } from "../../../lib/error-message";
+import { useI18n, type I18n } from "../../../context/i18n-context";
+import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { exportPaginatedCsv, CSV_MAX_ROWS, type CsvColumn } from "../../../lib/to-csv";
 import { formatVnd } from "../../../lib/format-vnd";
-import { appLocale, formatDateTime } from "../../../lib/format-date";
+import { formatDateTime } from "../../../lib/format-date";
 import { PageHeader } from "../../../components/ui/page-header";
 import { RowList, RowHeader, RowItem, RowTitle, RowTime } from "../../../components/ui/row-list";
 import { Badge } from "../../../components/ui/badge";
@@ -35,17 +36,14 @@ import { INPUT_CLASS } from "../../../components/ui/form";
 
 const PAGE_LIMIT = 20;
 
-const OUTCOMES: { value: AdminTransactionOutcome; label: string }[] = [
-  { value: "success", label: "Thành công" },
-  { value: "failed", label: "Thất bại" },
-  { value: "pending", label: "Chưa hoàn tất" },
-];
+const OUTCOMES: AdminTransactionOutcome[] = ["success", "failed", "pending"];
 
-const KIND_LABELS: Record<string, string> = {
-  charge: "Thu tiền",
-  refund: "Hoàn tiền",
-  compensation: "Đền bù",
-};
+function adminKindLabel(kind: string, t: I18n["t"]): string {
+  if (kind === "charge") return t("atx.kind.charge");
+  if (kind === "refund") return t("atx.kind.refund");
+  if (kind === "compensation") return t("atx.kind.compensation");
+  return kind;
+}
 
 /** Mã | Khách hàng | Gói | Loại | Số tiền | Trạng thái | Thời gian. */
 const COLS = "md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_120px_130px_92px_auto]";
@@ -88,32 +86,38 @@ function toStartBoundary(date: string): string | undefined {
   return start.toISOString();
 }
 
-function outcomeBadge(outcome: AdminTransactionOutcome) {
-  if (outcome === "success") return <Badge variant="success">Thành công</Badge>;
-  if (outcome === "failed") return <Badge variant="danger">Thất bại</Badge>;
-  return <Badge variant="warning">Chưa hoàn tất</Badge>;
+function issueStatusLabel(status: string, t: I18n["t"]): string {
+  if (status === "open") return t("atx.issueOpen");
+  if (status === "resolved") return t("pi.resolvedBadge");
+  return status;
+}
+
+function outcomeBadge(outcome: AdminTransactionOutcome, t: I18n["t"]) {
+  if (outcome === "success") return <Badge variant="success">{t("atx.outcome.success")}</Badge>;
+  if (outcome === "failed") return <Badge variant="danger">{t("atx.outcome.failed")}</Badge>;
+  return <Badge variant="warning">{t("atx.outcome.pending")}</Badge>;
 }
 
 function SummaryCards({ summary }: { summary: AdminTransactionSummary }) {
-  const locale = appLocale();
+  const { t, locale } = useI18n();
   const cards = [
     {
-      label: "Tổng tiền thu thành công",
+      label: t("atx.sumCharged"),
       value: formatVnd(summary.totalChargeAmount),
       tone: "text-success-foreground",
     },
     {
-      label: "Tổng tiền hoàn trả",
+      label: t("atx.sumRefunded"),
       value: formatVnd(summary.totalRefundAmount),
       tone: "text-warning-foreground",
     },
     {
-      label: "Giao dịch thành công",
+      label: t("atx.sumSuccess"),
       value: summary.successCount.toLocaleString(locale),
       tone: "text-foreground",
     },
     {
-      label: "Giao dịch thất bại",
+      label: t("atx.sumFailed"),
       value: summary.failedCount.toLocaleString(locale),
       tone: "text-danger",
     },
@@ -133,6 +137,7 @@ function SummaryCards({ summary }: { summary: AdminTransactionSummary }) {
 }
 
 function CustomerCell({ item }: { item: AdminTransactionItem }) {
+  const { t } = useI18n();
   if (item.account) {
     return (
       <div className="flex min-w-0 flex-col gap-0.5">
@@ -146,9 +151,9 @@ function CustomerCell({ item }: { item: AdminTransactionItem }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <span className="flex flex-wrap items-center gap-1.5">
-        <Badge variant="danger">Tài khoản đã xoá</Badge>
+        <Badge variant="danger">{t("atx.deletedAccount")}</Badge>
         <span className="truncate text-[13px] font-semibold">
-          {item.payerName || "Không rõ tên"}
+          {item.payerName || t("atx.unknownName")}
         </span>
       </span>
       <span className="truncate text-xs text-muted">
@@ -165,8 +170,9 @@ function DetailDialog({
   id: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [detail, setDetail] = useState<AdminTransactionDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,7 +182,7 @@ function DetailDialog({
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(apiErrorMessage(err, "Không tải được chi tiết giao dịch."));
+          setError(errorSource(err, "atx.detailFailed"));
         }
       });
     return () => {
@@ -188,59 +194,59 @@ function DetailDialog({
 
   return (
     <Dialog
-      title="Chi tiết giao dịch"
+      title={t("atx.detailTitle")}
       onClose={onClose}
       className="max-w-2xl p-6"
     >
       {error && (
         <p role="alert" className="mb-4 rounded-card bg-danger-muted px-3 py-2 text-sm text-danger">
-          {error}
+          {renderError(error)}
         </p>
       )}
       {!detail && !error && (
         <p role="status" className="flex items-center gap-2 text-[13px] text-muted">
-          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Đang tải…
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> {t("bill.loading")}
         </p>
       )}
       {tx && (
         <div className="space-y-5">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
             <div>
-              <dt className="text-muted">Mã giao dịch</dt>
+              <dt className="text-muted">{t("atx.id")}</dt>
               <dd className="font-mono text-xs">{tx.id}</dd>
             </div>
             <div>
-              <dt className="text-muted">Mã đối tác thanh toán</dt>
+              <dt className="text-muted">{t("atx.providerRef")}</dt>
               <dd className="font-mono text-xs">{tx.providerRef ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted">Mã đơn</dt>
+              <dt className="text-muted">{t("atx.orderCode")}</dt>
               <dd className="font-mono text-xs">
                 {tx.orderCode === null ? "—" : tx.orderCode}
               </dd>
             </div>
             <div>
-              <dt className="text-muted">Thời gian</dt>
+              <dt className="text-muted">{t("atx.time")}</dt>
               <dd className="font-mono text-xs">{formatDateTime(tx.createdAt)}</dd>
             </div>
             <div>
-              <dt className="text-muted">Gói</dt>
+              <dt className="text-muted">{t("atx.plan")}</dt>
               <dd className="text-xs">{tx.plan?.name ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted">Loại</dt>
-              <dd className="text-xs">{KIND_LABELS[tx.kind] ?? tx.kind}</dd>
+              <dt className="text-muted">{t("atx.kind")}</dt>
+              <dd className="text-xs">{adminKindLabel(tx.kind, t)}</dd>
             </div>
             <div>
-              <dt className="text-muted">Số tiền</dt>
+              <dt className="text-muted">{t("atx.amount")}</dt>
               <dd className="font-mono text-xs tabular-nums">{formatVnd(tx.amountVnd)}</dd>
             </div>
             <div>
-              <dt className="text-muted">Trạng thái</dt>
-              <dd className="text-xs">{outcomeBadge(tx.outcome)}</dd>
+              <dt className="text-muted">{t("atx.status")}</dt>
+              <dd className="text-xs">{outcomeBadge(tx.outcome, t)}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-muted">Người thanh toán</dt>
+              <dt className="text-muted">{t("atx.payer")}</dt>
               <dd className="text-xs">
                 {tx.account ? (
                   <>
@@ -249,9 +255,9 @@ function DetailDialog({
                   </>
                 ) : (
                   <>
-                    <Badge variant="danger">Tài khoản đã xoá</Badge>{" "}
+                    <Badge variant="danger">{t("atx.deletedAccount")}</Badge>{" "}
                     <span>
-                      {tx.payerName || "Không rõ tên"} · {tx.payerEmail ?? "—"}
+                      {tx.payerName || t("atx.unknownName")} · {tx.payerEmail ?? "—"}
                     </span>
                   </>
                 )}
@@ -259,7 +265,7 @@ function DetailDialog({
             </div>
             {tx.description && (
               <div className="sm:col-span-2">
-                <dt className="text-muted">Mô tả</dt>
+                <dt className="text-muted">{t("atx.description")}</dt>
                 <dd className="text-xs">{tx.description}</dd>
               </div>
             )}
@@ -267,10 +273,10 @@ function DetailDialog({
 
           <section>
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
-              Sự cố thanh toán ({detail.issues.length})
+              {t("atx.issues", { n: detail.issues.length })}
             </h3>
             {detail.issues.length === 0 ? (
-              <p className="text-[13px] text-muted">Không có sự cố ghi nhận.</p>
+              <p className="text-[13px] text-muted">{t("atx.noIssues")}</p>
             ) : (
               <ul className="space-y-2">
                 {detail.issues.map((issue: AdminPaymentIssue) => (
@@ -280,14 +286,14 @@ function DetailDialog({
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={issue.status === "open" ? "warning" : "neutral"}>
-                        {issue.status === "open" ? "Đang mở" : issue.status}
+                        {issueStatusLabel(issue.status, t)}
                       </Badge>
                       <span className="font-mono text-xs text-muted">
                         {formatDateTime(issue.created_at)}
                       </span>
                     </div>
                     <p className="mt-1">{issue.description}</p>
-                    {issue.note && <p className="mt-1 text-muted">Ghi chú: {issue.note}</p>}
+                    {issue.note && <p className="mt-1 text-muted">{t("atx.issueNote", { note: issue.note })}</p>}
                   </li>
                 ))}
               </ul>
@@ -296,10 +302,10 @@ function DetailDialog({
 
           <section>
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
-              Giao dịch liên quan ({detail.relatedTransactions.length})
+              {t("atx.related", { n: detail.relatedTransactions.length })}
             </h3>
             {detail.relatedTransactions.length === 0 ? (
-              <p className="text-[13px] text-muted">Không có giao dịch liên quan.</p>
+              <p className="text-[13px] text-muted">{t("atx.noRelated")}</p>
             ) : (
               <ul className="space-y-2">
                 {detail.relatedTransactions.map((related) => (
@@ -312,7 +318,7 @@ function DetailDialog({
                       <span className="font-mono text-xs tabular-nums">
                         {formatVnd(related.amountVnd)}
                       </span>
-                      {outcomeBadge(related.outcome)}
+                      {outcomeBadge(related.outcome, t)}
                     </span>
                   </li>
                 ))}
@@ -324,7 +330,7 @@ function DetailDialog({
       <div className="mt-6">
         <DialogActions>
           <Button variant="secondary" onClick={onClose}>
-            Đóng
+            {t("atx.close")}
           </Button>
         </DialogActions>
       </div>
@@ -332,20 +338,23 @@ function DetailDialog({
   );
 }
 
-const CSV_COLUMNS: CsvColumn<AdminTransactionItem>[] = [
-  { header: "Mã giao dịch", value: (row) => row.id },
-  { header: "Mã đối tác thanh toán", value: (row) => row.providerRef },
-  { header: "Mã đơn", value: (row) => row.orderCode },
-  { header: "Tên người trả", value: (row) => row.payerName ?? row.account?.display_name },
-  { header: "Email người trả", value: (row) => row.payerEmail ?? row.account?.email },
-  { header: "Gói", value: (row) => row.plan?.name },
-  { header: "Loại", value: (row) => KIND_LABELS[row.kind] ?? row.kind },
-  { header: "Số tiền (VND)", value: (row) => row.amountVnd },
-  { header: "Trạng thái", value: (row) => row.outcome },
-  { header: "Thời gian", value: (row) => formatDateTime(row.createdAt) },
-];
+function buildCsvColumns(t: I18n["t"]): CsvColumn<AdminTransactionItem>[] {
+  return [
+    { header: t("atx.csv.id"), value: (row) => row.id },
+    { header: t("atx.csv.providerRef"), value: (row) => row.providerRef },
+    { header: t("atx.csv.orderCode"), value: (row) => row.orderCode },
+    { header: t("atx.csv.payerName"), value: (row) => row.payerName ?? row.account?.display_name },
+    { header: t("atx.csv.payerEmail"), value: (row) => row.payerEmail ?? row.account?.email },
+    { header: t("atx.csv.plan"), value: (row) => row.plan?.name },
+    { header: t("atx.csv.kind"), value: (row) => adminKindLabel(row.kind, t) },
+    { header: t("atx.csv.amount"), value: (row) => row.amountVnd },
+    { header: t("atx.csv.status"), value: (row) => t(`atx.outcome.${row.outcome}`) },
+    { header: t("atx.csv.time"), value: (row) => formatDateTime(row.createdAt) },
+  ];
+}
 
 function AdminTransactionsContent() {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -380,7 +389,7 @@ function AdminTransactionsContent() {
     key: "",
     items: [],
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorSource | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportCount, setExportCount] = useState<number | null>(null);
@@ -425,7 +434,7 @@ function AdminTransactionsContent() {
       .catch((err) => {
         if (cancelled) return;
         setPage({ key: requestKey, items: [], summary: null, nextCursor: null });
-        setError(apiErrorMessage(err, "Không tải được danh sách giao dịch."));
+        setError(errorSource(err, "atx.listFailed"));
       });
     return () => {
       cancelled = true;
@@ -475,7 +484,7 @@ function AdminTransactionsContent() {
       );
       setError(null);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không tải được danh sách giao dịch."));
+      setError(errorSource(err, "atx.listFailed"));
     } finally {
       setLoadingMore(false);
     }
@@ -492,13 +501,13 @@ function AdminTransactionsContent() {
             limit: 100,
             cursor: pageCursor ?? undefined,
           }),
-        CSV_COLUMNS,
-        "giao-dich-stave",
+        buildCsvColumns(t),
+        t("atx.csv.fileName"),
         (loaded) => setExportCount(loaded),
       );
       setExportCount(count);
     } catch (err) {
-      setError(apiErrorMessage(err, "Không xuất được file CSV."));
+      setError(errorSource(err, "atx.exportFailed"));
     } finally {
       setExporting(false);
     }
@@ -511,9 +520,9 @@ function AdminTransactionsContent() {
   return (
     <div>
       <PageHeader
-        breadcrumbs={[{ label: "Quản trị" }, { label: "Giao dịch" }]}
-        title="Giao dịch"
-        description="Tra cứu toàn bộ giao dịch thanh toán của hệ thống."
+        breadcrumbs={[{ label: t("adm.navTitle") }, { label: t("atx.title") }]}
+        title={t("atx.title")}
+        description={t("atx.subtitle")}
         action={
           <Button
             variant="secondary"
@@ -526,8 +535,10 @@ function AdminTransactionsContent() {
               <Download aria-hidden="true" className="h-3.5 w-3.5" />
             )}
             {exporting
-              ? `Đang tải…${exportCount !== null ? ` (${exportCount.toLocaleString(appLocale())})` : ""}`
-              : "Xuất CSV"}
+              ? exportCount !== null
+                ? t("atx.exportingCount", { n: exportCount.toLocaleString(locale) })
+                : t("atx.exporting")
+              : t("atx.export")}
           </Button>
         }
       />
@@ -537,50 +548,54 @@ function AdminTransactionsContent() {
         onSubmit={(e) => e.preventDefault()}
       >
         <label className="flex flex-col gap-1 text-xs text-muted">
-          Từ ngày
+          {t("atx.from")}
           <input
             type="date"
             name="from"
+            autoComplete="off"
             value={filters.from}
             onChange={(e) => changeDate("from", e.target.value)}
             className={`${INPUT_CLASS} h-[34px]`}
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
-          Đến ngày
+          {t("atx.to")}
           <input
             type="date"
             name="to"
+            autoComplete="off"
             value={filters.to}
             onChange={(e) => changeDate("to", e.target.value)}
             className={`${INPUT_CLASS} h-[34px]`}
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
-          Trạng thái
+          {t("atx.filterStatus")}
           <select
             name="outcome"
+            autoComplete="off"
             value={filters.outcome}
             onChange={(e) => changeFilter("outcome", e.target.value)}
             className={`${INPUT_CLASS} h-[34px]`}
           >
-            <option value="">Tất cả</option>
+            <option value="">{t("atx.all")}</option>
             {OUTCOMES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+              <option key={option} value={option}>
+                {t(`atx.outcome.${option}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
-          Gói
+          {t("atx.filterPlan")}
           <select
             name="planId"
+            autoComplete="off"
             value={filters.planId}
             onChange={(e) => changeFilter("planId", e.target.value)}
             className={`${INPUT_CLASS} h-[34px]`}
           >
-            <option value="">Tất cả</option>
+            <option value="">{t("atx.all")}</option>
             {plans.map((plan) => (
               <option key={plan.id} value={plan.id}>
                 {plan.name}
@@ -594,7 +609,7 @@ function AdminTransactionsContent() {
             variant="ghost"
             onClick={() => updateParams({ ...EMPTY_FILTERS, cursor: null, open: null })}
           >
-            Xoá bộ lọc
+            {t("atx.clearFilters")}
           </Button>
         )}
       </form>
@@ -603,14 +618,13 @@ function AdminTransactionsContent() {
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-card bg-warning-muted px-3 py-2 text-xs text-warning-foreground">
           <AlertTriangle aria-hidden="true" className="h-4 w-4" />
           <span>
-            Đang lọc các giao dịch thất bại. Xem danh sách sự cố thanh toán để xử lý
-            các đơn chưa được kích hoạt.
+            {t("atx.failedHint")}
           </span>
           <Link
             href="/admin/payment-issues"
             className="font-semibold underline underline-offset-2"
           >
-            Mở trang sự cố thanh toán
+            {t("atx.openIssues")}
           </Link>
         </div>
       )}
@@ -620,12 +634,12 @@ function AdminTransactionsContent() {
           role="alert"
           className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-card bg-danger-muted px-3 py-2 text-xs text-danger"
         >
-          <span>{error}</span>
+          <span>{renderError(error)}</span>
           <Button
             variant="secondary"
             onClick={() => updateParams({ cursor: null, open: null })}
           >
-            Thử lại
+            {t("bill.retry")}
           </Button>
         </div>
       )}
@@ -634,7 +648,7 @@ function AdminTransactionsContent() {
 
       {!summary && !error && loading && (
         <p role="status" className="px-4 py-8 text-center text-[13px] text-muted">
-          Đang tải…
+          {t("bill.loading")}
         </p>
       )}
 
@@ -642,14 +656,10 @@ function AdminTransactionsContent() {
         <EmptyState
           icon={Receipt}
           title={
-            hasFilters
-              ? "Không có giao dịch nào khớp bộ lọc"
-              : "Chưa có giao dịch nào"
+            hasFilters ? t("atx.emptyFiltered") : t("atx.empty")
           }
           description={
-            hasFilters
-              ? "Hãy nới bộ lọc (khoảng ngày, trạng thái hoặc gói) để xem thêm kết quả."
-              : "Khi có người dùng đăng ký gói trả phí, giao dịch sẽ xuất hiện tại đây."
+            hasFilters ? t("atx.emptyFilteredBody") : t("atx.emptyBody")
           }
           action={
             hasFilters ? (
@@ -657,7 +667,7 @@ function AdminTransactionsContent() {
                 variant="secondary"
                 onClick={() => updateParams({ ...EMPTY_FILTERS, cursor: null, open: null })}
               >
-                Xoá bộ lọc
+                {t("atx.clearFilters")}
               </Button>
             ) : undefined
           }
@@ -667,11 +677,11 @@ function AdminTransactionsContent() {
       {items.length > 0 && (
         <RowList cols={COLS}>
           <RowHeader>
-            <span>Mã giao dịch</span>
-            <span>Khách hàng</span>
-            <span>Gói</span>
-            <span>Loại / Số tiền</span>
-            <span>Trạng thái</span>
+            <span>{t("atx.colId")}</span>
+            <span>{t("atx.colCustomer")}</span>
+            <span>{t("atx.colPlan")}</span>
+            <span>{t("atx.colKindAmount")}</span>
+            <span>{t("atx.colStatus")}</span>
             <span />
           </RowHeader>
 
@@ -687,19 +697,19 @@ function AdminTransactionsContent() {
                 name={item.providerRef ?? item.id}
                 meta={
                   <span className="font-mono">
-                    {item.orderCode === null ? item.id : `Đơn ${item.orderCode}`}
+                    {item.orderCode === null ? item.id : t("atx.order", { code: item.orderCode })}
                   </span>
                 }
               />
               <CustomerCell item={item} />
               <span className="truncate text-[13px]">{item.plan?.name ?? "—"}</span>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-xs text-muted">{KIND_LABELS[item.kind] ?? item.kind}</span>
+                <span className="text-xs text-muted">{adminKindLabel(item.kind, t)}</span>
                 <span className="font-mono text-[13px] tabular-nums">
                   {formatVnd(item.amountVnd)}
                 </span>
               </div>
-              <span>{outcomeBadge(item.outcome)}</span>
+              <span>{outcomeBadge(item.outcome, t)}</span>
               <RowTime>{formatDateTime(item.createdAt)}</RowTime>
             </RowItem>
           ))}
@@ -720,15 +730,14 @@ function AdminTransactionsContent() {
             ) : (
               <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
             )}
-            Tải thêm
+            {t("atx.loadMore")}
           </Button>
         </div>
       )}
 
       {exporting && exportCount !== null && (
         <p role="status" className="mt-2 text-center text-xs text-muted">
-          Đang gom dữ liệu: {exportCount.toLocaleString(appLocale())} /{" "}
-          {CSV_MAX_ROWS.toLocaleString(appLocale())} dòng
+          {t("atx.gathering", { n: exportCount.toLocaleString(locale), max: CSV_MAX_ROWS.toLocaleString(locale) })}
         </p>
       )}
 
@@ -737,15 +746,18 @@ function AdminTransactionsContent() {
   );
 }
 
+function TransactionsFallback() {
+  const { t } = useI18n();
+  return (
+    <p role="status" className="px-4 py-8 text-center text-[13px] text-muted">
+      {t("bill.loading")}
+    </p>
+  );
+}
+
 export default function AdminTransactionsPage() {
   return (
-    <Suspense
-      fallback={
-        <p role="status" className="px-4 py-8 text-center text-[13px] text-muted">
-          Đang tải…
-        </p>
-      }
-    >
+    <Suspense fallback={<TransactionsFallback />}>
       <AdminTransactionsContent />
     </Suspense>
   );
