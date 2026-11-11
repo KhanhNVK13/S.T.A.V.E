@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Param,
   ParseUUIDPipe,
   Post,
@@ -13,6 +14,7 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
+import { EMAIL_SENDER, type EmailSender } from './email-sender';
 import { NotificationInboxService } from './notification-inbox.service';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { SetPreferenceDto } from './dto/set-preference.dto';
@@ -20,7 +22,15 @@ import { SetPreferenceDto } from './dto/set-preference.dto';
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly inbox: NotificationInboxService) {}
+  constructor(
+    private readonly inbox: NotificationInboxService,
+    @Inject(EMAIL_SENDER) private readonly email: EmailSender,
+  ) {}
+
+  @Get('email-status')
+  emailStatus() {
+    return { ready: this.email.enabled };
+  }
 
   @Get()
   list(

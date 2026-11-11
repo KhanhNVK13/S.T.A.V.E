@@ -65,6 +65,7 @@ beforeEach(() => {
   vi.mocked(getRemovalContext).mockResolvedValue({
     forkCount: 2,
     sounds: [{ id: SOUND, name: "Kick" }],
+    truncated: false,
     retentionDays: 30,
   });
 });

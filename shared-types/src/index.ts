@@ -101,6 +101,7 @@ export interface PublicProjectCard {
   name: string;
   description: string | null;
   genre: string | null;
+  license?: "CC-BY" | "CC-BY-SA" | "CC-BY-NC" | null;
   visibility: "public";
   archived_at: string | null;
   created_at: string;
@@ -742,6 +743,7 @@ export const MODERATION_DEFAULT_RETENTION_DAYS = 30;
 export interface ReportRemovalContext {
   forkCount: number;
   sounds: { id: string; name: string }[];
+  truncated: boolean;
   retentionDays: number;
 }
 

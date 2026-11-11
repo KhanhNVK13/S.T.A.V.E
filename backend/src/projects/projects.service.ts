@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -11,7 +12,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
-import type { BranchRow, ProjectRow } from './project-row.type';
+import { normalizeTags } from './project-tags';
+import type { BranchRow, ProjectLicense, ProjectRow } from './project-row.type';
 import { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 import { ProjectAccessService } from '../project-access/project-access.service';
 import { ActiveBranchService } from '../active-branch/active-branch.service';
@@ -178,11 +180,13 @@ export class ProjectsService {
       name: string;
       description: string;
       genre: string;
+      license: ProjectLicense;
     }> = {};
 
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.description !== undefined) updates.description = dto.description;
     if (dto.genre !== undefined) updates.genre = dto.genre;
+    if (dto.license !== undefined) updates.license = dto.license;
 
     const { data, error } = await this.supabase
       .from('projects')
@@ -198,6 +202,44 @@ export class ProjectsService {
       throw new InternalServerErrorException('Could not update project');
     }
     return data;
+  }
+
+  async getTags(projectId: string, ownerId: string): Promise<string[]> {
+    await this.getOwned(projectId, ownerId);
+    const { data, error } = await this.supabase
+      .from('project_tags')
+      .select('tag:tag_id (name)')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+    if (error) {
+      throw new InternalServerErrorException('Could not load project tags');
+    }
+    const names: string[] = [];
+    for (const row of (data ?? []) as unknown as Array<{
+      tag: { name: string } | { name: string }[] | null;
+    }>) {
+      const tags = Array.isArray(row.tag) ? row.tag : row.tag ? [row.tag] : [];
+      for (const tag of tags) names.push(tag.name);
+    }
+    return names;
+  }
+
+  async setTags(
+    projectId: string,
+    ownerId: string,
+    tags: string[],
+  ): Promise<string[]> {
+    const names = normalizeTags(tags);
+    const project = await this.getOwned(projectId, ownerId);
+    this.assertNotArchived(project);
+    const { data, error } = await this.supabase.rpc('set_project_tags', {
+      p_project_id: projectId,
+      p_names: names,
+    });
+    if (error) {
+      throw new InternalServerErrorException('Could not update project tags');
+    }
+    return (data as string[] | null) ?? names;
   }
 
   private assertNotArchived(project: ProjectRow): void {
@@ -233,11 +275,21 @@ export class ProjectsService {
     projectId: string,
     ownerId: string,
     visibility: 'public' | 'private',
+    license?: ProjectLicense,
   ): Promise<ProjectRow> {
     return this.updateOwnedProject(
       projectId,
       ownerId,
-      { visibility },
+      (project) => {
+        if (visibility === 'private') return { visibility };
+        const chosen = license ?? project.license;
+        if (!chosen) {
+          throw new BadRequestException(
+            'Choose a license before making the project public',
+          );
+        }
+        return { visibility, license: chosen };
+      },
       'Could not update project visibility',
       { rejectArchived: true },
     );
@@ -291,7 +343,9 @@ export class ProjectsService {
   private async updateOwnedProject(
     projectId: string,
     ownerId: string,
-    patch: Record<string, unknown>,
+    patch:
+      | Record<string, unknown>
+      | ((project: ProjectRow) => Record<string, unknown>),
     errorMessage: string,
     options: { rejectArchived?: boolean } = {},
   ): Promise<ProjectRow> {
@@ -300,7 +354,10 @@ export class ProjectsService {
 
     const { data, error } = await this.supabase
       .from('projects')
-      .update({ ...patch, updated_at: new Date().toISOString() })
+      .update({
+        ...(typeof patch === 'function' ? patch(project) : patch),
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', projectId)
       .select('*')
       .single<ProjectRow>();

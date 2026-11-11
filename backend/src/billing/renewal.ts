@@ -7,6 +7,10 @@ export interface RenewalPricePlan {
   price_effective_at: string | null;
 }
 
+export interface CurrentPricePlan extends RenewalPricePlan {
+  previous_price_vnd?: number | null;
+}
+
 export interface RenewalPriceSubscription {
   price_locked_vnd: number;
 }
@@ -32,6 +36,21 @@ export function computeRenewalPrice(
     return plan.price_vnd;
   }
   return subscription.price_locked_vnd;
+}
+
+export function currentPlanPrice(plan: CurrentPricePlan, now: Date): number {
+  const effectiveAt = plan.price_effective_at
+    ? new Date(plan.price_effective_at)
+    : null;
+  if (
+    effectiveAt &&
+    effectiveAt.getTime() > now.getTime() &&
+    plan.previous_price_vnd !== null &&
+    plan.previous_price_vnd !== undefined
+  ) {
+    return plan.previous_price_vnd;
+  }
+  return plan.price_vnd;
 }
 
 /** Cộng 1 tháng theo lịch, kẹp ngày (31/01 + 1 tháng = 28 hoặc 29/02). */

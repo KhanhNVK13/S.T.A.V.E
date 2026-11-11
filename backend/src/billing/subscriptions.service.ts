@@ -31,9 +31,9 @@ export class SubscriptionsService {
     const { resolved } = await this.loadState(userId, now);
     return {
       ...resolved,
-      plan: toSubscriptionPlan(resolved.plan),
+      plan: toSubscriptionPlan(resolved.plan, now),
       pendingPlan: resolved.pendingPlan
-        ? toSubscriptionPlan(resolved.pendingPlan)
+        ? toSubscriptionPlan(resolved.pendingPlan, now)
         : null,
     };
   }
@@ -43,7 +43,7 @@ export class SubscriptionsService {
     now: Date = new Date(),
   ): Promise<PlanListItem[]> {
     const { plans, resolved } = await this.loadState(userId, now);
-    return listVisiblePlans(plans, resolved.plan.id);
+    return listVisiblePlans(plans, resolved.plan.id, now);
   }
 
   /** Dòng đăng ký thô — cần cho việc tính giá gia hạn (giá đang khoá). */

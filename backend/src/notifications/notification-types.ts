@@ -1,3 +1,5 @@
+import { ENGLISH_DEFAULTS } from './notification-types.en';
+
 export interface NotificationTypeDefinition {
   type: string;
   category: string;
@@ -5,6 +7,8 @@ export interface NotificationTypeDefinition {
   placeholders: string[];
   defaultSubject: string;
   defaultBody: string;
+  defaultSubjectEn: string;
+  defaultBodyEn: string;
 }
 
 const COLLABORATION = 'Cộng tác';
@@ -30,6 +34,8 @@ function define(
     placeholders,
     defaultSubject,
     defaultBody,
+    defaultSubjectEn: ENGLISH_DEFAULTS[type]?.subject ?? defaultSubject,
+    defaultBodyEn: ENGLISH_DEFAULTS[type]?.body ?? defaultBody,
   };
 }
 

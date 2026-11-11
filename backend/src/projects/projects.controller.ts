@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { SetProjectTagsDto } from './dto/set-project-tags.dto';
 import { UpdateProjectVisibilityDto } from './dto/update-project-visibility.dto';
 
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
@@ -47,6 +49,22 @@ export class ProjectsController {
     @Body() dto: UpdateProjectDto,
   ) {
     return this.projectsService.updateOwned(id, req.user.id, dto);
+  }
+
+  @Get(':id/tags')
+  getTags(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.projectsService.getTags(id, req.user.id);
+  }
+
+  @Put(':id/tags')
+  async setTags(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: SetProjectTagsDto,
+  ) {
+    return {
+      tags: await this.projectsService.setTags(id, req.user.id, dto.tags),
+    };
   }
 
   /** UC-20: archive project. */
@@ -81,6 +99,11 @@ export class ProjectsController {
     @Param('id') id: string,
     @Body() dto: UpdateProjectVisibilityDto,
   ) {
-    return this.projectsService.setVisibility(id, req.user.id, dto.visibility);
+    return this.projectsService.setVisibility(
+      id,
+      req.user.id,
+      dto.visibility,
+      dto.license,
+    );
   }
 }

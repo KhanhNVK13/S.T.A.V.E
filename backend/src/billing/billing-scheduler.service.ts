@@ -21,6 +21,7 @@ import {
   GRACE_DAYS,
   REMINDER_LEAD_DAYS,
   addDays,
+  currentPlanPrice,
   currentReminderMilestone,
 } from './renewal';
 
@@ -227,7 +228,7 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
         ? { pending_plan_id: null }
         : {
             plan_id: target.id,
-            price_locked_vnd: target.price_vnd,
+            price_locked_vnd: currentPlanPrice(target, now),
             pending_plan_id: null,
           };
       const { data: updated, error: updateError } = await this.supabase

@@ -125,3 +125,17 @@ describe('BE-USR-06 UpdateProfileDto.validate(dto)', () => {
     ]);
   });
 });
+
+describe('UpdateProfileDto language', () => {
+  it('accepts en and vi', async () => {
+    await expect(profileErrors({ language: 'en' })).resolves.toHaveLength(0);
+    await expect(profileErrors({ language: 'vi' })).resolves.toHaveLength(0);
+  });
+
+  it('rejects any other language', async () => {
+    await expect(profileErrors({ language: 'fr' })).resolves.not.toHaveLength(
+      0,
+    );
+    await expect(profileErrors({ language: '' })).resolves.not.toHaveLength(0);
+  });
+});

@@ -115,4 +115,35 @@ describe("ThemePresets", () => {
     render(<ThemePresets />);
     expect(screen.queryByRole("button", { name: REUSE })).toBeNull();
   });
+
+  it("TPC-11: only the selected preset is in the tab order", () => {
+    currentTheme = theme({ type: "preset", presetKey: "tide" });
+    render(<ThemePresets />);
+    const radios = screen.getAllByRole("radio");
+    const tabbable = radios.filter((r) => r.getAttribute("tabindex") === "0");
+    expect(tabbable).toHaveLength(1);
+    expect(tabbable[0]).toBe(screen.getByTestId("theme-preset-tide"));
+  });
+
+  it("TPC-12: arrow keys move focus and choose the next preset, with wrap-around", async () => {
+    currentTheme = theme({ type: "preset", presetKey: "tide" });
+    render(<ThemePresets />);
+    const radios = screen.getAllByRole("radio");
+    const tide = screen.getByTestId("theme-preset-tide");
+    tide.focus();
+    fireEvent.keyDown(tide, { key: "ArrowRight" });
+    const expected = radios[(radios.indexOf(tide) + 1) % radios.length];
+    expect(document.activeElement).toBe(expected);
+    await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalledTimes(1));
+  });
+
+  it("TPC-13: Home and End jump to the first and last preset", async () => {
+    render(<ThemePresets />);
+    const radios = screen.getAllByRole("radio");
+    fireEvent.keyDown(radios[0], { key: "End" });
+    expect(document.activeElement).toBe(radios[radios.length - 1]);
+    await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalled());
+    fireEvent.keyDown(radios[1], { key: "Home" });
+    expect(document.activeElement).toBe(radios[0]);
+  });
 });

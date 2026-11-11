@@ -2,6 +2,10 @@ import { ApiError } from "./api-client";
 import { getLang, tNow, type Lang, type TKey, type Vars } from "./i18n";
 
 const API_MESSAGES: Record<string, Record<Lang, string>> = {
+  "Choose a license before making the project public": { en: "Choose a license before making the project public.", vi: "Hãy chọn giấy phép trước khi công khai dự án." },
+  "Tags may only contain letters, numbers, hyphens and spaces": { en: "Tags may only contain letters, numbers, hyphens and spaces.", vi: "Thẻ chỉ gồm chữ, số, dấu gạch ngang và khoảng trắng." },
+  "A project can have at most 5 tags": { en: "A project can have at most 5 tags.", vi: "Một dự án có tối đa 5 thẻ." },
+  "Pick two different versions to compare": { en: "Pick two different versions to compare.", vi: "Hãy chọn hai phiên bản khác nhau để so sánh." },
   "Project not found": { en: "Project not found. It may have been deleted, or you may not have permission to view it.", vi: "Không tìm thấy dự án. Có thể dự án đã bị xoá hoặc bạn không có quyền xem." },
   "Branch not found": { en: "Branch not found. It may have just been deleted — reload the page.", vi: "Không tìm thấy nhánh. Có thể nhánh vừa bị xoá — hãy tải lại trang." },
   "Commit not found": { en: "Version not found. Reload the page.", vi: "Không tìm thấy phiên bản này. Hãy tải lại trang." },

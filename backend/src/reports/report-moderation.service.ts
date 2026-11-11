@@ -59,7 +59,12 @@ interface RestoreRow {
 }
 
 const SOUND_INDEX_PAGE_SIZE = 500;
-const SOUND_INDEX_MAX_PAGES = 200;
+export const SOUND_INDEX_MAX_PAGES = 200;
+
+interface CollectedSoundIds {
+  ids: string[];
+  truncated: boolean;
+}
 
 @Injectable()
 export class ReportModerationService {
@@ -121,7 +126,7 @@ export class ReportModerationService {
       throw new InternalServerErrorException('Could not load removal details');
     }
 
-    const soundIds = await this.collectSoundIds(projectId);
+    const { ids: soundIds, truncated } = await this.collectSoundIds(projectId);
     let sounds: { id: string; name: string }[] = [];
     if (soundIds.length > 0) {
       const { data, error: soundError } = await this.supabase
@@ -142,6 +147,7 @@ export class ReportModerationService {
     return {
       forkCount: count ?? 0,
       sounds,
+      truncated,
       retentionDays: await this.getRetentionDays(),
     };
   }
@@ -348,7 +354,7 @@ export class ReportModerationService {
     }
   }
 
-  private async collectSoundIds(projectId: string): Promise<string[]> {
+  private async collectSoundIds(projectId: string): Promise<CollectedSoundIds> {
     const { data: branches, error: branchError } = await this.supabase
       .from('branches')
       .select('id, head_commit_id')
@@ -395,11 +401,14 @@ export class ReportModerationService {
     const ids = new Set(
       snapshots.flatMap((snapshot) => extractSoundIds(snapshot)),
     );
-    for (const id of await this.collectIndexedSoundIds(projectId)) ids.add(id);
-    return [...ids];
+    const indexed = await this.collectIndexedSoundIds(projectId);
+    for (const id of indexed.ids) ids.add(id);
+    return { ids: [...ids], truncated: indexed.truncated };
   }
 
-  private async collectIndexedSoundIds(projectId: string): Promise<string[]> {
+  private async collectIndexedSoundIds(
+    projectId: string,
+  ): Promise<CollectedSoundIds> {
     const ids = new Set<string>();
     let after: string | null = null;
     for (let page = 0; page < SOUND_INDEX_MAX_PAGES; page += 1) {
@@ -421,12 +430,14 @@ export class ReportModerationService {
       for (const row of rows) {
         if (row.o_custom_sound_id) ids.add(row.o_custom_sound_id);
       }
-      if (rows.length < SOUND_INDEX_PAGE_SIZE) return [...ids];
+      if (rows.length < SOUND_INDEX_PAGE_SIZE) {
+        return { ids: [...ids], truncated: false };
+      }
       after = rows[rows.length - 1].o_id;
     }
-    this.logger.error(
-      `Sound index of project ${projectId} exceeds ${SOUND_INDEX_MAX_PAGES} pages`,
+    this.logger.warn(
+      `Sound index of project ${projectId} exceeds ${SOUND_INDEX_MAX_PAGES} pages, returning a partial list`,
     );
-    throw new InternalServerErrorException('Could not load removal details');
+    return { ids: [...ids], truncated: true };
   }
 }

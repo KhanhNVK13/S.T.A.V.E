@@ -393,3 +393,23 @@ describe('BE-PRJ-05 UpdateProjectDto.validate(dto)', () => {
     );
   });
 });
+
+describe('license validation', () => {
+  it('accepts the three Creative Commons licenses and rejects others', async () => {
+    for (const license of ['CC-BY', 'CC-BY-SA', 'CC-BY-NC']) {
+      expect(
+        await validate(plainToInstance(UpdateProjectDto, { license })),
+      ).toHaveLength(0);
+      expect(
+        await validateVisibility({ visibility: 'public', license }),
+      ).toHaveLength(0);
+    }
+    expect(
+      await validate(plainToInstance(UpdateProjectDto, { license: 'MIT' })),
+    ).not.toHaveLength(0);
+    expect(
+      await validateVisibility({ visibility: 'public', license: 'GPL' }),
+    ).not.toHaveLength(0);
+    expect(await validateVisibility({ visibility: 'public' })).toHaveLength(0);
+  });
+});

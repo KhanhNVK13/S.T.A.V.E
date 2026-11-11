@@ -7,7 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createSupabaseMock } from '../test-utils/supabase-mock';
-import { ReportModerationService } from './report-moderation.service';
+import {
+  ReportModerationService,
+  SOUND_INDEX_MAX_PAGES,
+} from './report-moderation.service';
 import type { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import type { PlatformSettingsService } from '../platform-settings/platform-settings.service';
@@ -432,6 +435,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     await expect(service.getRemovalContext(PROJECT)).resolves.toEqual({
       forkCount: 3,
       sounds: [{ id: SOUND, name: 'Kick' }],
+      truncated: false,
       retentionDays: 30,
     });
   });
@@ -571,6 +575,50 @@ describe('ReportModerationService.getRemovalContext', () => {
     );
     expect(calls).toHaveLength(2);
     expect(calls[1][1]).toMatchObject({ p_after: 'id-499' });
+  });
+
+  it('chạm trần số trang thì trả danh sách đã gom kèm truncated: true, không ném lỗi', async () => {
+    const { service, mock } = build({}, contextTables());
+    mock.rpc.mockImplementation((name: string) => {
+      if (name !== 'sound_mappings_page') {
+        return Promise.resolve({ data: [], error: null });
+      }
+      return Promise.resolve({
+        data: Array.from({ length: 500 }, (_, i) => ({
+          o_id: `id-${i}`,
+          o_custom_sound_id: SOUND,
+        })),
+        error: null,
+      });
+    });
+    const context = await service.getRemovalContext(PROJECT);
+    expect(context.truncated).toBe(true);
+    expect(context.sounds).toEqual([{ id: SOUND, name: 'Kick' }]);
+    const calls = mock.rpc.mock.calls.filter(
+      (call: unknown[]) => call[0] === 'sound_mappings_page',
+    );
+    expect(calls).toHaveLength(SOUND_INDEX_MAX_PAGES);
+  });
+
+  it('lỗi RPC giữa chừng sau nhiều trang vẫn là 500, không biến thành kết quả một phần', async () => {
+    const { service, mock } = build({}, contextTables());
+    let calls = 0;
+    mock.rpc.mockImplementation(() => {
+      calls += 1;
+      if (calls < 3) {
+        return Promise.resolve({
+          data: Array.from({ length: 500 }, (_, i) => ({
+            o_id: `id-${calls}-${i}`,
+            o_custom_sound_id: SOUND,
+          })),
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: null, error: { message: 'boom' } });
+    });
+    await expect(service.getRemovalContext(PROJECT)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
   });
 
   it('lỗi RPC chỉ mục sound thì 500, không coi là không có sound', async () => {

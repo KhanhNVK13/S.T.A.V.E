@@ -3,7 +3,7 @@ import { PLAN_FEATURES } from '@stave/shared-types';
 export const PLAN_FEATURE_KEYS: string[] = PLAN_FEATURES.map(({ key }) => key);
 
 export const ADMIN_PLAN_COLUMNS =
-  'id,name,description,price_vnd,features,is_active,is_default,sort_order,price_effective_at';
+  'id,name,description,price_vnd,features,is_active,is_default,sort_order,price_effective_at,previous_price_vnd';
 
 export interface AdminPlanRow {
   id: string;
@@ -15,6 +15,7 @@ export interface AdminPlanRow {
   is_default: boolean;
   sort_order: number;
   price_effective_at: string | null;
+  previous_price_vnd?: number | null;
 }
 
 export interface AdminPlanSubscription {

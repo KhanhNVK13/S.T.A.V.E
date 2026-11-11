@@ -220,9 +220,7 @@ export class JamService {
   /** 5s status + flush sweep (BR-75). */
   private sweepTimer?: NodeJS.Timeout;
 
-  /** `${eventId}:${type}` already announced by this process. */
-  private readonly announced = new Set<string>();
-
+  static readonly NOTIFY_BATCH_SIZE = 20;
   static readonly MAX_NOTIFIED_USERS = 500;
   static readonly PAST_EVENTS_FOR_START_NOTICE = 3;
 
@@ -1058,40 +1056,59 @@ export class JamService {
     }
   }
 
-  /**
-   * Audience: `jam.ended` goes to the event's own participants;
-   * `jam.started` goes to participants of the last few ended events (people
-   * who already showed interest), capped, never the whole user base.
-   * Best-effort and sent at most once per event and kind in this process.
-   */
   private async announce(
     row: JamEventRow,
     type: 'jam.started' | 'jam.ended',
   ): Promise<void> {
     if (!this.notifications) return;
-    const key = `${row.id}:${type}`;
-    if (this.announced.has(key)) return;
-    this.announced.add(key);
     try {
       const userIds =
         type === 'jam.ended'
           ? await this.participantIds([row.id])
           : await this.pastParticipantIds(row.id);
-      for (const userId of userIds) {
-        try {
-          await this.notifications.notify(userId, type, {
-            eventName: row.name,
-            eventId: row.id,
-          });
-        } catch (err) {
-          JamService.logger.error(
-            `Could not send ${type} notification: ${String(err)}`,
-          );
-        }
+      if (!(await this.claimAnnouncement(row.id, type))) return;
+      for (let i = 0; i < userIds.length; i += JamService.NOTIFY_BATCH_SIZE) {
+        await Promise.all(
+          userIds
+            .slice(i, i + JamService.NOTIFY_BATCH_SIZE)
+            .map(async (userId) => {
+              try {
+                await this.notifications?.notify(userId, type, {
+                  eventName: row.name,
+                  eventId: row.id,
+                });
+              } catch (err) {
+                JamService.logger.error(
+                  `Could not send ${type} notification: ${String(err)}`,
+                );
+              }
+            }),
+        );
       }
     } catch (err) {
       JamService.logger.error(`Could not announce ${type}: ${String(err)}`);
     }
+  }
+
+  private async claimAnnouncement(
+    eventId: string,
+    type: 'jam.started' | 'jam.ended',
+  ): Promise<boolean> {
+    const column =
+      type === 'jam.started' ? 'started_announced_at' : 'ended_announced_at';
+    const { data, error } = await this.supabase
+      .from('jam_events')
+      .update({ [column]: new Date().toISOString() })
+      .eq('id', eventId)
+      .is(column, null)
+      .select('id');
+    if (error) {
+      JamService.logger.error(
+        `Could not mark ${type} as announced: ${error.message}`,
+      );
+      return false;
+    }
+    return (data?.length ?? 0) > 0;
   }
 
   private async participantIds(eventIds: string[]): Promise<string[]> {

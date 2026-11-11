@@ -27,8 +27,11 @@ describe('BE-AUTH-01 AuthService.verifyPassword(email, password)', () => {
     global.fetch = originalFetch;
   });
 
-  const makeConfig = (missingKey?: string) =>
+  const makeConfig = (missingKey?: string, anonKey?: string) =>
     ({
+      get: jest.fn((key: string) =>
+        key === 'SUPABASE_ANON_KEY' ? anonKey : undefined,
+      ),
       getOrThrow: jest.fn((key: string) => {
         if (key === missingKey) {
           throw new TypeError(`Configuration key "${key}" does not exist`);
@@ -39,11 +42,11 @@ describe('BE-AUTH-01 AuthService.verifyPassword(email, password)', () => {
       }),
     }) as unknown as ConfigService;
 
-  const makeService = (missingKey?: string) => {
+  const makeService = (missingKey?: string, anonKey?: string) => {
     const { client } = createSupabaseMock();
     return new AuthService(
       client,
-      makeConfig(missingKey),
+      makeConfig(missingKey, anonKey),
       {} as AccountRemovalService,
     );
   };
@@ -180,6 +183,7 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
 
   const makeConfig = (missingKey?: string) =>
     ({
+      get: jest.fn(() => undefined),
       getOrThrow: jest.fn((key: string) => {
         if (key === missingKey) {
           throw new TypeError(`Configuration key "${key}" does not exist`);

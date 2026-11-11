@@ -13,7 +13,7 @@
  */
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BarChart3,
@@ -68,6 +68,8 @@ import { Modal } from "./modal";
 import { ExportDialog } from "../export-dialog";
 import { CollaboratorsDialog } from "../../collaboration/collaborators-dialog";
 import { CommentsPanel } from "../../collaboration/comments-panel";
+import { useProjectComments } from "../../../lib/use-project-comments";
+import { buildCommentPins } from "../../../lib/comment-pins";
 import { PresenceAvatars } from "../../collaboration/presence-avatars";
 import { useAuth } from "../../../context/auth-context";
 import { AudioSketchPanel } from "../../audio-sketch/audio-sketch-panel";
@@ -284,6 +286,16 @@ export function EditorRedesign(props: EditorRedesignProps) {
   // UC-63: panel "Bình luận ghim" mép phải — chỉ gắn 1 nút toggle, không
   // đụng logic soạn nhạc hiện có.
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const projectComments = useProjectComments(projectId);
+  const commentPins = useMemo(
+    () => buildCommentPins(projectComments.items, ppq, timeSignature),
+    [projectComments.items, ppq, timeSignature],
+  );
+  const [commentFocus, setCommentFocus] = useState<{
+    bar: number | null;
+    noteId?: string;
+    nonce: number;
+  } | null>(null);
   // UC-64: stack avatar người đang cùng mở project (chỉ thêm 1 component).
   const { user: currentUser } = useAuth();
   const [tipVisible, setTipVisible] = useState(() => {
@@ -1092,6 +1104,11 @@ export function EditorRedesign(props: EditorRedesignProps) {
             onSeek={onSeek}
             onNotify={onNotify}
             onScrollXChange={setRollScrollX}
+            commentPins={commentPins}
+            onCommentPinClick={(target) => {
+              setCommentsOpen(true);
+              setCommentFocus((prev) => ({ ...target, nonce: (prev?.nonce ?? 0) + 1 }));
+            }}
           />
           {velocityLaneOpen && (
             <VelocityLane
@@ -1208,6 +1225,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
           tracks={tracks}
           notes={notes}
           selectedNoteIds={selectedNoteIds}
+          playheadTick={playheadTick}
+          comments={projectComments}
+          focusRequest={commentFocus}
           onSeek={onSeek}
           onClose={() => setCommentsOpen(false)}
         />

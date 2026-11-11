@@ -15,4 +15,5 @@ export interface UserRow {
   status: UserStatus;
   active_theme_id: string | null;
   role: UserRole;
+  language?: 'en' | 'vi';
 }

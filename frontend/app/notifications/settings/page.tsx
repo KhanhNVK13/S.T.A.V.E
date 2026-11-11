@@ -7,7 +7,7 @@ import { PageHeader } from "../../../components/ui/page-header";
 import { Button } from "../../../components/ui/button";
 import { Switch } from "../../../components/ui/switch";
 import { Toast } from "../../../components/ui/toast";
-import { getNotificationPreferences, setNotificationPreference } from "../../../lib/api-client";
+import { getEmailChannelStatus, getNotificationPreferences, setNotificationPreference } from "../../../lib/api-client";
 import type { NotificationChannel, NotificationPreference } from "../../../lib/api-client";
 import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { useI18n } from "../../../context/i18n-context";
@@ -62,6 +62,7 @@ function SettingsView() {
   const typeLabel = (preference: NotificationPreference) =>
     TYPE_KEYS[preference.type] ? t(TYPE_KEYS[preference.type]) : preference.label;
   const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
+  const [emailReady, setEmailReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ErrorSource | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
@@ -72,7 +73,12 @@ function SettingsView() {
     setLoading(true);
     setError(null);
     try {
-      setPreferences(await getNotificationPreferences());
+      const [list, status] = await Promise.all([
+        getNotificationPreferences(),
+        getEmailChannelStatus().catch(() => ({ ready: false })),
+      ]);
+      setPreferences(list);
+      setEmailReady(status.ready);
     } catch (err) {
       setError(errorSource(err, "nts.loadFail"));
     } finally {
@@ -154,7 +160,7 @@ function SettingsView() {
                   <div className="hidden items-center gap-4 border-b border-border bg-surface-subtle px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-muted sm:flex">
                     <span className="flex-1">{t("nts.colType")}</span>
                     <span className="w-24 text-center">{t("nts.colInApp")}</span>
-                    <span className="w-32 text-center">{t("nts.colEmail")}</span>
+                    <span className="w-32 text-center">{t("eml.colEmail")}</span>
                   </div>
                   {rows.map((preference) => (
                     <div
@@ -172,11 +178,11 @@ function SettingsView() {
                         />
                       </span>
                       <span className="flex w-32 items-center justify-center gap-2">
-                        <span className="text-xs text-muted sm:hidden">{t("nts.colEmail")}</span>
+                        <span className="text-xs text-muted sm:hidden">{t("eml.colEmail")}</span>
                         <Switch
                           checked={preference.channels.email}
                           disabled={preference.mandatory}
-                          label={t("nts.emailLabel", { label: typeLabel(preference) })}
+                          label={t("eml.label", { label: typeLabel(preference) })}
                           onChange={(next) => void toggle(preference, "email", next)}
                         />
                       </span>
@@ -187,7 +193,7 @@ function SettingsView() {
             );
           })}
           <p className="text-xs text-muted">
-            {t("nts.placeholder")}
+            {emailReady ? t("eml.ready") : t("eml.off")}
           </p>
         </div>
       )}

@@ -159,6 +159,11 @@ export function RemoveProjectDialog({
             <li>{t("rpt.rmRetention", { days: context.data.retentionDays })}</li>
             {context.data.forkCount > 0 && <li>{t("rpt.rmForks", { n: context.data.forkCount })}</li>}
           </ul>
+          {context.data.truncated && (
+            <p role="status" className="text-xs text-warning-foreground">
+              {t("rpt.rmSoundsTruncated")}
+            </p>
+          )}
           <DialogError message={error} />
 
           <fieldset className="flex flex-col gap-2">
