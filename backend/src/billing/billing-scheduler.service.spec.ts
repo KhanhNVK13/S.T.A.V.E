@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import type { NotificationsService } from '../notifications/notifications.service';
 import {
   createSupabaseMock,
@@ -64,9 +63,13 @@ function makeService(
     getPaymentStatus: jest.fn().mockResolvedValue('pending'),
     ...gatewayOverrides,
   };
-  const payments = { completeOrder: jest.fn() } as unknown as PaymentsService;
+  const completeOrderMock = jest.fn();
+  const payments = {
+    completeOrder: completeOrderMock,
+  } as unknown as PaymentsService;
+  const notifyMock = jest.fn();
   const notifications = {
-    notify: jest.fn(),
+    notify: notifyMock,
   } as unknown as NotificationsService;
   const service = new BillingSchedulerService(
     mock.client,
@@ -75,7 +78,15 @@ function makeService(
     payments,
     notifications,
   );
-  return { service, mock, gateway, payments, notifications };
+  return {
+    service,
+    mock,
+    gateway,
+    payments,
+    notifications,
+    notifyMock,
+    completeOrderMock,
+  };
 }
 
 const originalEnv = { ...process.env };
@@ -162,14 +173,14 @@ describe('BE-BIL-39 BillingSchedulerService grace periods', () => {
   });
 
   it('UTCID02 does nothing when no plan is overdue', async () => {
-    const { service, mock, notifications } = makeService({
+    const { service, mock, notifyMock } = makeService({
       subscriptions: [ok([])],
     });
 
     await service.openGracePeriods(now);
 
     expect(mock.builders.subscriptions.update).not.toHaveBeenCalled();
-    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 
   it('UTCID03 fails the step when the read fails', async () => {
@@ -185,7 +196,7 @@ describe('BE-BIL-39 BillingSchedulerService grace periods', () => {
 
 describe('BE-BIL-40 BillingSchedulerService renewal reminders', () => {
   it('UTCID01 notifies when the three-day milestone is reached', async () => {
-    const { service, notifications } = makeService({
+    const { service, notifyMock } = makeService({
       subscriptions: [
         ok([
           subscriptionRow({
@@ -200,7 +211,7 @@ describe('BE-BIL-40 BillingSchedulerService renewal reminders', () => {
 
     await service.sendRenewalReminders(now);
 
-    expect(notifications.notify).toHaveBeenCalledWith(
+    expect(notifyMock).toHaveBeenCalledWith(
       userId,
       'billing.renewal_due',
       expect.objectContaining({ planName: 'STAVE+' }),
@@ -208,7 +219,7 @@ describe('BE-BIL-40 BillingSchedulerService renewal reminders', () => {
   });
 
   it('UTCID02 does not notify when the row was not updated', async () => {
-    const { service, notifications } = makeService({
+    const { service, notifyMock } = makeService({
       subscriptions: [
         ok([
           subscriptionRow({
@@ -223,11 +234,11 @@ describe('BE-BIL-40 BillingSchedulerService renewal reminders', () => {
 
     await service.sendRenewalReminders(now);
 
-    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 
   it('UTCID03 does not notify before any milestone', async () => {
-    const { service, notifications } = makeService({
+    const { service, notifyMock } = makeService({
       subscriptions: [
         ok([
           subscriptionRow({
@@ -241,13 +252,13 @@ describe('BE-BIL-40 BillingSchedulerService renewal reminders', () => {
 
     await service.sendRenewalReminders(now);
 
-    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 });
 
 describe('BE-BIL-41 BillingSchedulerService scheduled plan changes', () => {
   it('UTCID01 applies a downgrade to the free plan', async () => {
-    const { service, notifications } = makeService({
+    const { service, notifyMock } = makeService({
       subscriptions: [
         ok([subscriptionRow({ pending_plan_id: freeId })]),
         ok([{ id: 'sub-1' }]),
@@ -262,7 +273,7 @@ describe('BE-BIL-41 BillingSchedulerService scheduled plan changes', () => {
 
     await service.applyScheduledDowngrades(now);
 
-    expect(notifications.notify).toHaveBeenCalledWith(
+    expect(notifyMock).toHaveBeenCalledWith(
       userId,
       'billing.plan_changed',
       expect.objectContaining({ planName: 'Free' }),
@@ -270,19 +281,19 @@ describe('BE-BIL-41 BillingSchedulerService scheduled plan changes', () => {
   });
 
   it('UTCID02 does nothing when no plan change is scheduled', async () => {
-    const { service, notifications } = makeService({
+    const { service, notifyMock } = makeService({
       subscriptions: [ok([])],
     });
 
     await service.applyScheduledDowngrades(now);
 
-    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 });
 
 describe('BE-BIL-42 BillingSchedulerService stale pending orders', () => {
   it('UTCID01 marks a stale pending order as failed with the fake gateway', async () => {
-    const { service, payments, mock } = makeService(
+    const { service, completeOrderMock, mock } = makeService(
       {
         transactions: [ok([{ id: 'tx-1', order_code: 42 }]), ok(null)],
       },
@@ -291,14 +302,14 @@ describe('BE-BIL-42 BillingSchedulerService stale pending orders', () => {
 
     await service.failStalePendingOrders(now);
 
-    expect(payments.completeOrder).not.toHaveBeenCalled();
+    expect(completeOrderMock).not.toHaveBeenCalled();
     expect(mock.builders.transactions.update).toHaveBeenCalledWith({
       status: 'failed',
     });
   });
 
   it('UTCID02 completes the order when PayOS reports success', async () => {
-    const { service, payments } = makeService(
+    const { service, completeOrderMock } = makeService(
       {
         transactions: [ok([{ id: 'tx-1', order_code: 42 }])],
       },
@@ -308,11 +319,11 @@ describe('BE-BIL-42 BillingSchedulerService stale pending orders', () => {
 
     await service.failStalePendingOrders(now);
 
-    expect(payments.completeOrder).toHaveBeenCalledWith(42, true);
+    expect(completeOrderMock).toHaveBeenCalledWith(42, true);
   });
 
   it('UTCID03 skips the order when the provider is unreachable', async () => {
-    const { service, payments } = makeService(
+    const { service, completeOrderMock } = makeService(
       {
         transactions: [ok([{ id: 'tx-1', order_code: 42 }])],
       },
@@ -324,13 +335,13 @@ describe('BE-BIL-42 BillingSchedulerService stale pending orders', () => {
 
     await service.failStalePendingOrders(now);
 
-    expect(payments.completeOrder).not.toHaveBeenCalled();
+    expect(completeOrderMock).not.toHaveBeenCalled();
   });
 });
 
 describe('BE-BIL-43 BillingSchedulerService isolation', () => {
   it('UTCID01 keeps the other steps running when one step fails', async () => {
-    const { service, notifications } = makeService({
+    const { service, notifyMock } = makeService({
       subscriptions: [
         fail('subscriptions are down'),
         ok([
@@ -348,7 +359,7 @@ describe('BE-BIL-43 BillingSchedulerService isolation', () => {
 
     await service.sweep(now);
 
-    expect(notifications.notify).toHaveBeenCalledWith(
+    expect(notifyMock).toHaveBeenCalledWith(
       userId,
       'billing.renewal_due',
       expect.objectContaining({ planName: 'STAVE+' }),

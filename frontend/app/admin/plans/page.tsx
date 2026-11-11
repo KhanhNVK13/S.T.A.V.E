@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Package, Plus, X } from "lucide-react";
 import { PLAN_FEATURES, type PlanFeatureKey } from "@stave/shared-types";
 import {
@@ -12,6 +12,7 @@ import {
   type AdminPlanItem,
 } from "../../../lib/api-admin-plans";
 import { apiErrorMessage } from "../../../lib/error-message";
+import { useApiResource } from "../../../lib/use-api-resource";
 import { formatDateTime } from "../../../lib/format-date";
 import { formatVnd } from "../../../lib/format-vnd";
 import { PageHeader } from "../../../components/ui/page-header";
@@ -120,12 +121,10 @@ function PlanRow({
 }
 
 function CreatePlanDialog({
-  open,
   freePlan,
   onClose,
   onCreated,
 }: {
-  open: boolean;
   freePlan: AdminPlanItem | null;
   onClose: () => void;
   onCreated: (result: { warnings: string[] }) => void;
@@ -141,18 +140,6 @@ function CreatePlanDialog({
     () => featureOverlapWarnings(features, freePlan),
     [features, freePlan],
   );
-
-  useEffect(() => {
-    if (!open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- đặt lại biểu mẫu khi đóng hộp
-      setName("");
-      setPrice("");
-      setExtraStorage("0");
-      setFeatures(EMPTY_FEATURES);
-      setError(null);
-      setSaving(null);
-    }
-  }, [open]);
 
   function setFeature(key: PlanFeatureKey, value: boolean) {
     setFeatures((current) => ({ ...current, [key]: value }));
@@ -203,7 +190,6 @@ function CreatePlanDialog({
 
   return (
     <Dialog
-      open={open}
       title="Tạo gói dịch vụ"
       onClose={onClose}
       closeDisabled={saving !== null}
@@ -345,27 +331,42 @@ function PriceDialog({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [price, setPrice] = useState("");
-  const [effectiveAt, setEffectiveAt] = useState("");
+  if (!plan) return null;
+  // `key` = id của gói ⇒ mỗi gói là một phiên form mới, không cần effect đặt lại state.
+  return (
+    <PriceDialogContent
+      key={plan.id}
+      plan={plan}
+      onClose={onClose}
+      onChanged={onChanged}
+    />
+  );
+}
+
+function PriceDialogContent({
+  plan,
+  onClose,
+  onChanged,
+}: {
+  plan: AdminPlanItem;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [initial] = useState(() => {
+    const limit = earliestPriceChange();
+    return {
+      earliest: limit,
+      price: String(plan.priceVnd),
+      effectiveAt: toDateTimeLocal(limit),
+    };
+  });
+  const [price, setPrice] = useState(initial.price);
+  const [effectiveAt, setEffectiveAt] = useState(initial.effectiveAt);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [earliest, setEarliest] = useState<Date | null>(null);
-
-  useEffect(() => {
-    if (!plan) return;
-    const limit = earliestPriceChange();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- nạp giá trị mặc định khi mở hộp
-    setEarliest(limit);
-    setPrice(String(plan.priceVnd));
-    setEffectiveAt(toDateTimeLocal(limit));
-    setError(null);
-    setSaving(false);
-  }, [plan]);
-
-  if (!plan || !earliest) return null;
+  const { earliest } = initial;
 
   async function submit() {
-    if (!plan || !earliest) return;
     const priceVnd = Number(price);
     const selected = new Date(effectiveAt);
     if (!Number.isSafeInteger(priceVnd) || priceVnd < 0) {
@@ -467,9 +468,7 @@ function PriceDialog({
 }
 
 export default function AdminPlansPage() {
-  const [plans, setPlans] = useState<AdminPlanItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [pricePlan, setPricePlan] = useState<AdminPlanItem | null>(null);
   const [togglePlan, setTogglePlan] = useState<AdminPlanItem | null>(null);
@@ -477,27 +476,20 @@ export default function AdminPlansPage() {
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const { data, loading, error } = useApiResource(
+    () => listAdminPlans(),
+    [reload],
+  );
+  const plans = useMemo(() => data ?? [], [data]);
+
   const freePlan = useMemo(
     () => plans.find((plan) => plan.isDefault) ?? null,
     [plans],
   );
 
-  async function loadPlans() {
-    setLoading(true);
-    try {
-      setPlans(await listAdminPlans());
-      setError(null);
-    } catch (err) {
-      setError(apiErrorMessage(err, "Không thể tải danh sách gói dịch vụ."));
-    } finally {
-      setLoading(false);
-    }
+  function reloadPlans() {
+    setReload((n) => n + 1);
   }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- tải danh sách khi vào trang
-    void loadPlans();
-  }, []);
 
   function handleCreated(result: { warnings: string[] }) {
     setNotice(
@@ -505,7 +497,7 @@ export default function AdminPlansPage() {
         ? `Đã tạo gói. Lưu ý: ${result.warnings.join(", ")}.`
         : "Đã tạo gói dịch vụ.",
     );
-    void loadPlans();
+    reloadPlans();
   }
 
   function openToggle(plan: AdminPlanItem) {
@@ -525,7 +517,7 @@ export default function AdminPlansPage() {
           ? "Đã tắt gói dịch vụ."
           : "Đã kích hoạt gói dịch vụ.",
       );
-      await loadPlans();
+      reloadPlans();
     } catch (err) {
       setToggleError(
         apiErrorMessage(err, "Không thể thay đổi trạng thái gói."),
@@ -574,7 +566,7 @@ export default function AdminPlansPage() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => void loadPlans()}
+            onClick={() => reloadPlans()}
           >
             Thử lại
           </Button>
@@ -624,18 +616,19 @@ export default function AdminPlansPage() {
         </Card>
       )}
 
-      <CreatePlanDialog
-        open={createOpen}
-        freePlan={freePlan}
-        onClose={() => setCreateOpen(false)}
-        onCreated={handleCreated}
-      />
+      {createOpen && (
+        <CreatePlanDialog
+          freePlan={freePlan}
+          onClose={() => setCreateOpen(false)}
+          onCreated={handleCreated}
+        />
+      )}
       <PriceDialog
         plan={pricePlan}
         onClose={() => setPricePlan(null)}
         onChanged={() => {
           setNotice("Đã hẹn lịch đổi giá.");
-          void loadPlans();
+          reloadPlans();
         }}
       />
       <ConfirmDialog
