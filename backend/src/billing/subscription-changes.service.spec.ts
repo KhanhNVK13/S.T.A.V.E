@@ -390,10 +390,9 @@ describe('BE-BIL-44 SubscriptionChangesService.renew', () => {
   });
 
   it('UTCID02 refuses to renew while a downgrade is scheduled', async () => {
-    const { service, payments } = makeService(
-      {},
-      [effective({ pendingPlan: plan('free', 0) })],
-    );
+    const { service, payments } = makeService({}, [
+      effective({ pendingPlan: plan('free', 0) }),
+    ]);
 
     await expect(service.renew(userId)).rejects.toThrow(
       'Cannot renew while downgrade is scheduled',

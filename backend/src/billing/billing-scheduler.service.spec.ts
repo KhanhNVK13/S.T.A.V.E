@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import type { NotificationsService } from '../notifications/notifications.service';
 import {
   createSupabaseMock,

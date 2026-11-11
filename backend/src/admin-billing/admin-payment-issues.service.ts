@@ -11,32 +11,35 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BILLING_PAYMENT_PROVIDER } from '../billing/billing-scheduler.service';
-import { PAYMENT_GATEWAY, type PaymentGateway } from '../billing/payment-gateway';
+import {
+  PAYMENT_GATEWAY,
+  type PaymentGateway,
+} from '../billing/payment-gateway';
 import { formatVnd } from '../billing/billing-format';
 import type { ResolvePaymentIssueDto } from './dto/resolve-payment-issue.dto';
 import {
   type AdminIssueAccount,
   type AdminIssueCursor,
   type AdminIssueReporter,
-  type AdminIssueTransaction,
   type AdminPaymentIssueDetail,
   type AdminPaymentIssueItem,
   type AdminPaymentIssuePage,
   type AdminPaymentIssueResolveResult,
-  type AdminPaymentIssueStatus,
   type PaymentIssueRemedy,
   type PaymentIssueVerification,
+  type PaymentIssueStatus,
 } from './admin-payment-issues.types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const ISO_TIMESTAMP =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 const ISSUE_COLUMNS =
   'id,transaction_id,description,status,remedy,note,created_at,resolved_at,reported_by';
 
 const TRANSACTION_COLUMNS =
   'id,user_id,created_at,amount_vnd,kind,status,order_code,provider_ref,description,payer_name,payer_email,plan:subscription_plans!transactions_plan_id_fkey(id,name),account:users!transactions_user_id_fkey(id,display_name,username,email)';
-
-const ACCOUNT_COLUMNS = 'id,display_name,username,email';
 
 const REPORTER_COLUMNS = 'id,display_name,username';
 
@@ -56,9 +59,18 @@ const RPC_ERROR_CODES: Record<string, { status: number; message: string }> = {
   ST005: { status: 400, message: 'Compensation days must be between 1 and 90' },
   ST006: { status: 400, message: 'Invalid refund information' },
   ST007: { status: 400, message: 'Invalid duplicate issue reference' },
-  ST008: { status: 409, message: 'The original transaction was not successful' },
-  ST009: { status: 409, message: 'The original transaction has no account or plan' },
-  ST010: { status: 409, message: 'The account has no subscription to compensate' },
+  ST008: {
+    status: 409,
+    message: 'The original transaction was not successful',
+  },
+  ST009: {
+    status: 409,
+    message: 'The original transaction has no account or plan',
+  },
+  ST010: {
+    status: 409,
+    message: 'The account has no subscription to compensate',
+  },
 };
 
 interface IssueRow {
@@ -113,7 +125,9 @@ export function decodeIssueCursor(value: string): AdminIssueCursor | null {
     );
     if (!Array.isArray(parsed) || parsed.length !== 2) return null;
     const [createdAt, id] = parsed as unknown[];
-    if (typeof createdAt !== 'string') return null;
+    if (typeof createdAt !== 'string' || !ISO_TIMESTAMP.test(createdAt)) {
+      return null;
+    }
     if (Number.isNaN(Date.parse(createdAt))) return null;
     if (typeof id !== 'string' || !UUID.test(id)) return null;
     return { createdAt, id };
@@ -137,7 +151,7 @@ export class AdminPaymentIssuesService {
   ) {}
 
   async listIssues(
-    status: AdminPaymentIssueStatus = 'open',
+    status: PaymentIssueStatus = 'open',
     limit = 20,
     cursor?: string,
   ): Promise<AdminPaymentIssuePage> {
@@ -187,14 +201,18 @@ export class AdminPaymentIssuesService {
       .eq('id', id)
       .maybeSingle<IssueRow>();
     if (error) {
-      throw new InternalServerErrorException('Could not read the payment issue');
+      throw new InternalServerErrorException(
+        'Could not read the payment issue',
+      );
     }
     if (!issueRow) throw new NotFoundException('Payment issue not found');
 
     const transactions = await this.loadTransactions([issueRow.transaction_id]);
     const transaction = transactions.get(issueRow.transaction_id) ?? null;
     const reporters = await this.loadReporters([issueRow.reported_by]);
-    const reporter = reporters.get(issueRow.reported_by) ?? null;
+    const reporter = issueRow.reported_by
+      ? (reporters.get(issueRow.reported_by) ?? null)
+      : null;
 
     const timeline = await this.loadTimeline(transaction);
     const verification = await this.verifyAgainstProvider(transaction);
@@ -230,6 +248,7 @@ export class AdminPaymentIssuesService {
       throw new BadRequestException('The note can be at most 1000 characters');
     }
 
+    let providerConfirmed = false;
     if (REMEDIES_REQUIRING_VERIFICATION.includes(dto.remedy)) {
       const verification = await this.verifyAgainstProvider(
         await this.loadTransactionsOfIssue(id),
@@ -239,6 +258,19 @@ export class AdminPaymentIssuesService {
           'Payment provider unavailable, issue stays open',
         );
       }
+      if (
+        dto.remedy === 'activate' &&
+        this.provider === 'payos' &&
+        verification.gatewayStatus !== 'success'
+      ) {
+        throw new ConflictException(
+          'The payment provider does not confirm this payment, so the plan cannot be activated',
+        );
+      }
+      providerConfirmed =
+        dto.remedy === 'activate' &&
+        this.provider === 'payos' &&
+        verification.gatewayStatus === 'success';
     }
 
     const { data, error } = await this.supabase.rpc('resolve_payment_issue', {
@@ -250,6 +282,7 @@ export class AdminPaymentIssuesService {
       p_refund_amount_vnd: dto.refundAmountVnd ?? null,
       p_refund_ref: dto.refundRef ?? null,
       p_duplicate_of_issue_id: dto.duplicateOfIssueId ?? null,
+      p_provider_confirmed: providerConfirmed,
     });
 
     if (error) {
@@ -270,7 +303,9 @@ export class AdminPaymentIssuesService {
       );
     }
     if (!data) {
-      throw new InternalServerErrorException('Could not resolve the payment issue');
+      throw new InternalServerErrorException(
+        'Could not resolve the payment issue',
+      );
     }
 
     const row = data as ResolveRpcRow;
@@ -279,11 +314,11 @@ export class AdminPaymentIssuesService {
       await this.notifications.notify(
         notifiedUserId,
         'billing.issue_resolved',
-        { summary: this.buildSummary(dto.remedy, dto, row) },
+        { summary: this.buildSummary(dto.remedy, dto) },
       );
     }
 
-    await this.writeAuditLog(adminId, id, dto.remedy, note, row);
+    await this.writeAuditLog(adminId, id, dto.remedy, note);
 
     return {
       issueId: row.issue_id,
@@ -297,7 +332,9 @@ export class AdminPaymentIssuesService {
     };
   }
 
-  private async loadTransactionsOfIssue(id: string): Promise<TransactionRow | null> {
+  private async loadTransactionsOfIssue(
+    id: string,
+  ): Promise<TransactionRow | null> {
     const { data, error } = await this.supabase
       .from('payment_issues')
       .select('transaction_id')
@@ -350,13 +387,14 @@ export class AdminPaymentIssuesService {
     transaction: TransactionRow | null,
   ): Promise<TransactionRow[]> {
     if (!transaction) return [];
+    if (!transaction.user_id && !transaction.payer_email) return [transaction];
     const { data, error } = await this.supabase
       .from('transactions')
       .select(TRANSACTION_COLUMNS)
-      .or(
+      .match(
         transaction.user_id
-          ? `user_id.eq.${transaction.user_id}`
-          : `payer_email.eq.${transaction.payer_email ?? ''}`,
+          ? { user_id: transaction.user_id }
+          : { payer_email: transaction.payer_email ?? '' },
       )
       .order('created_at', { ascending: false })
       .limit(50)
@@ -376,17 +414,27 @@ export class AdminPaymentIssuesService {
    */
   private async verifyAgainstProvider(
     transaction: TransactionRow | null,
-  ): Promise<{ status: PaymentIssueVerification; detail: string | null }> {
+  ): Promise<{
+    status: PaymentIssueVerification;
+    detail: string | null;
+    gatewayStatus?: 'pending' | 'success' | 'failed';
+  }> {
     if (!transaction || transaction.order_code === null) {
       return { status: 'skipped', detail: null };
     }
     if (this.provider === 'fake') {
-      return { status: 'skipped', detail: null };
+      return {
+        status: 'skipped',
+        detail: null,
+        gatewayStatus: transaction.status,
+      };
     }
 
     let gatewayStatus: Awaited<ReturnType<PaymentGateway['getPaymentStatus']>>;
     try {
-      gatewayStatus = await this.gateway.getPaymentStatus(transaction.order_code);
+      gatewayStatus = await this.gateway.getPaymentStatus(
+        transaction.order_code,
+      );
     } catch (err) {
       this.logger.warn(
         `Payment provider did not answer for order ${transaction.order_code}: ${
@@ -402,9 +450,10 @@ export class AdminPaymentIssuesService {
     const matches =
       (gatewayStatus === 'success' && transaction.status === 'success') ||
       (gatewayStatus === 'failed' && transaction.status === 'failed');
-    if (matches) return { status: 'match', detail: null };
+    if (matches) return { status: 'match', detail: null, gatewayStatus };
     return {
       status: 'mismatch',
+      gatewayStatus,
       detail: `Payment provider reports "${gatewayStatus}" while the record says "${transaction.status}"`,
     };
   }
@@ -424,7 +473,9 @@ export class AdminPaymentIssuesService {
       note: row.note,
       createdAt: row.created_at,
       resolvedAt: row.resolved_at,
-      reportedBy: row.reported_by ? (reporters.get(row.reported_by) ?? null) : null,
+      reportedBy: row.reported_by
+        ? (reporters.get(row.reported_by) ?? null)
+        : null,
       transaction,
       payerName: transaction?.payer_name ?? null,
       payerEmail: transaction?.payer_email ?? null,
@@ -434,7 +485,6 @@ export class AdminPaymentIssuesService {
   private buildSummary(
     remedy: PaymentIssueRemedy,
     dto: ResolvePaymentIssueDto,
-    row: ResolveRpcRow,
   ): string {
     switch (remedy) {
       case 'extend':
@@ -446,7 +496,7 @@ export class AdminPaymentIssuesService {
       case 'dismiss':
         return 'đã được đánh dấu là trùng và bỏ qua';
       default:
-        return `đã được xử lý (${row.remedy})`;
+        return `đã được xử lý (${String(remedy)})`;
     }
   }
 
@@ -456,7 +506,6 @@ export class AdminPaymentIssuesService {
     issueId: string,
     remedy: string,
     note: string,
-    row: ResolveRpcRow,
   ): Promise<void> {
     const { error } = await this.supabase.from('admin_audit_log').insert({
       admin_id: adminId,

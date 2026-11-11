@@ -2,8 +2,7 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export const PAYMENT_ISSUE_STATUSES = ['open', 'resolved'] as const;
-export type PaymentIssueStatusFilter =
-  (typeof PAYMENT_ISSUE_STATUSES)[number];
+export type PaymentIssueStatusFilter = (typeof PAYMENT_ISSUE_STATUSES)[number];
 
 export class AdminPaymentIssuesQueryDto {
   @IsOptional()

@@ -13,6 +13,7 @@ const CHAIN_METHODS = [
   'delete',
   'upsert',
   'eq',
+  'match',
   'neq',
   'is',
   'in',
@@ -452,6 +453,10 @@ export const createMockSupabaseClient = (
       },
       eq: (col: string, val: unknown) => {
         filters[col] = val;
+        return builder;
+      },
+      match: (query: Record<string, unknown>) => {
+        Object.assign(filters, query);
         return builder;
       },
       in: (col: string, values: unknown[]) => {

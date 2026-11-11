@@ -201,7 +201,8 @@ CREATE OR REPLACE FUNCTION public.resolve_payment_issue(
   p_days integer DEFAULT NULL,
   p_refund_amount_vnd bigint DEFAULT NULL,
   p_refund_ref text DEFAULT NULL,
-  p_duplicate_of_issue_id uuid DEFAULT NULL
+  p_duplicate_of_issue_id uuid DEFAULT NULL,
+  p_provider_confirmed boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -241,7 +242,7 @@ BEGIN
     RAISE EXCEPTION 'note is required' USING ERRCODE = 'ST004';
   END IF;
 
-  SELECT * INTO v_tx FROM public.transactions WHERE id = v_issue.transaction_id;
+  SELECT * INTO v_tx FROM public.transactions WHERE id = v_issue.transaction_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'transaction not found' USING ERRCODE = 'ST009';
   END IF;
@@ -276,13 +277,20 @@ BEGIN
 
     SELECT current_period_end INTO v_period_end FROM public.subscriptions WHERE user_id = v_tx_user_id;
   ELSIF p_remedy = 'refund' THEN
+    IF v_tx.status <> 'success' OR v_tx.kind <> 'charge' THEN
+      RAISE EXCEPTION 'transaction is not successful' USING ERRCODE = 'ST008';
+    END IF;
     v_refund_ref := btrim(coalesce(p_refund_ref, ''));
     IF v_refund_ref = '' OR length(v_refund_ref) > 200 THEN
       RAISE EXCEPTION 'refund reference is required' USING ERRCODE = 'ST006';
     END IF;
     IF p_refund_amount_vnd IS NULL
        OR p_refund_amount_vnd < 1
-       OR p_refund_amount_vnd > v_tx.amount_vnd THEN
+       OR p_refund_amount_vnd + coalesce((
+            SELECT sum(r.amount_vnd) FROM public.transactions r
+            WHERE r.related_transaction_id = v_tx.id AND r.kind = 'refund'
+              AND r.status = 'success'
+          ), 0) > v_tx.amount_vnd THEN
       RAISE EXCEPTION 'invalid refund amount' USING ERRCODE = 'ST006';
     END IF;
 
@@ -296,7 +304,11 @@ BEGIN
     RETURNING id INTO v_new_tx_id;
   ELSIF p_remedy = 'activate' THEN
     IF v_tx.status <> 'success' THEN
-      RAISE EXCEPTION 'transaction is not successful' USING ERRCODE = 'ST008';
+      IF p_provider_confirmed IS TRUE AND v_tx.kind = 'charge' THEN
+        UPDATE public.transactions SET status = 'success' WHERE id = v_tx.id;
+      ELSE
+        RAISE EXCEPTION 'transaction is not successful' USING ERRCODE = 'ST008';
+      END IF;
     END IF;
     IF v_tx_user_id IS NULL OR v_tx_plan_id IS NULL THEN
       RAISE EXCEPTION 'transaction has no user or plan' USING ERRCODE = 'ST009';
@@ -336,8 +348,8 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.resolve_payment_issue(
-  uuid, text, text, uuid, integer, bigint, text, uuid
+  uuid, text, text, uuid, integer, bigint, text, uuid, boolean
 ) FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.resolve_payment_issue(
-  uuid, text, text, uuid, integer, bigint, text, uuid
+  uuid, text, text, uuid, integer, bigint, text, uuid, boolean
 ) TO service_role;

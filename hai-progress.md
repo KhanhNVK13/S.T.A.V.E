@@ -49,7 +49,7 @@ Nguồn: `./hai-setup.md` (hai.md > team-workload.md > hai-prompts.md). File nà
 | P8 | UC-79 theme từ ảnh | Chưa làm | `feature/theme-from-image-palette` | |
 | P9 | UC-104 | Chưa làm | `feature/admin-billing-transactions-view` | |
 | P10 | UC-105/106/107 | Chưa làm | `feature/admin-subscription-plan-management` | |
-| P11 | UC-108 | Chưa làm | `feature/admin-payment-issue-resolution` | |
+| P11 | UC-108 | **Xong** | `feature/admin-payment-issue-resolution` | (xem mục P11) |
 | P12 | Rà soát + mô tả PR | Chưa làm | — | |
 
 ## Checklist theo UC
@@ -302,6 +302,32 @@ Nhánh: `feature/admin-billing-transactions-view` (rẽ từ `feature/theme-from
 - [x] `code-review` (skill) — 6 phát hiện, đã sửa 5 (URL ngày không hợp lệ làm vỡ trang; chi tiết retry thiếu giao dịch gốc; thiếu index `payment_issues.transaction_id`; hardcode locale `vi-VN` → `appLocale()`; chuỗi chưa có i18n key). Chưa sửa: link `/admin/payment-issues` (route thuộc P11)
 - [x] `security-review` — không có phát hiện HIGH/MEDIUM (confidence ≥ 8)
 - [ ] `hai-notes/hai-pr-dot2-notes.md` bổ sung phần UC-104 — **chưa làm** (ghi chú PR viết ở P12)
+
+### P11 — UC-108 Xử lý sự cố thanh toán (11/11/2026, nhánh `feature/admin-payment-issue-resolution`)
+
+**Rà soát trước khi làm:** phần backend P11 đã được merge sẵn vào `main` (commit `d0d93e9`): migration `20261110000001_admin_payment_issue_resolution.sql` (hàm `resolve_payment_issue` + đủ 4 remedy, mọi ghi trong 1 transaction ⇒ lỗi ⇒ rollback toàn bộ), `admin-payment-issues.service.ts`, `admin-payment-issues.controller.ts`, `dto/resolve-payment-issue.dto.ts`, `dto/admin-payment-issues-query.dto.ts`. Phần còn thiếu: **frontend hoàn toàn** (nav, i18n, API client, 2 trang) + **module chưa đăng ký controller/service** ⇒ endpoint trả 404.
+
+- [x] Migration `resolve_payment_issue` — đủ 4 remedy (`extend`/`refund`/`activate`/`dismiss`), `FOR UPDATE` + 1 transaction ⇒ lỗi ⇒ rollback toàn bộ, sự cố giữ `'open'` — **GIỮ NGUYÊN, không sửa**
+- [x] `GET /admin/payment-issues?status=&cursor=` — cursor base64url `[created_at, id]`, snapshot `payer_name`/`payer_email` khi tài khoản đã xoá — **GIỮ NGUYÊN**
+- [x] `GET /admin/payment-issues/:id` — timeline giao dịch (theo `user_id`, tài khoản đã xoá thì theo `payer_email`), verification `match`/`mismatch`/`skipped`/`unavailable` qua `PaymentGateway.getPaymentStatus` — **GIỮ NGUYÊN**
+- [x] `POST /admin/payment-issues/:id/resolve` — verify bắt buộc cho `extend`/`refund`/`activate` (trừ cổng giả) ⇒ `'unavailable'` → **409 "Payment provider unavailable, issue stays open"**; `dismiss` không cần verify — **GIỮ NGUYÊN**
+- [x] Notification `billing.issue_resolved` (chỉ khi tài khoản còn) + audit log `payment_issue.resolve` (`target_type = 'payment_issue'`) — **GIỮ NGUYÊN**
+- [x] **ĐĂNG KÝ MODULE** — `AdminPaymentIssuesController` + `AdminPaymentIssuesService` **chưa** có trong `AdminBillingModule` ⇒ endpoint 404. Đã thêm (`backend/src/admin-billing/admin-billing.module.ts`)
+- [x] Sửa 2 lỗi compile backend có sẵn trong file đã merge: `AdminPaymentIssueStatus` không tồn tại (type thật là `PaymentIssueStatus`); `reporters.get(issueRow.reported_by)` với `string | null`
+- [x] Dọn lint trong file P11: `AdminIssueTransaction` + `ACCOUNT_COLUMNS` không dùng, `buildSummary`/`writeAuditLog` nhận tham số thừa
+- [x] Nav: `ADMIN_NAV` thêm `{ href: '/admin/payment-issues', icon: AlertTriangle }` (`components/shell/nav-items.ts`)
+- [x] i18n: `nav.payment_issues` + nhóm `pi.*` (~70 key) trong **cả** `lib/i18n/en.ts` và `lib/i18n/vi.ts` — test `i18n.test.ts` xác nhận 2 file có đúng bộ key giống nhau
+- [x] API client `frontend/lib/api-admin-payment-issues.ts` — `listAdminPaymentIssues` / `getAdminPaymentIssue` / `resolveAdminPaymentIssue`
+- [x] Trang danh sách `/admin/payment-issues` — Tabs "Đang mở"/"Đã xử lý" đồng bộ `?status=` qua `useSearchParams` + `router.replace`; bảng: mã sự cố, giao dịch, khách hàng (badge "Tài khoản đã xoá" + snapshot payer), người báo, ngày tạo; phân trang cursor ("Tải thêm")
+- [x] Trang chi tiết `/admin/payment-issues/[id]` — header, timeline giao dịch, badge đối chiếu cổng, form biện pháp dynamic (days / refundAmount+refundRef / duplicateOfIssueId), ghi chú bắt buộc + đếm ký tự `/1000`, `ConfirmDialog` trước khi gửi, lỗi hiện trong hộp và **giữ nguyên form**
+- [x] Khi verification = `unavailable`: hiện nút "Đối chiếu lại", **disable 3 remedy còn lại** (chỉ cho `dismiss`) + giải thích
+- [x] `API_MESSAGES` trong `lib/error-message.ts` — thêm 8 thông điệp lỗi backend của P11 (409 unavailable, 409 đã resolved, 400 note…)
+- [x] Test backend `admin-payment-issues.service.spec.ts` — 32 test: DTO (note rỗng / > 1000 / biên 1000, remedy lạ, days 1–90, refundRef), cursor codec, list (snapshot tài khoản đã xoá, nextCursor, cursor rác → 400), detail (404, skipped/match/mismatch/unavailable, tài khoản đã xoá), resolve (4 remedy, note rỗng → 400 không gọi RPC, unavailable → 409 không gọi RPC, RPC ST001/ST002/ST004/lạ, tài khoản đã xoá → không gửi thông báo)
+- [x] Test frontend `lib/api-admin-payment-issues.test.ts` — 4 test (query string, GET chi tiết, POST resolve + payload)
+
+**Kiểm tra:** backend `tsc --noEmit` pass · frontend `tsc --noEmit` pass · ESLint 0 lỗi ở **tất cả file P11** (backend + frontend) · backend `npx jest src/admin-billing` 46/46 pass · backend `npx jest` 2207/2208 pass (1 fail **có sẵn trên main**: `src/billing/renewal.spec.ts:166`, không thuộc P11 — đã xác nhận bằng `git stash` + chạy lại trên main sạch) · frontend `npx vitest run` 50 file / 909 test pass.
+
+**Lưu ý phạm vi:** `npm run lint` của backend chạy `eslint --fix` nên nó **tự reformat 6 file ngoài P11** (`admin-plans.service.ts`, `admin-plans.types.ts`, `billing/payments.service.ts`, `billing/renewal.ts`, `billing/subscription-changes.service.spec.ts`, `custom-themes.service.spec.ts`) — thay đổi **chỉ là format**, không đổi logic. Không revert được (lệnh `git checkout --`/`git restore` bị chặn bởi policy) nên đã giữ trong commit. 12 lỗi lint còn lại ở 3 file đó là **có sẵn trên main** (P7/P8/P10) — để P12 xử lý.
 
 ## Kết quả kiểm tra
 
