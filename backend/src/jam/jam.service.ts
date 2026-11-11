@@ -220,6 +220,12 @@ export class JamService {
   /** 5s status + flush sweep (BR-75). */
   private sweepTimer?: NodeJS.Timeout;
 
+  /** `${eventId}:${type}` already announced by this process. */
+  private readonly announced = new Set<string>();
+
+  static readonly MAX_NOTIFIED_USERS = 500;
+  static readonly PAST_EVENTS_FOR_START_NOTICE = 3;
+
   /**
    * Set by the gateway (settleJamSweep) so the sweep can tell it to broadcast
    * `jam:event_ended` / `jam:storage_warning` to live rooms. Null until the
@@ -730,6 +736,7 @@ export class JamService {
         throw new Error('empty insert result');
       }
       const created = data;
+      if (isStartNow) void this.announce(created, 'jam.started');
 
       // BR-107 — the immutable audit trail (INSERT-only table, §4.3).
       const { error: auditError } = await this.supabase
@@ -1013,6 +1020,7 @@ export class JamService {
    */
   private async ensureStatus(row: JamEventRow): Promise<void> {
     const nowMs = Date.now();
+    const initialStatus = row.status;
 
     while (true) {
       if (
@@ -1039,6 +1047,79 @@ export class JamService {
 
       break;
     }
+
+    if (initialStatus === 'scheduled' && row.status === 'active') {
+      void this.announce(row, 'jam.started');
+    } else if (
+      (initialStatus === 'scheduled' || initialStatus === 'active') &&
+      row.status === 'ended'
+    ) {
+      void this.announce(row, 'jam.ended');
+    }
+  }
+
+  /**
+   * Audience: `jam.ended` goes to the event's own participants;
+   * `jam.started` goes to participants of the last few ended events (people
+   * who already showed interest), capped, never the whole user base.
+   * Best-effort and sent at most once per event and kind in this process.
+   */
+  private async announce(
+    row: JamEventRow,
+    type: 'jam.started' | 'jam.ended',
+  ): Promise<void> {
+    if (!this.notifications) return;
+    const key = `${row.id}:${type}`;
+    if (this.announced.has(key)) return;
+    this.announced.add(key);
+    try {
+      const userIds =
+        type === 'jam.ended'
+          ? await this.participantIds([row.id])
+          : await this.pastParticipantIds(row.id);
+      for (const userId of userIds) {
+        try {
+          await this.notifications.notify(userId, type, {
+            eventName: row.name,
+            eventId: row.id,
+          });
+        } catch (err) {
+          JamService.logger.error(
+            `Could not send ${type} notification: ${String(err)}`,
+          );
+        }
+      }
+    } catch (err) {
+      JamService.logger.error(`Could not announce ${type}: ${String(err)}`);
+    }
+  }
+
+  private async participantIds(eventIds: string[]): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from('jam_participants')
+      .select('user_id')
+      .in('event_id', eventIds)
+      .limit(JamService.MAX_NOTIFIED_USERS);
+    if (error) throw new Error(error.message);
+    return [
+      ...new Set(
+        ((data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id),
+      ),
+    ];
+  }
+
+  private async pastParticipantIds(currentEventId: string): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from('jam_events')
+      .select('id')
+      .eq('status', 'ended')
+      .neq('id', currentEventId)
+      .order('ended_at', { ascending: false })
+      .limit(JamService.PAST_EVENTS_FOR_START_NOTICE);
+    if (error) throw new Error(error.message);
+    const ids = ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
+    if (ids.length === 0) return [];
+    return this.participantIds(ids);
   }
 
   private async persistStatus(row: JamEventRow): Promise<void> {
@@ -1905,6 +1986,7 @@ export class JamService {
     row.ended_at = nowIso;
     row.updated_at = nowIso;
     if (totalNotes === 0) row.no_result = true;
+    void this.announce(row, 'jam.ended');
 
     // Realtime: `jam:ended` (spec) + `jam:event_ended` (existing client
     // hook) — the gateway emits both into the room (see broadcastJamEnded).

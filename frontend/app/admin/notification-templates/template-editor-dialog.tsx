@@ -57,6 +57,10 @@ export function TemplateEditorDialog({
   const nameEmpty = name.trim() === "";
   const subjectEmpty = subject.trim() === "";
   const bodyEmpty = body.trim() === "";
+  const dirty =
+    name !== (template.custom?.name ?? "") ||
+    subject !== (template.custom?.subject ?? template.defaultSubject) ||
+    body !== (template.custom?.body ?? template.defaultBody);
   const invalid = nameEmpty || subjectEmpty || bodyEmpty;
 
   function insertPlaceholder(key: string) {
@@ -129,6 +133,7 @@ export function TemplateEditorDialog({
       className="max-w-xl p-6"
       onClose={onClose}
       closeDisabled={saving}
+      dirty={dirty}
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <p className="text-sm text-muted">

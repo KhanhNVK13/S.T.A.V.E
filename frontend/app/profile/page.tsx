@@ -16,6 +16,7 @@ import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
 import { ConnectedAccounts } from "../../components/settings/connected-accounts";
 import { ThemeFromImage } from "../../components/settings/theme-from-image";
+import { ThemePresets } from "../../components/settings/theme-presets";
 import { Dialog } from "../../components/ui/dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { PageHeader } from "../../components/ui/page-header";
@@ -578,7 +579,11 @@ function PersonalisationTab() {
     <>
       <h2 className="text-lg font-semibold">{t("profile.tabPersonalisation")}</h2>
 
-      <ThemeFromImage returnTo="/profile?tab=personalisation" />
+      <ThemePresets />
+
+      <div className="border-t border-border pt-4">
+        <ThemeFromImage returnTo="/profile?tab=personalisation" />
+      </div>
     </>
   );
 }

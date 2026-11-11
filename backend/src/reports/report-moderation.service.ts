@@ -58,6 +58,9 @@ interface RestoreRow {
   o_project_name: string;
 }
 
+const SOUND_INDEX_PAGE_SIZE = 500;
+const SOUND_INDEX_MAX_PAGES = 200;
+
 @Injectable()
 export class ReportModerationService {
   private readonly logger = new Logger(ReportModerationService.name);
@@ -389,8 +392,41 @@ export class ReportModerationService {
       }
       snapshots.push(...(data ?? []).map((row) => row.snapshot));
     }
-    return [
-      ...new Set(snapshots.flatMap((snapshot) => extractSoundIds(snapshot))),
-    ];
+    const ids = new Set(
+      snapshots.flatMap((snapshot) => extractSoundIds(snapshot)),
+    );
+    for (const id of await this.collectIndexedSoundIds(projectId)) ids.add(id);
+    return [...ids];
+  }
+
+  private async collectIndexedSoundIds(projectId: string): Promise<string[]> {
+    const ids = new Set<string>();
+    let after: string | null = null;
+    for (let page = 0; page < SOUND_INDEX_MAX_PAGES; page += 1) {
+      const { data, error } = await this.supabase.rpc('sound_mappings_page', {
+        p_project_id: projectId,
+        p_limit: SOUND_INDEX_PAGE_SIZE,
+        p_after: after,
+      });
+      if (error) {
+        this.logger.error(`Could not read sound index: ${error.message}`);
+        throw new InternalServerErrorException(
+          'Could not load removal details',
+        );
+      }
+      const rows = (data ?? []) as {
+        o_id: string;
+        o_custom_sound_id: string | null;
+      }[];
+      for (const row of rows) {
+        if (row.o_custom_sound_id) ids.add(row.o_custom_sound_id);
+      }
+      if (rows.length < SOUND_INDEX_PAGE_SIZE) return [...ids];
+      after = rows[rows.length - 1].o_id;
+    }
+    this.logger.error(
+      `Sound index of project ${projectId} exceeds ${SOUND_INDEX_MAX_PAGES} pages`,
+    );
+    throw new InternalServerErrorException('Could not load removal details');
   }
 }

@@ -3,7 +3,8 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { SetThemeDto } from './set-theme.dto';
 
-const message = 'presetKey must be one of: space, unleashed, moss, claret';
+const message =
+  'presetKey must be one of: space, unleashed, moss, claret, tide';
 
 async function themeErrors(value: Record<string, unknown>) {
   return validate(plainToInstance(SetThemeDto, value));
@@ -22,6 +23,10 @@ describe('BE-USR-05 SetThemeDto.validate(dto)', () => {
 
   it('UTCID03 accepts "claret"', async () => {
     await expect(themeErrors({ presetKey: 'claret' })).resolves.toHaveLength(0);
+  });
+
+  it('UTCID07 accepts "tide"', async () => {
+    await expect(themeErrors({ presetKey: 'tide' })).resolves.toHaveLength(0);
   });
 
   it('UTCID04 rejects "Moss" with the wrong case', async () => {

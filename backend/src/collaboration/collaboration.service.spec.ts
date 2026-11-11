@@ -219,13 +219,19 @@ function makeService(
   rows: Record<string, Row[]> = {},
   access = fakeProjectAccess(),
   gateway = fakeGateway(),
+  notifications = fakeNotifications(),
 ) {
   return new CollaborationService(
     mockSupabase(rows),
     access as never,
     gateway as never,
     new DiffService(),
+    notifications as never,
   );
+}
+
+function fakeNotifications() {
+  return { notify: jest.fn().mockResolvedValue(undefined) };
 }
 
 const OWNER = 'owner-1';
@@ -930,5 +936,167 @@ describe('BE-COL-05 CollaborationService — UC-65 listContributions', () => {
     });
     expect(onlyViewer.contributors.map((c) => c.userId)).toEqual([VIEWER]);
     expect(onlyViewer.recentCommits.map((c) => c.id)).toEqual(['c-3']);
+  });
+});
+
+describe('BE-COL-NOTIFY CollaborationService — notifications', () => {
+  const baseRows = (collab: Row[] = []): Record<string, Row[]> => ({
+    users: [
+      { id: OWNER, username: 'owner', email: 'o@x.com', display_name: 'Owner' },
+      { id: VIEWER, username: 'viewer', email: 'v@x.com', display_name: 'Vee' },
+    ],
+    projects: [{ id: 'p-1', owner_id: OWNER, name: 'My Project' }],
+    project_collaborators: collab,
+  });
+  const pendingRow = (): Row => ({
+    id: 'col-9',
+    project_id: 'p-1',
+    user_id: VIEWER,
+    permission_level: 'view',
+    invited_by: OWNER,
+    created_at: '2026-10-25T00:00:00Z',
+    status: 'pending',
+    responded_at: null,
+  });
+
+  it('invite notifies the invitee with names and ids', async () => {
+    const notifications = fakeNotifications();
+    const service = makeService(
+      baseRows(),
+      fakeProjectAccess(),
+      fakeGateway(),
+      notifications,
+    );
+    await service.inviteCollaborator(
+      'p-1',
+      { identifier: 'viewer', permissionLevel: 'edit' },
+      OWNER,
+    );
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      VIEWER,
+      'collab.invite',
+      expect.objectContaining({
+        projectId: 'p-1',
+        projectName: 'My Project',
+        inviterName: 'Owner',
+      }),
+    );
+  });
+
+  it('a failing notification never breaks the invitation', async () => {
+    const notifications = {
+      notify: jest.fn().mockRejectedValue(new Error('boom')),
+    };
+    const service = makeService(
+      baseRows(),
+      fakeProjectAccess(),
+      fakeGateway(),
+      notifications,
+    );
+    await expect(
+      service.inviteCollaborator(
+        'p-1',
+        { identifier: 'viewer', permissionLevel: 'view' },
+        OWNER,
+      ),
+    ).resolves.toMatchObject({ status: 'pending' });
+  });
+
+  it('accept notifies the inviter with the invitee name', async () => {
+    const notifications = fakeNotifications();
+    const service = makeService(
+      baseRows([pendingRow()]),
+      fakeProjectAccess(),
+      fakeGateway(),
+      notifications,
+    );
+    await service.acceptInvitation('col-9', VIEWER);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      OWNER,
+      'collab.invite_accepted',
+      expect.objectContaining({ userName: 'Vee', projectName: 'My Project' }),
+    );
+  });
+
+  it('decline notifies the inviter', async () => {
+    const notifications = fakeNotifications();
+    const service = makeService(
+      baseRows([pendingRow()]),
+      fakeProjectAccess(),
+      fakeGateway(),
+      notifications,
+    );
+    await service.declineInvitation('col-9', VIEWER);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      OWNER,
+      'collab.invite_declined',
+      expect.objectContaining({ userName: 'Vee' }),
+    );
+  });
+
+  it('permission change notifies an accepted collaborator, not a pending one', async () => {
+    const notifications = fakeNotifications();
+    const accepted = makeService(
+      baseRows(collabRows()),
+      fakeProjectAccess(),
+      fakeGateway(),
+      notifications,
+    );
+    await accepted.patchCollaborator(
+      'p-1',
+      'col-1',
+      { permissionLevel: 'edit' },
+      OWNER,
+    );
+    expect(notifications.notify).toHaveBeenCalledWith(
+      VIEWER,
+      'collab.permission_changed',
+      expect.objectContaining({
+        projectName: 'My Project',
+        permissionLabel: 'edit',
+      }),
+    );
+
+    const pendingNotifications = fakeNotifications();
+    const pending = makeService(
+      baseRows([pendingRow()]),
+      fakeProjectAccess(),
+      fakeGateway(),
+      pendingNotifications,
+    );
+    await pending.patchCollaborator(
+      'p-1',
+      'col-9',
+      { permissionLevel: 'edit' },
+      OWNER,
+    );
+    expect(pendingNotifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('removal notifies an accepted collaborator but not a withdrawn invitation', async () => {
+    const notifications = fakeNotifications();
+    const accepted = makeService(
+      baseRows(collabRows()),
+      fakeProjectAccess(),
+      fakeGateway(),
+      notifications,
+    );
+    await accepted.removeCollaborator('p-1', 'col-1', OWNER);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      VIEWER,
+      'collab.access_removed',
+      expect.objectContaining({ projectName: 'My Project' }),
+    );
+
+    const pendingNotifications = fakeNotifications();
+    const pending = makeService(
+      baseRows([pendingRow()]),
+      fakeProjectAccess(),
+      fakeGateway(),
+      pendingNotifications,
+    );
+    await pending.removeCollaborator('p-1', 'col-9', OWNER);
+    expect(pendingNotifications.notify).not.toHaveBeenCalled();
   });
 });

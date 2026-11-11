@@ -28,4 +28,11 @@ export class CustomThemesController {
   ) {
     return this.service.saveCustomTheme(req.user.id, body.palette);
   }
+
+  /** Dùng lại palette từ ảnh đã lưu — đòi quyền trả phí, 404 nếu chưa lưu. */
+  @UseGuards(UserThrottlerGuard)
+  @Put('me/custom/activate')
+  activateCustom(@Req() req: AuthenticatedRequest) {
+    return this.service.activateSavedCustomTheme(req.user.id);
+  }
 }

@@ -4,10 +4,12 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SubscriptionsService } from '../billing/subscriptions.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { isValidPalette } from '@stave/shared-types';
 import type { EffectiveTheme, Palette } from '@stave/shared-types';
 
 /** 1 dòng `themes` (cột thật). */
@@ -98,6 +100,58 @@ export class CustomThemesService {
   }
 
   /**
+   * Dùng lại palette từ ảnh đã lưu: chỉ trỏ `users.active_theme_id` về dòng
+   * `custom` có sẵn, không ghi palette mới. Đòi quyền trả phí như lúc lưu.
+   */
+  async activateSavedCustomTheme(
+    userId: string,
+  ): Promise<{ type: 'custom'; palette: Palette }> {
+    const eff = await this.subscriptions.getEffective(userId);
+    if (!eff.hasPaidAccess) {
+      throw new ForbiddenException('Paid access required');
+    }
+
+    const { data: existing, error: readError } = await this.supabase
+      .from('themes')
+      .select('id, generated_palette')
+      .eq('user_id', userId)
+      .eq('type', 'custom')
+      .maybeSingle<{ id: string; generated_palette: Palette | null }>();
+    if (readError) {
+      this.logger.error('Failed to read the saved custom theme', readError);
+      throw new InternalServerErrorException('Could not apply theme');
+    }
+    if (!existing || !isValidPalette(existing.generated_palette)) {
+      throw new NotFoundException('No saved custom theme');
+    }
+
+    const { error: linkError } = await this.supabase
+      .from('users')
+      .update({ active_theme_id: existing.id })
+      .eq('id', userId);
+    if (linkError) {
+      this.logger.error('Failed to link active theme', linkError);
+      throw new InternalServerErrorException('Could not apply theme');
+    }
+
+    return { type: 'custom', palette: existing.generated_palette };
+  }
+
+  private async hasSavedCustomTheme(userId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('themes')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('type', 'custom')
+      .maybeSingle<{ id: string }>();
+    if (error) {
+      this.logger.warn('Failed to read the saved custom theme', error);
+      return false;
+    }
+    return !!data;
+  }
+
+  /**
    * Theme đang áp dụng + quyền trả phí (BR-89).
    *
    * - `users.active_theme_id = NULL` → `{ type: null, presetKey: null,
@@ -129,6 +183,7 @@ export class CustomThemesService {
         presetKey: null,
         palette: null,
         hasPaidAccess: eff.hasPaidAccess,
+        hasSavedCustom: await this.hasSavedCustomTheme(userId),
       };
     }
 
@@ -144,6 +199,7 @@ export class CustomThemesService {
         presetKey: null,
         palette: null,
         hasPaidAccess: eff.hasPaidAccess,
+        hasSavedCustom: await this.hasSavedCustomTheme(userId),
       };
     }
 
@@ -153,6 +209,7 @@ export class CustomThemesService {
         presetKey: null,
         palette: theme.generated_palette,
         hasPaidAccess: eff.hasPaidAccess,
+        hasSavedCustom: true,
       };
     }
 
@@ -161,6 +218,7 @@ export class CustomThemesService {
       presetKey: theme.preset_key,
       palette: null,
       hasPaidAccess: eff.hasPaidAccess,
+      hasSavedCustom: await this.hasSavedCustomTheme(userId),
     };
   }
 }

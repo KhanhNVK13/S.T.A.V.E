@@ -15,6 +15,11 @@ import { CommitMessageService } from './commit-message.service';
 import { CommitMessageDto } from './dto/commit-message.dto';
 import { MergeRiskService, type MergeRiskResult } from './merge-risk.service';
 import { MergeRiskDto } from './dto/merge-risk.dto';
+import {
+  TheoryInsightService,
+  type TheoryInsightResult,
+} from './theory-insight.service';
+import { TheoryInsightDto } from './dto/theory-insight.dto';
 
 @Controller('ai')
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
@@ -22,6 +27,7 @@ export class AiController {
   constructor(
     private readonly commitMessage: CommitMessageService,
     private readonly mergeRiskService: MergeRiskService,
+    private readonly theoryInsight: TheoryInsightService,
   ) {}
 
   @Post('commit-message')
@@ -47,6 +53,19 @@ export class AiController {
       userId,
       dto.sourceBranchId,
       dto.targetBranchId,
+      dto.lang,
+    );
+  }
+
+  @Get('theory-insight')
+  async getTheoryInsight(
+    @CurrentUser() userId: string,
+    @Query() dto: TheoryInsightDto,
+  ): Promise<TheoryInsightResult> {
+    return this.theoryInsight.insight(
+      userId,
+      dto.projectId,
+      dto.commitId ?? null,
       dto.lang,
     );
   }

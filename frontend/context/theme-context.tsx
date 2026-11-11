@@ -8,7 +8,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { isValidPalette, PALETTE_KEYS, type EffectiveTheme } from "@stave/shared-types";
+import {
+  getPresetPalette,
+  isValidPalette,
+  PALETTE_KEYS,
+  type EffectiveTheme,
+} from "@stave/shared-types";
 import { getMyEffectiveTheme } from "../lib/api-billing";
 import { useAuth } from "./auth-context";
 import { useSessionReady } from "../lib/use-session-ready";
@@ -26,6 +31,15 @@ export function applyCustomPalette(palette: Record<string, string> | null): void
 /** Theme này có được phép áp (custom + có quyền + palette hợp lệ)? */
 export function canApplyTheme(theme: EffectiveTheme | null | undefined): boolean {
   return !!theme && theme.type === "custom" && theme.hasPaidAccess && isValidPalette(theme.palette);
+}
+
+/** Palette cần áp lên <html>: preset miễn phí cho mọi người, custom cần quyền trả phí; null = mặc định. */
+export function resolveAppliedPalette(
+  theme: EffectiveTheme | null | undefined,
+): Record<string, string> | null {
+  if (!theme) return null;
+  if (theme.type === "preset") return getPresetPalette(theme.presetKey);
+  return canApplyTheme(theme) ? theme.palette : null;
 }
 
 interface ThemeContextValue {
@@ -64,12 +78,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [user, sessionReady, refresh]);
 
   // Áp theme custom đã lưu (nếu đủ điều kiện) hoặc khôi phục preset mặc định.
+  const shownTheme = user ? theme : null;
   useEffect(() => {
-    applyCustomPalette(canApplyTheme(theme) ? theme!.palette : null);
-  }, [theme]);
+    applyCustomPalette(resolveAppliedPalette(shownTheme));
+  }, [shownTheme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, loading, refresh }}>
+    <ThemeContext.Provider value={{ theme: shownTheme, loading, refresh }}>
       {children}
     </ThemeContext.Provider>
   );

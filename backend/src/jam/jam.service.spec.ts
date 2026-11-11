@@ -1978,3 +1978,181 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     expect(result.edit_cooldown_sec).toBe(JamService.DEFAULT_COOLDOWN_SEC);
   });
 });
+
+// ── Jam start / end notifications ───────────────────────────────────────────
+
+describe('JamService — jam.started / jam.ended notifications', () => {
+  const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  function setup(
+    tables: Record<string, Row[]>,
+    notify: jest.Mock = jest.fn().mockResolvedValue(undefined),
+  ) {
+    const supabase = createInMemorySupabase({
+      jam_participants: [],
+      admin_audit_log: [],
+      ...tables,
+    });
+    const service = new JamService(supabase, { notify } as never);
+    return { service, notify };
+  }
+
+  const scheduledPastStart = () =>
+    activeEventRow({
+      id: 'ev-n1',
+      status: 'scheduled',
+      started_at: null,
+      scheduled_start_at: '2026-01-01T00:00:00Z',
+      scheduled_end_at: '2999-01-01T00:00:00Z',
+      name: 'Night Jam',
+    });
+
+  it('scheduled → active notifies people who joined recent ended events, once', async () => {
+    const { service, notify } = setup({
+      jam_events: [
+        scheduledPastStart(),
+        activeEventRow({
+          id: 'old-1',
+          status: 'ended',
+          ended_at: '2026-02-01T00:00:00Z',
+        }),
+      ],
+      jam_participants: [
+        { event_id: 'old-1', user_id: ALICE },
+        { event_id: 'old-1', user_id: BOB },
+      ],
+    });
+    await (service as any).ensureStatus({ ...scheduledPastStart() });
+    await flush();
+    await (service as any).ensureStatus({ ...scheduledPastStart() });
+    await flush();
+
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenCalledWith(ALICE, 'jam.started', {
+      eventName: 'Night Jam',
+      eventId: 'ev-n1',
+    });
+    expect(notify).toHaveBeenCalledWith(BOB, 'jam.started', {
+      eventName: 'Night Jam',
+      eventId: 'ev-n1',
+    });
+  });
+
+  it('a window that already passed entirely sends only jam.ended to its participants', async () => {
+    const { service, notify } = setup({
+      jam_events: [
+        activeEventRow({
+          id: 'ev-n2',
+          status: 'active',
+          name: 'Short Jam',
+          scheduled_end_at: '2026-01-02T00:00:00Z',
+        }),
+      ],
+      jam_participants: [{ event_id: 'ev-n2', user_id: ALICE }],
+    });
+    await (service as any).ensureStatus(
+      activeEventRow({
+        id: 'ev-n2',
+        status: 'active',
+        name: 'Short Jam',
+        scheduled_end_at: '2026-01-02T00:00:00Z',
+      }),
+    );
+    await flush();
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(ALICE, 'jam.ended', {
+      eventName: 'Short Jam',
+      eventId: 'ev-n2',
+    });
+  });
+
+  it('an event that is not changing status sends nothing', async () => {
+    const { service, notify } = setup({ jam_events: [activeEventRow()] });
+    await (service as any).ensureStatus(activeEventRow());
+    await flush();
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('a failing notify never breaks the status change and the other users still get theirs', async () => {
+    const notify = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValue(undefined);
+    const { service } = setup(
+      {
+        jam_events: [
+          activeEventRow({
+            id: 'ev-n3',
+            status: 'active',
+            scheduled_end_at: '2026-01-02T00:00:00Z',
+          }),
+        ],
+        jam_participants: [
+          { event_id: 'ev-n3', user_id: ALICE },
+          { event_id: 'ev-n3', user_id: BOB },
+        ],
+      },
+      notify,
+    );
+    const row = activeEventRow({
+      id: 'ev-n3',
+      status: 'active',
+      scheduled_end_at: '2026-01-02T00:00:00Z',
+    });
+    await expect((service as any).ensureStatus(row)).resolves.toBeUndefined();
+    await flush();
+    expect(row.status).toBe('ended');
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failing participant read is logged and swallowed', async () => {
+    const supabase = createInMemorySupabase(
+      {
+        jam_events: [
+          activeEventRow({
+            id: 'ev-n4',
+            status: 'active',
+            scheduled_end_at: '2026-01-02T00:00:00Z',
+          }),
+        ],
+        jam_participants: [],
+      },
+      { failSelectTables: new Set(['jam_participants']) },
+    );
+    const notify = jest.fn();
+    const service = new JamService(supabase, { notify } as never);
+    await expect(
+      (service as any).ensureStatus(
+        activeEventRow({
+          id: 'ev-n4',
+          status: 'active',
+          scheduled_end_at: '2026-01-02T00:00:00Z',
+        }),
+      ),
+    ).resolves.toBeUndefined();
+    await flush();
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('force-ending an active event notifies its participants with jam.ended', async () => {
+    const tables: Record<string, Row[]> = {
+      jam_events: [activeEventRow({ id: 'ev-n5', jam_project_id: 'proj-n5' })],
+      users: [userRow(ALICE)],
+      jam_participants: [{ event_id: 'ev-n5', user_id: ALICE, edit_count: 0 }],
+      admin_audit_log: [],
+      projects: [{ id: 'proj-n5', owner_id: 'admin-1' }],
+      branches: [{ id: 'br-n5', project_id: 'proj-n5', is_default: true }],
+      drafts: [],
+    };
+    const notify = jest.fn().mockResolvedValue(undefined);
+    const service = new JamService(createInMemorySupabase(tables), {
+      notify,
+    } as never);
+    await service.endJamEvent('ev-n5', 'admin-1');
+    await flush();
+    expect(notify).toHaveBeenCalledWith(ALICE, 'jam.ended', {
+      eventName: 'Open Jam',
+      eventId: 'ev-n5',
+    });
+  });
+});

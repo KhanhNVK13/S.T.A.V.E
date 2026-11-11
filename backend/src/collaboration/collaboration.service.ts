@@ -22,6 +22,7 @@ import { DiffService, type SnapshotDiff } from '../commits/diff.service';
 import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CollaborationGateway } from './collaboration.gateway';
 import { InviteCollaboratorDto } from './dto/invite-collaborator.dto';
 import { ListContributionsQueryDto } from './dto/list-contributions-query.dto';
@@ -71,6 +72,7 @@ export class CollaborationService {
     private readonly projectAccess: ProjectAccessService,
     private readonly gateway: CollaborationGateway,
     private readonly diffService: DiffService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ==========================================================================
@@ -171,20 +173,13 @@ export class CollaborationService {
 
     const [item] = await this.toItems([created]);
 
-    // Notify the invitee: collab.invite (payload carries the page link data).
-    // TODO(Trí UC-80): swap for NotificationsService.notify once merged —
-    // payload per docs/team-workload.md notification-types table.
-    const inviterName = (await this.getUserName(userId)) ?? 'Người dùng';
-    const projectName = await this.getProjectName(projectId);
-    this.emitNotification({
-      userId: target.id,
-      type: 'collab.invite',
-      payload: {
-        projectId,
-        projectName,
-        inviterName,
-        invitationId: created.id,
-      },
+    const inviterName = (await this.safeName(userId)) ?? 'STAVE';
+    const projectName = await this.safeProjectName(projectId);
+    await this.emitNotification(target.id, 'collab.invite', {
+      projectId,
+      projectName,
+      inviterName,
+      invitationId: created.id,
     });
 
     return item;
@@ -242,11 +237,7 @@ export class CollaborationService {
       );
     }
 
-    this.emitNotification({
-      userId: row.invited_by,
-      type: 'collab.invite_accepted',
-      payload: { projectId: row.project_id, invitationId: row.id },
-    });
+    await this.notifyInviter(row, 'collab.invite_accepted');
   }
 
   async declineInvitation(invitationId: string, userId: string): Promise<void> {
@@ -263,11 +254,7 @@ export class CollaborationService {
       );
     }
 
-    this.emitNotification({
-      userId: row.invited_by,
-      type: 'collab.invite_declined',
-      payload: { projectId: row.project_id, invitationId: row.id },
-    });
+    await this.notifyInviter(row, 'collab.invite_declined');
   }
 
   // ==========================================================================
@@ -283,6 +270,7 @@ export class CollaborationService {
     await this.projectAccess.assertOwner(projectId, userId);
 
     const row = await this.getCollaboratorRow(projectId, collaboratorId);
+    const previousLevel = row.permission_level;
 
     // Pending collaborators: changes the level that will be granted, never
     // grants access itself (BR-65 — access only after accepting).
@@ -307,15 +295,15 @@ export class CollaborationService {
       userId: row.user_id,
       permissionLevel: dto.permissionLevel,
     });
-    this.emitNotification({
-      userId: row.user_id,
-      type: 'collab.permission_changed',
-      payload: {
+    if (row.status === 'accepted' && previousLevel !== dto.permissionLevel) {
+      await this.emitNotification(row.user_id, 'collab.permission_changed', {
         projectId,
+        projectName: await this.safeProjectName(projectId),
         invitationId: row.id,
         permissionLevel: dto.permissionLevel,
-      },
-    });
+        permissionLabel: dto.permissionLevel,
+      });
+    }
 
     return (await this.toItems([updated]))[0];
   }
@@ -372,10 +360,10 @@ export class CollaborationService {
       // `collab:access_revoked` — show "your access ended", redirect to
       // /projects, and get force-disconnected from the presence room.
       this.gateway.revokeUserAccess(projectId, row.user_id, row.id);
-      this.emitNotification({
-        userId: row.user_id,
-        type: 'collab.access_removed',
-        payload: { projectId, invitationId: row.id },
+      await this.emitNotification(row.user_id, 'collab.access_removed', {
+        projectId,
+        projectName: await this.safeProjectName(projectId),
+        invitationId: row.id,
       });
     }
     // Pending invitation: withdrawal only, no "you were removed" notice.
@@ -978,36 +966,54 @@ export class CollaborationService {
     return map;
   }
 
-  private async getUserName(userId: string): Promise<string | null> {
-    const map = await this.getNames('users', [userId], 'display_name');
-    return map.get(`${userId}:display_name`) ?? null;
+  private async safeName(userId: string): Promise<string | null> {
+    try {
+      const map = await this.getNames('users', [userId], 'display_name');
+      return map.get(`${userId}:display_name`) ?? null;
+    } catch (err) {
+      CollaborationService.logger.warn(
+        `Could not look up user name: ${String(err)}`,
+      );
+      return null;
+    }
   }
 
-  private async getProjectName(projectId: string): Promise<string> {
-    const map = await this.getNames('projects', [projectId], 'name');
-    return map.get(`${projectId}:name`) ?? '';
+  private async safeProjectName(projectId: string): Promise<string> {
+    try {
+      const map = await this.getNames('projects', [projectId], 'name');
+      return map.get(`${projectId}:name`) ?? '';
+    } catch (err) {
+      CollaborationService.logger.warn(
+        `Could not look up project name: ${String(err)}`,
+      );
+      return '';
+    }
   }
 
-  /**
-   * Notification emission point.
-   *
-   * NotificationsService (Trí, UC-80) is not in the repo yet, so this is
-   * the single seam to swap: one `notify(userId, type, payload)` call with
-   * the payload columns already populated per docs/team-workload.md.
-   */
-  private emitNotification(args: {
-    userId: string;
-    type: string;
-    payload: Record<string, unknown>;
-  }): void {
-    // TODO(Trí UC-80): replace with
-    //   notificationsService.notify(args.userId, args.type, args.payload)
-    // and inject NotificationsService into this module's imports.
-    console.warn(
-      '[collaboration] notify',
-      args.type,
-      args.userId,
-      args.payload,
-    );
+  private async notifyInviter(
+    row: CollaboratorRow,
+    type: 'collab.invite_accepted' | 'collab.invite_declined',
+  ): Promise<void> {
+    const userName = (await this.safeName(row.user_id)) ?? 'STAVE';
+    await this.emitNotification(row.invited_by, type, {
+      projectId: row.project_id,
+      projectName: await this.safeProjectName(row.project_id),
+      userName,
+      invitationId: row.id,
+    });
+  }
+
+  private async emitNotification(
+    userId: string,
+    type: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.notifications.notify(userId, type, payload);
+    } catch (err) {
+      CollaborationService.logger.error(
+        `Could not send notification ${type}: ${String(err)}`,
+      );
+    }
   }
 }

@@ -84,6 +84,71 @@ export function isValidPalette(palette: unknown): palette is Palette {
   return PALETTE_KEYS.every((key) => key in (palette as Record<string, unknown>));
 }
 
+/**
+ * Preset trang trí miễn phí (UC-78). `space` là giao diện mặc định trong
+ * `globals.css` nên không có palette; các khoá còn lại chỉ ghi đè đúng 10 biến
+ * `PALETTE_KEYS`, giữ nguyên độ sáng và độ bão hoà của mặc định, chỉ đổi sắc độ.
+ */
+export const THEME_PRESET_KEYS = ["space", "unleashed", "moss", "claret", "tide"] as const;
+export type ThemePresetKey = (typeof THEME_PRESET_KEYS)[number];
+
+export const THEME_PRESET_PALETTES: Record<Exclude<ThemePresetKey, "space">, Palette> = {
+  moss: {
+    "--background": "oklch(0.14 0.022 160)",
+    "--surface": "oklch(0.19 0.03 160)",
+    "--surface-subtle": "oklch(0.23 0.035 160)",
+    "--surface-muted": "oklch(0.25 0.04 160)",
+    "--foreground": "oklch(0.95 0.012 160)",
+    "--muted-foreground": "oklch(0.83 0.03 160)",
+    "--border": "oklch(0.34 0.04 160)",
+    "--border-strong": "oklch(0.54 0.05 160)",
+    "--metal": "oklch(0.82 0.07 95)",
+    "--metal-muted": "oklch(0.24 0.03 95)",
+  },
+  claret: {
+    "--background": "oklch(0.14 0.022 10)",
+    "--surface": "oklch(0.19 0.03 10)",
+    "--surface-subtle": "oklch(0.23 0.035 10)",
+    "--surface-muted": "oklch(0.25 0.04 10)",
+    "--foreground": "oklch(0.95 0.012 10)",
+    "--muted-foreground": "oklch(0.83 0.03 10)",
+    "--border": "oklch(0.34 0.04 10)",
+    "--border-strong": "oklch(0.54 0.05 10)",
+    "--metal": "oklch(0.82 0.07 60)",
+    "--metal-muted": "oklch(0.24 0.03 60)",
+  },
+  unleashed: {
+    "--background": "oklch(0.14 0.022 55)",
+    "--surface": "oklch(0.19 0.03 55)",
+    "--surface-subtle": "oklch(0.23 0.035 55)",
+    "--surface-muted": "oklch(0.25 0.04 55)",
+    "--foreground": "oklch(0.95 0.012 55)",
+    "--muted-foreground": "oklch(0.83 0.03 55)",
+    "--border": "oklch(0.34 0.04 55)",
+    "--border-strong": "oklch(0.54 0.05 55)",
+    "--metal": "oklch(0.82 0.07 78)",
+    "--metal-muted": "oklch(0.24 0.03 78)",
+  },
+  tide: {
+    "--background": "oklch(0.14 0.022 215)",
+    "--surface": "oklch(0.19 0.03 215)",
+    "--surface-subtle": "oklch(0.23 0.035 215)",
+    "--surface-muted": "oklch(0.25 0.04 215)",
+    "--foreground": "oklch(0.95 0.012 215)",
+    "--muted-foreground": "oklch(0.83 0.03 215)",
+    "--border": "oklch(0.34 0.04 215)",
+    "--border-strong": "oklch(0.54 0.05 215)",
+    "--metal": "oklch(0.82 0.07 175)",
+    "--metal-muted": "oklch(0.24 0.03 175)",
+  },
+};
+
+/** Palette của preset, hoặc null nếu là mặc định/khoá lạ (khi đó không áp gì). */
+export function getPresetPalette(key: string | null | undefined): Palette | null {
+  if (!key || !Object.prototype.hasOwnProperty.call(THEME_PRESET_PALETTES, key)) return null;
+  return THEME_PRESET_PALETTES[key as keyof typeof THEME_PRESET_PALETTES];
+}
+
 /** Theme đang áp dụng — `preset` là preset có sẵn, `custom` là palette từ ảnh. */
 export type ThemeType = "preset" | "custom";
 
@@ -99,6 +164,14 @@ export interface EffectiveTheme {
   presetKey: string | null;
   palette: Record<string, string> | null;
   hasPaidAccess: boolean;
+  /** Có palette tạo từ ảnh đã lưu (kể cả khi đang dùng preset). */
+  hasSavedCustom?: boolean;
+}
+
+/** PUT /themes/me/custom/activate — dùng lại palette từ ảnh đã lưu. */
+export interface ActivateCustomThemeResponse {
+  type: "custom";
+  palette: Record<string, string>;
 }
 
 /** PUT /themes/me/custom */
