@@ -273,7 +273,7 @@ describe('BE-NTF-08 NotificationInboxService preferences', () => {
     expect(items).toHaveLength(28);
     expect(items.find((i) => i.type === 'comment.new')?.channels).toEqual({
       in_app: false,
-      email: true,
+      email: false,
     });
     expect(
       items.find((i) => i.type === 'billing.payment_success')?.channels,

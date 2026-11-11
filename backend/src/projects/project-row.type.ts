@@ -1,5 +1,7 @@
 export type ProjectVisibility = 'private' | 'public';
-export type ProjectLicense = 'CC-BY' | 'CC-BY-SA' | 'CC-BY-NC';
+import type { PROJECT_LICENSES } from './project-license';
+
+export type ProjectLicense = (typeof PROJECT_LICENSES)[number];
 
 export interface ProjectRow {
   id: string;

@@ -3,6 +3,7 @@ import type {
   PlanListItem,
   SubscriptionPlan,
 } from '@stave/shared-types';
+import { currentPlanPrice } from './renewal';
 
 export interface PlanRow {
   id: string;
@@ -14,6 +15,7 @@ export interface PlanRow {
   is_default: boolean;
   sort_order: number;
   price_effective_at: string | null;
+  previous_price_vnd?: number | null;
 }
 
 export interface SubscriptionRow {
@@ -30,7 +32,7 @@ export interface SubscriptionRow {
 }
 
 export const PLAN_COLUMNS =
-  'id, name, description, price_vnd, features, is_active, is_default, sort_order, price_effective_at';
+  'id, name, description, price_vnd, features, is_active, is_default, sort_order, price_effective_at, previous_price_vnd';
 
 export const SUBSCRIPTION_COLUMNS =
   'id, user_id, plan_id, status, price_locked_vnd, started_at, current_period_end, pending_plan_id, grace_until, renewal_notified_at';
@@ -87,12 +89,15 @@ export function resolveEffectivePlan(
   };
 }
 
-export function toSubscriptionPlan(row: PlanRow): SubscriptionPlan {
+export function toSubscriptionPlan(
+  row: PlanRow,
+  now: Date = new Date(),
+): SubscriptionPlan {
   return {
     id: row.id,
     name: row.name,
     description: row.description ?? '',
-    priceVnd: row.price_vnd,
+    priceVnd: currentPlanPrice(row, now),
     features: row.features ?? {},
     isActive: row.is_active,
     isDefault: row.is_default,
@@ -104,17 +109,19 @@ export function toSubscriptionPlan(row: PlanRow): SubscriptionPlan {
 export function listVisiblePlans(
   plans: readonly PlanRow[],
   currentPlanId: string,
+  now: Date = new Date(),
 ): PlanListItem[] {
   return plans
     .filter((plan) => plan.is_active || plan.id === currentPlanId)
+    .map((plan) => ({ plan, price: currentPlanPrice(plan, now) }))
     .sort(
       (a, b) =>
-        a.sort_order - b.sort_order ||
-        a.price_vnd - b.price_vnd ||
-        a.name.localeCompare(b.name),
+        a.plan.sort_order - b.plan.sort_order ||
+        a.price - b.price ||
+        a.plan.name.localeCompare(b.plan.name),
     )
-    .map((plan) => ({
-      ...toSubscriptionPlan(plan),
+    .map(({ plan }) => ({
+      ...toSubscriptionPlan(plan, now),
       isCurrent: plan.id === currentPlanId,
     }));
 }

@@ -9,12 +9,16 @@ import {
   renderTemplate,
 } from './notification-types';
 import { NotificationsService } from './notifications.service';
+import { DisabledEmailSender } from './email-sender';
 
 const userId = '44444444-4444-4444-8444-444444444444';
 
 function makeService(tables: SupabaseMockOptions['tables'] = {}) {
   const mock = createSupabaseMock([], { tables });
-  return { service: new NotificationsService(mock.client), ...mock };
+  return {
+    service: new NotificationsService(mock.client, new DisabledEmailSender()),
+    ...mock,
+  };
 }
 
 describe('BE-NTF-01 notification types', () => {

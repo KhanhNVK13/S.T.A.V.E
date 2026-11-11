@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -28,6 +29,7 @@ export interface TheoryInsightResult {
 }
 
 const MAX_CHORDS_FOR_AI = 16;
+export const THEORY_CACHE_MAX_ENTRIES = 200;
 const EXPLANATION_MAX_LENGTH = 400;
 
 const THEORY_PROMPTS: Record<SuggestionLang, string> = {
@@ -52,6 +54,7 @@ function confidenceLevel(confidence: number): 'high' | 'medium' | 'low' {
 @Injectable()
 export class TheoryInsightService {
   private readonly logger = new Logger(TheoryInsightService.name);
+  private readonly commitCache = new Map<string, TheoryInsightResult>();
 
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
@@ -70,13 +73,34 @@ export class TheoryInsightService {
   ): Promise<TheoryInsightResult> {
     await this.access.assertCanRead(projectId, userId);
 
+    const cacheKey = commitId ? `${projectId}:${commitId}:${lang}` : null;
+    if (cacheKey) {
+      const cached = this.commitCache.get(cacheKey);
+      if (cached) {
+        this.commitCache.delete(cacheKey);
+        this.commitCache.set(cacheKey, cached);
+        return cached;
+      }
+    }
+
     const snapshot = commitId
       ? await this.readCommitSnapshot(projectId, commitId)
       : await this.readCurrentSnapshot(projectId, userId);
 
     const analysis = analyzeTheory(snapshot);
     const explanation = await this.explain(userId, analysis, lang);
-    return { ...analysis, explanation };
+    const result: TheoryInsightResult = { ...analysis, explanation };
+
+    const nothingToExplain =
+      !analysis.tonality && analysis.chords.every((c) => c.chord === null);
+    if (cacheKey && (explanation !== null || nothingToExplain)) {
+      this.commitCache.set(cacheKey, result);
+      if (this.commitCache.size > THEORY_CACHE_MAX_ENTRIES) {
+        const oldest = this.commitCache.keys().next().value;
+        if (oldest !== undefined) this.commitCache.delete(oldest);
+      }
+    }
+    return result;
   }
 
   private async readCommitSnapshot(
@@ -113,7 +137,13 @@ export class TheoryInsightService {
     userId: string,
   ): Promise<DraftSnapshot> {
     const level = await this.access.getAccess(projectId, userId);
-    if (level !== null) return this.drafts.getDraft(projectId, userId);
+    if (level !== null) {
+      try {
+        return await this.drafts.getDraft(projectId, userId);
+      } catch (error) {
+        if (!(error instanceof ForbiddenException)) throw error;
+      }
+    }
 
     const { data: branch, error } = await this.supabase
       .from('branches')

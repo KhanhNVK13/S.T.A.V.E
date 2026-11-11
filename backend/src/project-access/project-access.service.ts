@@ -91,6 +91,24 @@ export class ProjectAccessService {
     return { access: null, project };
   }
 
+  async assertPublicReadable(projectId: string): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('id, owner:owner_id!inner (status)')
+      .eq('id', projectId)
+      .eq('visibility', 'public')
+      .eq('owner.status', 'active')
+      .is('archived_at', null)
+      .is('moderation_hidden_at', null)
+      .maybeSingle();
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to check project visibility: ${error.message}`,
+      );
+    }
+    if (!data) throw new NotFoundException('Project not found');
+  }
+
   /** owner or any accepted collaborator (view/edit). */
   async assertCanView(projectId: string, userId: string): Promise<void> {
     const access = await this.getAccess(projectId, userId);

@@ -22,6 +22,8 @@ import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
 import { ProjectHistory } from "../../../components/project/project-history";
+import { PublicHistory } from "../../../components/project/public-history";
+import { LICENSE_NAME_KEYS, asLicense } from "../../../lib/license";
 import { Tabs } from "../../../components/ui/tabs";
 import { SkyLoading } from "../../../components/project/sky-state";
 import { Toast } from "../../../components/ui/toast";
@@ -48,6 +50,7 @@ interface OwnedProject {
   description: string | null;
   genre: string | null;
   visibility: "public" | "private";
+  license?: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -61,6 +64,7 @@ interface OverviewData {
   description: string | null;
   genre: string | null;
   visibility: "public" | "private";
+  license: string | null;
   archivedAt: string | null;
   updatedAt: string;
   playCount: number;
@@ -111,6 +115,7 @@ function ProjectOverview({ id }: { id: string }) {
           description: pub.description,
           genre: pub.genre,
           visibility: "public",
+          license: pub.license ?? null,
           archivedAt: pub.archived_at,
           updatedAt: pub.updated_at,
           playCount: pub.play_count,
@@ -141,6 +146,7 @@ function ProjectOverview({ id }: { id: string }) {
             description: owned.description,
             genre: owned.genre,
             visibility: owned.visibility,
+            license: owned.license ?? null,
             archivedAt: owned.archived_at,
             updatedAt: owned.updated_at,
             playCount: owned.play_count,
@@ -282,10 +288,12 @@ function ProjectOverview({ id }: { id: string }) {
 
   const canViewHistory = data.isOwner || isCollaborator || (!!user && data.visibility === "public");
   const readOnly = !data.isOwner;
+  const canViewPublicHistory = !user && data.visibility === "public";
+  const license = asLicense(data.license);
 
   const tabs: { id: TabId; label: string; visible: boolean }[] = [
     { id: "overview", label: t("project.tabOverview"), visible: true },
-    { id: "commits", label: t("project.tabCommits"), visible: canViewHistory },
+    { id: "commits", label: t("project.tabCommits"), visible: canViewHistory || canViewPublicHistory },
     { id: "branches", label: t("project.tabBranches"), visible: canViewHistory },
     { id: "pulls", label: t("project.tabPulls"), visible: !!user && (data.isOwner || data.visibility === "public") },
     { id: "contributions", label: t("project.tabContributions"), visible: canViewHistory },
@@ -339,6 +347,7 @@ function ProjectOverview({ id }: { id: string }) {
               </Badge>
               {data.archivedAt && <Badge variant="warning">{t("project.archived")}</Badge>}
               {data.genre && <Badge variant="neutral">{data.genre}</Badge>}
+              {license && data.visibility === "public" && <Badge variant="neutral">{t(LICENSE_NAME_KEYS[license])}</Badge>}
               <span>{t("project.updated", { when: formatRelativeTime(data.updatedAt) })}</span>
             </div>
           </div>
@@ -396,7 +405,9 @@ function ProjectOverview({ id }: { id: string }) {
           />
         </div>
 
-        {activeTab === "commits" ? (
+        {activeTab === "commits" && canViewPublicHistory ? (
+          <PublicHistory projectId={data.id} />
+        ) : activeTab === "commits" ? (
           <CommitHistory
             key={`${searchParams.get("branch") ?? "default"}-${refreshKey}`}
             projectId={data.id}

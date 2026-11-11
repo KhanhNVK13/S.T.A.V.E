@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Music2 } from "lucide-react";
 import { getTheoryInsight, type TheoryInsightResult } from "../../lib/api-client";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
@@ -29,6 +29,7 @@ export function TheoryInsightCard({
   commitId?: string;
 }) {
   const { t, lang } = useI18n();
+  const titleId = useId();
   const requestKey = `${projectId}:${commitId ?? ""}:${lang}`;
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<{
@@ -63,16 +64,16 @@ export function TheoryInsightCard({
   return (
     <section
       data-testid="theory-insight-card"
-      aria-labelledby="ti-title"
+      aria-labelledby={titleId}
       className="mt-5 rounded-card border border-border bg-surface"
     >
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         <Music2 className="h-4 w-4 text-muted" aria-hidden />
-        <h2 id="ti-title" className="text-[13px] font-semibold">
+        <h2 id={titleId} className="text-[13px] font-semibold">
           {t("ti.title")}
         </h2>
       </div>
-      <div className="px-4 py-3 text-[13px]">
+      <div aria-live="polite" className="px-4 py-3 text-[13px]">
         {!current ? (
           <SkyLoading compact label={t("ti.loading")} />
         ) : current.error || !current.result ? (

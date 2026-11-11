@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CornerDownRight,
   Loader2,
@@ -22,8 +22,8 @@ import {
   COMMENT_BODY_MAX_LENGTH,
   createComment,
   deleteComment,
-  getComments,
 } from "../../lib/api-comments";
+import type { ProjectCommentsState } from "../../lib/use-project-comments";
 import { barToTick, tickToBar } from "../../lib/piano-roll-geometry";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
@@ -58,6 +58,9 @@ interface CommentsPanelProps {
   tracks: DraftTrack[];
   notes: DraftNote[];
   selectedNoteIds: Set<string>;
+  playheadTick: number;
+  comments: ProjectCommentsState;
+  focusRequest: { bar: number | null; noteId?: string; nonce: number } | null;
   onSeek: (tick: number) => void;
   onClose: () => void;
 }
@@ -69,6 +72,9 @@ export function CommentsPanel({
   tracks,
   notes,
   selectedNoteIds,
+  playheadTick,
+  comments,
+  focusRequest,
   onSeek,
   onClose,
 }: CommentsPanelProps) {
@@ -76,9 +82,7 @@ export function CommentsPanel({
   const { user } = useAuth();
   const myId = user?.id ?? null;
 
-  // Token bump to re-fetch the list after a mutation (create/delete/reply).
-  const [refreshTick, setRefreshTick] = useState(0);
-  const refresh = () => setRefreshTick((n) => n + 1);
+  const refresh = comments.refresh;
 
   // Owner detection: getProject (GET /projects/:id) is owner-scoped, so a
   // success means I own the project. Collaborators get a 404 → isOwner=false,
@@ -92,12 +96,18 @@ export function CommentsPanel({
     project !== null &&
     (project as { owner_id?: string }).owner_id === myId;
 
-  const { data: fetched, loading, error: listError } = useApiResource(
-    () => getComments(projectId),
-    [projectId, refreshTick],
-    t("cm.loadFail"),
-  );
-  const items = useMemo(() => (fetched ?? []) as CommentItem[], [fetched]);
+  const { items, loading, error: listError } = comments;
+
+  const handledFocus = useRef(0);
+  useEffect(() => {
+    if (!focusRequest || focusRequest.bar === null) return;
+    if (focusRequest.nonce === handledFocus.current) return;
+    const el = document.getElementById(`cm-bar-${focusRequest.bar}`);
+    if (!el) return;
+    handledFocus.current = focusRequest.nonce;
+    el.scrollIntoView({ block: "nearest" });
+    el.focus({ preventScroll: true });
+  }, [focusRequest, items]);
 
   // ── Composer state ─────────────────────────────────────────
   const [body, setBody] = useState("");
@@ -302,6 +312,12 @@ export function CommentsPanel({
               return (
                 <section
                   key={barKey === "project" ? "project" : `bar-${barKey}`}
+                  id={barKey === "project" ? undefined : `cm-bar-${barKey}`}
+                  tabIndex={barKey === "project" ? undefined : -1}
+                  aria-label={
+                    barKey === "project" ? undefined : t("cm.bar", { n: String(barKey) })
+                  }
+                  className="rounded-card outline-none focus:ring-2 focus:ring-accent/60"
                 >
                   {barKey !== "project" ? (
                     <div className="mb-2 flex items-center justify-between">
@@ -478,6 +494,19 @@ export function CommentsPanel({
           </div>
         )}
 
+        {!anchorNoteId && !anchorBar && (
+          <button
+            type="button"
+            onClick={() => {
+              setAnchorTrackId("");
+              setAnchorBar(String(tickToBar(playheadTick, ppq, timeSignature)));
+            }}
+            className="mb-2 w-full rounded-card border border-border bg-surface-subtle px-2.5 py-1.5 text-left text-[12px] text-muted transition-colors hover:border-accent/40 hover:text-foreground"
+          >
+            {t("cpn.pinPlayheadBar", { bar: tickToBar(playheadTick, ppq, timeSignature) })}
+          </button>
+        )}
+
         {prefillNote && !anchorNoteId && (
           <button
             type="button"
@@ -618,7 +647,7 @@ function CommentRow({
     <article
       className={`rounded-card border border-border bg-surface px-3 py-2.5 ${
         isReply ? "ml-6 border-l-2 border-l-accent/40" : ""
-      }`}
+      } ${c.noteMissing ? "opacity-60" : ""}`}
     >
       <div className="flex items-start gap-2.5">
         <Avatar

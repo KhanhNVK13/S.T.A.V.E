@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import {
   THEME_PRESET_KEYS,
@@ -12,6 +12,7 @@ import { useTheme } from "../../context/theme-context";
 import { activateSavedCustomTheme, setMyPresetTheme } from "../../lib/api-billing";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import type { TKey } from "../../lib/i18n";
+import { nextRadioIndex } from "../../lib/radio-group-nav";
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 
@@ -45,6 +46,7 @@ export function ThemePresets() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [pending, setPending] = useState<ThemePresetKey | null>(null);
   const [error, setError] = useState<ErrorSource | null>(null);
+  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const usingCustom = theme?.type === "custom";
   const customApplied = usingCustom && theme.hasPaidAccess;
@@ -80,8 +82,19 @@ export function ThemePresets() {
     }
   }
 
+  const tabStopIndex = Math.max(0, selected ? THEME_PRESET_KEYS.indexOf(selected) : 0);
+  const radioBusy = loading || busyKey !== null;
+
+  function onRadioKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    const next = nextRadioIndex(index, e.key, THEME_PRESET_KEYS.length);
+    if (next === null) return;
+    e.preventDefault();
+    radioRefs.current[next]?.focus();
+    onPick(THEME_PRESET_KEYS[next]);
+  }
+
   function onPick(key: ThemePresetKey) {
-    if (key === selected || busyKey) return;
+    if (key === selected || busyKey || loading) return;
     if (customApplied) setPending(key);
     else void choose(key);
   }
@@ -92,7 +105,7 @@ export function ThemePresets() {
       <p className="text-xs text-muted">{t("tp.lead")}</p>
 
       <div role="radiogroup" aria-label={t("tp.title")} className="flex flex-wrap gap-3">
-        {THEME_PRESET_KEYS.map((key) => {
+        {THEME_PRESET_KEYS.map((key, index) => {
           const swatch = swatchOf(key);
           const active = key === selected;
           return (
@@ -101,10 +114,15 @@ export function ThemePresets() {
               type="button"
               role="radio"
               aria-checked={active}
-              disabled={loading || busyKey !== null}
+              ref={(node) => {
+                radioRefs.current[index] = node;
+              }}
+              tabIndex={index === tabStopIndex ? 0 : -1}
+              aria-disabled={radioBusy}
+              onKeyDown={(e) => onRadioKeyDown(e, index)}
               onClick={() => onPick(key)}
               data-testid={`theme-preset-${key}`}
-              className={`flex w-24 flex-col items-center gap-2 rounded-card border p-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              className={`flex w-24 flex-col items-center gap-2 rounded-card border p-2 text-xs transition-colors aria-disabled:cursor-not-allowed aria-disabled:opacity-60 ${
                 active ? "border-accent bg-accent-muted/40" : "border-border hover:border-border-strong"
               }`}
             >

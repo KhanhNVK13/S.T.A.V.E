@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -29,8 +30,12 @@ export interface SessionRow {
   revoked_at: string | null;
 }
 
+let warnedMissingAnonKey = false;
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
@@ -38,6 +43,18 @@ export class AuthService {
     private readonly accountRemoval: AccountRemovalService,
     @Optional() private readonly activityLog?: ActivityLogService,
   ) {}
+
+  private authApiKey(): string {
+    const anonKey = this.config.get<string>('SUPABASE_ANON_KEY');
+    if (anonKey) return anonKey;
+    if (!warnedMissingAnonKey) {
+      warnedMissingAnonKey = true;
+      this.logger.warn(
+        'SUPABASE_ANON_KEY is not set; Auth calls fall back to the service-role key',
+      );
+    }
+    return this.config.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
+  }
 
   /**
    * Verifies a password WITHOUT calling auth.signInWithPassword on the
@@ -53,13 +70,10 @@ export class AuthService {
     password: string,
   ): Promise<boolean> {
     const url = this.config.getOrThrow<string>('SUPABASE_URL');
-    const serviceRoleKey = this.config.getOrThrow<string>(
-      'SUPABASE_SERVICE_ROLE_KEY',
-    );
     const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: {
-        apikey: serviceRoleKey,
+        apikey: this.authApiKey(),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ email, password }),
@@ -79,13 +93,10 @@ export class AuthService {
     newPassword: string,
   ): Promise<void> {
     const url = this.config.getOrThrow<string>('SUPABASE_URL');
-    const serviceRoleKey = this.config.getOrThrow<string>(
-      'SUPABASE_SERVICE_ROLE_KEY',
-    );
     const res = await fetch(`${url}/auth/v1/user`, {
       method: 'PUT',
       headers: {
-        apikey: serviceRoleKey,
+        apikey: this.authApiKey(),
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },

@@ -69,6 +69,7 @@ export interface UpdateProjectPayload {
   name?: string;
   description?: string;
   genre?: string;
+  license?: "CC-BY" | "CC-BY-SA" | "CC-BY-NC";
 }
 
 export interface CreateProjectPayload {
@@ -151,11 +152,34 @@ export interface Project {
 export async function setProjectVisibility(
   id: string,
   visibility: ProjectVisibility,
+  license?: "CC-BY" | "CC-BY-SA" | "CC-BY-NC",
 ): Promise<Project> {
   return apiFetch<Project>(`/projects/${id}/visibility`, {
     method: "PATCH",
-    body: JSON.stringify({ visibility }),
+    body: JSON.stringify(license ? { visibility, license } : { visibility }),
   });
+}
+
+export async function getProjectTags(id: string): Promise<string[]> {
+  return apiFetch<string[]>(`/projects/${id}/tags`);
+}
+
+export async function setProjectTags(id: string, tags: string[]): Promise<string[]> {
+  const result = await apiFetch<{ tags: string[] }>(`/projects/${id}/tags`, {
+    method: "PUT",
+    body: JSON.stringify({ tags }),
+  });
+  return result.tags;
+}
+
+export async function syncAccountLanguage(language: "en" | "vi"): Promise<void> {
+  if (!getStoredSessionId()) return;
+  try {
+    await apiFetch<unknown>("/users/me", {
+      method: "PATCH",
+      body: JSON.stringify({ language }),
+    });
+  } catch {}
 }
 
 // ============================================
@@ -184,6 +208,7 @@ export async function listPublicProjects(params?: {
   tag?: string;
   sort?: 'newest' | 'popular' | 'most_played';
   search?: string;
+  instrument?: string[];
 }): Promise<PublicProjectsResponse> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
@@ -192,6 +217,7 @@ export async function listPublicProjects(params?: {
   if (params?.tag) searchParams.set('tag', params.tag);
   if (params?.sort) searchParams.set('sort', params.sort);
   if (params?.search) searchParams.set('search', params.search);
+  if (params?.instrument?.length) searchParams.set('instrument', params.instrument.join(','));
 
   const query = searchParams.toString();
   return apiFetch<PublicProjectsResponse>(`/explore/projects${query ? `?${query}` : ''}`);
@@ -886,6 +912,10 @@ export interface NotificationPreference {
   category: string;
   mandatory: boolean;
   channels: Record<NotificationChannel, boolean>;
+}
+
+export async function getEmailChannelStatus(): Promise<{ ready: boolean }> {
+  return apiFetch("/notifications/email-status");
 }
 
 export async function getNotificationPreferences(): Promise<NotificationPreference[]> {

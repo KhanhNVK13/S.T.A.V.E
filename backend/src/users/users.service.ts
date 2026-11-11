@@ -141,6 +141,7 @@ export class UsersService {
     if (dto.username !== undefined) patch.username = dto.username;
     if (dto.bio !== undefined) patch.bio = dto.bio;
     if (dto.avatarUrl !== undefined) patch.avatar_url = dto.avatarUrl ?? null;
+    if (dto.language !== undefined) patch.language = dto.language;
 
     const { data, error } = await this.supabase
       .from('users')

@@ -225,7 +225,9 @@ export class NotificationInboxService {
         in_app: def.mandatory
           ? true
           : (stored.get(`${def.type}|in_app`) ?? true),
-        email: def.mandatory ? true : (stored.get(`${def.type}|email`) ?? true),
+        email: def.mandatory
+          ? true
+          : (stored.get(`${def.type}|email`) ?? false),
       },
     }));
   }

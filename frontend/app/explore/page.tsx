@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search as SearchIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -11,6 +11,15 @@ import {
   PublicProjectsResponse,
 } from '../../lib/api-client';
 import { useApiResource } from '../../lib/use-api-resource';
+import {
+  MAX_INSTRUMENT_FILTERS,
+  addInstrument,
+  groupInstrumentsByCategory,
+  instrumentCategoryKey,
+  parseInstrumentParam,
+  removeInstrument,
+  serializeInstrumentParam,
+} from '../../lib/explore-instrument-filter';
 import { PageHeader } from '../../components/ui/page-header';
 import { EmptyState } from '../../components/ui/empty-state';
 import { Button } from '../../components/ui/button';
@@ -39,7 +48,9 @@ function ExploreContent() {
   const genre = searchParams.get('genre') ?? '';
   const search = searchParams.get('search') ?? '';
   const tag = searchParams.get('tag') ?? '';
-  const filtered = Boolean(search || genre || tag);
+  const instrumentParam = searchParams.get('instrument');
+  const instruments = useMemo(() => parseInstrumentParam(instrumentParam), [instrumentParam]);
+  const filtered = Boolean(search || genre || tag || instruments.length > 0);
 
   const { data, loading, error } = useApiResource<PublicProjectsResponse>(
     () =>
@@ -50,8 +61,9 @@ function ExploreContent() {
         genre: genre || undefined,
         search: search || undefined,
         tag: tag || undefined,
+        instrument: instruments.length > 0 ? instruments : undefined,
       }),
-    [page, sort, genre, search, tag],
+    [page, sort, genre, search, tag, instruments],
     tNow('ex.loadFail'),
   );
 
@@ -77,7 +89,8 @@ function ExploreContent() {
       newParams.sort !== undefined ||
       newParams.genre !== undefined ||
       newParams.search !== undefined ||
-      newParams.tag !== undefined
+      newParams.tag !== undefined ||
+      newParams.instrument !== undefined
     ) {
       params.set('page', '1');
     }
@@ -170,6 +183,58 @@ function ExploreContent() {
         ))}
       </div>
 
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <select
+          value=""
+          onChange={(e) => {
+            if (e.target.value === '') return;
+            updateParams({
+              instrument: serializeInstrumentParam(addInstrument(instruments, e.target.value)),
+            });
+          }}
+          disabled={instruments.length >= MAX_INSTRUMENT_FILTERS}
+          aria-label={t('exi.filterLabel')}
+          className={`${INPUT_CLASS} h-[34px] max-w-full`}
+        >
+          <option value="">
+            {instruments.length >= MAX_INSTRUMENT_FILTERS
+              ? t('exi.limitReached', { n: MAX_INSTRUMENT_FILTERS })
+              : t('exi.add')}
+          </option>
+          {groupInstrumentsByCategory(instruments).map((group) => (
+            <optgroup
+              key={group.category}
+              label={(() => {
+                const key = instrumentCategoryKey(group.category);
+                return key ? t(key) : group.category;
+              })()}
+            >
+              {group.names.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {instruments.map((name) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() =>
+              updateParams({
+                instrument: serializeInstrumentParam(removeInstrument(instruments, name)),
+              })
+            }
+            aria-label={t('exi.remove', { name })}
+            className="flex h-[34px] items-center gap-1.5 rounded-md border border-accent bg-accent-muted px-3 text-xs font-semibold text-accent"
+          >
+            {name}
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+        ))}
+      </div>
+
       {showFeatured && (featuredProjects.length > 0 || featuredError) && (
         <section aria-labelledby="explore-featured" className="mb-8">
           <h2 id="explore-featured" className="mb-2.5 text-[17px] font-semibold">
@@ -215,7 +280,7 @@ function ExploreContent() {
                   variant="secondary"
                   onClick={() => {
                     setSearchInput('');
-                    updateParams({ search: null, genre: null, tag: null });
+                    updateParams({ search: null, genre: null, tag: null, instrument: null });
                   }}
                 >
                   {t('ex.clearFilters')}

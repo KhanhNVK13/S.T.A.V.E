@@ -2,6 +2,7 @@ import {
   addOneMonth,
   computeNewPeriodEnd,
   computeRenewalPrice,
+  currentPlanPrice,
   currentReminderMilestone,
 } from './renewal';
 
@@ -182,5 +183,47 @@ describe('BE-BIL-37 currentReminderMilestone', () => {
         iso('2026-11-11T00:00:00.000Z'),
       ),
     ).toBeNull();
+  });
+});
+
+describe('BE-BIL-36 currentPlanPrice', () => {
+  const now = iso('2026-11-06T00:00:00.000Z');
+
+  it('UTCID01 keeps the previous price until the new one takes effect', () => {
+    expect(
+      currentPlanPrice(
+        {
+          price_vnd: 99000,
+          previous_price_vnd: 49000,
+          price_effective_at: '2026-11-13T00:00:00.000Z',
+        },
+        now,
+      ),
+    ).toBe(49000);
+  });
+
+  it('UTCID02 uses the new price from the effective moment on', () => {
+    expect(
+      currentPlanPrice(
+        {
+          price_vnd: 99000,
+          previous_price_vnd: 49000,
+          price_effective_at: '2026-11-06T00:00:00.000Z',
+        },
+        now,
+      ),
+    ).toBe(99000);
+  });
+
+  it('UTCID03 falls back to the stored price without a previous price or date', () => {
+    expect(
+      currentPlanPrice({ price_vnd: 99000, price_effective_at: null }, now),
+    ).toBe(99000);
+    expect(
+      currentPlanPrice(
+        { price_vnd: 99000, price_effective_at: '2026-12-01T00:00:00.000Z' },
+        now,
+      ),
+    ).toBe(99000);
   });
 });

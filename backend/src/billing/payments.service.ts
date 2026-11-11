@@ -22,7 +22,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { PLAN_COLUMNS, type PlanRow } from './effective-plan';
 import { PAYMENT_GATEWAY, type PaymentGateway } from './payment-gateway';
-import { computeRenewalPrice } from './renewal';
+import { computeRenewalPrice, currentPlanPrice } from './renewal';
 import { isSafeReturnTo } from './return-to';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -135,13 +135,14 @@ export class PaymentsService {
     if (!plan.is_active && purpose !== 'renew') {
       throw new ConflictException('Plan is no longer available');
     }
-    const effective = await this.subscriptions.getEffective(userId);
-    this.assertPurpose(purpose, plan, effective);
+    const now = new Date();
+    const effective = await this.subscriptions.getEffective(userId, now);
+    this.assertPurpose(purpose, plan, effective, now);
 
     const amountVnd =
       purpose === 'renew'
-        ? await this.renewalAmount(userId, plan)
-        : plan.price_vnd;
+        ? await this.renewalAmount(userId, plan, now)
+        : currentPlanPrice(plan, now);
     if (!Number.isSafeInteger(amountVnd) || amountVnd <= 0) {
       throw new BadRequestException('This plan does not need payment');
     }
@@ -286,6 +287,7 @@ export class PaymentsService {
     purpose: CheckoutPurpose,
     plan: PlanRow,
     effective: EffectiveSubscription,
+    now: Date,
   ): void {
     if (purpose === 'subscribe' && effective.hasPaidAccess) {
       throw new ConflictException('You already have a paid plan');
@@ -297,7 +299,7 @@ export class PaymentsService {
       if (plan.id === effective.plan.id) {
         throw new ConflictException('You are already on this plan');
       }
-      if (plan.price_vnd <= effective.plan.priceVnd) {
+      if (currentPlanPrice(plan, now) <= effective.plan.priceVnd) {
         throw new ConflictException(
           'Only a more expensive plan can be bought as an upgrade',
         );
@@ -315,12 +317,16 @@ export class PaymentsService {
    * Số tiền gia hạn: giá gói mới khi đã có hiệu lực, nếu không thì giá đang
    * khoá của người dùng (BR-119).
    */
-  private async renewalAmount(userId: string, plan: PlanRow): Promise<number> {
+  private async renewalAmount(
+    userId: string,
+    plan: PlanRow,
+    now: Date,
+  ): Promise<number> {
     const subscription = await this.subscriptions.getSubscriptionRow(userId);
     if (!subscription) {
       throw new ConflictException('Only your current paid plan can be renewed');
     }
-    return computeRenewalPrice(plan, subscription, new Date());
+    return computeRenewalPrice(plan, subscription, now);
   }
 
   private async loadPayer(userId: string): Promise<PayerRow> {

@@ -13,6 +13,7 @@ import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { formatVnd } from '../billing/billing-format';
+import { currentPlanPrice } from '../billing/renewal';
 import type { CreatePlanDto } from './dto/create-plan.dto';
 import { MAX_EXTRA_STORAGE_MB } from './dto/create-plan.dto';
 import type { UpdatePlanPriceDto } from './dto/update-plan-price.dto';
@@ -146,10 +147,12 @@ export class AdminPlansService {
       });
     }
 
+    const fromPrice = currentPlanPrice(plan, now);
     const { data, error } = await this.supabase
       .from('subscription_plans')
       .update({
         price_vnd: dto.priceVnd,
+        previous_price_vnd: fromPrice,
         price_effective_at: effectiveAt.toISOString(),
       })
       .eq('id', id)
@@ -159,12 +162,18 @@ export class AdminPlansService {
       throw new InternalServerErrorException('Could not update plan price');
     }
 
-    await this.notifySubscribersOfPriceChange(plan, data, dto.priceVnd);
+    try {
+      await this.notifySubscribersOfPriceChange(plan, data, now);
+    } catch (err) {
+      this.logger.error(
+        `Could not send price-change notices for plan ${id}: ${String(err)}`,
+      );
+    }
     await this.writeAuditLog(
       adminId,
       'plan.price_change',
       id,
-      `${formatVnd(plan.price_vnd)} → ${formatVnd(dto.priceVnd)}, áp dụng từ ${effectiveAt.toISOString()}`,
+      `${formatVnd(fromPrice)} → ${formatVnd(data.price_vnd)}, áp dụng từ ${effectiveAt.toISOString()}`,
     );
 
     return this.toItem(data, new Map());
@@ -298,9 +307,12 @@ export class AdminPlansService {
   private async notifySubscribersOfPriceChange(
     plan: AdminPlanRow,
     updated: AdminPlanRow,
-    newPrice: number,
+    now: Date,
   ): Promise<void> {
-    const now = new Date();
+    const effectiveAt = updated.price_effective_at
+      ? new Date(updated.price_effective_at)
+      : now;
+    const newPrice = currentPlanPrice(updated, effectiveAt);
     const { data, error } = await this.supabase
       .from('subscriptions')
       .select('user_id, status, current_period_end')

@@ -186,6 +186,28 @@ describe('BE-BIL-19 PaymentsService.createCheckout', () => {
     });
   });
 
+  it('UTCID16 charges the previous price for a new subscription until the new price takes effect', async () => {
+    const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const { service, mock } = makeService({
+      tables: {
+        users: [ok(payer)],
+        subscription_plans: [
+          ok({
+            ...plusRow,
+            price_vnd: 99000,
+            previous_price_vnd: 49000,
+            price_effective_at: future,
+          }),
+        ],
+        transactions: [ok(null), ok(null), ok(null)],
+      },
+    });
+    await service.createCheckout(userId, planId, 'subscribe');
+    expect(mock.builders.transactions.insert.mock.calls[0][0]).toMatchObject({
+      amount_vnd: 49000,
+    });
+  });
+
   it('UTCID02 drops a returnTo that would leave the site', async () => {
     const { service, gateway } = makeService({
       tables: checkoutTables([ok(null), ok(null), ok(null)]),

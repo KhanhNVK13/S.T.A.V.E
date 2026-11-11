@@ -27,6 +27,9 @@ import { errorSource, renderError, type ErrorSource } from "../../../../lib/erro
 import { useI18n } from "../../../../context/i18n-context";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../../lib/validation";
 import { SkyLoading } from "../../../../components/project/sky-state";
+import { LicensePicker } from "../../../../components/project/license-picker";
+import { LicenseCard, TagsCard } from "../../../../components/project/publishing-settings";
+import { DEFAULT_LICENSE, asLicense, type ProjectLicense } from "../../../../lib/license";
 
 const NAME_MAX = 100;
 
@@ -36,6 +39,7 @@ interface Project {
   description: string | null;
   genre: string | null;
   visibility: ProjectVisibility;
+  license?: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -213,6 +217,7 @@ export default function ProjectSettingsPage() {
   const [visibilitySuccess, setVisibilitySuccess] = useState<string | null>(null);
   const [settingVisibility, setSettingVisibility] = useState(false);
   const [pendingVisibility, setPendingVisibility] = useState<ProjectVisibility | null>(null);
+  const [publishLicense, setPublishLicense] = useState<ProjectLicense>(DEFAULT_LICENSE);
   const [deletePreview, setDeletePreview] = useState<ProjectDeletePreview | "error" | null>(null);
   const [archiveNotice, setArchiveNotice] = useState<"archived" | "restored" | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -300,8 +305,8 @@ export default function ProjectSettingsPage() {
     setVisibilitySuccess(null);
     setSettingVisibility(true);
     try {
-      const updated = await setProjectVisibility(projectId, visibility);
-      setProject((prev) => (prev ? { ...prev, visibility: updated.visibility } : prev));
+      const updated = await setProjectVisibility(projectId, visibility, visibility === 'public' ? publishLicense : undefined);
+      setProject((prev) => (prev ? { ...prev, visibility: updated.visibility, license: updated.license } : prev));
       const msg =
         visibility === 'public'
           ? t("pset.madePublic")
@@ -424,7 +429,10 @@ export default function ProjectSettingsPage() {
                     name="visibility"
                     value="public"
                     checked={project.visibility === "public"}
-                    onChange={() => setPendingVisibility("public")}
+                    onChange={() => {
+                      setPublishLicense(asLicense(project.license) ?? DEFAULT_LICENSE);
+                      setPendingVisibility("public");
+                    }}
                     disabled={settingVisibility}
                     className="mt-1 accent-accent"
                   />
@@ -455,6 +463,17 @@ export default function ProjectSettingsPage() {
                 </div>
               )}
             </Card>
+
+            {project.visibility === "public" && (
+              <LicenseCard
+                projectId={projectId}
+                license={project.license ?? null}
+                disabled={!!project.archived_at}
+                onSaved={(next) => setProject((prev) => (prev ? { ...prev, license: next } : prev))}
+              />
+            )}
+
+            <TagsCard projectId={projectId} disabled={!!project.archived_at} />
 
             <Card className="border-danger/20 p-6">
               <div className="mb-2 flex items-center gap-2">
@@ -640,9 +659,14 @@ export default function ProjectSettingsPage() {
           pendingVisibility === "public" ? t("pset.makePublicTitle") : t("pset.makePrivateTitle")
         }
         message={
-          pendingVisibility === "public"
-            ? t("pset.makePublicBody")
-            : t("pset.makePrivateBody")
+          pendingVisibility === "public" ? (
+            <div className="flex flex-col gap-4">
+              <p>{t("pset.makePublicBody")}</p>
+              <LicensePicker value={publishLicense} onChange={setPublishLicense} disabled={settingVisibility} />
+            </div>
+          ) : (
+            t("pset.makePrivateBody")
+          )
         }
         confirmLabel={pendingVisibility === "public" ? t("pset.makePublicConfirm") : t("pset.makePrivateConfirm")}
         loading={settingVisibility}

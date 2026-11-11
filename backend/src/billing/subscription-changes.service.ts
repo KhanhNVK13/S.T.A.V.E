@@ -18,6 +18,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { PLAN_COLUMNS, type PlanRow } from './effective-plan';
 import { classifyChange } from './plan-change';
+import { currentPlanPrice } from './renewal';
 import { PaymentsService } from './payments.service';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -43,18 +44,18 @@ export class SubscriptionChangesService {
     userId: string,
     planId: string,
   ): Promise<PlanChangePreview> {
+    const now = new Date();
     const { effective, target, kind } = await this.resolveChange(
       userId,
       planId,
+      now,
     );
     return {
       kind,
       planName: target.name,
-      chargeVnd: kind === 'upgrade' ? target.price_vnd : 0,
+      chargeVnd: kind === 'upgrade' ? currentPlanPrice(target, now) : 0,
       effectiveAt:
-        kind === 'upgrade'
-          ? new Date().toISOString()
-          : effective.currentPeriodEnd,
+        kind === 'upgrade' ? now.toISOString() : effective.currentPeriodEnd,
     };
   }
 
@@ -62,6 +63,7 @@ export class SubscriptionChangesService {
     const { effective, target, kind } = await this.resolveChange(
       userId,
       planId,
+      new Date(),
     );
     if (kind === 'upgrade') {
       const checkout = await this.payments.createCheckout(
@@ -187,8 +189,9 @@ export class SubscriptionChangesService {
   private async resolveChange(
     userId: string,
     planId: string,
+    now: Date,
   ): Promise<ResolvedChange> {
-    const effective = await this.subscriptions.getEffective(userId);
+    const effective = await this.subscriptions.getEffective(userId, now);
     if (!effective.hasPaidAccess) {
       throw new ConflictException('You do not have a paid plan');
     }
@@ -199,7 +202,10 @@ export class SubscriptionChangesService {
     if (!target.is_active) {
       throw new ConflictException('Plan is no longer available');
     }
-    const kind = classifyChange(effective.plan.priceVnd, target.price_vnd);
+    const kind = classifyChange(
+      effective.plan.priceVnd,
+      currentPlanPrice(target, now),
+    );
     if (kind === 'downgrade' && effective.cancelAtPeriodEnd) {
       throw new ConflictException(
         'Resume your plan before scheduling a change',

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   InternalServerErrorException,
   NotFoundException,
@@ -555,10 +556,15 @@ describe('BE-PRJ-12 ProjectsService.archiveOwned / unarchiveOwned / setVisibilit
       { data: updated },
     ]);
 
-    const result = await service.setVisibility(projectId, ownerId, 'public');
+    const result = await service.setVisibility(
+      projectId,
+      ownerId,
+      'public',
+      'CC-BY',
+    );
     expect(result).toEqual(updated);
     expect(builder.update).toHaveBeenCalledWith(
-      expect.objectContaining({ visibility: 'public' }),
+      expect.objectContaining({ visibility: 'public', license: 'CC-BY' }),
     );
   });
 
@@ -617,7 +623,7 @@ describe('BE-PRJ-12 ProjectsService.archiveOwned / unarchiveOwned / setVisibilit
     ]);
 
     await expect(
-      service.setVisibility(projectId, ownerId, 'public'),
+      service.setVisibility(projectId, ownerId, 'public', 'CC-BY'),
     ).rejects.toThrow(
       new InternalServerErrorException('Could not update project visibility'),
     );
@@ -701,5 +707,122 @@ describe('BE-PRJ-13 ProjectsService.deleteOwned(projectId, ownerId)', () => {
       new InternalServerErrorException('Could not delete project'),
     );
     expect(collectGarbage).not.toHaveBeenCalled();
+  });
+});
+
+describe('BE-PRJ-LIC license when publishing', () => {
+  it('UTCID01 refuses to publish without any license', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ license: null }) },
+    ]);
+    await expect(
+      service.setVisibility(projectId, ownerId, 'public'),
+    ).rejects.toThrow(BadRequestException);
+    expect(builder.update).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 publishes with the license already stored', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ license: 'CC-BY-SA' }) },
+      { data: makeProject({ visibility: 'public', license: 'CC-BY-SA' }) },
+    ]);
+    await service.setVisibility(projectId, ownerId, 'public');
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: 'public', license: 'CC-BY-SA' }),
+    );
+  });
+
+  it('UTCID03 a license chosen in the request wins over the stored one', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ license: 'CC-BY-SA' }) },
+      { data: makeProject({ visibility: 'public', license: 'CC-BY-NC' }) },
+    ]);
+    await service.setVisibility(projectId, ownerId, 'public', 'CC-BY-NC');
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ license: 'CC-BY-NC' }),
+    );
+  });
+
+  it('UTCID04 going private never asks for or touches the license', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ visibility: 'public', license: 'CC-BY' }) },
+      { data: makeProject({ visibility: 'private', license: 'CC-BY' }) },
+    ]);
+    await service.setVisibility(projectId, ownerId, 'private');
+    const patch = builder.update.mock.calls[0][0] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('license');
+  });
+
+  it('UTCID05 updateOwned can change the license', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ visibility: 'public', license: 'CC-BY' }) },
+      { data: makeProject({ visibility: 'public', license: 'CC-BY-NC' }) },
+    ]);
+    await service.updateOwned(projectId, ownerId, { license: 'CC-BY-NC' });
+    expect(builder.update).toHaveBeenCalledWith({ license: 'CC-BY-NC' });
+  });
+});
+
+describe('BE-PRJ-TAG ProjectsService tags', () => {
+  it('UTCID01 setTags normalizes then replaces the set through one RPC', async () => {
+    const { service, rpc } = makeService([{ data: makeProject() }], {
+      rpc: { set_project_tags: { data: ['lo-fi', 'piano'], error: null } },
+    });
+    const result = await service.setTags(projectId, ownerId, [
+      ' Lo-Fi ',
+      'Piano',
+      'piano',
+    ]);
+    expect(result).toEqual(['lo-fi', 'piano']);
+    expect(rpc).toHaveBeenCalledWith('set_project_tags', {
+      p_project_id: projectId,
+      p_names: ['lo-fi', 'piano'],
+    });
+  });
+
+  it('UTCID02 setTags is owner-only: someone else gets 404 and no RPC runs', async () => {
+    const { service, rpc } = makeService([{ data: null }]);
+    await expect(
+      service.setTags(projectId, otherOwnerId, ['a']),
+    ).rejects.toThrow(NotFoundException);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('UTCID03 setTags refuses an archived project', async () => {
+    const { service, rpc } = makeService([
+      { data: makeProject({ archived_at: '2026-10-26T00:00:00Z' }) },
+    ]);
+    await expect(service.setTags(projectId, ownerId, ['a'])).rejects.toThrow(
+      ConflictException,
+    );
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('UTCID04 setTags surfaces an RPC failure instead of pretending success', async () => {
+    const { service } = makeService([{ data: makeProject() }], {
+      rpc: { set_project_tags: { data: null, error: { message: 'x' } } },
+    });
+    await expect(service.setTags(projectId, ownerId, ['a'])).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('UTCID05 setTags rejects invalid input before touching the database', async () => {
+    const { service, rpc } = makeService([]);
+    await expect(
+      service.setTags(projectId, ownerId, ['<script>']),
+    ).rejects.toThrow(BadRequestException);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('UTCID06 getTags returns the tag names of the owner project', async () => {
+    const { service } = makeService([
+      { data: makeProject() },
+      { data: [{ tag: { name: 'jazz' } }, { tag: [{ name: 'lo-fi' }] }] },
+    ]);
+    await expect(service.getTags(projectId, ownerId)).resolves.toEqual([
+      'jazz',
+      'lo-fi',
+    ]);
   });
 });

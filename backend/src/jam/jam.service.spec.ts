@@ -76,6 +76,10 @@ function createInMemorySupabase(
       limitCount = count;
       return q;
     };
+    q.is = (col: string, val: unknown) => {
+      preds.push((row) => (row[col] ?? null) === val);
+      return q;
+    };
     q.order = () => q;
     q.update = (p: Row) => {
       mode = 'update';
@@ -133,10 +137,14 @@ function createInMemorySupabase(
               error: { message: `update rejected on ${table} (simulated)` },
             };
           }
+          const updated: Row[] = [];
           for (const row of rows) {
-            if (filterRow(row, preds)) Object.assign(row, payload);
+            if (filterRow(row, preds)) {
+              Object.assign(row, payload);
+              updated.push({ ...row });
+            }
           }
-          return { data: null, error: null };
+          return { data: updated, error: null };
         }
         case 'insert': {
           // UC-95 5.E1 test hook: a table in `failInsertTables` always
@@ -2154,5 +2162,93 @@ describe('JamService — jam.started / jam.ended notifications', () => {
       eventName: 'Open Jam',
       eventId: 'ev-n5',
     });
+  });
+});
+
+describe('JamService — durable jam.started / jam.ended dedupe', () => {
+  const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+  const endedRow = () =>
+    activeEventRow({
+      id: 'ev-d1',
+      status: 'active',
+      name: 'Dedupe Jam',
+      scheduled_end_at: '2026-01-02T00:00:00Z',
+    });
+
+  it('two service instances sharing one database announce an event only once', async () => {
+    const supabase = createInMemorySupabase({
+      jam_events: [endedRow()],
+      jam_participants: [
+        { event_id: 'ev-d1', user_id: ALICE },
+        { event_id: 'ev-d1', user_id: BOB },
+      ],
+      admin_audit_log: [],
+    });
+    const notifyA = jest.fn().mockResolvedValue(undefined);
+    const notifyB = jest.fn().mockResolvedValue(undefined);
+    const a = new JamService(supabase, { notify: notifyA } as never);
+    const b = new JamService(supabase, { notify: notifyB } as never);
+    await Promise.all([
+      (a as any).ensureStatus(endedRow()),
+      (b as any).ensureStatus(endedRow()),
+    ]);
+    await flush();
+    expect(notifyA.mock.calls.length + notifyB.mock.calls.length).toBe(2);
+  });
+
+  it('a failing marker update sends nothing, so a later sweep can retry', async () => {
+    const supabase = createInMemorySupabase(
+      {
+        jam_events: [endedRow()],
+        jam_participants: [{ event_id: 'ev-d1', user_id: ALICE }],
+        admin_audit_log: [],
+      },
+      { failUpdateTables: new Set(['jam_events']) },
+    );
+    const notify = jest.fn().mockResolvedValue(undefined);
+    const service = new JamService(supabase, { notify } as never);
+    await (service as any).announce(endedRow(), 'jam.ended');
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('uses the right marker column per kind', async () => {
+    const supabase = createInMemorySupabase({
+      jam_events: [endedRow()],
+      jam_participants: [],
+      admin_audit_log: [],
+    });
+    const service = new JamService(supabase, { notify: jest.fn() } as never);
+    await (service as any).announce(endedRow(), 'jam.started');
+    const { data } = await supabase
+      .from('jam_events')
+      .select('*')
+      .eq('id', 'ev-d1');
+    const row = (data as Row[])[0];
+    expect(row.started_announced_at).toBeTruthy();
+    expect(row.ended_announced_at ?? null).toBeNull();
+  });
+
+  it('notifies in parallel batches of 20 instead of one by one', async () => {
+    const users = Array.from({ length: 45 }, (_, i) => ({
+      event_id: 'ev-d1',
+      user_id: `user-${i}`,
+    }));
+    const supabase = createInMemorySupabase({
+      jam_events: [endedRow()],
+      jam_participants: users,
+      admin_audit_log: [],
+    });
+    let inFlight = 0;
+    let peak = 0;
+    const notify = jest.fn(async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight -= 1;
+    });
+    const service = new JamService(supabase, { notify } as never);
+    await (service as any).announce(endedRow(), 'jam.ended');
+    expect(notify).toHaveBeenCalledTimes(45);
+    expect(peak).toBe(20);
   });
 });

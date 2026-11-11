@@ -15,6 +15,7 @@ import type {
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { PublicProjectsQueryDto } from '../projects/dto/public-projects-query.dto';
 import type { PublicUserProfile } from '../users/dto/public-user-profile.dto';
+import { instrumentStoredForms } from './instrument-codes';
 
 export type { PublicProjectCard };
 export type RankingType = 'trending' | 'top_forked' | 'top_played';
@@ -30,6 +31,7 @@ interface ProjectCardRow {
   name: string;
   description: string | null;
   genre: string | null;
+  license?: PublicProjectCard['license'];
   visibility: 'public';
   archived_at: string | null;
   created_at: string;
@@ -54,7 +56,7 @@ export interface PaginatedResult<T> {
 export type FeaturedResult = PublicFeaturedContent;
 
 /** Columns shared by every query that returns a `PublicProjectCard` — keep in sync with `ProjectCardRow`. */
-const PROJECT_CARD_COLUMNS = `id, name, description, genre, visibility, archived_at, created_at, updated_at, play_count,
+const PROJECT_CARD_COLUMNS = `id, name, description, genre, license, visibility, archived_at, created_at, updated_at, play_count,
    owner:owner_id!inner (id, username, display_name, avatar_url, status)`;
 
 /** Max commits returned by the public graph endpoint (newest kept). */
@@ -117,6 +119,7 @@ export class ExploreService {
         genre: query.genre,
         search: query.search,
         tagIds,
+        instruments: query.instrument,
       });
       const cards = await this.loadCardsInOrder(ranked.ids);
       return {
@@ -143,6 +146,13 @@ export class ExploreService {
 
     if (query.search) {
       queryBuilder = queryBuilder.ilike('name', `%${query.search}%`);
+    }
+
+    for (const instrument of query.instrument ?? []) {
+      queryBuilder = queryBuilder.overlaps(
+        'instruments',
+        instrumentStoredForms(instrument),
+      );
     }
 
     if (query.tag) {
@@ -488,6 +498,7 @@ export class ExploreService {
       genre?: string;
       search?: string;
       tagIds?: string[] | null;
+      instruments?: string[];
     },
   ): Promise<{ ids: string[]; total: number }> {
     let builder = this.supabase
@@ -500,6 +511,12 @@ export class ExploreService {
     if (options.genre) builder = builder.ilike('genre', `%${options.genre}%`);
     if (options.search) builder = builder.ilike('name', `%${options.search}%`);
     if (options.tagIds) builder = builder.in('project_id', options.tagIds);
+    for (const instrument of options.instruments ?? []) {
+      builder = builder.overlaps(
+        'instruments',
+        instrumentStoredForms(instrument),
+      );
+    }
 
     const { data, error, count } = await builder;
     if (error) {
@@ -599,6 +616,7 @@ export class ExploreService {
       name: p.name,
       description: p.description,
       genre: p.genre,
+      license: p.license ?? null,
       visibility: 'public' as const,
       archived_at: p.archived_at,
       created_at: p.created_at,

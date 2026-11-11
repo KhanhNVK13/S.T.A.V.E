@@ -21,6 +21,15 @@ import React, {
 import type { DraftNote, DraftTrack } from "@stave/shared-types";
 import { pitchName } from "../../lib/midi-note-name";
 import { resolveCssColors } from "../../lib/resolve-css-colors";
+import {
+  EMPTY_PINS,
+  PIN_HEIGHT,
+  hitBarPin,
+  pinLabel,
+  pinWidth,
+  visibleBarPins,
+  type CommentPins,
+} from "../../lib/comment-pins";
 import { trimOverlappingNotes } from "../../lib/paste-pattern";
 
 export type ToolMode = "pointer" | "pencil" | "eraser";
@@ -77,6 +86,10 @@ const PAL_COLOR_SPEC = {
   selectedBorder: "var(--foreground)",
   playingGlow: "color-mix(in oklab, var(--accent) 35%, transparent)",
   resizeHandle: "color-mix(in oklab, var(--surface) 35%, transparent)",
+  pinBg: "var(--accent)",
+  pinText: "var(--accent-foreground)",
+  notePin: "var(--accent)",
+  notePinRing: "var(--surface)",
 } as const;
 
 /**
@@ -147,6 +160,9 @@ interface PianoRollProps {
    * là nơi DUY NHẤT có thanh cuộn ngang — dải kia chỉ vẽ lại theo giá trị này.
    */
   onScrollXChange?: (scrollX: number) => void;
+  /** Bình luận ghim: huy hiệu ở thước ô nhịp và chấm trên nốt có bình luận. */
+  commentPins?: CommentPins;
+  onCommentPinClick?: (target: { bar: number | null; noteId?: string }) => void;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -169,6 +185,8 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       onNotify,
       isReadOnly,
       onScrollXChange,
+      commentPins = EMPTY_PINS,
+      onCommentPinClick,
     },
     ref,
   ) {
@@ -347,6 +365,22 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         bar++;
       }
 
+      // ── Comment pins on the ruler ────────────────────────────
+      for (const pin of visibleBarPins(commentPins.bars, firstTick, lastTick)) {
+        const px = KEY_WIDTH + pin.tick * pxPerTick - scrollX + 2;
+        const pw = pinWidth(pin.count);
+        ctx.globalAlpha = pin.dimmed ? 0.35 : 1;
+        ctx.fillStyle = pal.pinBg;
+        roundRect(ctx, px, 2, pw, PIN_HEIGHT, 4);
+        ctx.fill();
+        ctx.fillStyle = pal.pinText;
+        ctx.font = "11px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(pinLabel(pin.count), px + pw / 2, 2 + PIN_HEIGHT - 4);
+        ctx.textAlign = "start";
+        ctx.globalAlpha = 1;
+      }
+
       // ── Piano keys ───────────────────────────────────────────
       ctx.fillStyle = pal.rulerBg;
       ctx.fillRect(0, 0, KEY_WIDTH, H);
@@ -431,6 +465,17 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         }
 
 
+        if (commentPins.notes.has(n.id)) {
+          ctx.fillStyle = pal.notePinRing;
+          ctx.beginPath();
+          ctx.arc(nx + 5, ny + 5, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = pal.notePin;
+          ctx.beginPath();
+          ctx.arc(nx + 5, ny + 5, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
         if (nw >= 12) {
           ctx.fillStyle = pal.resizeHandle;
           ctx.fillRect(nx + nw - RESIZE_HANDLE_PX, ny + 1, RESIZE_HANDLE_PX - 1, ROW_H - 2);
@@ -462,7 +507,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         ctx.lineTo(phX, H);
         ctx.stroke();
       }
-      }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, selectedNoteIds, isPlaying, pal, ROW_H, KEY_WIDTH, HEADER_H]);
+      }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, selectedNoteIds, isPlaying, pal, ROW_H, KEY_WIDTH, HEADER_H, commentPins]);
 
     // Re-draw whenever state changes
     useEffect(() => {
@@ -496,6 +541,26 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
       const { cx, cy } = canvasCoords(e);
       if (cx < KEY_WIDTH) return;
+
+      if (e.button === 0 && onCommentPinClick) {
+        const pin = hitBarPin(commentPins.bars, cx, cy, pxPerTick, scrollX, KEY_WIDTH, HEADER_H);
+        if (pin) {
+          onCommentPinClick({ bar: pin.bar });
+          return;
+        }
+        if (tool === "pointer" && cy >= HEADER_H) {
+          const hit = hitNote(cx, cy);
+          if (hit && commentPins.notes.has(hit.note.id)) {
+            const nx = KEY_WIDTH + hit.note.start * pxPerTick - scrollX;
+            const ny = HEADER_H + (PITCH_COUNT - 1 - hit.note.pitch) * ROW_H - scrollY;
+            if (Math.hypot(cx - (nx + 5), cy - (ny + 5)) <= 6) {
+              const np = commentPins.notes.get(hit.note.id)!;
+              onCommentPinClick({ bar: np.bar, noteId: hit.note.id });
+              return;
+            }
+          }
+        }
+      }
 
       // UC-68 (3.E1): a frozen grid still lets you inspect a note —
       // selection is allowed, but ANY attempt to mutate (draw / drag /
