@@ -847,6 +847,14 @@ export interface AdminOverviewStats {
 
 // Theme từ ảnh (UC-79) — palette token, hợp đồng regex/validate dùng chung FE/BE.
 export type * from "./theme";
-export { PALETTE_KEYS, OKLCH_STRICT_REGEX, isValidOklch, isValidPalette } from "./theme";
+export {
+  PALETTE_KEYS,
+  OKLCH_STRICT_REGEX,
+  isValidOklch,
+  isValidPalette,
+  THEME_PRESET_KEYS,
+  THEME_PRESET_PALETTES,
+  getPresetPalette,
+} from "./theme";
 
 export type * from "./notifications";

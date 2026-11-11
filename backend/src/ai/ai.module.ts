@@ -4,6 +4,7 @@ import { AiRateLimiter } from './ai-rate-limiter';
 import { AiController } from './ai.controller';
 import { CommitMessageService } from './commit-message.service';
 import { MergeRiskService } from './merge-risk.service';
+import { TheoryInsightService } from './theory-insight.service';
 
 import { BranchesModule } from '../branches/branches.module';
 import { CommitsModule } from '../commits/commits.module';
@@ -27,6 +28,7 @@ import { ProjectsModule } from '../projects/projects.module';
     AiRateLimiter,
     CommitMessageService,
     MergeRiskService,
+    TheoryInsightService,
   ],
   exports: [GeminiClient, AiRateLimiter, MergeRiskService],
 })

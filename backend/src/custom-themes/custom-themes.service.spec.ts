@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import {
   ForbiddenException,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   createSupabaseMock,
@@ -103,6 +104,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
   it('UTCID07 trả null khi user chưa chọn theme', async () => {
     const { service } = makeService({
       users: [{ data: { active_theme_id: null } }],
+      themes: [{ data: null }],
     });
 
     await expect(service.getEffectiveTheme(userId)).resolves.toEqual({
@@ -110,6 +112,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
       presetKey: null,
       palette: null,
       hasPaidAccess: true,
+      hasSavedCustom: false,
     });
   });
 
@@ -127,6 +130,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
             created_at: '2026-11-01T00:00:00.000Z',
           },
         },
+        { data: { id: 'saved-custom' } },
       ],
     });
 
@@ -135,6 +139,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
       presetKey: 'space',
       palette: null,
       hasPaidAccess: true,
+      hasSavedCustom: true,
     });
   });
 
@@ -160,6 +165,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
       presetKey: null,
       palette: validPalette,
       hasPaidAccess: true,
+      hasSavedCustom: true,
     });
   });
 
@@ -188,9 +194,100 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
       presetKey: null,
       palette: validPalette,
       hasPaidAccess: false,
+      hasSavedCustom: true,
     });
 
     expect(builders.themes.update).not.toHaveBeenCalled();
     expect(builders.themes.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('BE-THM-02b hasSavedCustom', () => {
+  it('UTCID16 vẫn trả theme khi đọc dòng custom lỗi (cờ phụ tụt về false)', async () => {
+    const { service } = makeService({
+      users: [{ data: { active_theme_id: null } }],
+      themes: [{ error: 'boom', data: null }],
+    });
+
+    await expect(service.getEffectiveTheme(userId)).resolves.toEqual({
+      type: null,
+      presetKey: null,
+      palette: null,
+      hasPaidAccess: true,
+      hasSavedCustom: false,
+    });
+  });
+});
+
+describe('BE-THM-03 CustomThemesService.activateSavedCustomTheme', () => {
+  it('UTCID11 trỏ active_theme_id về dòng custom đã lưu, không ghi palette', async () => {
+    const { service, builders } = makeService({
+      themes: [{ data: { id: themeId, generated_palette: validPalette } }],
+      users: [{ data: null, error: null }],
+    });
+
+    await expect(service.activateSavedCustomTheme(userId)).resolves.toEqual({
+      type: 'custom',
+      palette: validPalette,
+    });
+    expect(builders.users.update).toHaveBeenCalledWith({
+      active_theme_id: themeId,
+    });
+    expect(builders.themes.update).not.toHaveBeenCalled();
+    expect(builders.themes.insert).not.toHaveBeenCalled();
+  });
+
+  it('UTCID12 chặn gói miễn phí bằng 403 và không ghi gì', async () => {
+    const { service, builders } = makeService({}, false);
+
+    await expect(service.activateSavedCustomTheme(userId)).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(builders.users?.update).toBeUndefined();
+  });
+
+  it('UTCID13 trả 404 khi chưa lưu theme từ ảnh', async () => {
+    const { service, builders } = makeService({
+      themes: [{ data: null }],
+    });
+
+    await expect(service.activateSavedCustomTheme(userId)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(builders.users?.update).toBeUndefined();
+  });
+
+  it('UTCID14 ném 500 khi đọc themes lỗi (không nuốt error)', async () => {
+    const { service } = makeService({
+      themes: [{ error: 'rls denied', data: null }],
+    });
+
+    await expect(service.activateSavedCustomTheme(userId)).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('UTCID15 ném 500 khi trỏ active_theme_id lỗi', async () => {
+    const { service } = makeService({
+      themes: [{ data: { id: themeId, generated_palette: validPalette } }],
+      users: [{ error: 'fail', data: null }],
+    });
+
+    await expect(service.activateSavedCustomTheme(userId)).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('UTCID17 trả 404 và không ghi gì khi palette đã lưu không hợp lệ', async () => {
+    const { service, builders } = makeService({
+      themes: [
+        { data: { id: themeId, generated_palette: { '--background': 'red' } } },
+      ],
+    });
+
+    await expect(service.activateSavedCustomTheme(userId)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(builders.users?.update).toBeUndefined();
   });
 });

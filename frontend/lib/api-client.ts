@@ -1109,3 +1109,21 @@ export async function getMergeRisk(
   if (lang) search.set("lang", lang);
   return apiFetch<MergeRiskResult>(`/ai/merge-risk?${search.toString()}`);
 }
+
+export interface TheoryInsightResult {
+  tonality: { tonic: string; mode: "major" | "minor"; confidence: number } | null;
+  chords: { bar: number; chord: string | null }[];
+  truncated: boolean;
+  explanation: string | null;
+}
+
+export async function getTheoryInsight(
+  projectId: string,
+  lang?: "en" | "vi",
+  commitId?: string,
+): Promise<TheoryInsightResult> {
+  const search = new URLSearchParams({ projectId });
+  if (commitId) search.set("commitId", commitId);
+  if (lang) search.set("lang", lang);
+  return apiFetch<TheoryInsightResult>(`/ai/theory-insight?${search.toString()}`);
+}

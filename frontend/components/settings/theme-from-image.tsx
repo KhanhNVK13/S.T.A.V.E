@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ImageUp, Loader2 } from "lucide-react";
 import { useI18n } from "../../context/i18n-context";
-import { applyCustomPalette, useTheme } from "../../context/theme-context";
+import { applyCustomPalette, resolveAppliedPalette, useTheme } from "../../context/theme-context";
 import { saveMyCustomTheme } from "../../lib/api-billing";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { loadImagePixels } from "../../lib/load-image-pixels";
@@ -43,9 +43,13 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
   // Dùng ref chứ không dùng state: chỉ cần biết lúc unmount có đang xem trước
   // hay không, và phải KHÔNG gỡ khi theme đã lưu (ThemeProvider sẽ tự áp).
   const unsavedRef = useRef(false);
+  const themeRef = useRef(theme);
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
   useEffect(() => {
     return () => {
-      if (unsavedRef.current) applyCustomPalette(null);
+      if (unsavedRef.current) applyCustomPalette(resolveAppliedPalette(themeRef.current));
     };
   }, []);
 

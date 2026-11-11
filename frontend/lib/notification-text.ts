@@ -53,5 +53,7 @@ export function notificationText(item: NotificationLike, t: Translate): { title:
     !item.payload.customText && hasKey(titleKey) && (params !== undefined || stored.title === null);
   if (!translatable) return stored;
   const vars = notificationVars(params ?? item.payload);
+  const level = vars.permissionLabel;
+  if (level === "view" || level === "edit") vars.permissionLabel = t(`notif.permission.${level}` as TKey);
   return { title: t(titleKey as TKey, vars), body: t(bodyKey(item) as TKey, vars) };
 }

@@ -29,7 +29,10 @@ function build(
   retention: unknown = 30,
 ) {
   const mock = createSupabaseMock([], {
-    rpc: rpc as never,
+    rpc: {
+      sound_mappings_page: { data: [], error: null },
+      ...rpc,
+    },
     tables,
   });
   const notifications = { notify: jest.fn().mockResolvedValue(undefined) };
@@ -91,7 +94,10 @@ describe('ReportModerationService.removeProject', () => {
         removeDto({ removeSoundIds: ['66666666-6666-4666-8666-666666666666'] }),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(mock.rpc).not.toHaveBeenCalled();
+    expect(mock.rpc).not.toHaveBeenCalledWith(
+      'admin_remove_reported_project',
+      expect.anything(),
+    );
   });
 
   it('gọi một RPC, xoá file âm thanh, báo chủ dự án và người báo cáo', async () => {
@@ -510,6 +516,71 @@ describe('ReportModerationService.getRemovalContext', () => {
       (call: unknown[]) => call[0],
     );
     expect(tables).toContain('drafts');
+  });
+
+  const contextTables = (soundRows = [{ id: SOUND, name: 'Kick' }]) => ({
+    projects: [
+      { data: { id: PROJECT, owner_id: OWNER }, error: null },
+      { data: null, error: null, count: 0 },
+    ],
+    reports: [{ data: null, error: null, count: 1 }],
+    branches: [{ data: [{ id: 'b1', head_commit_id: null }], error: null }],
+    drafts: [{ data: [], error: null }],
+    custom_sounds: [{ data: soundRows, error: null }],
+  });
+
+  it('quét cả lịch sử qua RPC phân trang: sound chỉ có ở commit cũ vẫn được liệt kê', async () => {
+    const { service, mock } = build(
+      {
+        sound_mappings_page: {
+          data: [
+            { o_id: 'm1', o_custom_sound_id: SOUND },
+            { o_id: 'm2', o_custom_sound_id: SOUND },
+          ],
+          error: null,
+        },
+      },
+      contextTables(),
+    );
+    const context = await service.getRemovalContext(PROJECT);
+    expect(context.sounds).toEqual([{ id: SOUND, name: 'Kick' }]);
+    expect(mock.rpc).toHaveBeenCalledWith('sound_mappings_page', {
+      p_project_id: PROJECT,
+      p_limit: 500,
+      p_after: null,
+    });
+  });
+
+  it('trang đầy thì gọi tiếp với con trỏ là id cuối, dừng khi trang chưa đầy', async () => {
+    const full = Array.from({ length: 500 }, (_, i) => ({
+      o_id: `id-${String(i).padStart(3, '0')}`,
+      o_custom_sound_id: SOUND,
+    }));
+    const { service, mock } = build(
+      {
+        sound_mappings_page: [
+          { data: full, error: null },
+          { data: [{ o_id: 'id-999', o_custom_sound_id: null }], error: null },
+        ],
+      },
+      contextTables(),
+    );
+    await service.getRemovalContext(PROJECT);
+    const calls = mock.rpc.mock.calls.filter(
+      (call: unknown[]) => call[0] === 'sound_mappings_page',
+    );
+    expect(calls).toHaveLength(2);
+    expect(calls[1][1]).toMatchObject({ p_after: 'id-499' });
+  });
+
+  it('lỗi RPC chỉ mục sound thì 500, không coi là không có sound', async () => {
+    const { service } = build(
+      { sound_mappings_page: { data: null, error: { message: 'boom' } } },
+      contextTables(),
+    );
+    await expect(service.getRemovalContext(PROJECT)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
   });
 
   it('lỗi đọc nhánh thì 500', async () => {

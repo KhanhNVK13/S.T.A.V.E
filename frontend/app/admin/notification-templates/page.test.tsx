@@ -78,6 +78,24 @@ describe("trang mẫu thông báo", () => {
     expect(screen.getByText("This field is required.")).toBeTruthy();
   });
 
+  it("hộp soạn: chưa sửa thì bấm nền đóng luôn, đã gõ thì hỏi trước khi bỏ", async () => {
+    render(<AdminNotificationTemplatesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Customise: collab.invite" }));
+    await screen.findByLabelText("Template name");
+    const overlay = () => screen.getByRole("dialog").parentElement as HTMLElement;
+
+    fireEvent.mouseDown(overlay());
+    expect(screen.queryByLabelText("Template name")).toBeNull();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Customise: collab.invite" }));
+    fireEvent.change(await screen.findByLabelText("Template name"), { target: { value: "My template" } });
+    fireEvent.mouseDown(overlay());
+    expect(screen.getByText("Discard changes?")).toBeTruthy();
+    expect(screen.getByLabelText("Template name")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.queryByLabelText("Template name")).toBeNull();
+  });
+
   it("lưu gửi đúng tên, tiêu đề, nội dung rồi tải lại", async () => {
     vi.mocked(saveNotificationTemplate).mockResolvedValue({ created: true });
     render(<AdminNotificationTemplatesPage />);

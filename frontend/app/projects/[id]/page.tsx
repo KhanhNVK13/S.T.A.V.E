@@ -28,6 +28,7 @@ import { Toast } from "../../../components/ui/toast";
 import { CommitHistory } from "../../../components/project/commit-history";
 import { BranchList } from "../../../components/project/branch-list";
 import { VersionSummary } from "../../../components/project/version-summary";
+import { TheoryInsightCard } from "../../../components/project/theory-insight-card";
 import { ImportMidiDialog } from "../../../components/project/import-midi-dialog";
 import { ProjectPullRequests } from "../../../components/pull-request/project-pull-requests";
 import { ReportProjectButton } from "../../../components/moderation/report-project-button";
@@ -425,6 +426,8 @@ function ProjectOverview({ id }: { id: string }) {
               )}
 
               {canViewHistory && <VersionSummary key={`summary-${refreshKey}`} projectId={data.id} onOpenTab={switchTab} />}
+
+              {canViewHistory && <TheoryInsightCard key={`theory-${refreshKey}`} projectId={data.id} />}
 
               <section className={canViewHistory ? "mt-6 border-t border-border pt-4" : ""}>
                 <h2 className="mb-2 text-[15px] font-semibold">{t("project.about")}</h2>

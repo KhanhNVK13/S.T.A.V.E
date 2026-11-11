@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
 import { ProjectAccessModule } from '../project-access/project-access.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 /**
  * UC-63: pinned comments. ProjectAccessService (assertCanView / getAccess)
@@ -9,7 +10,7 @@ import { ProjectAccessModule } from '../project-access/project-access.module';
  * read directly (read-only) to compute `noteMissing`.
  */
 @Module({
-  imports: [ProjectAccessModule],
+  imports: [ProjectAccessModule, NotificationsModule],
   controllers: [CommentsController],
   providers: [CommentsService],
   exports: [CommentsService],

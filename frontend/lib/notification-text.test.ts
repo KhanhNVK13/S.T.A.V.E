@@ -35,6 +35,17 @@ describe("notificationText", () => {
     expect(vi).toMatch(/59\.000/);
   });
 
+  it("translates the collaboration permission level", () => {
+    const item = {
+      type: "collab.permission_changed",
+      payload: { params: { projectName: "Song", permissionLabel: "edit" } },
+    };
+    expect(notificationText(item, tEn).body).toContain("changed to edit");
+    expect(notificationText(item, tVi).body).toContain("chỉnh sửa");
+    const view = { ...item, payload: { params: { projectName: "Song", permissionLabel: "view" } } };
+    expect(notificationText(view, tVi).body).toContain("xem");
+  });
+
   it("keeps the stored text for old notifications without params", () => {
     const item = { type: "fork.created", payload: { title: "Cũ", body: "Nội dung cũ", projectName: "P" } };
     expect(notificationText(item, tEn)).toEqual({ title: "Cũ", body: "Nội dung cũ" });

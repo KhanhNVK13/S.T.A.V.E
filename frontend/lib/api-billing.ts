@@ -1,5 +1,6 @@
 import { apiFetch } from "./api-client";
 import type {
+  ActivateCustomThemeResponse,
   CancelPreview,
   CheckoutResponse,
   EffectiveSubscription,
@@ -22,6 +23,21 @@ export async function getMySubscription(): Promise<EffectiveSubscription> {
 /** UC-79 — theme có hiệu lực (kèm cờ quyền trả phí). */
 export async function getMyEffectiveTheme(): Promise<EffectiveTheme> {
   return apiFetch<EffectiveTheme>("/themes/me/effective");
+}
+
+/** UC-78 — chọn preset theme (miễn phí mọi gói). */
+export async function setMyPresetTheme(presetKey: string): Promise<void> {
+  await apiFetch<unknown>("/users/me/theme", {
+    method: "PUT",
+    body: JSON.stringify({ presetKey }),
+  });
+}
+
+/** UC-79 — dùng lại palette từ ảnh đã lưu. */
+export async function activateSavedCustomTheme(): Promise<ActivateCustomThemeResponse> {
+  return apiFetch<ActivateCustomThemeResponse>("/themes/me/custom/activate", {
+    method: "PUT",
+  });
 }
 
 /** UC-79 — lưu palette theme tạo từ ảnh. */

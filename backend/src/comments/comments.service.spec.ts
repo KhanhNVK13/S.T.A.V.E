@@ -147,8 +147,17 @@ function fakeProjectAccess(overrides: Record<string, unknown> = {}) {
 function makeService(
   rows: Record<string, Row[]> = {},
   access = fakeProjectAccess(),
+  notifications = fakeNotifications(),
 ) {
-  return new CommentsService(mockSupabase(rows), access as never);
+  return new CommentsService(
+    mockSupabase(rows),
+    access as never,
+    notifications as never,
+  );
+}
+
+function fakeNotifications() {
+  return { notify: jest.fn().mockResolvedValue(undefined) };
 }
 
 // ── shared fixture builders ─────────────────────────────────
@@ -580,5 +589,72 @@ describe('BE-CMM-03 CommentsService — UC-63 deleteComment', () => {
     await expect(service.deleteComment('p-1', 'nope', OWNER)).rejects.toThrow(
       NotFoundException,
     );
+  });
+});
+
+describe('BE-CMM-NOTIFY CommentsService — notifications', () => {
+  it('a top-level comment notifies the owner and accepted collaborators except the author', async () => {
+    const notifications = fakeNotifications();
+    const service = makeService(baseRows(), fakeProjectAccess(), notifications);
+    await service.createComment('p-1', { body: 'Nice' }, VIEWER);
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      OWNER,
+      'comment.new',
+      expect.objectContaining({
+        projectId: 'p-1',
+        projectName: 'P',
+        authorName: 'Viewer',
+      }),
+    );
+  });
+
+  it('does not notify pending collaborators', async () => {
+    const rows = baseRows();
+    rows.project_collaborators[0].status = 'pending';
+    const notifications = fakeNotifications();
+    const service = makeService(rows, fakeProjectAccess(), notifications);
+    await service.createComment('p-1', { body: 'Hi' }, OWNER);
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('a reply notifies the parent author as comment.reply and others as comment.new', async () => {
+    const rows = baseRows();
+    rows.comments = [
+      {
+        id: 'c-1',
+        project_id: 'p-1',
+        author_id: VIEWER,
+        body: 'Question',
+        track_id: null,
+        bar: null,
+        note_id: null,
+        parent_id: null,
+        created_at: '2026-10-26T01:00:00Z',
+      },
+    ];
+    const notifications = fakeNotifications();
+    const service = makeService(rows, fakeProjectAccess(), notifications);
+    await service.createComment(
+      'p-1',
+      { body: 'Answer', parentId: 'c-1' },
+      OWNER,
+    );
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      VIEWER,
+      'comment.reply',
+      expect.objectContaining({ authorName: 'Owner' }),
+    );
+  });
+
+  it('a failing notification never breaks the comment', async () => {
+    const notifications = {
+      notify: jest.fn().mockRejectedValue(new Error('boom')),
+    };
+    const service = makeService(baseRows(), fakeProjectAccess(), notifications);
+    await expect(
+      service.createComment('p-1', { body: 'Still saved' }, VIEWER),
+    ).resolves.toMatchObject({ body: 'Still saved' });
   });
 });

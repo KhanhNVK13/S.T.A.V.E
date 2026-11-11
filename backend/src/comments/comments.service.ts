@@ -4,12 +4,14 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CommentItem, DraftSnapshot } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateCommentDto } from './dto/create-comment.dto';
 
 /** Raw row from comments (migration 20261025120000 added the anchor columns). */
@@ -38,10 +40,13 @@ interface CommentRow {
  */
 @Injectable()
 export class CommentsService {
+  private static readonly logger = new Logger(CommentsService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly projectAccess: ProjectAccessService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** GET /projects/:projectId/comments — flat list, oldest first. */
@@ -131,9 +136,11 @@ export class CommentsService {
     let trackId: string | null = null;
     let bar: number | null = null;
     let noteId: string | null = null;
+    let parentAuthorId: string | null = null;
 
     if (dto.parentId) {
       const parent = await this.getCommentInProject(projectId, dto.parentId);
+      parentAuthorId = parent.author_id;
       if (parent.parent_id !== null) {
         throw new BadRequestException('Only one level of replies is allowed');
       }
@@ -226,19 +233,7 @@ export class CommentsService {
       noteMissing: false,
     };
 
-    // Notify the owner + other accepted collaborators (not the author of the
-    // comment).
-    // TODO(Trí UC-80): replace with NotificationsService.notify — payload
-    // per docs/team-workload.md notification-types table (`comment.new` for a
-    // top-level comment, `comment.reply` for a reply, to the parent's author).
-    const recipients = await this.notificationRecipients(projectId, userId);
-    for (const recipient of recipients) {
-      this.emitNotification({
-        userId: recipient,
-        type: item.parentId ? 'comment.reply' : 'comment.new',
-        payload: { projectId, commentId: item.id },
-      });
-    }
+    await this.notifyAboutComment(projectId, userId, item, parentAuthorId);
 
     return item;
   }
@@ -440,10 +435,54 @@ export class CommentsService {
     return map;
   }
 
+  private async notifyAboutComment(
+    projectId: string,
+    authorId: string,
+    item: CommentItem,
+    parentAuthorId: string | null,
+  ): Promise<void> {
+    try {
+      const recipients = await this.notificationRecipients(projectId, authorId);
+      const authorName =
+        item.author?.displayName ?? item.author?.username ?? 'STAVE';
+      const projectName = await this.projectName(projectId);
+      const payload = {
+        projectId,
+        projectName,
+        authorName,
+        commentId: item.id,
+      };
+      await Promise.all(
+        recipients.map((recipient) =>
+          this.notifications.notify(
+            recipient,
+            parentAuthorId !== null && recipient === parentAuthorId
+              ? 'comment.reply'
+              : 'comment.new',
+            payload,
+          ),
+        ),
+      );
+    } catch (err) {
+      CommentsService.logger.error(
+        `Could not send comment notifications: ${String(err)}`,
+      );
+    }
+  }
+
+  private async projectName(projectId: string): Promise<string> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('name')
+      .eq('id', projectId)
+      .maybeSingle<{ name: string }>();
+    if (error) throw new Error(error.message);
+    return data?.name ?? '';
+  }
+
   /**
-   * Comment-notification recipients: the project owner plus the project's
-   * collaborators, minus the person who just wrote. Owner of a project where
-   * no one else is involved still hears about it (the owner is a recipient).
+   * Comment-notification recipients: the project owner plus accepted
+   * collaborators, minus the person who just wrote.
    */
   private async notificationRecipients(
     projectId: string,
@@ -455,9 +494,7 @@ export class CommentsService {
       .eq('id', projectId)
       .maybeSingle<{ owner_id: string }>();
     if (projectError) {
-      throw new InternalServerErrorException(
-        `Failed to resolve comment recipients: ${projectError.message}`,
-      );
+      throw new Error(projectError.message);
     }
     const recipients = new Set<string>([
       ...(project?.owner_id ? [project.owner_id] : []),
@@ -468,30 +505,15 @@ export class CommentsService {
       .select('user_id, status')
       .eq('project_id', projectId);
     if (collabError) {
-      throw new InternalServerErrorException(
-        `Failed to resolve comment recipients: ${collabError.message}`,
-      );
+      throw new Error(collabError.message);
     }
     for (const row of (collaborators ?? []) as Array<{
       user_id: string;
       status: string;
     }>) {
-      // BR-65: pending invites have no access, no notifications.
       if (row.status === 'accepted') recipients.add(row.user_id);
     }
     recipients.delete(authorUserId);
     return [...recipients];
-  }
-
-  /**
-   * Notification emission point (same seam as the collaboration module).
-   * TODO(Trí UC-80): replace with NotificationsService.notify.
-   */
-  private emitNotification(args: {
-    userId: string;
-    type: string;
-    payload: Record<string, unknown>;
-  }): void {
-    console.warn('[comments] notify', args.type, args.userId, args.payload);
   }
 }
