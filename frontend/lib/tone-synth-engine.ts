@@ -43,6 +43,63 @@ export interface TrackVoice {
   kit: SoundFontKitVoice | null;
   filter: Tone.Filter;
   panner: Tone.Panner;
+  loadPitches?: (pitches: ReadonlySet<number>) => Promise<void>;
+}
+
+const SEMITONE_OF_LETTER: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+function noteNameToMidi(name: string): number {
+  const match = /^([A-G])([b#]?)(-?\d+)$/.exec(name);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const accidental = match[2] === "b" ? -1 : match[2] === "#" ? 1 : 0;
+  return (Number(match[3]) + 1) * 12 + SEMITONE_OF_LETTER[match[1]] + accidental;
+}
+
+function sampleKeysForPitches(
+  urls: Record<string, string>,
+  pitches: ReadonlySet<number>,
+): string[] {
+  const available = Object.keys(urls).map((key) => ({
+    key,
+    midi: noteNameToMidi(key),
+  }));
+  const keys = new Set<string>();
+  for (const pitch of pitches) {
+    let best = available[0];
+    for (const candidate of available) {
+      if (Math.abs(candidate.midi - pitch) < Math.abs(best.midi - pitch)) best = candidate;
+    }
+    if (best) keys.add(best.key);
+  }
+  return [...keys];
+}
+
+function createSampleLoader(
+  toneSampler: Tone.Sampler,
+  sampler: { urls: Record<string, string>; baseUrl: string },
+) {
+  const loads = new Map<string, Promise<void>>();
+  return (pitches: ReadonlySet<number>): Promise<void> => {
+    const pending: Promise<void>[] = [];
+    for (const key of sampleKeysForPitches(sampler.urls, pitches)) {
+      let load = loads.get(key);
+      if (!load) {
+        const url = sampler.baseUrl + sampler.urls[key];
+        load = loadSampleBuffer(url)
+          .then((buffer) => {
+            if (toneSampler.disposed) return;
+            toneSampler.add(key as Tone.Unit.Note, buffer);
+          })
+          .catch((err) => {
+            loads.delete(key);
+            console.warn(`Failed to load sample ${url}:`, err);
+          });
+        loads.set(key, load);
+      }
+      pending.push(load);
+    }
+    return Promise.allSettled(pending).then(() => undefined);
+  };
 }
 
 /**
@@ -62,6 +119,7 @@ export interface TrackVoice {
 function createTrackVoiceWithReady(
   track: DraftTrack,
   destination: Tone.ToneAudioNode,
+  pitches: ReadonlySet<number>,
 ): { voice: TrackVoice; ready: Promise<void> } {
   const filter = new Tone.Filter(6000, "lowpass");
   const panner = new Tone.Panner(track.pan ?? 0);
@@ -75,27 +133,13 @@ function createTrackVoiceWithReady(
   const sampler = getInstrumentSamplerOptions(track.instrument);
   let synth: Tone.PolySynth | Tone.Sampler;
   let ready: Promise<void>;
+  let loadPitches: TrackVoice["loadPitches"];
 
   if (sampler) {
     const toneSampler = new Tone.Sampler();
     synth = toneSampler;
-    const loads = Object.entries(sampler.urls).map(([note, filename]) =>
-      loadSampleBuffer(sampler.baseUrl + filename)
-        .then((buffer) => {
-          // Stop/Seek disposed this voice while its samples were still loading.
-          if (toneSampler.disposed) return;
-          // Note names come from instrument-samples.ts's own fixed list —
-          // known-valid Tone.js note strings, just not narrowed to Tone's
-          // literal union type by TS after the Object.entries() round-trip.
-          toneSampler.add(note as Tone.Unit.Note, buffer);
-        })
-        .catch((err) => {
-          // One missing/failed note sample shouldn't block the rest of this
-          // instrument (or anything else) from loading and playing.
-          console.warn(`Failed to load sample ${sampler.baseUrl}${filename}:`, err);
-        }),
-    );
-    ready = Promise.allSettled(loads).then(() => undefined);
+    loadPitches = createSampleLoader(toneSampler, sampler);
+    ready = loadPitches(pitches);
   } else {
     synth = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: getOscillatorType(track.instrument) },
@@ -111,7 +155,7 @@ function createTrackVoiceWithReady(
   // end, so this filter is a no-op for them in practice).
   synth.connect(filter);
   filter.connect(panner);
-  return { voice: { synth, kit: null, filter, panner }, ready };
+  return { voice: { synth, kit: null, filter, panner, loadPitches }, ready };
 }
 
 export function disposeTrackVoice(voice: TrackVoice) {
@@ -195,9 +239,20 @@ export async function prepareVoices(
 ): Promise<Map<string, TrackVoice>> {
   const active = new Map<string, TrackVoice>();
   const pendingLoads: Promise<void>[] = [];
+  const audible = audibleNotes(notes, tracks, fromTick, toTick);
+  const pitchesByTrack = new Map<string, Set<number>>();
+  for (const { note, track } of audible) {
+    let pitches = pitchesByTrack.get(track.id);
+    if (!pitches) {
+      pitches = new Set();
+      pitchesByTrack.set(track.id, pitches);
+    }
+    pitches.add(note.pitch);
+  }
 
-  for (const { track } of audibleNotes(notes, tracks, fromTick, toTick)) {
+  for (const { track } of audible) {
     if (active.has(track.id)) continue;
+    const pitches = pitchesByTrack.get(track.id) ?? new Set<number>();
 
     const cached = cache.get(track.id);
     if (cached && cached.instrument === track.instrument) {
@@ -217,11 +272,12 @@ export async function prepareVoices(
       // background (confirmed: this is the exact error from the real Stop/
       // Play-repeatedly repro in PROJECT_STATE.md §23).
       pendingLoads.push(cached.ready);
+      if (cached.voice.loadPitches) pendingLoads.push(cached.voice.loadPitches(pitches));
       continue;
     }
     if (cached) disposeTrackVoice(cached.voice); // instrument changed since last use
 
-    const { voice, ready } = createTrackVoiceWithReady(track, destination);
+    const { voice, ready } = createTrackVoiceWithReady(track, destination, pitches);
     cache.set(track.id, { voice, instrument: track.instrument, ready });
     active.set(track.id, voice);
     pendingLoads.push(ready);

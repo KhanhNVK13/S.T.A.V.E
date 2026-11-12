@@ -27,6 +27,7 @@ import { JamCountdownTimer } from "../jam/jam-countdown-timer";
 import { Badge } from "../ui/badge";
 import { notificationText } from "../../lib/notification-text";
 import { Card } from "../ui/card";
+import { ProjectPreviewButton } from "../project/preview-button";
 import { ProjectThumb } from "../ui/project-thumb";
 import { RowHeader, RowItem, RowList, RowTime, RowTitle } from "../ui/row-list";
 
@@ -213,7 +214,6 @@ function RecentProjects({ projects }: { projects: HomeProject[] }) {
 
 function ExplorePicks({ items }: { items: PublicProject[] }) {
   const { t, locale } = useI18n();
-  const [note, setNote] = useState(false);
   return (
     <section aria-labelledby="home-picks">
       <SectionHead
@@ -237,24 +237,12 @@ function ExplorePicks({ items }: { items: PublicProject[] }) {
             <p className="font-mono text-xs text-muted">
               {t("home.playsForks", { plays: p.play_count.toLocaleString(locale), forks: p.fork_count.toLocaleString(locale) })}
             </p>
-            <div className="mt-1.5 flex items-center gap-2">
-              <button
-                type="button"
-                aria-disabled="true"
-                aria-label={t("home.previewFor", { name: p.name })}
-                onClick={() => setNote(true)}
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface/85 px-3 text-[13px] font-semibold text-muted hover:bg-surface-subtle"
-              >
-                {t("home.preview")}
-              </button>
-              <Badge variant="warning">PLACEHOLDER</Badge>
+            <div className="mt-1.5">
+              <ProjectPreviewButton projectId={p.id} projectName={p.name} compact />
             </div>
           </Card>
         ))}
       </div>
-      <p role="status" className="mt-3 min-h-[1.25rem] text-[13px] text-muted">
-        {note ? t("home.previewNote") : ""}
-      </p>
     </section>
   );
 }

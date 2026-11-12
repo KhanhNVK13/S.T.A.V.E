@@ -272,3 +272,99 @@ describe('BE-PHX-02 PublicHistoryService', () => {
     );
   });
 });
+
+describe('BE-PHX-03 PublicHistoryService.getPreview', () => {
+  it('UTCID01 returns the default branch head snapshot of a public project, without custom sound maps', async () => {
+    const snapshot = makeSnapshot(2);
+    (snapshot.tracks[0] as Record<string, unknown>).soundMap = {
+      '36': 'sound-1',
+    };
+    const { service, builders } = make({
+      projects: [publicProject],
+      branches: [{ data: { head_commit_id: commit1 } }],
+      commits: [{ data: { id: commit1, snapshot } }],
+    });
+    const preview = await service.getPreview(projectId);
+    expect(preview.commitId).toBe(commit1);
+    expect(preview.snapshot?.notes).toHaveLength(2);
+    expect(preview.snapshot?.tracks[0]).not.toHaveProperty('soundMap');
+    expect(preview.snapshot?.meta.tempo).toBe(120);
+    expect(builders.branches.eq).toHaveBeenCalledWith('is_default', true);
+  });
+
+  it('UTCID02 a project without any commit answers an empty preview, not an error', async () => {
+    const { service } = make({
+      projects: [publicProject],
+      branches: [{ data: { head_commit_id: null } }],
+    });
+    await expect(service.getPreview(projectId)).resolves.toEqual({
+      commitId: null,
+      snapshot: null,
+    });
+  });
+
+  it('UTCID03 a non-public project is a 404 before any branch or commit is read', async () => {
+    const { service, builders } = make({ projects: [{ data: null }] });
+    await expect(service.getPreview(projectId)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(builders.branches).toBeUndefined();
+    expect(builders.commits).toBeUndefined();
+  });
+
+  it('UTCID04 a database error while reading the head commit is a 500, never an empty preview', async () => {
+    const { service } = make({
+      projects: [publicProject],
+      branches: [{ data: { head_commit_id: commit1 } }],
+      commits: [{ data: null, error: { message: 'boom' } }],
+    });
+    await expect(service.getPreview(projectId)).rejects.toThrow(
+      /Could not load preview/,
+    );
+  });
+});
+
+describe('BE-PHX-04 PublicHistoryService.getPreviewForMember', () => {
+  const userId = '77777777-7777-4777-8777-777777777777';
+
+  it('UTCID01 the owner of a private project gets the default branch head snapshot', async () => {
+    const { service } = make({
+      projects: [
+        {
+          data: {
+            id: projectId,
+            owner_id: userId,
+            visibility: 'private',
+            archived_at: null,
+          },
+        },
+      ],
+      branches: [{ data: { head_commit_id: commit1 } }],
+      commits: [{ data: { id: commit1, snapshot: makeSnapshot(1) } }],
+    });
+    const preview = await service.getPreviewForMember(projectId, userId);
+    expect(preview.commitId).toBe(commit1);
+    expect(preview.snapshot?.notes).toHaveLength(1);
+  });
+
+  it('UTCID02 a stranger cannot preview a private project and nothing is read', async () => {
+    const { service, builders } = make({
+      projects: [
+        {
+          data: {
+            id: projectId,
+            owner_id: '88888888-8888-4888-8888-888888888888',
+            visibility: 'private',
+            archived_at: null,
+          },
+        },
+      ],
+      collaborators: [{ data: null }],
+    });
+    await expect(
+      service.getPreviewForMember(projectId, userId),
+    ).rejects.toThrow();
+    expect(builders.branches).toBeUndefined();
+    expect(builders.commits).toBeUndefined();
+  });
+});

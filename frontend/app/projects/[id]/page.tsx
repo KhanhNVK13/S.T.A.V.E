@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   GitFork,
-  Play,
   Loader2,
   Piano,
   CircleUserRound,
@@ -23,6 +22,7 @@ import { Button } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
 import { ProjectHistory } from "../../../components/project/project-history";
 import { PublicHistory } from "../../../components/project/public-history";
+import { ProjectPreviewButton } from "../../../components/project/preview-button";
 import { LICENSE_NAME_KEYS, asLicense } from "../../../lib/license";
 import { Tabs } from "../../../components/ui/tabs";
 import { SkyLoading } from "../../../components/project/sky-state";
@@ -371,9 +371,12 @@ function ProjectOverview({ id }: { id: string }) {
             )}
             {data.visibility === "public" && !data.isOwner && <ReportProjectButton projectId={id} />}
 
-            <Button variant="secondary" disabled title={t("project.previewTitle")}>
-              <Play className="h-3.5 w-3.5" /> {t("project.preview")}
-            </Button>
+            <ProjectPreviewButton
+              projectId={id}
+              projectName={data.name}
+              isPublic={data.visibility === "public"}
+              countPlay={!data.isOwner}
+            />
 
             {data.isOwner && (
               <>
