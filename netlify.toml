@@ -1,6 +1,6 @@
 [build]
   base = "."
-  command = "rm -f package-lock.json && npm install && npm run build --workspace=frontend"
+  command = "rm -rf node_modules frontend/node_modules package-lock.json && npm install --include=optional && node scripts/netlify-install-native.js && npm run build --workspace=frontend"
   publish = "frontend/.next"
 
 [build.environment]
