@@ -1,6 +1,6 @@
 [build]
   base = "."
-  command = "npm install && npm run build --workspace=frontend"
+  command = "rm -f package-lock.json && npm install && npm run build --workspace=frontend"
   publish = "frontend/.next"
 
 [build.environment]
