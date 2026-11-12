@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "redesign/**",
   ]),
   {
     files: ["**/*.test.{ts,tsx}", "lib/test-helpers/**"],

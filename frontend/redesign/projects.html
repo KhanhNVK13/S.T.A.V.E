@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04050d">
+<title data-i18n="projects.title">My projects · STAVE</title>
+<script src="assets/session.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  :root { color-scheme: dark; }
+  .app { position: relative; z-index: 1; }
+  .table tbody tr:hover td { background: rgba(238,240,255,.05); }
+  .thumb { width: 96px; height: 52px; background: rgba(238,240,255,.04); border-color: var(--line); }
+  .sigil .halo { transition: opacity .6s cubic-bezier(.23,1,.32,1); }
+  tr:hover .sigil .halo, tr:focus-within .sigil .halo { opacity: .45; }
+  .sg-staff { stroke: rgba(238,240,255,.16); stroke-width: .6; }
+  .sg-edge { fill: none; stroke: rgba(238,240,255,.62); stroke-width: 1; }
+  .sg-edge.teal { stroke: #4fd6c4; } .sg-edge.violet { stroke: #c58bd6; }
+  .sg-core { fill: #eef0ff; } .sg-core.teal { fill: #4fd6c4; } .sg-core.violet { fill: #c58bd6; } .sg-core.lit { fill: #dceeb1; }
+  .sg-core.hollow { fill: #04050d; stroke: #eef0ff; stroke-width: 1.2; }
+  .halo { fill: #eef0ff; opacity: .2; } .halo.teal { fill: #4fd6c4; } .halo.violet { fill: #c58bd6; } .halo.lit { fill: #dceeb1; opacity: .3; }
+  .row-id span .hash, .row-id span span { display: inline; white-space: nowrap; }
+  .table td .hash { white-space: nowrap; }
+  .note-cell { color: var(--soft); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .text-link { text-decoration: underline; text-underline-offset: 3px; }
+  dialog { background: var(--raised); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 16px; padding: 0; }
+  dialog::backdrop { background: rgba(4,5,13,.7); }
+  dialog form { padding: 24px; display: grid; gap: 16px; width: min(92vw, 440px); }
+  dialog h2 { font-size: 20px; font-weight: 540; }
+  dialog fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+  dialog legend { font-weight: 500; font-size: 14px; margin-bottom: 6px; padding: 0; }
+  dialog .radio { display: flex; align-items: center; gap: 8px; }
+  dialog .radio input { accent-color: var(--add); }
+  dialog .end { justify-content: flex-end; }
+  .stats-gap { margin-top: 32px; }
+</style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
+</head>
+<body>
+<canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
+<div class="app">
+  <aside id="shell"></aside>
+  <main class="main" id="main">
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
+    <div class="page-head">
+      <div><h1 data-i18n="shell.myProjects">My projects</h1><p><span data-i18n="projects.intro">Your open draft sits at the top of the list so you can continue exactly where you stopped.</span> <a class="text-link" href="help.html" data-i18n="projects.introLink">What are commits, branches and merges?</a></p></div>
+      <div class="actions"><button class="btn btn-primary" type="button" id="new-btn"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="projects.new">New project</span></button></div>
+    </div>
+
+    <dl class="stats" aria-label="Overview" data-i18n-attr="aria-label:projects.overview">
+      <div><dt data-i18n="common.projects">Projects</dt><dd class="num">4</dd></div>
+      <div><dt data-i18n="projects.statCommits">Commits this week</dt><dd class="num">9</dd></div>
+      <div><dt data-i18n="projects.statBranch">Open branch</dt><dd class="num">4</dd></div>
+      <div><dt data-i18n="projects.statMerge">Awaiting merge</dt><dd class="num">1</dd></div>
+      <div><dt data-i18n="projects.statAudio">Audio storage</dt><dd class="num">12<small>/ 50 MB</small></dd></div>
+    </dl>
+
+    <div class="tabs stats-gap" id="ptabs">
+      <a href="?tab=dang-lam" data-key="dang-lam" aria-current="true"><span data-i18n="projects.tabProgress">In progress</span><span class="tag">4</span></a>
+      <a href="?tab=luu-tru" data-key="luu-tru"><span data-i18n="projects.tabArchived">Archived</span><span class="tag">0</span></a>
+      <a href="?tab=duoc-moi" data-key="duoc-moi"><span data-i18n="projects.tabInvited">Invited</span><span class="tag">0</span></a>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <div class="search"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search projects…" aria-label="Search projects" data-i18n-attr="placeholder:projects.searchPlaceholder,aria-label:common.searchProjects"></div>
+      <div class="grow"><span class="num" data-i18n="projects.count4">4 projects</span></div>
+    </div>
+    <div class="table-wrap" id="list"><table class="table">
+      <thead><tr><th class="id" data-i18n="common.projects">Projects</th><th class="hide-s" data-i18n="projects.statBranch">Open branch</th><th class="hide-s" data-i18n="projects.thLatest">Latest commit</th><th data-i18n="projects.thStatus">Status</th><th class="r" data-i18n="projects.thUpdated">Updated</th><th><span class="sr-only" data-i18n="projects.thAction">Action</span></th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="dem-sai-gon-mua" data-branches="2" data-merged="false"></div><div><a href="project.html"><b>Rainy Saigon Night</b></a><span><span class="hash">dem-sai-gon-mua.mid</span> <span data-i18n="projects.dotPublic">· Public</span></span></div></div></td>
+          <td class="hide-s"><span class="hash">main</span></td>
+          <td class="hide-s note-cell">Normalize velocity for pad…</td>
+          <td><span class="pill pill-mod"><i class="dot"></i><span data-i18n="projects.hasDraft">Has draft</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.yesterday">yesterday</td>
+          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Rainy Saigon Night" data-i18n-attr="aria-label:projects.openEditorFor" data-i18n-vars='{"name":"Rainy Saigon Night"}' data-i18n="common.openEditor">Open editor</a></td>
+        </tr>
+        <tr>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="bossa-sang" data-branches="1" data-merged="false"></div><div><a href="project.html"><b>Morning bossa</b></a><span><span class="hash">bossa-sang.mid</span> <span data-i18n="projects.dotPrivate">· Private</span></span></div></div></td>
+          <td class="hide-s"><span class="hash">main</span></td>
+          <td class="hide-s note-cell">Add nylon guitar intro</td>
+          <td><span class="pill pill-neutral"><i class="dot"></i><span data-i18n="projects.committed">Committed</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.days3">3 days ago</td>
+          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Morning bossa" data-i18n-attr="aria-label:projects.openEditorFor" data-i18n-vars='{"name":"Morning bossa"}' data-i18n="common.openEditor">Open editor</a></td>
+        </tr>
+        <tr>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="intro-ep" data-branches="3" data-merged="false"></div><div><a href="project.html"><b>Intro for the November EP</b></a><span><span class="hash">intro-ep.mid</span> <span data-i18n="projects.dotPrivate">· Private</span></span></div></div></td>
+          <td class="hide-s"><span class="hash">bridge-alt</span></td>
+          <td class="hide-s note-cell">Try the bridge with a minor chord</td>
+          <td><span class="pill pill-ink"><i class="dot"></i><span data-i18n="projects.statMerge">Awaiting merge</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.days5">5 days ago</td>
+          <td class="r"><a class="btn btn-primary btn-sm" href="merge.html" aria-label="Resolve conflicts for Intro for the November EP" data-i18n-attr="aria-label:projects.resolveFor" data-i18n-vars='{"name":"Intro for the November EP"}' data-i18n="projects.resolve">Resolve conflicts</a></td>
+        </tr>
+        <tr>
+          <td class="id"><div class="row-id"><div class="thumb sigil" data-id="hoa-am" data-branches="1" data-merged="true"></div><div><a href="project.html"><b>Harmony exercise</b></a><span><span class="hash">hoa-am.mid</span> <span data-i18n="projects.dotPublic">· Public</span></span></div></div></td>
+          <td class="hide-s"><span class="hash">main</span></td>
+          <td class="hide-s note-cell">Finish lesson 4</td>
+          <td><span class="pill pill-neutral"><i class="dot"></i><span data-i18n="projects.committed">Committed</span></span></td>
+          <td class="r" style="color:var(--soft)" data-i18n="time.weeks2">2 weeks ago</td>
+          <td class="r"><a class="btn btn-quiet btn-sm" href="editor.html" aria-label="Open editor for Harmony exercise" data-i18n-attr="aria-label:projects.openEditorFor" data-i18n-vars='{"name":"Harmony exercise"}' data-i18n="common.openEditor">Open editor</a></td>
+        </tr>
+      </tbody>
+    </table></div>
+
+    <div class="empty" id="empty-archived" hidden>
+      <h2 data-i18n="projects.emptyArchivedTitle">No archived projects</h2>
+      <p data-i18n="projects.emptyArchivedText">Projects you archive will appear here, with their full history, and can be reopened at any time.</p>
+      <a class="btn btn-primary" href="?tab=dang-lam" data-i18n="projects.backToWorking">Back to the project you’re working on</a>
+    </div>
+    <div class="empty" id="empty-invited" hidden>
+      <h2 data-i18n="projects.emptyInvitedTitle">No one has invited you to a project yet</h2>
+      <p data-i18n="projects.emptyInvitedText">When another user invites you to collaborate, the project will show up here.</p>
+      <a class="btn btn-primary" href="?tab=dang-lam" data-i18n="projects.backToWorking">Back to the project you’re working on</a>
+    </div>
+  </main>
+<dialog id="np" aria-labelledby="np-t"><form method="dialog"><h2 id="np-t" data-i18n="projects.dialogTitle">New project</h2>
+<div class="field"><label for="np-n" data-i18n="projects.name">Project name</label><input class="input" id="np-n" name="name" autocomplete="off" placeholder="Example: Rainy Saigon Night…" data-i18n-attr="placeholder:projects.namePlaceholder"></div>
+<div class="field"><label for="np-g" data-i18n="common.genre">Genre</label><select class="select" id="np-g" name="genre" autocomplete="off"><option data-i18n="genre.lofi">Lo-fi</option><option data-i18n="genre.jazz">Jazz</option><option data-i18n="genre.electronic">Electronic</option><option data-i18n="genre.classical">Classical</option><option data-i18n="genre.film">Film score</option><option data-i18n="genre.other">Other</option></select></div>
+<fieldset><legend data-i18n="projects.startFrom">Start from</legend>
+<label class="radio"><input type="radio" name="tpl" value="blank" checked> <span data-i18n="projects.blank">Blank</span></label>
+<label class="radio"><input type="radio" name="tpl" value="sample"> <span data-i18n="projects.template">4-bar template (Am – F – C – G chords)</span></label></fieldset>
+<div class="actions end"><button class="btn btn-quiet" value="cancel" data-i18n="common.cancel">Cancel</button><button class="btn btn-primary" value="ok" data-i18n="projects.createOpen">Create and open editor</button></div></form></dialog>
+</div>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  var NS = "http://www.w3.org/2000/svg";
+  S.mountShell("projects");
+
+  var tab = new URLSearchParams(location.search).get("tab") || "dang-lam";
+  Array.prototype.forEach.call(document.querySelectorAll("#ptabs a"), function (a) {
+    if (a.dataset.key === tab) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+  });
+  if (tab !== "dang-lam") {
+    var empty = document.getElementById(tab === "luu-tru" ? "empty-archived" : "empty-invited");
+    if (empty) {
+      document.getElementById("list").hidden = true;
+      document.getElementById("toolbar").hidden = true;
+      empty.hidden = false;
+    }
+  }
+
+  var dlg = document.getElementById("np");
+  document.getElementById("new-btn").addEventListener("click", function () { dlg.showModal(); document.getElementById("np-n").focus(); });
+  dlg.addEventListener("close", function () { if (dlg.returnValue === "ok") location.href = "editor.html"; });
+  if (new URLSearchParams(location.search).get("new") === "1") { dlg.showModal(); document.getElementById("np-n").focus(); }
+
+  function hash(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function node(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function star(svg, x, y, cls) {
+    node("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: 5.5, class: "halo " + (cls || "") }, svg);
+    node("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: 1.9, class: "sg-core " + (cls || "") }, svg);
+  }
+  function lane(svg, pts, cls, from) {
+    var d = "M" + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L");
+    if (from) d = "M" + from[0].toFixed(1) + " " + from[1].toFixed(1) + " C " + ((from[0] + pts[0][0]) / 2).toFixed(1) + " " + from[1].toFixed(1) + ", " + ((from[0] + pts[0][0]) / 2).toFixed(1) + " " + pts[0][1].toFixed(1) + ", " + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1) + " L" + pts.slice(1).map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L");
+    node("path", { d: d, class: "sg-edge " + cls }, svg);
+    pts.forEach(function (p) { star(svg, p[0], p[1], cls); });
+  }
+  function sigil(host) {
+    var id = host.dataset.id, lanes = Math.max(1, Math.min(3, Number(host.dataset.branches))), merged = host.dataset.merged === "true";
+    var r = S.rng(hash(id));
+    var svg = node("svg", { viewBox: "0 0 84 46", "aria-hidden": "true", focusable: "false" });
+    for (var l = 0; l < 5; l++) node("line", { x1: 3, x2: 81, y1: 15 + l * 4, y2: 15 + l * 4, class: "sg-staff" }, svg);
+    var n = 5 + Math.floor(r() * 3), step = 66 / (n - 1), main = [];
+    for (var i = 0; i < n; i++) main.push([9 + i * step, 15 + Math.floor(r() * 9) * 2]);
+    node("path", { d: "M" + main.map(function (p) { return p[0].toFixed(1) + " " + p[1]; }).join(" L"), class: "sg-edge" }, svg);
+    var fork = 1 + Math.floor(r() * (n - 3)), origin = main[fork];
+    if (lanes > 1) {
+      var m = 2 + Math.floor(r() * 2), pts = [];
+      for (var k = 0; k < m; k++) pts.push([Math.min(76, origin[0] + 10 + k * 12), 39 + Math.floor(r() * 3) * 2 - 2]);
+      lane(svg, pts, "teal", origin);
+    }
+    if (lanes > 2) {
+      var o2 = main[Math.min(n - 2, fork + 1)], pts2 = [];
+      for (var q = 0; q < 2; q++) pts2.push([Math.min(76, o2[0] + 10 + q * 11), 7 + Math.floor(r() * 3)]);
+      lane(svg, pts2, "violet", o2);
+    }
+    main.forEach(function (p, idx) {
+      if (merged && idx === n - 1) {
+        node("circle", { cx: p[0].toFixed(1), cy: p[1], r: 5.5, class: "halo" }, svg);
+        node("circle", { cx: p[0].toFixed(1), cy: p[1], r: 2.4, class: "sg-core hollow" }, svg);
+      } else star(svg, p[0], p[1], idx === n - 1 ? "lit" : "");
+    });
+    host.appendChild(svg);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".sigil"), sigil);
+})();
+</script>
+<script src="assets/sky.js" defer></script>
+</body>
+</html>

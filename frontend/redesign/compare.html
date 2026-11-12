@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04050d">
+<title data-i18n="compare.title">Compare versions · STAVE</title>
+<script src="assets/session.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  :root { color-scheme: dark; }
+  .app { position: relative; z-index: 1; }
+  .pick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .pick .select { width: auto; min-width: 260px; height: 38px; }
+  .pick svg { color: var(--faint); }
+  .crumb { margin: 0 0 6px; }
+  .crumb a { color: var(--soft); }
+  .diff-grid > * { min-width: 0; }
+  .diff-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+  .bars-list li { display: grid; grid-template-columns: 70px 1fr; gap: 6px 12px; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 14px; }
+  .bars-list li:first-child { border-top: 0; }
+  .bars-list b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .bars-list .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bars-list .trk { color: var(--soft); font-size: 13px; }
+  .bars-list .same { grid-template-columns: 1fr; color: var(--soft); }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--soft); }
+  .toggle input { accent-color: var(--add); width: 16px; height: 16px; }
+  .summary { margin-bottom: 24px; }
+  .delta { color: var(--add-deep); } .delta.neg { color: var(--del); } .delta.mod { color: var(--mod); }
+  .legend-gap { margin-top: 14px; }
+
+  .roll { background: rgba(238,240,255,.03); }
+  .roll .row-b { fill: rgba(238,240,255,.05); }
+  .roll .row-c { fill: rgba(238,240,255,.1); }
+  .roll .bar { stroke: rgba(238,240,255,.32); stroke-width: 1.2; }
+  .roll .beat { stroke: rgba(238,240,255,.1); stroke-width: 1; }
+  .roll .lbl { fill: var(--faint); }
+  .n-keep { fill: rgba(238,240,255,.7); }
+  .n-dim { fill: rgba(238,240,255,.4); }
+  .n-add { fill: var(--add); stroke: #a9c1ff; stroke-width: 1.4; }
+  .n-del { fill: rgba(255,107,138,.18); stroke: var(--del); stroke-width: 1.6; stroke-dasharray: 3 2; }
+  .n-mod { fill: rgba(255,185,56,.28); stroke: var(--mod); stroke-width: 1.8; }
+  .glow-add { fill: var(--add); } .glow-del { fill: var(--del); } .glow-mod { fill: var(--mod); }
+  .glow { opacity: .22; pointer-events: none; }
+  .legend .a { background: var(--add); }
+  .legend .d { background: rgba(255,107,138,.18); border: 1.5px dashed var(--del); }
+  .legend .m { background: rgba(255,185,56,.28); border: 1.5px solid var(--mod); }
+  .legend .k { background: rgba(238,240,255,.4); }
+  @media (max-width: 1100px) { .diff-grid { grid-template-columns: 1fr; } }
+</style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
+</head>
+<body>
+<canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
+<div class="app">
+  <aside id="shell"></aside>
+  <main class="main" id="main">
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
+    <div class="page-head">
+      <div>
+        <nav class="crumb" aria-label="Breadcrumb" data-i18n-attr="aria-label:common.breadcrumb"><a href="home.html" data-i18n="shell.home">Home</a> / <a href="projects.html" data-i18n="shell.myProjects">My projects</a> / <a href="project.html">Rainy Saigon Night</a> / <span aria-current="page" data-i18n="common.compare">Compare</span></nav>
+        <h1 data-i18n="compare.heading">Compare two versions</h1>
+        <p data-i18n="compare.intro">See every note added, removed or changed between two commits, grouped by bar.</p>
+      </div>
+      <div class="actions"><a class="btn btn-quiet" href="project.html" data-i18n="common.backToProject">Back to project</a><a class="btn btn-primary" href="merge.html" data-i18n="compare.merge">Merge branch…</a></div>
+    </div>
+
+    <div class="pick">
+      <select class="select" id="from" name="from" autocomplete="off" aria-label="From commit" data-i18n-attr="aria-label:compare.from"></select>
+      <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+      <select class="select" id="to" name="to" autocomplete="off" aria-label="To commit" data-i18n-attr="aria-label:compare.to"></select>
+    </div>
+
+    <dl class="stats summary">
+      <div><dt data-i18n="compare.statAdded">Added notes</dt><dd class="num delta">+<span id="s-a">0</span></dd></div>
+      <div><dt data-i18n="common.removedNotes">Removed notes</dt><dd class="num delta neg">−<span id="s-d">0</span></dd></div>
+      <div><dt data-i18n="common.velocityChanged">Velocity changed</dt><dd class="num delta mod" id="s-m">0</dd></div>
+      <div><dt data-i18n="compare.statBars">Affected bars</dt><dd class="num"><span id="s-b">0</span><small>/ 4</small></dd></div>
+      <div><dt data-i18n="compare.statTracks">Affected tracks</dt><dd class="num"><span id="s-t">0</span><small>/ 3</small></dd></div>
+    </dl>
+
+    <div class="diff-grid">
+      <section aria-labelledby="h-roll">
+        <div class="section-head">
+          <h2 id="h-roll" class="section-title" data-i18n="compare.rollTitle">Differences on the piano roll</h2>
+          <label class="toggle"><input type="checkbox" id="only" name="only"> <span data-i18n="compare.only">Show changed notes only</span></label>
+        </div>
+        <div class="card card-pad"><div id="roll" class="scroll-x"></div>
+          <div class="legend legend-gap"><span><i class="a"></i><span data-i18n="common.newNotes">New notes</span></span><span><i class="d"></i><span data-i18n="common.removedNotes">Removed notes</span></span><span><i class="m"></i><span data-i18n="common.velocityChanged">Velocity changed</span></span><span><i class="k"></i><span data-i18n="common.unchanged">Unchanged</span></span></div>
+        </div>
+      </section>
+      <section aria-labelledby="h-bars">
+        <div class="section-head"><h2 id="h-bars" class="section-title" data-i18n="compare.byBar">By bar</h2></div>
+        <ul class="card bars-list" id="bars"></ul>
+        <p class="card card-pad" id="same" hidden data-i18n="compare.same">These two commits are identical.</p>
+      </section>
+    </div>
+  </main>
+</div>
+<template id="t-bar"><li><b><span data-i18n="compare.bar">Bar</span> <span data-f="n"></span></b><div class="tags"><span class="pill pill-add" data-f="a" hidden><span>+<span data-f="av"></span> <span data-i18n="compare.notes">notes</span></span></span><span class="pill pill-del" data-f="d" hidden><span>−<span data-f="dv"></span> <span data-i18n="compare.notes">notes</span></span></span><span class="pill pill-mod" data-f="m" hidden><span><span data-f="mv"></span> <span data-i18n="compare.velocity">velocity</span></span></span></div><span></span><span class="trk" data-f="trk"></span></li></template>
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  var NS = "http://www.w3.org/2000/svg";
+  S.mountShell("projects");
+
+  var TEXT = { trackNames: ["Piano pad", "Bass", "Melody"], commitSep: " · ", ellipsis: "…" };
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var notes = S.buildSong();
+  var from = document.getElementById("from");
+  var to = document.getElementById("to");
+  var only = document.getElementById("only");
+  var rollHost = document.getElementById("roll");
+  var list = document.getElementById("bars");
+  var same = document.getElementById("same");
+  var tpl = document.getElementById("t-bar");
+
+  S.COMMITS.forEach(function (c, i) {
+    [from, to].forEach(function (sel) {
+      var o = document.createElement("option");
+      o.value = i;
+      o.textContent = c.msg.slice(0, 40) + (c.msg.length > 40 ? TEXT.ellipsis : "") + TEXT.commitSep + c.when;
+      sel.appendChild(o);
+    });
+  });
+  from.value = 2;
+  to.value = 5;
+
+  function glow(svg) {
+    var made = [];
+    Array.prototype.forEach.call(svg.querySelectorAll(".n-add, .n-del, .n-mod"), function (r) {
+      var kind = r.classList.contains("n-add") ? "add" : r.classList.contains("n-del") ? "del" : "mod";
+      var g = document.createElementNS(NS, "rect");
+      g.setAttribute("x", Number(r.getAttribute("x")) - 3);
+      g.setAttribute("y", Number(r.getAttribute("y")) - 3);
+      g.setAttribute("width", Number(r.getAttribute("width")) + 6);
+      g.setAttribute("height", Number(r.getAttribute("height")) + 6);
+      g.setAttribute("rx", 5);
+      g.setAttribute("aria-hidden", "true");
+      g.setAttribute("class", "glow glow-" + kind);
+      r.parentNode.insertBefore(g, r);
+      made.push(g);
+    });
+    if (!reduce && made.length && made[0].animate) {
+      made.forEach(function (g) { g.animate([{ opacity: 0 }, { opacity: 0.22 }], { duration: 900, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "backwards" }); });
+    }
+  }
+
+  function fill(row, k, v) { row.querySelector('[data-f="' + k + '"]').textContent = v; }
+
+  function render() {
+    var f = Number(from.value), t = Number(to.value);
+    var a = 0, d = 0, m = 0, barSet = {}, trackSet = {}, per = {};
+    notes.forEach(function (n) {
+      var was = S.stateAt(n, f), is = S.stateAt(n, t), kind = null;
+      if (is && !was) { kind = "a"; a++; }
+      else if (was && !is) { kind = "d"; d++; }
+      else if (was && is && n.chg !== null && n.chg > f && n.chg <= t) { kind = "m"; m++; }
+      if (kind) {
+        var bar = Math.floor(n.s / 16);
+        barSet[bar] = 1; trackSet[n.t] = 1;
+        per[bar] = per[bar] || { a: 0, d: 0, m: 0, tr: {} };
+        per[bar][kind]++;
+        per[bar].tr[n.t] = 1;
+      }
+    });
+    document.getElementById("s-a").textContent = a;
+    document.getElementById("s-d").textContent = d;
+    document.getElementById("s-m").textContent = m;
+    document.getElementById("s-b").textContent = Object.keys(barSet).length;
+    document.getElementById("s-t").textContent = Object.keys(trackSet).length;
+    var shown = only.checked
+      ? notes.filter(function (n) { return S.stateAt(n, f) !== S.stateAt(n, t) || (S.stateAt(n, f) && S.stateAt(n, t) && n.chg !== null && n.chg > f && n.chg <= t); })
+      : notes;
+    glow(S.drawRoll(rollHost, { notes: shown, steps: 64, from: f, to: t, mode: "diff", label: S.t("compare.rollLabel") }));
+    list.innerHTML = "";
+    var keys = Object.keys(per);
+    same.hidden = keys.length > 0;
+    keys.forEach(function (b) {
+      var p = per[b], row = tpl.content.cloneNode(true);
+      fill(row, "n", Number(b) + 1);
+      if (p.a) { row.querySelector('[data-f="a"]').hidden = false; fill(row, "av", p.a); }
+      if (p.d) { row.querySelector('[data-f="d"]').hidden = false; fill(row, "dv", p.d); }
+      if (p.m) { row.querySelector('[data-f="m"]').hidden = false; fill(row, "mv", p.m); }
+      fill(row, "trk", Object.keys(p.tr).map(function (k) { return TEXT.trackNames[k]; }).join(", "));
+      list.appendChild(row);
+    });
+  }
+  [from, to, only].forEach(function (e) { e.addEventListener("change", render); });
+  document.addEventListener("stave:lang", render);
+  render();
+})();
+</script>
+<script src="assets/sky.js" defer></script>
+</body>
+</html>

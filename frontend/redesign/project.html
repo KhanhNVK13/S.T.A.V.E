@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04050d">
+<title>Rainy Saigon Night · STAVE</title>
+<script src="assets/session.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Onest:wght@300..700&family=Unbounded:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  :root { color-scheme: dark; }
+  .app { position: relative; z-index: 1; }
+  .head-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; color: var(--soft); font-size: 14px; }
+  .split > * { min-width: 0; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; align-items: start; }
+  .text-link { text-decoration: underline; text-underline-offset: 3px; }
+  .crumb { margin: 0 0 6px; }
+  .crumb a { color: var(--soft); }
+  .commit { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 13px 20px; border-top: 1px solid var(--line); align-items: center; }
+  .commit:first-child { border-top: 0; }
+  .commit b { font-weight: 500; font-size: 15px; }
+  .commit small { color: var(--soft); font-size: 13px; }
+  .commit .acts { grid-row: 1 / 3; grid-column: 2; display: flex; gap: 8px; align-items: center; }
+  .copy { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--soft); font-size: 13px; padding: 2px 6px; margin-left: -6px; border-radius: 6px; }
+  .copy:hover { background: rgba(238,240,255,.1); color: var(--ink); }
+  .commit .chips { grid-column: 1; }
+  .chip-t i { outline: 1px solid rgba(238,240,255,.5); }
+  .gloss { color: var(--soft); font-size: 14px; margin: -6px 0 14px; max-width: 62ch; }
+  .branch-sel { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--raised); font-size: 14px; font-weight: 500; }
+  .player { display: flex; align-items: center; gap: 14px; padding: 14px 18px; }
+  .player .play { width: 40px; height: 40px; border-radius: 50%; background: var(--ink); color: var(--raised); display: grid; place-items: center; border: 0; flex: none; }
+  .player .bars { display: flex; align-items: center; gap: 2px; height: 32px; flex: 1; }
+  .player .bars i { flex: 1; background: var(--lime); border-radius: 1px; opacity: .85; }
+  .side-gap { margin-top: 32px; }
+  .about { font-size: 14px; margin-bottom: 16px; }
+  .time { color: var(--soft); font-size: 13px; }
+  dialog { background: var(--raised); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 16px; padding: 0; }
+  dialog::backdrop { background: rgba(4,5,13,.7); }
+  dialog form { padding: 24px; display: grid; gap: 14px; max-width: 460px; }
+  dialog h2 { font-size: 20px; font-weight: 540; }
+  dialog p { color: var(--soft); }
+  dialog .end { justify-content: flex-end; }
+  .toast-host .toast { background: var(--raised); color: var(--ink); border: 1px solid var(--line-strong); }
+
+  .sky-card { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 14px; }
+  .sky-card .scroll-x { margin: 0 -4px; padding: 0 4px; }
+  .constellation { width: 100%; height: auto; min-width: 760px; }
+  .k-staff { stroke: rgba(238,240,255,.16); stroke-width: 1; }
+  .k-label { font: 500 13px var(--text); fill: var(--soft); }
+  .k-label.teal { fill: #4fd6c4; } .k-label.violet { fill: #c58bd6; }
+  .k-edge { fill: none; stroke: rgba(238,240,255,.7); stroke-width: 1.6; }
+  .k-edge.teal { stroke: #4fd6c4; } .k-edge.violet { stroke: #c58bd6; } .k-edge.dash { stroke-dasharray: 5 4; }
+  .k-hash { font: 500 12px ui-monospace, Consolas, monospace; fill: var(--faint); text-anchor: middle; }
+  .cstar { cursor: pointer; outline: none; }
+  .cstar .hit { fill: transparent; }
+  .cstar .halo-o { fill: #eef0ff; opacity: .1; }
+  .cstar .halo-i { fill: #eef0ff; opacity: .2; transform-box: fill-box; transform-origin: center; transition: transform .5s cubic-bezier(.77,0,.175,1), opacity .5s cubic-bezier(.77,0,.175,1); }
+  .cstar .core { fill: #eef0ff; }
+  .cstar .ring { fill: none; stroke: #dceeb1; stroke-width: 1.8; opacity: 0; transform-box: fill-box; transform-origin: center; transform: scale(.6); transition: transform .35s cubic-bezier(.77,0,.175,1), opacity .35s cubic-bezier(.77,0,.175,1); }
+  .cstar.teal .halo-o, .cstar.teal .halo-i { fill: #4fd6c4; } .cstar.teal .core { fill: #4fd6c4; }
+  .cstar.violet .halo-o, .cstar.violet .halo-i { fill: #c58bd6; } .cstar.violet .core { fill: #c58bd6; }
+  .cstar.merge .core { fill: #04050d; stroke: #eef0ff; stroke-width: 2; }
+  .cstar:hover .halo-i { opacity: .4; }
+  .cstar[aria-selected="true"] .core { fill: #dceeb1; }
+  .cstar[aria-selected="true"] .halo-i { fill: #dceeb1; opacity: .4; transform: scale(1.5); transition-timing-function: cubic-bezier(.23,1,.32,1); transition-duration: .7s; }
+  .cstar[aria-selected="true"] .ring { opacity: 1; transform: scale(1); transition-timing-function: cubic-bezier(.23,1,.32,1); transition-duration: .7s; }
+  .cstar:focus-visible .ring { opacity: 1; transform: scale(1); stroke: #fff; stroke-width: 2.2; transition: none; }
+  .instant .cstar .halo-i, .instant .cstar .ring { transition: none !important; }
+  .pick { display: flex; gap: 8px 24px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .pick .id { font: 500 15px ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--lime); }
+  .pick .msg { font-size: 16px; flex: 1 1 260px; min-width: 0; }
+  .pick .who { color: var(--soft); font-size: 14px; }
+  @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+</style>
+<script src="assets/i18n/en.js"></script>
+<script src="assets/i18n/vi.js"></script>
+<script src="assets/i18n.js"></script>
+</head><body>
+<canvas class="sky" data-sky="quiet" aria-hidden="true"></canvas>
+<a class="skip" href="#main" data-i18n="common.skip">Skip to main content</a>
+<div class="app">
+  <aside id="shell"></aside>
+  <main class="main" id="main">
+    <button class="btn btn-quiet menu-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" type="button" data-i18n-attr="aria-label:common.openMenu"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="common.menu">Menu</span></button>
+
+    <div class="page-head">
+      <div>
+        <nav class="crumb" aria-label="Breadcrumb" data-i18n-attr="aria-label:common.breadcrumb"><a href="home.html" data-i18n="shell.home">Home</a> / <a href="projects.html" data-i18n="shell.myProjects">My projects</a> / <span aria-current="page">Rainy Saigon Night</span></nav>
+        <h1>Rainy Saigon Night</h1>
+        <div class="head-meta"><span class="pill"><i class="dot"></i><span data-i18n="common.public">Public</span></span><span class="hash">dem-sai-gon-mua.mid</span><span data-i18n="project.meta">92 BPM · A minor · 4 tracks</span></div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-quiet" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg><span data-i18n="project.star">Star</span> <span class="num">214</span></button>
+        <button class="btn btn-quiet" type="button" title="Fork: make your own copy of the project to remix as you like" data-i18n-attr="title:project.forkTitle"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/></svg><span data-i18n="project.fork">Fork</span> <span class="num">31</span></button>
+        <a class="btn btn-primary" href="editor.html" data-i18n="common.openEditor">Open editor</a>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <a href="project.html" aria-current="true" data-i18n="project.tabOverview">Overview</a>
+      <a href="project.html#commits"><span data-i18n="project.tabCommit">Commit</span><span class="tag">6</span></a>
+      <a href="project.html#nhanh"><span data-i18n="project.tabBranches">Branches</span><span class="tag">3</span></a>
+      <a href="compare.html" data-i18n="common.compare">Compare</a>
+      <a href="merge.html" title="Pull request: propose bringing a branch into the main branch" data-i18n-attr="title:project.prTitle"><span data-i18n="project.tabPr">Pull request</span><span class="tag">1</span></a>
+      <a href="settings.html" data-i18n="shell.settings">Settings</a>
+    </div>
+
+    <section id="nhanh" aria-labelledby="h-graph">
+      <div class="section-head"><h2 id="h-graph" class="section-title" data-i18n="project.historyTitle">History on the staff</h2><span class="meta" data-i18n="project.historyMeta">Each star is a commit, each constellation is a branch</span></div>
+      <p class="gloss" data-i18n-html="project.gloss"><b>Commit</b> is a point you can return to at any time. <b data-i18n="project.tabBranches">Branches</b> is a parallel experiment. A hollow star is where two branches were merged. <a class="text-link" href="help.html">View glossary</a></p>
+      <div class="sky-card">
+        <div class="scroll-x" id="graph"></div>
+        <div class="pick" aria-live="polite">
+          <span class="id" id="pk-id"></span>
+          <span class="msg" id="pk-msg"></span>
+          <span class="who" id="pk-who"></span>
+          <a class="btn btn-quiet btn-sm" href="compare.html" data-i18n="common.compare">Compare</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="split section">
+      <section id="commits" aria-labelledby="h-commits">
+        <div class="section-head">
+          <h2 id="h-commits" class="section-title" data-i18n="project.recent">Recent commits</h2>
+          <span class="branch-sel"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 5-8 3-12 7"/></svg>main<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+        <div class="card" id="commit-rows"></div>
+        <dialog id="restore" aria-labelledby="rs-t"><form method="dialog"><h2 id="rs-t" data-i18n="project.restoreTitle">Restore to this point?</h2><p id="rs-text" data-i18n="project.restoreText" data-i18n-vars='{"msg":""}'>STAVE will create a new commit with the contents of “”. Older commits stay intact and you can return to them at any time.</p><div class="actions end"><button class="btn btn-quiet" value="cancel" data-i18n="common.cancel">Cancel</button><button class="btn btn-primary" value="ok" data-i18n="common.restore">Restore</button></div></form></dialog>
+      </section>
+
+      <aside>
+        <div class="section-head"><h2 class="section-title" data-i18n="project.preview">Preview</h2><span class="meta" data-i18n="project.previewMeta">Sample, audio not playing yet</span></div>
+        <div class="card player">
+          <button class="play" type="button" aria-label="Play" data-i18n-attr="aria-label:project.play"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" style="fill:currentColor"><path d="M7 5v14l12-7z"/></svg></button>
+          <div class="bars" id="bars" aria-hidden="true"></div>
+          <span class="num time">0:00 / 1:42</span>
+        </div>
+        <div class="section-head side-gap"><h2 class="section-title" data-i18n="common.backToProject">Back to project</h2></div>
+        <div class="card card-pad">
+          <p class="about" data-i18n="project.about">Lo-fi chill for rainy evenings. Pad, root-note bass and a pentatonic melody.</p>
+          <dl class="kv">
+            <dt data-i18n="project.author">Author</dt><dd>Khanh</dd>
+            <dt data-i18n="project.collab">Collaborators</dt><dd>Minh Anh</dd>
+            <dt data-i18n="project.created">Created</dt><dd>Oct 12, 2026</dd>
+            <dt data-i18n="project.defaultBranch">Default branch</dt><dd>main</dd>
+          </dl>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<template id="t-commit">
+  <div class="commit">
+    <b data-f="msg"></b>
+    <span class="acts"><span class="pill" data-f="newest" hidden data-i18n="project.newest">Newest</span><a class="btn btn-quiet btn-sm" href="compare.html" data-i18n="common.compare">Compare</a><button class="btn btn-quiet btn-sm" type="button" data-f="restore" data-i18n="common.restore">Restore</button></span>
+    <small><span data-f="by"></span> · <button class="copy" type="button" data-f="copy"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><span data-f="copy-label" data-i18n="common.copyId">Copy ID</span></button></small>
+    <span class="chips" data-f="chips"></span>
+  </div>
+</template>
+<template id="t-toast"><div class="toast" data-i18n="project.restoredToast">Created a restore commit from “…”</div></template>
+<div class="toast-host" id="toasts" role="status"></div>
+
+<script src="assets/shared.js"></script>
+<script>
+(function () {
+  var S = window.STAVE;
+  var NS = "http://www.w3.org/2000/svg";
+  S.mountShell("projects");
+
+  var T = S.t;
+  var TRACKS = [["Piano pad"], ["Bass"], ["Melody"], ["Melody", "Piano pad"], ["Bass"], ["Piano pad", "Melody"]];
+  var TRACK_COLOR = { "Piano pad": "#4b5d73", "Bass": "#9a5b2e", "Melody": "#5c7a2f" };
+  var LANES = [{ name: "main", cls: "" }, { name: "bridge-alt", cls: "teal" }, { name: "drums-swing", cls: "violet" }];
+  var NODES = [
+    { h: "e41b9a0", lane: 0, col: 0 }, { h: "7c03d5e", lane: 0, col: 1 }, { h: "b92af61", lane: 0, col: 2 },
+    { h: "3fd81c7", lane: 0, col: 3 }, { h: "a58e204", lane: 0, col: 4 }, { h: "d70c9b3", lane: 0, col: 5 },
+    { h: "5be1f08", lane: 0, col: 6.4, merge: true, msg: "Merge bridge-alt into main", author: "Khanh", ago: "proposed merge" },
+    { h: "c19a77d", lane: 1, col: 3.7, msg: "Try the bridge with a minor chord", author: "Minh Anh", ago: "6 days ago" },
+    { h: "08e5b3a", lane: 1, col: 4.9, msg: "Soften the bridge melody velocity", author: "Minh Anh", ago: "5 days ago" },
+    { h: "f6a2d91", lane: 2, col: 2.8, msg: "Brush pattern for the swing drums", author: "Khanh", ago: "3 days ago" }
+  ];
+
+  function node(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  NODES.forEach(function (n) {
+    var c = S.COMMITS.filter(function (x) { return x.hash === n.h; })[0];
+    if (c) { n.msg = c.msg; n.author = c.author; n.ago = c.ago; }
+  });
+
+  function constellation(host, startHash) {
+    var laneH = 74, left = 126, step = 112;
+    var W = left + 7 * step + 40, H = LANES.length * laneH + 12;
+    var svg = node("svg", { viewBox: "0 0 " + W + " " + H, class: "constellation", role: "listbox", "aria-label": T("project.graphAria") });
+    var edges = node("g", { "aria-hidden": "true" }, svg);
+    LANES.forEach(function (ln, i) {
+      var y0 = 10 + i * laneH + 14;
+      for (var l = 0; l < 5; l++) node("line", { x1: left - 14, x2: W - 10, y1: y0 + l * 6, y2: y0 + l * 6, class: "k-staff" }, edges);
+      node("text", { x: 0, y: y0 + 16, class: "k-label " + ln.cls }, edges).textContent = ln.name;
+      ln.mid = y0 + 12;
+    });
+    function pos(lane, col) { return { x: left + col * step, y: LANES[lane].mid }; }
+    function line(a, b, cls) { node("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: "k-edge " + (cls || "") }, edges); }
+    function curve(a, b, cls) {
+      var mx = (a.x + b.x) / 2;
+      node("path", { d: "M" + a.x + " " + a.y + " C " + mx + " " + a.y + ", " + mx + " " + b.y + ", " + b.x + " " + b.y, class: "k-edge " + (cls || "") }, edges);
+    }
+    for (var i = 0; i < 5; i++) line(pos(0, i), pos(0, i + 1));
+    line(pos(0, 5), pos(0, 6.4));
+    curve(pos(0, 3), pos(1, 3.7), "teal");
+    line(pos(1, 3.7), pos(1, 4.9), "teal");
+    curve(pos(1, 4.9), pos(0, 6.4), "teal dash");
+    curve(pos(0, 2), pos(2, 2.8), "violet");
+
+    var items = [];
+    NODES.forEach(function (n) {
+      var p = pos(n.lane, n.col), ln = LANES[n.lane];
+      var g = node("g", { transform: "translate(" + p.x + " " + p.y + ")", role: "option", tabindex: "-1", "aria-selected": "false", class: "cstar " + ln.cls + (n.merge ? " merge" : ""), "aria-label": T("project.starAria", { hash: n.h, msg: n.msg, lane: ln.name }) }, svg);
+      var body = node("g", { class: "body" }, g);
+      node("circle", { r: 18, class: "hit" }, body);
+      node("circle", { r: 15, class: "halo-o" }, body);
+      node("circle", { r: 10, class: "halo-i" }, body);
+      node("circle", { r: n.merge ? 5.5 : 4.6, class: "core" }, body);
+      node("circle", { r: 14, class: "ring" }, body);
+      node("text", { y: 30, class: "k-hash" }, g).textContent = n.h;
+      items.push({ n: n, g: g, body: body });
+    });
+
+    var cur = null;
+    function select(it, focus) {
+      if (cur) { cur.g.setAttribute("aria-selected", "false"); cur.g.setAttribute("tabindex", "-1"); }
+      cur = it;
+      it.g.setAttribute("aria-selected", "true");
+      it.g.setAttribute("tabindex", "0");
+      if (focus) it.g.focus();
+      showPick();
+    }
+    function showPick() {
+      if (!cur) return;
+      document.getElementById("pk-id").textContent = cur.n.h;
+      document.getElementById("pk-msg").textContent = cur.n.msg;
+      document.getElementById("pk-who").textContent = LANES[cur.n.lane].name + " · " + cur.n.author + " · " + S.ago(cur.n.ago);
+    }
+    document.addEventListener("stave:lang", function () {
+      svg.setAttribute("aria-label", T("project.graphAria"));
+      items.forEach(function (o) { o.g.setAttribute("aria-label", T("project.starAria", { hash: o.n.h, msg: o.n.msg, lane: LANES[o.n.lane].name })); });
+      showPick();
+    });
+    function neighbor(dir) {
+      var n = cur.n, best = null, bd = 1e9;
+      items.forEach(function (o) {
+        if (o === cur) return;
+        if (dir === "L" || dir === "R") {
+          if (o.n.lane !== n.lane) return;
+          var dx = (o.n.col - n.col) * (dir === "R" ? 1 : -1);
+          if (dx > 0 && dx < bd) { bd = dx; best = o; }
+        } else {
+          var dl = (o.n.lane - n.lane) * (dir === "D" ? 1 : -1);
+          if (dl !== 1) return;
+          var d = Math.abs(o.n.col - n.col);
+          if (d < bd) { bd = d; best = o; }
+        }
+      });
+      return best;
+    }
+    var KEYS = { ArrowLeft: "L", ArrowRight: "R", ArrowUp: "U", ArrowDown: "D" };
+    svg.addEventListener("keydown", function (e) {
+      var it = items.filter(function (o) { return o.g === e.target; })[0];
+      if (!it) return;
+      svg.classList.add("instant");
+      if (KEYS[e.key]) {
+        e.preventDefault();
+        var nx = neighbor(KEYS[e.key]);
+        if (nx) select(nx, true);
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        select(it, false);
+      } else if (e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        var same = items.filter(function (o) { return o.n.lane === it.n.lane; }).sort(function (a, b) { return a.n.col - b.n.col; });
+        select(e.key === "Home" ? same[0] : same[same.length - 1], true);
+      }
+    });
+    svg.addEventListener("pointerdown", function (e) {
+      svg.classList.remove("instant");
+      var g = e.target.closest ? e.target.closest(".cstar") : null;
+      var it = items.filter(function (o) { return o.g === g; })[0];
+      if (it) select(it, false);
+    });
+    host.innerHTML = "";
+    host.appendChild(svg);
+    select(items.filter(function (o) { return o.n.h === startHash; })[0], false);
+
+    if (!reduce && svg.animate) {
+      var ease = "cubic-bezier(0.23, 1, 0.32, 1)";
+      edges.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, easing: ease, fill: "backwards" });
+      items.forEach(function (it, i) {
+        var o = { duration: 1000, delay: 250 + i * 90, easing: ease, fill: "backwards" };
+        it.g.animate([{ opacity: 0 }, { opacity: 1 }], o);
+        it.body.animate([{ transform: "scale(.4)" }, { transform: "scale(1)" }], o);
+      });
+    }
+  }
+  constellation(document.getElementById("graph"), "d70c9b3");
+
+  var wrap = document.getElementById("commit-rows");
+  var tpl = document.getElementById("t-commit");
+  function renderRows() {
+  wrap.textContent = "";
+  S.COMMITS.slice().reverse().forEach(function (c, i) {
+    var ci = S.COMMITS.length - 1 - i;
+    var row = tpl.content.cloneNode(true);
+    function f(k) { return row.querySelector('[data-f="' + k + '"]'); }
+    f("msg").textContent = c.msg;
+    f("by").textContent = c.author + " · " + S.ago(c.ago);
+    f("copy").dataset.h = c.hash;
+    f("copy").setAttribute("aria-label", T("project.copyAria", { hash: c.hash }));
+    f("copy").setAttribute("data-i18n-attr", "aria-label:project.copyAria");
+    f("copy").setAttribute("data-i18n-vars", JSON.stringify({ hash: c.hash }));
+    if (i === 0) { f("newest").hidden = false; f("restore").remove(); }
+    else f("restore").dataset.restore = ci;
+    TRACKS[ci].forEach(function (t) {
+      var chip = document.createElement("span");
+      chip.className = "chip-t";
+      var dot = document.createElement("i");
+      dot.style.background = TRACK_COLOR[t];
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(t));
+      f("chips").appendChild(chip);
+    });
+    wrap.appendChild(row);
+  });
+  S.apply(wrap);
+  }
+  renderRows();
+  document.addEventListener("stave:lang", renderRows);
+
+  wrap.addEventListener("click", function (e) {
+    var b = e.target.closest(".copy");
+    if (!b) return;
+    try { navigator.clipboard.writeText(b.dataset.h).catch(function () {}); } catch (x) {}
+    var lab = b.querySelector("[data-f='copy-label']");
+    S.bind(lab, "project.copied");
+    setTimeout(function () { S.bind(lab, "common.copyId"); }, 1600);
+  });
+
+  var dlg = document.getElementById("restore");
+  var pick = null;
+  wrap.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-restore]");
+    if (!b) return;
+    pick = Number(b.dataset.restore);
+    var rt = document.getElementById("rs-text");
+    rt.setAttribute("data-i18n-vars", JSON.stringify({ msg: S.COMMITS[pick].msg }));
+    S.apply(rt);
+    dlg.showModal();
+  });
+  dlg.addEventListener("close", function () {
+    if (dlg.returnValue !== "ok") return;
+    var t = document.getElementById("t-toast").content.cloneNode(true);
+    var host = document.getElementById("toasts");
+    host.appendChild(t);
+    var el = host.lastElementChild;
+    el.setAttribute("data-i18n-vars", JSON.stringify({ msg: S.COMMITS[pick].msg.slice(0, 32) }));
+    S.apply(el);
+    setTimeout(function () { el.remove(); }, 3200);
+  });
+
+  var r = S.rng(9);
+  var bars = document.getElementById("bars");
+  for (var i = 0; i < 48; i++) {
+    var bar = document.createElement("i");
+    bar.style.height = (14 + r() * 86) + "%";
+    bars.appendChild(bar);
+  }
+})();
+</script>
+<script src="assets/sky.js" defer></script>
+</body>
+</html>
