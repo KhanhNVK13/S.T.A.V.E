@@ -28,8 +28,20 @@
 import * as Tone from "tone";
 
 const MAX_CONCURRENT_FETCHES = 16;
+export const MAX_CACHE_BYTES = 384 * 1024 * 1024;
 
-const bufferCache = new Map<string, Promise<AudioBuffer>>();
+interface CacheEntry {
+  promise: Promise<AudioBuffer>;
+  bytes: number;
+  settled: boolean;
+  lastUsed: number;
+  owners: Set<object>;
+}
+
+const bufferCache = new Map<string, CacheEntry>();
+const releasedOwners = new WeakSet<object>();
+let totalBytes = 0;
+let useClock = 0;
 let active = 0;
 const queue: (() => void)[] = [];
 
@@ -59,16 +71,61 @@ function fetchAndDecode(url: string): Promise<AudioBuffer> {
   });
 }
 
-/** Returns a shared, cached promise for this URL's decoded buffer — only ever fetched once regardless of how many callers ask for it. */
-export function loadSampleBuffer(url: string): Promise<AudioBuffer> {
-  let cached = bufferCache.get(url);
-  if (!cached) {
-    const pending = fetchAndDecode(url);
-    cached = pending;
-    bufferCache.set(url, pending);
-    pending.catch(() => {
-      if (bufferCache.get(url) === pending) bufferCache.delete(url);
-    });
+function bufferBytes(buffer: AudioBuffer): number {
+  const channels = buffer.numberOfChannels;
+  const length = buffer.length;
+  if (!Number.isFinite(channels) || !Number.isFinite(length)) return 0;
+  return channels * length * 4;
+}
+
+function evictOverCap() {
+  if (totalBytes <= MAX_CACHE_BYTES) return;
+  const candidates = [...bufferCache.entries()]
+    .filter(([, e]) => e.settled && e.owners.size === 0)
+    .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+  for (const [url, entry] of candidates) {
+    if (totalBytes <= MAX_CACHE_BYTES) break;
+    bufferCache.delete(url);
+    totalBytes -= entry.bytes;
   }
-  return cached;
+}
+
+/**
+ * Returns a shared, cached promise for this URL's decoded buffer — only ever
+ * fetched once while cached. Pass `owner` (the object that will hold the
+ * buffer) to pin it against eviction until releaseSampleOwner(owner).
+ */
+export function loadSampleBuffer(url: string, owner?: object): Promise<AudioBuffer> {
+  let entry = bufferCache.get(url);
+  if (!entry) {
+    const pending = fetchAndDecode(url);
+    const created: CacheEntry = { promise: pending, bytes: 0, settled: false, lastUsed: 0, owners: new Set() };
+    entry = created;
+    bufferCache.set(url, created);
+    pending.then(
+      (buffer) => {
+        if (bufferCache.get(url) !== created) return;
+        created.settled = true;
+        created.bytes = bufferBytes(buffer);
+        totalBytes += created.bytes;
+        evictOverCap();
+      },
+      () => {
+        if (bufferCache.get(url) === created) bufferCache.delete(url);
+      },
+    );
+  }
+  entry.lastUsed = ++useClock;
+  if (owner && !releasedOwners.has(owner)) entry.owners.add(owner);
+  return entry.promise;
+}
+
+export function releaseSampleOwner(owner: object): void {
+  releasedOwners.add(owner);
+  for (const entry of bufferCache.values()) entry.owners.delete(owner);
+  evictOverCap();
+}
+
+export function getSampleCacheBytes(): number {
+  return totalBytes;
 }

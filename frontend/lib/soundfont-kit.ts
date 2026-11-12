@@ -12,7 +12,7 @@
  * classes (hi-hat choke). Not modelled: sample loops, LFOs, reverb/chorus.
  */
 import * as Tone from "tone";
-import { loadSampleBuffer } from "./sample-buffer-cache";
+import { loadSampleBuffer, releaseSampleOwner } from "./sample-buffer-cache";
 
 const BASE_URL = "/instruments/generaluser_drums/";
 
@@ -100,7 +100,7 @@ export class SoundFontKitVoice {
         const files = [...new Set(this.zones.map((z) => z.file))];
         await Promise.allSettled(
           files.map((file) =>
-            loadSampleBuffer(BASE_URL + file)
+            loadSampleBuffer(BASE_URL + file, this)
               .then((buffer) => {
                 this.buffers.set(file, buffer);
               })
@@ -131,6 +131,7 @@ export class SoundFontKitVoice {
 
   dispose(): void {
     this.disposed = true;
+    releaseSampleOwner(this);
     for (const hit of this.active) this.disposeHit(hit);
     this.active = [];
   }

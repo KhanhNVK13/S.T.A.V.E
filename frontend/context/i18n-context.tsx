@@ -3,7 +3,6 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { LOCALES, tFor, type Lang, type TKey, type Vars } from "../lib/i18n";
 import { getLang, getServerLang, setLang, subscribeLang } from "../lib/i18n/store";
-import { syncAccountLanguage } from "../lib/api-client";
 
 export interface I18n {
   lang: Lang;
@@ -24,7 +23,6 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const changeLang = useCallback((next: Lang) => {
     setLang(next);
-    void syncAccountLanguage(next);
   }, []);
   const t = useCallback((key: TKey, vars?: Vars) => tFor(lang, key, vars), [lang]);
   const tx = useCallback(

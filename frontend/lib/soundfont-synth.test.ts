@@ -224,7 +224,7 @@ function setupKit() {
     ctx.fake.__state.reset();
     ctx.loadSample.mockReset();
     ctx.loadSample.mockImplementation(async (url: string) => ({ duration: 2, url }) as unknown as AudioBuffer);
-    vi.doMock("./sample-buffer-cache", () => ({ loadSampleBuffer: ctx.loadSample }));
+    vi.doMock("./sample-buffer-cache", () => ({ loadSampleBuffer: ctx.loadSample, releaseSampleOwner: vi.fn() }));
     ctx.kits = { "Standard Drum Kit": [zone()] };
     ctx.fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ source: "test", kits: ctx.kits }) }));
     vi.stubGlobal("fetch", ctx.fetchMock);
@@ -581,7 +581,7 @@ function setupEngine() {
     ctx.fake.__state.reset();
     ctx.kits = [];
     ctx.loadSample = vi.fn(async (url: string) => ({ url }) as unknown as AudioBuffer);
-    vi.doMock("./sample-buffer-cache", () => ({ loadSampleBuffer: ctx.loadSample }));
+    vi.doMock("./sample-buffer-cache", () => ({ loadSampleBuffer: ctx.loadSample, releaseSampleOwner: vi.fn() }));
     vi.doMock("./soundfont-kit", () => ({ SoundFontKitVoice: FakeKit }));
     ctx.eng = await import("./tone-synth-engine");
   });
@@ -643,7 +643,7 @@ describe("FE-LIB-31 createTrackVoiceWithReady (via prepareVoices)", () => {
     const { voice } = await prep(track("t1", { instrument: "Trumpet" }));
     expect(voice.synth.kind).toBe("Sampler");
     expect(ctx.loadSample).toHaveBeenCalledTimes(1);
-    expect(ctx.loadSample).toHaveBeenCalledWith("/instruments/trumpet/C4.mp3");
+    expect(ctx.loadSample).toHaveBeenCalledWith("/instruments/trumpet/C4.mp3", expect.anything());
     expect(voice.synth.added).toHaveLength(1);
   });
 
@@ -873,7 +873,7 @@ describe("FE-LIB-34 prepareVoices", () => {
     expect(ctx.loadSample).toHaveBeenCalledTimes(1);
     await ctx.eng.prepareVoices([note("1", { pitch: 60 }), note("2", { pitch: 72 })], [t], 0, null, dest(), cache);
     expect(ctx.loadSample).toHaveBeenCalledTimes(2);
-    expect(ctx.loadSample).toHaveBeenLastCalledWith("/instruments/flute/C5.mp3");
+    expect(ctx.loadSample).toHaveBeenLastCalledWith("/instruments/flute/C5.mp3", expect.anything());
   });
 });
 

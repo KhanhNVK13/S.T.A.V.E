@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 import { AccessibilityProvider } from "../context/accessibility-context";
 import { AuthProvider } from "../context/auth-context";
+import { AccountLanguageSync } from "../components/account-language-sync";
 import { ThemeProvider } from "../context/theme-context";
 import { I18nProvider } from "../context/i18n-context";
 import { ShellSwitch } from "../components/shell/shell-switch";
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <AccessibilityProvider>
           <I18nProvider>
             <AuthProvider>
+              <AccountLanguageSync />
               <ThemeProvider>
                 <SpaceBackdrop />
                 <SkipLink />
