@@ -55,6 +55,11 @@ export interface PublicCommitDetail extends PublicCommitItem {
   };
 }
 
+export interface PublicPreview {
+  commitId: string | null;
+  snapshot: DraftSnapshot | null;
+}
+
 interface CommitRow {
   id: string;
   branch_id: string;
@@ -76,6 +81,57 @@ export class PublicHistoryService {
     private readonly access: ProjectAccessService,
     private readonly diff: DiffService,
   ) {}
+
+  async getPreview(projectId: string): Promise<PublicPreview> {
+    await this.access.assertPublicReadable(projectId);
+    return this.loadPreview(projectId);
+  }
+
+  async getPreviewForMember(
+    projectId: string,
+    userId: string,
+  ): Promise<PublicPreview> {
+    await this.access.assertCanRead(projectId, userId);
+    return this.loadPreview(projectId);
+  }
+
+  private async loadPreview(projectId: string): Promise<PublicPreview> {
+    const { data: branch, error: branchError } = await this.supabase
+      .from('branches')
+      .select('head_commit_id')
+      .eq('project_id', projectId)
+      .eq('is_default', true)
+      .maybeSingle<{ head_commit_id: string | null }>();
+    if (branchError) {
+      throw new InternalServerErrorException('Could not load preview');
+    }
+    if (!branch?.head_commit_id) return { commitId: null, snapshot: null };
+
+    const { data: commit, error: commitError } = await this.supabase
+      .from('commits')
+      .select('id, snapshot')
+      .eq('id', branch.head_commit_id)
+      .maybeSingle<{ id: string; snapshot: DraftSnapshot | null }>();
+    if (commitError) {
+      throw new InternalServerErrorException('Could not load preview');
+    }
+    if (!commit?.snapshot) return { commitId: null, snapshot: null };
+
+    const { schemaVersion, meta, tracks, notes } = commit.snapshot;
+    return {
+      commitId: commit.id,
+      snapshot: {
+        schemaVersion,
+        meta,
+        notes,
+        tracks: (tracks ?? []).map((track) => {
+          const copy = { ...track };
+          delete copy.soundMap;
+          return copy;
+        }),
+      },
+    };
+  }
 
   async listBranches(projectId: string): Promise<PublicBranch[]> {
     await this.access.assertPublicReadable(projectId);

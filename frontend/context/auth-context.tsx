@@ -14,6 +14,7 @@ import {
   apiFetch,
   clearStoredSessionId,
   getStoredSessionId,
+  revokeBusinessSession,
   setStoredSessionId,
 } from "../lib/api-client";
 import { accountInactiveNotice, setAuthNotice } from "../lib/auth-notice";
@@ -121,14 +122,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     const sessionId = getStoredSessionId();
-    if (sessionId) {
-      await apiFetch(`/auth/sessions/${sessionId}`, {
-        method: "DELETE",
-      }).catch(() => undefined);
-    }
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
     clearStoredSessionId();
     await supabase.auth.signOut({ scope: "local" });
     setProfile(null);
+    if (sessionId && accessToken) {
+      await revokeBusinessSession(sessionId, accessToken).catch(() => undefined);
+    }
   }, []);
 
   return (

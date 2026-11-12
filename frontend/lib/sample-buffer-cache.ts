@@ -27,7 +27,7 @@
  */
 import * as Tone from "tone";
 
-const MAX_CONCURRENT_FETCHES = 6;
+const MAX_CONCURRENT_FETCHES = 16;
 
 const bufferCache = new Map<string, Promise<AudioBuffer>>();
 let active = 0;

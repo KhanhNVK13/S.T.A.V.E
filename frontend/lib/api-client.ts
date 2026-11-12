@@ -65,6 +65,19 @@ export async function apiFetch<T>(
   return (await res.json()) as T;
 }
 
+export async function revokeBusinessSession(
+  sessionId: string,
+  accessToken: string,
+): Promise<void> {
+  await fetch(`${API_URL}/auth/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "X-Session-Id": sessionId,
+    },
+  });
+}
+
 export interface UpdateProjectPayload {
   name?: string;
   description?: string;
@@ -1156,4 +1169,22 @@ export async function getTheoryInsight(
   if (commitId) search.set("commitId", commitId);
   if (lang) search.set("lang", lang);
   return apiFetch<TheoryInsightResult>(`/ai/theory-insight?${search.toString()}`);
+}
+
+export interface ProjectPreview {
+  commitId: string | null;
+  snapshot: DraftSnapshot | null;
+}
+
+export async function getProjectPreview(
+  projectId: string,
+  isPublic = true,
+): Promise<ProjectPreview> {
+  return apiFetch<ProjectPreview>(
+    isPublic ? `/explore/projects/${projectId}/preview` : `/projects/${projectId}/preview`,
+  );
+}
+
+export async function recordProjectPlay(projectId: string): Promise<void> {
+  await apiFetch<unknown>(`/explore/projects/${projectId}/play`, { method: "POST" });
 }

@@ -56,7 +56,13 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   devIndicators: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        source: "/instruments/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800" }],
+      },
+    ];
   },
 };
 

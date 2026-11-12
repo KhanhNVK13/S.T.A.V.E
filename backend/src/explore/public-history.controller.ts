@@ -22,6 +22,12 @@ const notFoundOnBadId = new ParseUUIDPipe({ errorHttpStatusCode: 404 });
 export class PublicHistoryController {
   constructor(private readonly history: PublicHistoryService) {}
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Get('preview')
+  getPreview(@Param('id', notFoundOnBadId) id: string) {
+    return this.history.getPreview(id);
+  }
+
   @Get('branches')
   listBranches(@Param('id', notFoundOnBadId) id: string) {
     return this.history.listBranches(id);

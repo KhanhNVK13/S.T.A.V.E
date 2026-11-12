@@ -149,19 +149,19 @@ describe("FE-LIB-24 loadSampleBuffer", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("FE-LIB-24 UTCID04 (B): never more than 6 fetches in flight; queued ones start as slots free", async () => {
-    const gates = Array.from({ length: 8 }, () => deferred<Response>());
+  it("FE-LIB-24 UTCID04 (B): never more than 16 fetches in flight; queued ones start as slots free", async () => {
+    const gates = Array.from({ length: 18 }, () => deferred<Response>());
     let i = 0;
     fetchMock.mockImplementation(() => gates[i++].promise);
-    const all = Array.from({ length: 8 }, (_, k) => loadSampleBuffer(`/q${k}.mp3`));
+    const all = Array.from({ length: 18 }, (_, k) => loadSampleBuffer(`/q${k}.mp3`));
     await flush();
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(16);
     gates[0].resolve(ok());
     await flush();
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock).toHaveBeenCalledTimes(17);
     gates.slice(1).forEach((g) => g.resolve(ok()));
     await Promise.all(all);
-    expect(fetchMock).toHaveBeenCalledTimes(8);
+    expect(fetchMock).toHaveBeenCalledTimes(18);
   });
 
   it("FE-LIB-24 UTCID05 (A): HTTP 404 → rejects with a descriptive error", async () => {
@@ -639,12 +639,12 @@ describe("FE-LIB-31 createTrackVoiceWithReady (via prepareVoices)", () => {
     expect(voice.synth.args[1].oscillator.type).toBe("sawtooth");
   });
 
-  it("FE-LIB-31 UTCID03 (N): bundled instrument → Tone.Sampler filled with all 88 decoded notes", async () => {
+  it("FE-LIB-31 UTCID03 (N): bundled instrument → Tone.Sampler filled with only the decoded notes the track uses", async () => {
     const { voice } = await prep(track("t1", { instrument: "Trumpet" }));
     expect(voice.synth.kind).toBe("Sampler");
-    expect(ctx.loadSample).toHaveBeenCalledTimes(88);
+    expect(ctx.loadSample).toHaveBeenCalledTimes(1);
     expect(ctx.loadSample).toHaveBeenCalledWith("/instruments/trumpet/C4.mp3");
-    expect(voice.synth.added).toHaveLength(88);
+    expect(voice.synth.added).toHaveLength(1);
   });
 
   it("FE-LIB-31 UTCID04 (N): drum kit instrument → SoundFontKitVoice on the panner, no synth", async () => {
@@ -660,14 +660,14 @@ describe("FE-LIB-31 createTrackVoiceWithReady (via prepareVoices)", () => {
     expect((await prep(track("R", { pan: 1 }))).voice.panner.args[0]).toBe(1);
   });
 
-  it("FE-LIB-31 UTCID06 (A): one note sample fails → warning, the other 87 are still added", async () => {
+  it("FE-LIB-31 UTCID06 (A): a used note sample fails → warning, nothing is added for it", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     ctx.loadSample.mockImplementation(async (url: string) => {
       if (url.endsWith("/C4.mp3")) throw new Error("404");
       return { url };
     });
     const { voice } = await prep(track("t1", { instrument: "Trumpet" }));
-    expect(voice.synth.added).toHaveLength(87);
+    expect(voice.synth.added).toHaveLength(0);
     expect(console.warn).toHaveBeenCalledWith("Failed to load sample /instruments/trumpet/C4.mp3:", expect.any(Error));
   });
 
@@ -864,6 +864,16 @@ describe("FE-LIB-34 prepareVoices", () => {
   it("FE-LIB-34 UTCID08 (N): muted tracks get no voice", async () => {
     const out = await ctx.eng.prepareVoices([note("1"), note("2", { trackId: "m" })], [track("t1"), track("m", { muted: true })], 0, null, dest(), ctx.eng.createVoiceCache());
     expect([...out.keys()]).toEqual(["t1"]);
+  });
+
+  it("FE-LIB-34 UTCID09 (N): reusing a cached voice loads only the pitches that are new since last time", async () => {
+    const cache = ctx.eng.createVoiceCache();
+    const t = track("t1", { instrument: "Flute" });
+    await ctx.eng.prepareVoices([note("1", { pitch: 60 })], [t], 0, null, dest(), cache);
+    expect(ctx.loadSample).toHaveBeenCalledTimes(1);
+    await ctx.eng.prepareVoices([note("1", { pitch: 60 }), note("2", { pitch: 72 })], [t], 0, null, dest(), cache);
+    expect(ctx.loadSample).toHaveBeenCalledTimes(2);
+    expect(ctx.loadSample).toHaveBeenLastCalledWith("/instruments/flute/C5.mp3");
   });
 });
 
