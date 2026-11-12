@@ -117,6 +117,26 @@ describe('BE-USR-02 UsersService.updateProfile(userId, dto)', () => {
     expect(builders.users.update).toHaveBeenCalledWith({ bio: '' });
   });
 
+  it('UTCID03b patches only language when only language is set, and repeating it is harmless', async () => {
+    const updated = { ...userRow, language: 'en' };
+    const { service, builders } = makeService({
+      users: [{ data: updated }, { data: updated }],
+    });
+
+    await expect(
+      service.updateProfile(userId, { language: 'en' }),
+    ).resolves.toBe(updated);
+    await expect(
+      service.updateProfile(userId, { language: 'en' }),
+    ).resolves.toBe(updated);
+    expect(builders.users.update).toHaveBeenNthCalledWith(1, {
+      language: 'en',
+    });
+    expect(builders.users.update).toHaveBeenNthCalledWith(2, {
+      language: 'en',
+    });
+  });
+
   it('UTCID04 sends an empty patch for an empty dto', async () => {
     const { service, builders } = makeService({ users: [{ data: userRow }] });
 

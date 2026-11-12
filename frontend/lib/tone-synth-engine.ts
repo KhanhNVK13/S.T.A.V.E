@@ -28,7 +28,7 @@ import { isDrumKitInstrument } from "@stave/shared-types";
 import type { DraftNote, DraftTrack } from "@stave/shared-types";
 import { getOscillatorType } from "./instrument-waveform";
 import { getInstrumentSamplerOptions } from "./instrument-samples";
-import { loadSampleBuffer } from "./sample-buffer-cache";
+import { loadSampleBuffer, releaseSampleOwner } from "./sample-buffer-cache";
 import { SoundFontKitVoice } from "./soundfont-kit";
 
 export function noteToFrequency(pitch: number): number {
@@ -85,7 +85,7 @@ function createSampleLoader(
       let load = loads.get(key);
       if (!load) {
         const url = sampler.baseUrl + sampler.urls[key];
-        load = loadSampleBuffer(url)
+        load = loadSampleBuffer(url, toneSampler)
           .then((buffer) => {
             if (toneSampler.disposed) return;
             toneSampler.add(key as Tone.Unit.Note, buffer);
@@ -160,6 +160,7 @@ function createTrackVoiceWithReady(
 
 export function disposeTrackVoice(voice: TrackVoice) {
   voice.kit?.dispose();
+  if (voice.synth) releaseSampleOwner(voice.synth);
   voice.synth?.dispose();
   voice.filter.dispose();
   voice.panner.dispose();

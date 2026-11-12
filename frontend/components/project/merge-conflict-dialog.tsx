@@ -8,6 +8,8 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DialogError } from "../ui/dialog";
 import { DiffDialogShell } from "./diff-dialog-shell";
+import { DIFF_GLYPH, DIFF_TEXT } from "./diff-ui";
+import type { DiffKind } from "./diff-ui";
 import {
   conflictNoteIds,
   conflictSignature,
@@ -179,6 +181,7 @@ export function MergeConflictDialog({
                             onSelect={() => setChoices((c) => ({ ...c, [conflict.noteId]: "PICK_TARGET" }))}
                             title={t("mc.keepOurs", { name: targetName })}
                             body={describe(conflict.targetNote, targetDeleted)}
+                            kind={targetDeleted || !conflict.targetNote ? "remove" : "modify"}
                           />
                           <Option
                             name={`conflict-${conflict.noteId}`}
@@ -186,6 +189,7 @@ export function MergeConflictDialog({
                             onSelect={() => setChoices((c) => ({ ...c, [conflict.noteId]: "PICK_SOURCE" }))}
                             title={t("mc.takeTheirs", { name: sourceName })}
                             body={describe(conflict.sourceNote, sourceDeleted)}
+                            kind={sourceDeleted || !conflict.sourceNote ? "remove" : "modify"}
                           />
                         </div>
                       </fieldset>
@@ -216,12 +220,14 @@ function Option({
   onSelect,
   title,
   body,
+  kind,
 }: {
   name: string;
   checked: boolean;
   onSelect: () => void;
   title: string;
   body: string;
+  kind: DiffKind;
 }) {
   return (
     <label
@@ -232,7 +238,12 @@ function Option({
       <input type="radio" name={name} className="mt-0.5 accent-accent" checked={checked} onChange={onSelect} />
       <span className="min-w-0">
         <span className="block break-words text-xs font-bold uppercase tracking-wide text-muted">{title}</span>
-        <span className="mt-0.5 block break-words font-mono text-xs">{body}</span>
+        <span className={`mt-0.5 block break-words font-mono text-xs ${DIFF_TEXT[kind]}`}>
+          <span aria-hidden="true" data-diff-glyph={kind} className="mr-1 font-bold">
+            {DIFF_GLYPH[kind]}
+          </span>
+          {body}
+        </span>
       </span>
     </label>
   );

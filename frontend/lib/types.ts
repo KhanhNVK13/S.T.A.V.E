@@ -10,6 +10,7 @@ export interface Profile {
   avatar_url: string | null;
   status: UserStatus;
   role: UserRole;
+  language?: "en" | "vi";
   created_at: string;
   updated_at: string;
 }

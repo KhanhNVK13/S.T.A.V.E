@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearStoredSessionId, setStoredSessionId, syncAccountLanguage } from "./api-client";
+import { clearStoredSessionId, pushAccountLanguage, setStoredSessionId } from "./api-client";
 
 const fetchMock = vi.fn();
 
@@ -13,16 +13,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("syncAccountLanguage", () => {
-  it("does nothing when nobody is signed in", async () => {
-    await syncAccountLanguage("en");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("patches the account language when signed in", async () => {
+describe("pushAccountLanguage", () => {
+  it("patches only the language with the business session header", async () => {
     setStoredSessionId("session-1");
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
-    await syncAccountLanguage("en");
+    await pushAccountLanguage("en");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/users\/me$/);
@@ -31,11 +26,11 @@ describe("syncAccountLanguage", () => {
     expect((init.headers as Headers).get("X-Session-Id")).toBe("session-1");
   });
 
-  it("swallows a failure so changing the language is never blocked", async () => {
+  it("rejects on a network or HTTP failure so the caller can retry", async () => {
     setStoredSessionId("session-1");
     fetchMock.mockRejectedValue(new Error("offline"));
-    await expect(syncAccountLanguage("vi")).resolves.toBeUndefined();
+    await expect(pushAccountLanguage("vi")).rejects.toThrow();
     fetchMock.mockResolvedValue(new Response("{}", { status: 400 }));
-    await expect(syncAccountLanguage("vi")).resolves.toBeUndefined();
+    await expect(pushAccountLanguage("vi")).rejects.toThrow();
   });
 });

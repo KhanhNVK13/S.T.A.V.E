@@ -185,14 +185,11 @@ export async function setProjectTags(id: string, tags: string[]): Promise<string
   return result.tags;
 }
 
-export async function syncAccountLanguage(language: "en" | "vi"): Promise<void> {
-  if (!getStoredSessionId()) return;
-  try {
-    await apiFetch<unknown>("/users/me", {
-      method: "PATCH",
-      body: JSON.stringify({ language }),
-    });
-  } catch {}
+export async function pushAccountLanguage(language: "en" | "vi"): Promise<void> {
+  await apiFetch<unknown>("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify({ language }),
+  });
 }
 
 // ============================================
