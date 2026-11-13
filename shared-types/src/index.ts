@@ -487,3 +487,147 @@ export type * from "./collaboration";
 export type * from "./comments";
 // Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
 export type * from "./jam";
+// Notification templates (UC-110).
+export const TEMPLATE_NAME_MAX_LENGTH = 100;
+export const TEMPLATE_SUBJECT_MAX_LENGTH = 150;
+export const TEMPLATE_BODY_MAX_LENGTH = 2000;
+
+export interface NotificationTemplateItem {
+  type: string;
+  category: string;
+  mandatory: boolean;
+  placeholders: string[];
+  template: {
+    id: string;
+    name: string;
+    subject: string;
+    bodyTemplate: string;
+    updatedAt: string;
+  } | null;
+}
+
+export interface NotificationTemplatePreview {
+  subject: string;
+  body: string;
+}
+
+const STRICT_PLACEHOLDER = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+
+export function extractPlaceholders(text: string): string[] {
+  const found: string[] = [];
+  for (const match of text.matchAll(STRICT_PLACEHOLDER)) {
+    const name = match[1];
+    if (!found.includes(name)) found.push(name);
+  }
+  return found;
+}
+
+export function findMalformedPlaceholders(text: string): string[] {
+  const masked = text.replace(STRICT_PLACEHOLDER, (match) =>
+    " ".repeat(match.length),
+  );
+  const malformed: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let lastStart = -1;
+
+  const push = (token: string) => {
+    if (token && !malformed.includes(token)) malformed.push(token);
+  };
+
+  for (let i = 0; i < masked.length; i += 1) {
+    const char = masked[i];
+    if (char === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (char === "}") {
+      if (depth === 0) {
+        if (lastStart >= 0) {
+          const index = malformed.lastIndexOf(masked.slice(lastStart, i));
+          if (index !== -1) malformed[index] = masked.slice(lastStart, i + 1);
+        } else {
+          push("}");
+        }
+      } else {
+        depth -= 1;
+        if (depth === 0) {
+          push(masked.slice(start, i + 1));
+          lastStart = start;
+        }
+      }
+    }
+  }
+
+  if (depth > 0 && start >= 0) push(masked.slice(start));
+
+  return malformed;
+}
+
+export interface PlaceholderValidation {
+  valid: boolean;
+  invalid: string[];
+  malformed: string[];
+}
+
+export function validatePlaceholders(
+  text: string,
+  allowed: string[],
+): PlaceholderValidation {
+  const invalid: string[] = [];
+  for (const name of extractPlaceholders(text)) {
+    if (!allowed.includes(name) && !invalid.includes(name)) invalid.push(name);
+  }
+  const malformed = findMalformedPlaceholders(text);
+  return { valid: invalid.length === 0 && malformed.length === 0, invalid, malformed };
+}
+
+export function validateTemplatePlaceholders(
+  subject: string,
+  bodyTemplate: string,
+  allowed: string[],
+): PlaceholderValidation {
+  const invalid: string[] = [];
+  const malformed: string[] = [];
+  for (const text of [subject, bodyTemplate]) {
+    const result = validatePlaceholders(text, allowed);
+    for (const name of result.invalid) {
+      if (!invalid.includes(name)) invalid.push(name);
+    }
+    for (const token of result.malformed) {
+      if (!malformed.includes(token)) malformed.push(token);
+    }
+  }
+  return { valid: invalid.length === 0 && malformed.length === 0, invalid, malformed };
+}
+
+export function renderPreview(
+  text: string,
+  samples: Record<string, string>,
+): string {
+  return text.replace(STRICT_PLACEHOLDER, (match, name: string) => {
+    const value = samples[name];
+    return value === undefined ? match : value;
+  });
+}
+
+export const NOTIFICATION_PLACEHOLDER_SAMPLES: Record<string, string> = {
+  inviterName: 'Lan',
+  userName: 'Minh',
+  projectName: 'Dự án mẫu',
+  permissionLabel: 'Chủ sở hữu',
+  authorName: 'Hương',
+  forkerName: 'Tuấn',
+  title: 'Thay đổi nhịp',
+  actorName: 'Bảo',
+  eventName: 'Jam cuối tuần',
+  endsAt: '23:59',
+  planName: 'STAVE Plus',
+  amount: '99.000 ₫',
+  effectiveDate: '01/12/2026',
+  endDate: '01/12/2026',
+  dueDate: '05/12/2026',
+  newPrice: '149.000 ₫',
+  summary: 'Thanh toán đã được ghi nhận',
+  email: 'nguoidung@example.com',
+  reason: 'Nội dung không phù hợp',
+};

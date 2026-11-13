@@ -25,6 +25,7 @@ import { CommentsModule } from './comments/comments.module';
 import { JamModule } from './jam/jam.module';
 import { AiModule } from './ai/ai.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { NotificationTemplatesModule } from './notification-templates/notification-templates.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { PlatformSettingsModule } from './platform-settings/platform-settings.mo
     JamModule,
     AiModule,
     PlatformSettingsModule,
+    NotificationTemplatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
