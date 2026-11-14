@@ -325,7 +325,7 @@ export default function AdminSettingsPage() {
         >
           {data.groups.map((group) => (
             <Card key={group.group} className="p-5">
-              <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
+              <h2 className="eyebrow">
                 {GROUP_LABELS[group.group] ? t(GROUP_LABELS[group.group]) : group.group}
               </h2>
               <div className="mt-1 divide-y divide-border">

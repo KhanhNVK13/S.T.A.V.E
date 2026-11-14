@@ -112,7 +112,7 @@ export function JamListContent() {
   const visible = list.filter((e) => groupOf(e) === tab);
 
   return (
-    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-9 sm:px-8 lg:px-10">
       <PageHeader
         breadcrumbs={[{ label: t("jam.crumb") }]}
         title={t("jam.title")}

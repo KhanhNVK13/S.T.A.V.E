@@ -40,7 +40,7 @@ export default function CreatorProfilePage({ params }: Props) {
 
   if (loading) {
     return (
-      <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
+      <div className="mx-auto min-h-full w-full max-w-page px-5 py-9 sm:px-8 lg:px-10">
         <div className="animate-pulse">
           <div className="mb-8 flex items-center gap-4">
             <div className="h-20 w-20 rounded-full bg-surface-subtle" />
@@ -61,7 +61,7 @@ export default function CreatorProfilePage({ params }: Props) {
 
   if (error || !profile) {
     return (
-      <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
+      <div className="mx-auto min-h-full w-full max-w-page px-5 py-9 sm:px-8 lg:px-10">
         <div role="alert" className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
           <h1 className="text-xl font-semibold text-danger">{t('cr.notFound')}</h1>
           <p className="mt-2 text-muted">{error ?? t('cr.notExist')}</p>
@@ -76,7 +76,7 @@ export default function CreatorProfilePage({ params }: Props) {
   const joinDate = formatMonthYear(profile.created_at);
 
   return (
-    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-9 sm:px-8 lg:px-10">
       <div className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <Avatar
@@ -86,14 +86,14 @@ export default function CreatorProfilePage({ params }: Props) {
             size="lg"
           />
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent">
+            <p className="flex items-center gap-1.5 eyebrow">
               <Link href="/" className="hover:underline">
                 {t('ui.home')}
               </Link>
               <span className="text-muted">/</span>
               <span>{t('cr.crumb')}</span>
             </p>
-            <h1 className="mb-0.5 mt-0.5 text-[26px] font-semibold leading-tight tracking-tight">
+            <h1 className="text-title mb-1 mt-1.5">
               {profile.display_name ?? profile.username ?? t('ex.user')}
             </h1>
             <p className="font-mono text-xs text-muted">@{profile.username ?? 'unknown'}</p>
@@ -104,21 +104,21 @@ export default function CreatorProfilePage({ params }: Props) {
           </div>
         </div>
 
-        <div className="grid shrink-0 grid-cols-2 overflow-hidden rounded-card border border-border bg-surface">
+        <div className="grid shrink-0 grid-cols-2 overflow-hidden rounded-card border border-border bg-surface/80">
           <div className="border-r border-border px-5 py-3">
-            <p className="font-mono text-[17px] font-bold">
+            <p className="font-mono text-xl font-medium tabular-nums">
               {profile.total_public_projects.toLocaleString(locale)}
             </p>
             <p className="text-xs text-muted">{t('cr.publicProjects')}</p>
           </div>
           <div className="px-5 py-3">
-            <p className="font-mono text-[17px] font-bold">{profile.total_forks.toLocaleString(locale)}</p>
+            <p className="font-mono text-xl font-medium tabular-nums">{profile.total_forks.toLocaleString(locale)}</p>
             <p className="text-xs text-muted">{t('ex.statForks')}</p>
           </div>
         </div>
       </div>
 
-      <h2 className="mb-2.5 text-[17px] font-semibold">{t('cr.projectsHeading', { n: projects.length })}</h2>
+      <h2 className="text-section mb-4">{t('cr.projectsHeading', { n: projects.length })}</h2>
       {projects.length === 0 ? (
         <EmptyState icon={FolderOpen} title={t('cr.empty')} />
       ) : (

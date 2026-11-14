@@ -257,7 +257,7 @@ function ProjectOverview({ id }: { id: string }) {
 
   if (loading || authLoading) {
     return (
-      <div className="mx-auto max-w-page px-5 py-8">
+      <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
         <SkyLoading label={t("project.loading")} />
       </div>
     );
@@ -265,7 +265,7 @@ function ProjectOverview({ id }: { id: string }) {
 
   if (error || !data) {
     return (
-      <div className="mx-auto max-w-page px-5 py-8">
+      <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
         <div className="rounded-card border border-danger/20 bg-danger-muted p-8 text-center">
           <h1 className="text-lg font-semibold text-danger">{t("project.openFail")}</h1>
           <p role="alert" className="mt-2 text-[13px] text-muted">
@@ -319,12 +319,12 @@ function ProjectOverview({ id }: { id: string }) {
         />
       )}
 
-      <div className="mx-auto max-w-page px-5 py-8">
+      <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <nav
               aria-label={t("ui.breadcrumb")}
-              className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent"
+              className="flex flex-wrap items-center gap-1.5 eyebrow"
             >
               <Link href="/" className="hover:underline">
                 {t("ui.home")}
@@ -338,7 +338,7 @@ function ProjectOverview({ id }: { id: string }) {
                 <span>{ownerName}</span>
               )}
             </nav>
-            <h1 className="mb-1 mt-1 break-words text-[28px] font-semibold leading-tight tracking-[-0.02em]">
+            <h1 className="text-title mb-2 mt-2 break-words">
               {data.name}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -541,7 +541,7 @@ export default function ProjectOverviewPage({ params }: Props) {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-page px-5 py-8">
+        <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
           <SkyLoading label={t("project.loading")} />
         </div>
       }

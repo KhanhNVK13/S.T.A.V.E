@@ -11,7 +11,7 @@ import { uploadAvatar, validateAvatarFile } from "../../lib/avatar-upload";
 import type { Profile } from "../../lib/types";
 import { useI18n } from "../../context/i18n-context";
 import type { TKey } from "../../lib/i18n";
-import { Button } from "../../components/ui/button";
+import { Button, buttonClass } from "../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../components/ui/form";
 import { Avatar } from "../../components/ui/avatar";
 import { ConnectedAccounts } from "../../components/settings/connected-accounts";
@@ -582,7 +582,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: TKey }[] = [
 
 function AccessibilityTab() {
   const { t } = useI18n();
-  const { colorBlindMode, setColorBlindMode } = useAccessibility();
+  const { colorBlindMode, setColorBlindMode, stillBackground, setStillBackground } = useAccessibility();
   return (
     <>
       <h2 className="text-lg font-semibold">{t("accessibilityPage.title")}</h2>
@@ -601,6 +601,23 @@ function AccessibilityTab() {
             onChange={setColorBlindMode}
             labelledBy="cvd-title"
             describedBy="cvd-desc"
+          />
+        </div>
+      </SettingRow>
+      <SettingRow
+        title={t("accessibilityPage.motionTitle")}
+        titleId="motion-title"
+        description={<span id="motion-desc">{t("accessibilityPage.motionDesc")}</span>}
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-muted" aria-hidden="true">
+            {stillBackground ? t("accessibilityPage.stateOn") : t("accessibilityPage.stateOff")}
+          </span>
+          <Switch
+            checked={stillBackground}
+            onChange={setStillBackground}
+            labelledBy="motion-title"
+            describedBy="motion-desc"
           />
         </div>
       </SettingRow>
@@ -684,7 +701,7 @@ export default function ProfilePage() {
               >
                 <Link
                   href="/profile/sessions"
-                  className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border-strong bg-surface-subtle/60 px-3 text-[13px] font-semibold text-foreground transition-colors hover:bg-surface-muted"
+                  className={buttonClass("secondary")}
                 >
                   <Smartphone aria-hidden="true" className="h-3.5 w-3.5" /> {t("profile.manage")}
                 </Link>

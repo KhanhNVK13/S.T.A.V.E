@@ -48,7 +48,7 @@ function PullRequestsView() {
   ];
 
   return (
-    <div className="mx-auto min-h-full max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full max-w-page px-5 py-9 sm:px-8 lg:px-10">
       <PageHeader
         title={t("prl.title")}
         breadcrumbs={[{ label: t("nt.crumb") }]}

@@ -3,42 +3,71 @@
 import { useId } from "react";
 import type { ReactNode } from "react";
 import { withErrorProps } from "./ui/form";
-import { Logo } from "./ui/logo";
 import { LanguageSwitch } from "./language-switch";
 import { useT } from "../context/i18n-context";
 
-const STARS: [number, number][] = [
-  [30, 150],
-  [100, 110],
-  [170, 130],
-  [250, 70],
-  [330, 90],
-  [410, 40],
+const MAIN: [number, number][] = [
+  [40, 150],
+  [190, 122],
+  [330, 136],
+  [470, 94],
+  [640, 108],
+  [800, 66],
+  [960, 94],
+  [1130, 52],
 ];
+const BRANCH: [number, number][] = [
+  [470, 94],
+  [600, 164],
+  [760, 178],
+  [900, 150],
+];
+
+const HALOS = [
+  { key: "accent", color: "var(--accent)" },
+  { key: "star", color: "var(--foreground)" },
+  { key: "branch", color: "var(--teal)" },
+] as const;
 
 function Constellation({ className = "" }: { className?: string }) {
   const haloId = useId();
   return (
-    <svg aria-hidden viewBox="0 0 460 200" className={className}>
+    <svg aria-hidden="true" viewBox="0 0 1180 230" preserveAspectRatio="xMidYMid slice" className={className}>
       <defs>
-        <radialGradient id={haloId}>
-          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.55" />
-          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-        </radialGradient>
+        {HALOS.map(({ key, color }) => (
+          <radialGradient key={key} id={`${haloId}-${key}`}>
+            <stop offset="0" stopColor={color} stopOpacity="0.5" />
+            <stop offset="1" stopColor={color} stopOpacity="0" />
+          </radialGradient>
+        ))}
       </defs>
-      {[60, 80, 100, 120, 140].map((y) => (
-        <line key={y} x1="0" x2="460" y1={y} y2={y} stroke="var(--border)" strokeWidth="1" />
+      {[66, 94, 122, 150, 178].map((y) => (
+        <line key={y} x1="0" x2="1180" y1={y} y2={y} className="stroke-foreground/15" strokeWidth="1" vectorEffect="non-scaling-stroke" />
       ))}
       <polyline
-        points={STARS.map((p) => p.join(",")).join(" ")}
+        points={MAIN.map((p) => p.join(",")).join(" ")}
         fill="none"
-        stroke="var(--border-strong)"
-        strokeWidth="1.2"
+        className="stroke-foreground/55"
+        strokeWidth="1.3"
+        vectorEffect="non-scaling-stroke"
       />
-      {STARS.map(([x, y]) => (
-        <g key={`${x}-${y}`}>
-          <circle cx={x} cy={y} r="16" fill={`url(#${haloId})`} />
-          <circle cx={x} cy={y} r="3" fill="var(--foreground)" />
+      <polyline
+        points={BRANCH.map((p) => p.join(",")).join(" ")}
+        fill="none"
+        className="stroke-teal/70"
+        strokeWidth="1.3"
+        vectorEffect="non-scaling-stroke"
+      />
+      {MAIN.map(([x, y], i) => (
+        <g key={`m-${x}`} className={i % 3 === 0 ? "text-accent" : "text-foreground"}>
+          <circle cx={x} cy={y} r="18" fill={`url(#${haloId}-${i % 3 === 0 ? "accent" : "star"})`} />
+          <circle cx={x} cy={y} r="4" fill="currentColor" />
+        </g>
+      ))}
+      {BRANCH.slice(1).map(([x, y]) => (
+        <g key={`b-${x}`} className="text-teal">
+          <circle cx={x} cy={y} r="16" fill={`url(#${haloId}-branch)`} />
+          <circle cx={x} cy={y} r="4" fill="currentColor" />
         </g>
       ))}
     </svg>
@@ -46,9 +75,9 @@ function Constellation({ className = "" }: { className?: string }) {
 }
 
 /**
- * Khung 2 cột cho 4 trang xác thực: cột trái là mảng thương hiệu (ẩn trên
- * mobile), cột phải là thẻ form. Thẻ dùng nền bề mặt hơi trong suốt để nền sao
- * của theme tối lộ ra phía sau (không làm mờ), kèm một vòng sáng nhỏ ở góc.
+ * Khung cho 4 trang xác thực: một thẻ form căn giữa, phía sau là chòm sao trên
+ * khuông nhạc chạy ngang màn hình. Thẻ dùng nền bề mặt hơi trong suốt (không
+ * làm mờ) để nền sao lộ ra.
  */
 export function AuthCard({
   title,
@@ -63,34 +92,21 @@ export function AuthCard({
 }) {
   const t = useT();
   return (
-    <div className="grid min-h-full lg:grid-cols-2">
-      <div className="hidden flex-col justify-center border-r border-border bg-surface-subtle/50 p-[9%] lg:flex">
-        <Logo />
-        <p className="mt-6 max-w-[360px] text-[28px] font-bold leading-[1.25]">
-          {t("auth.tagline")}
-        </p>
-        <Constellation className="mt-6 w-full max-w-[540px]" />
-      </div>
+    <div className="relative flex min-h-full items-center justify-center overflow-hidden px-5 py-10 sm:py-14">
+      <Constellation className="pointer-events-none absolute inset-x-0 top-1/2 h-[230px] w-full -translate-y-1/2 opacity-90 sm:h-[300px]" />
 
-      <div className="mx-auto w-full max-w-[430px] px-6 py-12 sm:px-11">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <div className="lg:hidden">
-            <Logo />
-          </div>
-          <LanguageSwitch className="ml-auto" />
+      <div className="relative w-full max-w-[420px]">
+        <div className="mb-4 flex items-center justify-end">
+          <LanguageSwitch />
         </div>
-        <div className="relative rounded-card border border-border bg-surface/80 p-6 motion-safe:transition-[opacity,transform] motion-safe:duration-[800ms] motion-safe:ease-out starting:translate-y-3 starting:opacity-0">
-          <span
-            aria-hidden
-            className="absolute -top-1 right-6 h-2 w-2 rounded-full bg-accent shadow-[0_0_14px_5px_var(--accent)]"
-          />
-          {eyebrow && (
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{eyebrow}</p>
-          )}
-          {title && <h1 className="my-1 text-[23px] font-semibold tracking-tight">{title}</h1>}
-          {description && <p className="mb-6 text-xs text-muted">{description}</p>}
+        <div className="relative rounded-panel border border-border bg-surface p-6 shadow-card motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-out starting:translate-y-3 starting:opacity-0 sm:p-8">
+          <span aria-hidden="true" className="star-dot absolute -top-1 right-8 text-accent" />
+          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+          {title && <h1 className="mb-1.5 mt-2 text-[28px] font-light leading-tight tracking-[-0.03em]">{title}</h1>}
+          {description && <p className="mb-6 text-sm text-muted">{description}</p>}
           {children}
         </div>
+        <p className="mt-5 text-center text-[13px] text-muted">{t("auth.tagline")}</p>
       </div>
     </div>
   );
@@ -108,7 +124,7 @@ export function AuthField({
   const errorId = useId();
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-semibold">{label}</span>
+      <span className="text-[13px] font-medium">{label}</span>
       {error ? withErrorProps(children, errorId) : children}
       {error && (
         <p id={errorId} role="alert" className="text-xs text-danger">
@@ -120,7 +136,7 @@ export function AuthField({
 }
 
 export const AUTH_INPUT_CLASS =
-  "h-10 rounded-md border border-border-strong bg-background px-2.5 text-base sm:h-[37px] sm:text-[13px] placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-muted";
+  "h-11 rounded-field border border-border-strong bg-background/70 px-3 text-base transition-colors placeholder:text-muted hover:border-foreground/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 sm:h-10 sm:text-sm";
 
 export function AuthDivider() {
   const t = useT();
@@ -163,7 +179,7 @@ export function GoogleButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[37px] w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-surface text-xs font-semibold hover:bg-surface-subtle"
+      className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-border-strong text-[13px] font-medium transition-colors hover:border-foreground hover:bg-foreground/10"
     >
       <GoogleLogo />
       {t("auth.google")}

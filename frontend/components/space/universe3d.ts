@@ -65,14 +65,17 @@ export function createUniverse3D(opts: Options): SkyEngine | null {
 
   const accent = new THREE.Color().setRGB(...(opts.colors.accent.map((v) => v / 255) as [number, number, number]));
   const branch = new THREE.Color().setRGB(...(opts.colors.branch.map((v) => v / 255) as [number, number, number]));
+  const violet = new THREE.Color().setRGB(...(opts.colors.violet.map((v) => v / 255) as [number, number, number]));
   const accentHex = `#${accent.getHexString()}`;
+  const branchHex = `#${branch.getHexString()}`;
+  const violetHex = `#${violet.getHexString()}`;
   const PALETTE: [string, string][] = [
     [accentHex, "#6c7cff"],
     ["#ffe9b0", "#7a6cff"],
     ["#b8f3e4", "#4a7cff"],
     ["#f3c8ff", "#6f7cff"],
-    [accentHex, `#${branch.getHexString()}`],
-    ["#ffe0c0", "#c58bd6"],
+    [accentHex, branchHex],
+    ["#ffe0c0", violetHex],
     ["#ffffff", accentHex],
   ];
 

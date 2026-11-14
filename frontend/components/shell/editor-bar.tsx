@@ -103,7 +103,7 @@ export function EditorBar({ children }: { children: ReactNode }) {
       >
         <Link
           href={`/projects/${projectId}`}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold text-muted hover:bg-surface-subtle hover:text-foreground"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-[13px] font-semibold text-muted hover:bg-surface-subtle hover:text-foreground"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           <span className="hidden sm:inline">{t("shell.backToProject")}</span>

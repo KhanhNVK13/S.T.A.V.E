@@ -2782,4 +2782,7 @@ export const vi: Record<keyof typeof en, string> = {
   "mres.PICK_TARGET": "Giữ bản nhánh đích: {n}",
   "mres.PICK_CUSTOM": "Sửa tuỳ chỉnh: {n}",
   "mres.KEEP_BOTH": "Giữ cả hai: {n}",
+
+  "accessibilityPage.motionTitle": "Nền đứng yên",
+  "accessibilityPage.motionDesc": "Dừng các vì sao trôi và cảnh 3D phía sau trang. Nền vẫn hiển thị, chỉ không còn chuyển động.",
 };

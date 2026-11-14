@@ -14,6 +14,7 @@ interface PageHeaderProps {
   description?: string;
   breadcrumbs?: Crumb[];
   action?: ReactNode;
+  size?: "default" | "hero";
 }
 
 /**
@@ -21,16 +22,17 @@ interface PageHeaderProps {
  * cách bằng "/") — cùng ngôn ngữ với các màn thiết kế: "MINA PARK / PUBLIC
  * PROJECT", "ACCOUNT SETTINGS"…
  */
-export function PageHeader({ title, description, breadcrumbs, action }: PageHeaderProps) {
+export function PageHeader({ title, description, breadcrumbs, action, size = "default" }: PageHeaderProps) {
+  const hero = size === "hero";
   const t = useT();
   const trail = breadcrumbs && breadcrumbs.length > 0 ? [{ label: t("ui.home"), href: "/" }, ...breadcrumbs] : null;
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-7">
+    <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-7">
       <div className="min-w-0">
         {trail && (
           <nav
             aria-label={t("ui.breadcrumb")}
-            className="flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-accent"
+            className="eyebrow flex flex-wrap items-center gap-1.5"
           >
             {trail.map((crumb, i) => (
               <span key={i} className="flex items-center gap-1.5">
@@ -46,10 +48,20 @@ export function PageHeader({ title, description, breadcrumbs, action }: PageHead
             ))}
           </nav>
         )}
-        <h1 className="mb-1 mt-1 text-[28px] font-semibold leading-tight tracking-[-0.02em]">
+        <h1 className={hero ? "text-display mb-4 mt-3" : "text-title mb-1.5 mt-2"}>
           {title}
         </h1>
-        {description && <p className="text-sm text-muted">{description}</p>}
+        {description && (
+          <p
+            className={
+              hero
+                ? "max-w-[56ch] text-lg font-light leading-snug text-muted sm:text-xl"
+                : "max-w-[62ch] text-sm leading-relaxed text-muted"
+            }
+          >
+            {description}
+          </p>
+        )}
       </div>
       {action && <div className="flex shrink-0 gap-2">{action}</div>}
     </div>

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { isLandingPath } from "../landing/landing-paths";
+import { isEditorPath } from "../shell/nav-items";
+import { useAccessibility } from "../../context/accessibility-context";
 import { readSkyColors } from "./sky-colors";
 import { createSky2D } from "./sky2d";
 import type { SkyEngine } from "./sky-types";
@@ -41,19 +43,22 @@ export function SpaceBackdrop() {
   const pathname = usePathname();
   const request = useSyncExternalStore(subscribeRequest, getRequest, () => null);
   const wide = useMedia("(min-width: 900px)");
-  const reduce = useMedia("(prefers-reduced-motion: reduce)");
+  const { stillBackground } = useAccessibility();
+  const reduce = useMedia("(prefers-reduced-motion: reduce)") || stillBackground;
   const [lost, setLost] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
-  const engineRef = useRef<SkyEngine | null>(null);
+  const applyRef = useRef<() => void>(() => undefined);
 
   const scene = request ?? routeScene(pathname);
   const want3d = scene.mode === "full" && wide && !reduce && !lost;
   const anchorRef = useRef(scene.anchor);
   const quiet = scene.mode === "quiet";
+  const still = isEditorPath(pathname);
+  const landing = isLandingPath(pathname);
 
   useEffect(() => {
     anchorRef.current = scene.anchor;
-    engineRef.current?.setProgress(getSpaceProgress() ?? scene.anchor);
+    applyRef.current();
   }, [scene.anchor]);
 
   useEffect(() => {
@@ -88,26 +93,36 @@ export function SpaceBackdrop() {
         engine?.dispose();
         return;
       }
-      engine ??= createSky2D({ host, colors, reduce, light: !wide || quiet, constellations: !quiet });
+      const lowCpu = (navigator.hardwareConcurrency || 8) <= 2;
+      const constellations = !quiet && landing;
+      engine ??= createSky2D({ host, colors, reduce, light: !wide || lowCpu, constellations, still });
       if (!engine) return;
       const e = engine;
-      engineRef.current = e;
+      const flat = e.kind === "canvas2d" && !constellations;
+      const follow = landing || (!reduce && !still);
+      let lift = 0;
+      const apply = () => {
+        const anchor = anchorRef.current;
+        const progress = follow ? (getSpaceProgress() ?? anchor) : anchor;
+        e.setProgress(flat ? progress - anchor + lift : progress);
+      };
+      applyRef.current = apply;
       host.dataset.sky = e.kind;
       e.start();
-      e.setProgress(getSpaceProgress() ?? anchorRef.current);
-      offs.push(subscribeProgress(() => e.setProgress(getSpaceProgress() ?? anchorRef.current)));
+      apply();
+      offs.push(subscribeProgress(apply));
       offs.push(subscribePulse((i) => e.pulse(i)));
 
       const main = document.getElementById("main");
-      if (quiet && main && !reduce) {
+      if (quiet && main && follow) {
         let queued = false;
         const onScroll = () => {
           if (queued) return;
           queued = true;
           requestAnimationFrame(() => {
             queued = false;
-            const h = main.clientHeight || 1;
-            e.setProgress((getSpaceProgress() ?? anchorRef.current) + Math.min(1, main.scrollTop / h) * 0.35);
+            lift = Math.min(1, main.scrollTop / (main.clientHeight || 1)) * 0.35;
+            apply();
           });
         };
         main.addEventListener("scroll", onScroll, { passive: true });
@@ -120,10 +135,10 @@ export function SpaceBackdrop() {
       cancelled = true;
       offs.forEach((off) => off());
       engine?.dispose();
-      engineRef.current = null;
+      applyRef.current = () => undefined;
       delete host.dataset.sky;
     };
-  }, [want3d, reduce, wide, quiet]);
+  }, [want3d, reduce, wide, quiet, still, landing]);
 
   return (
     <div
@@ -132,7 +147,7 @@ export function SpaceBackdrop() {
       data-space-backdrop={want3d ? "full" : "quiet"}
       className="pointer-events-none fixed inset-0 -z-10"
       style={{
-        opacity: isLandingPath(pathname) ? 1 : 0.6,
+        opacity: landing ? 1 : want3d ? 0.6 : 0.85,
         background:
           "radial-gradient(ellipse at 70% 40%, var(--surface-subtle) 0%, transparent 60%), var(--background)",
       }}

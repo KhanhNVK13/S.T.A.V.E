@@ -2,6 +2,7 @@ export type SkyColors = {
   star: [number, number, number];
   accent: [number, number, number];
   branch: [number, number, number];
+  violet: [number, number, number];
   background: [number, number, number];
 };
 

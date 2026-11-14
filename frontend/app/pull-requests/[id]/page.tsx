@@ -203,13 +203,13 @@ function PullRequestView({ id }: { id: string }) {
   return (
     <div className="mx-auto min-h-full max-w-5xl px-5 py-8">
       <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
+        <p className="eyebrow">
           <Link href="/pull-requests" className="hover:underline">
             Pull request
           </Link>{" "}
           <span className="text-muted">/</span> #{pr.number}
         </p>
-        <h1 className="mb-1 mt-0.5 flex flex-wrap items-center gap-2 text-[26px] font-semibold leading-tight tracking-tight">
+        <h1 className="text-title mb-1.5 mt-1.5 flex flex-wrap items-center gap-2">
           {pr.title}
           <PullRequestStatusBadge status={pr.status} />
         </h1>

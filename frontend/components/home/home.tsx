@@ -28,6 +28,7 @@ import { Badge } from "../ui/badge";
 import { notificationText } from "../../lib/notification-text";
 import { Card } from "../ui/card";
 import { ProjectPreviewButton } from "../project/preview-button";
+import { buttonClass } from "../ui/button";
 import { ProjectThumb } from "../ui/project-thumb";
 import { RowHeader, RowItem, RowList, RowTime, RowTitle } from "../ui/row-list";
 
@@ -49,11 +50,9 @@ interface Resume {
 const RECENT_LIMIT = 5;
 const RESUME_CANDIDATES = 3;
 
-const LINK_PRIMARY =
-  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-accent bg-accent px-3 text-[13px] font-semibold text-accent-foreground transition-colors hover:border-accent-hover hover:bg-accent-hover";
-const LINK_SECONDARY =
-  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface/85 px-3 text-[13px] font-semibold transition-colors hover:border-border-strong hover:bg-surface-subtle";
-const TEXT_LINK = "text-[13px] text-muted underline underline-offset-4 hover:text-foreground";
+const LINK_PRIMARY = buttonClass("primary");
+const LINK_SECONDARY = buttonClass("secondary");
+const TEXT_LINK = "text-[13px] text-muted underline decoration-border-strong underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground";
 
 async function findResume(candidates: HomeProject[]): Promise<Resume | null> {
   for (const project of candidates) {
@@ -69,8 +68,8 @@ async function findResume(candidates: HomeProject[]): Promise<Resume | null> {
 
 function SectionHead({ id, title, link }: { id: string; title: string; link?: { href: string; label: string; hidden: string } }) {
   return (
-    <div className="mb-3 flex items-baseline justify-between gap-4">
-      <h2 id={id} className="text-lg font-semibold tracking-tight">
+    <div className="mb-4 flex items-baseline justify-between gap-4">
+      <h2 id={id} className="text-section">
         {title}
       </h2>
       {link && (
@@ -84,7 +83,7 @@ function SectionHead({ id, title, link }: { id: string; title: string; link?: { 
 }
 
 function BlockSkeleton({ height }: { height: string }) {
-  return <div aria-hidden="true" className={`${height} animate-pulse rounded-card border border-border bg-surface/85`} />;
+  return <div aria-hidden="true" className={`${height} animate-pulse rounded-panel border border-border bg-surface/70 motion-reduce:animate-none`} />;
 }
 
 function Shortcuts() {
@@ -100,9 +99,9 @@ function Shortcuts() {
         <Link
           key={href}
           href={href}
-          className="flex min-h-[52px] items-center gap-3 rounded-card border border-border-strong bg-surface/85 px-4 text-sm font-semibold transition-colors hover:border-accent hover:bg-surface-subtle"
+          className="group flex min-h-[54px] items-center gap-3 rounded-card border border-border-strong bg-surface/50 px-4 text-sm font-medium transition-colors hover:border-foreground hover:bg-foreground/[0.06]"
         >
-          <Icon className="h-5 w-5 text-accent" />
+          <Icon aria-hidden="true" className="h-5 w-5 text-accent" />
           {label}
         </Link>
       ))}
@@ -113,10 +112,13 @@ function Shortcuts() {
 function FirstProject() {
   const { t } = useI18n();
   return (
-    <Card className="flex flex-col items-center px-6 py-12 text-center">
-      <FileMusic className="mb-3 h-9 w-9 text-accent" />
-      <h2 className="text-xl font-semibold tracking-tight">{t("home.firstTitle")}</h2>
-      <p className="mt-2 max-w-md text-sm text-muted">
+    <Card className="relative flex flex-col items-center overflow-hidden !rounded-panel px-6 py-14 text-center">
+      <div aria-hidden="true" className="staff-rule pointer-events-none absolute inset-x-0 top-[58px]" />
+      <span className="relative mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border-strong bg-background">
+        <FileMusic aria-hidden="true" className="h-5 w-5 text-accent" />
+      </span>
+      <h2 className="text-section">{t("home.firstTitle")}</h2>
+      <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
         {t("home.firstBody")}
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
@@ -135,15 +137,15 @@ function ContinueCard({ resume }: { resume: Resume }) {
   const { t } = useI18n();
   const { project, savedAt } = resume;
   return (
-    <Card className="p-4" aria-labelledby="home-continue">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <ProjectThumb id={project.id} className="sm:!w-40 sm:shrink-0" />
+    <Card className="!rounded-panel p-5 sm:p-6" aria-labelledby="home-continue">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <ProjectThumb id={project.id} className="sm:!w-44 sm:shrink-0" />
         <div className="min-w-0 flex-1">
-          <h2 id="home-continue" className="text-xs font-bold uppercase tracking-[0.12em] text-accent">
+          <h2 id="home-continue" className="eyebrow">
             {t("home.continue")}
           </h2>
-          <p className="mt-1 truncate text-xl font-semibold tracking-tight">
-            <Link href={`/projects/${project.id}`} className="hover:underline">
+          <p className="mt-1.5 truncate text-2xl tracking-[-0.025em]">
+            <Link href={`/projects/${project.id}`} className="underline-offset-4 hover:underline">
               {project.name}
             </Link>
           </p>
@@ -223,10 +225,10 @@ function ExplorePicks({ items }: { items: PublicProject[] }) {
       />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((p) => (
-          <Card key={p.id} className="flex flex-col gap-1.5 p-3.5">
-            <ProjectThumb id={p.id} className="mb-1.5" />
-            <h3 className="truncate text-[15px] font-semibold">
-              <Link href={`/projects/${p.id}`} className="hover:text-accent hover:underline">
+          <Card key={p.id} className="flex flex-col gap-1.5 !rounded-panel p-4">
+            <ProjectThumb id={p.id} className="mb-2 !h-28" />
+            <h3 className="truncate text-lg font-medium tracking-[-0.015em]">
+              <Link href={`/projects/${p.id}`} className="underline-offset-4 hover:text-accent hover:underline">
                 {p.name}
               </Link>
             </h3>
@@ -234,7 +236,7 @@ function ExplorePicks({ items }: { items: PublicProject[] }) {
               {formatAuthorName(p.owner)}
               {p.genre ? ` · ${p.genre}` : ""}
             </p>
-            <p className="font-mono text-xs text-muted">
+            <p className="font-mono text-xs tabular-nums text-muted">
               {t("home.playsForks", { plays: p.play_count.toLocaleString(locale), forks: p.fork_count.toLocaleString(locale) })}
             </p>
             <div className="mt-1.5">
@@ -275,14 +277,14 @@ function Notifications({
   }
 
   return (
-    <Card className="p-4" aria-labelledby="home-notes">
+    <Card className="!rounded-panel p-5" aria-labelledby="home-notes">
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 id="home-notes" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <h2 id="home-notes" className="text-section flex items-center gap-2">
           {t("home.notifications")}
           <span
             aria-live="polite"
-            className={`inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-xs font-bold ${
-              count > 0 ? "bg-accent text-accent-foreground" : "bg-surface-subtle text-muted"
+            className={`inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-xs font-semibold tracking-normal tabular-nums ${
+              count > 0 ? "bg-accent text-accent-foreground" : "bg-foreground/10 text-muted"
             }`}
           >
             {count}
@@ -304,7 +306,7 @@ function Notifications({
         <ul className="flex flex-col">
           {items.map((n) => (
             <li key={n.id} className="flex gap-3 border-t border-border py-2.5 first:border-t-0 first:pt-0">
-              <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />
+              <span aria-hidden="true" className="star-dot mt-1.5 text-accent" />
               <span className="min-w-0">
                 <Link href="/notifications" className="block text-[13px] font-semibold leading-snug hover:underline">
                   {notificationText(n, t).title ?? t("home.notifFallback")}
@@ -333,9 +335,9 @@ function Notifications({
 function JamBanner({ id, name, description, endsAt, people }: { id: string; name: string; description: string | null; endsAt: string | null; people: number }) {
   const { t } = useI18n();
   return (
-    <Card className="p-4" aria-labelledby="home-jam">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{t("home.jamLive")}</p>
-      <h2 id="home-jam" className="mt-1.5 text-lg font-semibold tracking-tight">
+    <Card className="!rounded-panel p-5" aria-labelledby="home-jam">
+      <p className="eyebrow">{t("home.jamLive")}</p>
+      <h2 id="home-jam" className="text-section mt-2">
         {name}
       </h2>
       {description && <p className="mt-1.5 line-clamp-3 text-[13px] text-muted">{description}</p>}
@@ -393,13 +395,13 @@ export function Home() {
   }
 
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
-      <div className="mb-6 min-w-0">
-        <h1 className="text-[26px] font-semibold leading-tight tracking-tight">
+    <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
+      <div className="mb-7 min-w-0">
+        <h1 className="text-title">
           {isNew ? t("home.welcomeNew") : t("home.welcomeBack")}
           {name ? `, ${name}` : ""}
         </h1>
-        {status && <p className="mt-1 max-w-[64ch] text-sm text-muted">{status}</p>}
+        {status && <p className="mt-2 max-w-[64ch] text-[15px] text-muted">{status}</p>}
       </div>
 
       <div className="mb-8">
@@ -437,8 +439,8 @@ export function Home() {
           {unread.loading && unreadCount.loading ? (
             <BlockSkeleton height="h-40" />
           ) : unread.error && unreadCount.error ? (
-            <Card className="p-4">
-              <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <Card className="!rounded-panel p-5">
+              <h2 className="text-section mb-2 flex items-center gap-2">
                 <Bell className="h-4 w-4 text-muted" /> {t("home.notifications")}
               </h2>
               <p className="text-[13px] text-muted">{t("home.notifLoadFail")}</p>

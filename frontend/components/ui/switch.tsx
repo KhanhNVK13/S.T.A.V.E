@@ -24,8 +24,8 @@ export function Switch({ checked, onChange, disabled, label, labelledBy, describ
     >
       <span
         aria-hidden="true"
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface transition-all ${
-          checked ? "left-[22px]" : "left-0.5"
+        className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full transition-transform duration-200 ease-out motion-reduce:transition-none ${
+          checked ? "translate-x-5 bg-accent-foreground" : "translate-x-0 bg-foreground"
         }`}
       />
     </button>

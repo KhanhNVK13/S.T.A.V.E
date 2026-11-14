@@ -1,4 +1,4 @@
-/* Trang chủ Staff Universe. Màu giao diện và màu diff đi qua token; chỉ hai màu nhánh trang trí là hằng số. */
+/* Trang chủ Staff Universe. Màu giao diện và màu diff đi qua token; kể cả hai màu nhánh trang trí. */
 .lnd {
   --lnd-add: var(--diff-add);
   --lnd-add-text: var(--diff-add-foreground);
@@ -8,8 +8,8 @@
   --lnd-mod: var(--diff-modify);
   --lnd-mod-text: var(--diff-modify-foreground);
   --lnd-mod-fill: color-mix(in srgb, var(--diff-modify) 28%, transparent);
-  --lnd-teal: #4fd6c4;
-  --lnd-violet: #c58bd6;
+  --lnd-teal: var(--teal);
+  --lnd-violet: var(--violet);
   --lnd-panel: color-mix(in oklab, var(--surface) 78%, transparent);
   --lnd-scrim: color-mix(in oklab, var(--background) 85%, transparent);
   --lnd-m: clamp(20px, 4vw, 72px);

@@ -32,8 +32,9 @@ export default function RankingsPage() {
   ];
 
   return (
-    <div className="mx-auto min-h-full w-full min-w-0 max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full min-w-0 max-w-page px-5 py-9 sm:px-8 lg:px-10">
       <PageHeader
+        size="hero"
         breadcrumbs={[{ label: t('rk.crumb') }]}
         title={t('rk.title')}
         description={
@@ -45,7 +46,7 @@ export default function RankingsPage() {
         }
       />
 
-      <div className="mb-6 min-w-0">
+      <div className="mb-7 min-w-0">
         <Tabs tabs={tabs} active={type} onChange={(id) => setType(id as RankingType)} />
       </div>
 

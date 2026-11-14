@@ -195,7 +195,7 @@ export function CollaboratorsDialog({
                       type="button"
                       aria-label={t("col.removeLabel", { name: collaboratorDisplayName(item) })}
                       title={item.status === "pending" ? t("col.withdraw") : t("col.removeCollab")}
-                      className="shrink-0 rounded-md p-1.5 text-muted transition-colors hover:bg-danger-muted hover:text-danger"
+                      className="shrink-0 rounded-full p-1.5 text-muted transition-colors hover:bg-danger-muted hover:text-danger"
                       onClick={() => {
                         setRemoveError(null);
                         setRemoveTarget(item);

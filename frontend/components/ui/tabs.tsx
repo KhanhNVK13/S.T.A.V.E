@@ -27,7 +27,7 @@ export function Tabs({ tabs, active, onChange }: TabsProps) {
   }
 
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-border" role="tablist" onKeyDown={onKeyDown}>
+    <div className="flex gap-6 overflow-x-auto border-b border-border" role="tablist" onKeyDown={onKeyDown}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -36,9 +36,9 @@ export function Tabs({ tabs, active, onChange }: TabsProps) {
           tabIndex={active === tab.id ? 0 : -1}
           aria-selected={active === tab.id}
           onClick={() => onChange(tab.id)}
-          className={`-mb-px border-b-2 whitespace-nowrap px-3 py-2.5 text-[13px] transition-colors ${
+          className={`-mb-px border-b-2 whitespace-nowrap px-0.5 pb-3 pt-2 text-sm transition-colors ${
             active === tab.id
-              ? "border-accent font-bold text-foreground"
+              ? "border-accent font-medium text-foreground"
               : "border-transparent text-muted hover:text-foreground"
           }`}
         >

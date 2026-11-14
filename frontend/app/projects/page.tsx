@@ -17,7 +17,7 @@ import {
 import { formatDateTime, formatRelativeTime } from '../../lib/format-date';
 import { PageHeader } from '../../components/ui/page-header';
 import { Badge } from '../../components/ui/badge';
-import { Button } from '../../components/ui/button';
+import { Button, buttonClass } from '../../components/ui/button';
 import { Tabs } from '../../components/ui/tabs';
 import { ProjectThumb } from '../../components/ui/project-thumb';
 import { SkyEmpty, SkyLoading } from '../../components/project/sky-state';
@@ -138,7 +138,7 @@ function ProjectRow({
           {!isArchived && (
             <Link
               href={`/projects/${project.id}/edit`}
-              className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-semibold hover:border-border-strong hover:bg-surface-subtle"
+              className={buttonClass("secondary")}
             >
               <Piano className="h-3.5 w-3.5" /> {t('home.openEditor')}
             </Link>
@@ -156,7 +156,7 @@ function ProjectRow({
 
           <Link
             href={`/projects/${project.id}/settings`}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-surface-subtle hover:text-foreground"
             title={t('projects.settings')}
             aria-label={t('projects.settings')}
           >
@@ -344,7 +344,7 @@ function ProjectsContent() {
   }
 
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
       <PageHeader
         breadcrumbs={[{ label: t('projects.crumb') }]}
         title={t('projects.title')}
@@ -508,7 +508,7 @@ function ProjectsContent() {
                 onClick={() => updateUrl({ page: String(currentPage - 1) })}
                 disabled={currentPage <= 1}
                 aria-label={t('projects.prevPage')}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -524,7 +524,7 @@ function ProjectsContent() {
                     aria-label={t('projects.page', { n: p })}
                     aria-current={p === currentPage ? 'page' : undefined}
                     onClick={() => updateUrl({ page: String(p) })}
-                    className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-xs font-semibold ${
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border font-mono text-xs font-semibold ${
                       p === currentPage
                         ? 'border-accent bg-accent text-accent-foreground'
                         : 'border-border bg-surface hover:bg-surface-subtle'
@@ -539,7 +539,7 @@ function ProjectsContent() {
                 onClick={() => updateUrl({ page: String(currentPage + 1) })}
                 disabled={currentPage >= totalPages}
                 aria-label={t('projects.nextPage')}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-xs hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -557,7 +557,7 @@ export default function ProjectsPage() {
     <RequireAuth>
       <Suspense
         fallback={
-          <div className="mx-auto max-w-page px-5 py-8">
+          <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
             <SkyLoading label={t('projects.loading')} />
           </div>
         }
