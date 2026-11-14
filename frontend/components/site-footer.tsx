@@ -49,8 +49,8 @@ export function SiteFooter() {
   if (isLandingPath(pathname)) return null;
 
   return (
-    <footer className="border-t border-border bg-surface/90">
-      <SiteCredits className="mx-auto max-w-page px-5 py-4 text-center text-xs text-muted" />
+    <footer className="mt-10 border-t border-border/70 bg-background/70">
+      <SiteCredits className="mx-auto max-w-page px-5 py-5 text-center text-xs text-muted" />
     </footer>
   );
 }

@@ -2780,4 +2780,7 @@ export const en = {
   "mres.PICK_TARGET": "Kept the target version: {n}",
   "mres.PICK_CUSTOM": "Custom edit: {n}",
   "mres.KEEP_BOTH": "Kept both: {n}",
+
+  "accessibilityPage.motionTitle": "Still background",
+  "accessibilityPage.motionDesc": "Stops the drifting stars and the 3D scenes behind the pages. The background stays, it just no longer moves.",
 } as const satisfies Record<string, string>;

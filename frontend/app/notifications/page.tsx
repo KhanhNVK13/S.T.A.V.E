@@ -142,7 +142,7 @@ function NotificationsView() {
               href="/notifications/settings"
               aria-label={t("nt.settings")}
               title={t("nt.settings")}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
             >
               <SettingsIcon aria-hidden="true" className="h-4 w-4" />
             </Link>

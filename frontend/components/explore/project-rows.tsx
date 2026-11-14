@@ -9,15 +9,15 @@ import { Avatar } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { RowHeader, RowItem, RowList, RowStat, RowTime, RowTitle } from "../ui/row-list";
 
-const COLS = "md:grid-cols-[minmax(0,1fr)_112px_84px_84px_96px]";
-const COLS_RANKED = "md:grid-cols-[52px_minmax(0,1fr)_112px_84px_84px_96px]";
+const COLS = "md:grid-cols-[minmax(0,1fr)_112px_84px_84px_108px]";
+const COLS_RANKED = "md:grid-cols-[52px_minmax(0,1fr)_112px_84px_84px_108px]";
 
 function RankBadge({ rank }: { rank: number }) {
   const podium = rank <= 3;
   return (
     <span
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold ${
-        podium ? "bg-metal-muted text-metal-foreground" : "bg-surface-subtle text-muted"
+        podium ? "bg-metal-muted text-metal-foreground" : "bg-foreground/10 text-muted"
       }`}
     >
       {rank}
@@ -62,7 +62,7 @@ export function ProjectRows({
               meta={
                 showOwner ? (
                   <>
-                    <Link href={`/creator/${project.owner.id}`} className="hover:text-accent hover:underline">
+                    <Link href={`/creator/${project.owner.id}`} className="underline-offset-4 hover:text-foreground hover:underline">
                       {ownerName}
                     </Link>
                     {project.description ? ` · ${project.description}` : ""}
@@ -93,7 +93,7 @@ export function ProjectRowsSkeleton({ rows = 6 }: { rows?: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-3.5 py-3 last:border-b-0"
+          className="flex min-h-[68px] animate-pulse items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 motion-reduce:animate-none"
         >
           <div className="h-8 w-8 shrink-0 rounded-full bg-surface-subtle" />
           <div className="flex-1">

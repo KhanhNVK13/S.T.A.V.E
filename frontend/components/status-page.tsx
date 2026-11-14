@@ -4,12 +4,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Compass, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useT } from "../context/i18n-context";
-import { Button } from "./ui/button";
+import { Button, buttonClass } from "./ui/button";
 
-const LINK_PRIMARY =
-  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-accent bg-accent px-3 text-[13px] font-semibold text-accent-foreground transition-colors hover:border-accent-hover hover:bg-accent-hover";
-const LINK_SECONDARY =
-  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border-strong bg-surface-subtle/60 px-3 text-[13px] font-semibold text-foreground transition-colors hover:bg-surface-muted";
+const LINK_PRIMARY = buttonClass("primary");
+const LINK_SECONDARY = buttonClass("secondary");
 
 function StatusLayout({
   icon: Icon,
@@ -25,13 +23,14 @@ function StatusLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="mx-auto flex min-h-full max-w-md flex-col items-center justify-center px-5 py-16 text-center">
-      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-subtle">
-        <Icon aria-hidden="true" className="h-6 w-6 text-muted" />
+    <div className="relative mx-auto flex min-h-full max-w-xl flex-col items-center justify-center px-5 py-16 text-center">
+      <div aria-hidden="true" className="staff-rule pointer-events-none absolute inset-x-0 top-1/2 -translate-y-[118px] opacity-70" />
+      <span className="relative mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-border-strong bg-background">
+        <Icon aria-hidden="true" className="h-5 w-5 text-accent" />
       </span>
-      <p className="font-mono text-xs font-bold uppercase tracking-[0.12em] text-accent">{eyebrow}</p>
-      <h1 className="mb-2 mt-1 text-[26px] font-semibold leading-tight tracking-tight">{title}</h1>
-      <p className="mb-6 text-sm text-muted">{description}</p>
+      <p className="eyebrow font-mono">{eyebrow}</p>
+      <h1 className="text-title mb-3 mt-2">{title}</h1>
+      <p className="mb-7 max-w-[46ch] text-[15px] leading-relaxed text-muted">{description}</p>
       <div className="flex flex-wrap justify-center gap-2">{children}</div>
     </div>
   );

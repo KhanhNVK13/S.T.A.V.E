@@ -55,7 +55,7 @@ function MappingRow({
         onClick={onRemove}
         aria-label={t("cs.unassignLabel", { pitch: pitchName(pitch) })}
         title={t("cs.unassign")}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-subtle hover:text-foreground"
       >
         <X size={14} />
       </button>

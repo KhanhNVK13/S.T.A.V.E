@@ -271,7 +271,7 @@ export function CommentsPanel({
           onClick={onClose}
           aria-label={t("cm.closeAria")}
           title={t("ui.close")}
-          className="rounded-md p-1.5 text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
+          className="rounded-full p-1.5 text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
         >
           <X size={15} />
         </button>
@@ -335,7 +335,7 @@ export function CommentsPanel({
                         onClick={() =>
                           onSeek(barToTick(Number(barKey), ppq, timeSignature))
                         }
-                        className="rounded-md px-2 py-0.5 text-xs font-semibold text-accent transition-colors hover:bg-accent-muted"
+                        className="rounded-full px-2 py-0.5 text-xs font-semibold text-accent transition-colors hover:bg-accent-muted"
                       >
                         {t("cm.goToBar")}
                       </button>

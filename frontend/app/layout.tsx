@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
+import { Be_Vietnam_Pro, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 import { AccessibilityProvider } from "../context/accessibility-context";
 import { AuthProvider } from "../context/auth-context";
@@ -11,9 +11,10 @@ import { FlashToastHost } from "../components/flash-toast";
 import { SkipLink } from "../components/skip-link";
 import { SpaceBackdrop } from "../components/space/space-backdrop";
 
-const staveSans = Inter({
+const staveSans = Be_Vietnam_Pro({
   variable: "--font-stave-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "vietnamese"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 const staveMono = JetBrains_Mono({

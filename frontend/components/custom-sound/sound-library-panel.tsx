@@ -378,7 +378,7 @@ function RowMenu({
         aria-expanded={open}
         aria-label={t("snd.options", { name })}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
+        className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-surface-subtle hover:text-foreground"
       >
         <MoreHorizontal size={16} />
       </button>

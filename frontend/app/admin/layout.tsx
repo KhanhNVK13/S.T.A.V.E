@@ -17,7 +17,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-page px-5 py-8">
+      <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-accent" /> {t("ui.loading")}

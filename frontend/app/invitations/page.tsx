@@ -81,7 +81,7 @@ function InvitationsContent() {
   }
 
   return (
-    <div className="mx-auto max-w-page px-5 py-8">
+    <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
       <PageHeader
         title={t("inv.title")}
         description={t("inv.description")}

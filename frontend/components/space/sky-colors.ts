@@ -1,8 +1,6 @@
 import { resolveCssColors } from "../../lib/resolve-css-colors";
 import type { SkyColors } from "./sky-types";
 
-const BRANCH_FALLBACK = "#4fd6c4";
-
 function toRgb(css: string): [number, number, number] {
   const canvas = document.createElement("canvas");
   canvas.width = 1;
@@ -21,13 +19,15 @@ export function readSkyColors(): SkyColors {
   const css = resolveCssColors({
     star: "var(--foreground)",
     accent: "var(--accent)",
-    branch: BRANCH_FALLBACK,
+    branch: "var(--teal)",
+    violet: "var(--violet)",
     background: "var(--background)",
   });
   return {
     star: toRgb(css.star),
     accent: toRgb(css.accent),
     branch: toRgb(css.branch),
+    violet: toRgb(css.violet),
     background: toRgb(css.background),
   };
 }

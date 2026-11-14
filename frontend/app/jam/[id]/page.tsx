@@ -104,7 +104,7 @@ interface Props {
 export default function JamRoomPage({ params }: Props) {
   const { id } = use(params);
   return (
-    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-9 sm:px-8 lg:px-10">
       <JamRoomContent id={id} />
     </div>
   );

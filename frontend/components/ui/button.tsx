@@ -4,16 +4,22 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    "border border-accent bg-accent text-accent-foreground hover:border-accent-hover hover:bg-accent-hover disabled:opacity-50",
+    "border border-transparent bg-accent font-semibold text-accent-foreground hover:bg-accent-hover",
   secondary:
-    "border border-border-strong bg-surface-subtle/60 text-foreground hover:bg-surface-muted disabled:opacity-50",
-  ghost: "border border-transparent text-muted hover:bg-surface-subtle hover:text-foreground disabled:opacity-50",
-  danger:
-    "border border-danger/70 bg-transparent text-danger hover:bg-danger-muted disabled:opacity-50",
+    "border border-border-strong bg-transparent font-medium text-foreground hover:border-foreground hover:bg-foreground/10",
+  ghost: "border border-transparent font-medium text-muted hover:bg-foreground/10 hover:text-foreground",
+  danger: "border border-danger/70 bg-transparent font-medium text-danger hover:bg-danger-muted",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+}
+
+const BASE_CLASS =
+  "inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[13px] transition-[background-color,border-color,color,transform] duration-200 ease-out motion-reduce:transition-none";
+
+export function buttonClass(variant: ButtonVariant = "primary"): string {
+  return `${BASE_CLASS} active:scale-[0.97] motion-reduce:active:scale-100 ${VARIANT_CLASSES[variant]}`;
 }
 
 export function Button({
@@ -23,7 +29,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[13px] font-semibold transition-[background-color,border-color,color,transform] duration-200 active:enabled:scale-[0.98] motion-reduce:transition-none motion-reduce:active:enabled:scale-100 disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${className}`}
+      className={`${BASE_CLASS} active:enabled:scale-[0.97] motion-reduce:active:enabled:scale-100 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANT_CLASSES[variant]} ${className}`}
       {...props}
     />
   );

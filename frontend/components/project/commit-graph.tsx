@@ -14,19 +14,19 @@ import { CommitCompare } from "./commit-compare";
 import { useI18n } from "../../context/i18n-context";
 
 const MAX_COMMITS = 200;
-const STEP_X = 48;
-const LANE_H = 60;
-const PAD_X = 30;
-const PAD_Y = 24;
-const STAFF_GAP = 4;
+const STEP_X = 64;
+const LANE_H = 72;
+const PAD_X = 36;
+const PAD_Y = 30;
+const STAFF_GAP = 5;
 const LABEL_W = 136;
 
 const LANE_COLORS = [
   "var(--foreground)",
+  "var(--teal)",
+  "var(--violet)",
   "var(--accent)",
-  "var(--success)",
   "var(--metal)",
-  "var(--muted-foreground)",
 ];
 
 function laneColor(lane: number): string {
@@ -199,10 +199,10 @@ export function CommitGraph({
   }
 
   return (
-    <div className="overflow-hidden rounded-card border border-border bg-surface-subtle">
+    <div className="overflow-hidden rounded-panel border border-border bg-surface/80">
       <div className="flex">
         <ul
-          className="relative z-10 shrink-0 border-r border-border bg-surface-subtle"
+          className="relative z-10 shrink-0 border-r border-border"
           style={{ width: LABEL_W, height }}
           aria-label={t("bgraph.branches")}
         >
@@ -246,9 +246,8 @@ export function CommitGraph({
                     x2={width}
                     y1={laneY(lane) + k * STAFF_GAP}
                     y2={laneY(lane) + k * STAFF_GAP}
-                    className="stroke-border"
+                    className="stroke-foreground/15"
                     strokeWidth={1}
-                    opacity={0.8}
                   />
                 )),
               )}
@@ -280,7 +279,7 @@ export function CommitGraph({
                     }}
                   >
                     <circle r={16} fill="transparent" />
-                    <circle r={isHead ? 12 : 9} style={{ fill: color }} opacity={0.18} />
+                    <circle r={isHead ? 14 : 10} style={{ fill: color }} opacity={0.2} />
                     <circle
                       r={isHead ? 5.5 : 4.2}
                       strokeWidth={1.6}
@@ -325,7 +324,7 @@ export function CommitGraph({
 
       <div
         aria-live="polite"
-        className="flex min-h-[64px] flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-3.5 py-3 text-xs"
+        className="flex min-h-[64px] flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-[13px]"
       >
         {selected ? (
           <>

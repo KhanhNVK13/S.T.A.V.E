@@ -7,7 +7,7 @@ import { apiFetch } from "../../../lib/api-client";
 import { PageHeader } from "../../../components/ui/page-header";
 import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
 import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
+import { Button, buttonClass } from "../../../components/ui/button";
 import { Avatar } from "../../../components/ui/avatar";
 import { FieldError, INPUT_CLASS } from "../../../components/ui/form";
 import { Dialog, DialogActions, DialogError } from "../../../components/ui/dialog";
@@ -361,7 +361,7 @@ function AdminUsersTable() {
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
                 <Link
                   href={`/admin/users/${user.id}/activity`}
-                  className="inline-flex h-8 items-center whitespace-nowrap rounded-md border border-transparent px-3 text-[13px] font-semibold text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
+                  className={buttonClass("ghost")}
                 >
                   {t("aact.viewActivity")}
                 </Link>

@@ -34,7 +34,7 @@ export function RowList({
 export function RowHeader({ children }: { children: ReactNode }) {
   return (
     <div
-      className="hidden h-[34px] items-center border-b border-border bg-surface-subtle/70 px-3.5 text-xs font-bold uppercase tracking-wide text-muted md:grid md:grid-cols-subgrid md:gap-x-3"
+      className="hidden h-9 items-center border-b border-border px-4 text-xs font-medium text-muted md:grid md:grid-cols-subgrid md:gap-x-3"
     >
       {children}
     </div>
@@ -50,7 +50,7 @@ export function RowItem({
 }) {
   return (
     <div
-      className={`flex min-h-[68px] flex-col gap-2 border-b border-border px-3.5 py-3 transition-colors last:border-b-0 hover:bg-surface-subtle md:grid md:grid-cols-subgrid md:items-center md:gap-x-3 ${className}`}
+      className={`flex min-h-[68px] flex-col gap-2 border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-foreground/5 md:grid md:grid-cols-subgrid md:items-center md:gap-x-3 ${className}`}
     >
       {children}
     </div>
@@ -76,7 +76,7 @@ export function RowTitle({
     <div className="flex min-w-0 items-center gap-3">
       {leading}
       <div className="flex min-w-0 flex-col gap-0.5">
-        <Link href={href} className="truncate text-[13px] font-semibold hover:text-accent hover:underline">
+        <Link href={href} className="truncate text-sm font-semibold tracking-[-0.005em] underline-offset-4 hover:text-accent hover:underline">
           {name}
         </Link>
         {meta && <span className="truncate text-xs text-muted">{meta}</span>}
@@ -96,8 +96,8 @@ export function RowStat({
   title: string;
 }) {
   return (
-    <span title={title} className="flex items-center gap-1.5 font-mono text-xs text-muted">
-      <Icon className="h-3.5 w-3.5" />
+    <span title={title} className="flex items-center gap-1.5 font-mono text-xs tabular-nums text-muted">
+      <Icon aria-hidden="true" className="h-3.5 w-3.5" />
       {value.toLocaleString(appLocale())}
     </span>
   );

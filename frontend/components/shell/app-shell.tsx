@@ -40,13 +40,13 @@ function useNarrow(): boolean {
 }
 
 const ROW =
-  "relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors";
+  "relative flex h-[34px] items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors";
 
 function rowClass(active: boolean) {
   return `${ROW} ${
     active
-      ? "bg-surface-muted font-semibold text-foreground before:absolute before:-left-2.5 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-accent"
-      : "text-muted hover:bg-surface-subtle hover:text-foreground"
+      ? "bg-foreground/[0.13] font-medium text-foreground"
+      : "text-muted hover:bg-foreground/[0.07] hover:text-foreground"
   }`;
 }
 
@@ -67,7 +67,7 @@ function NavLink({ item, pathname, count }: { item: ShellNavItem; pathname: stri
       {showCount && (
         <span
           aria-hidden="true"
-          className="ml-auto min-w-[20px] rounded-full bg-accent px-1.5 text-center text-xs font-bold leading-5 text-accent-foreground"
+          className="ml-auto min-w-[20px] rounded-full bg-accent px-1.5 text-center text-xs font-semibold leading-5 tabular-nums text-accent-foreground"
         >
           {count > 99 ? "99+" : count}
         </span>
@@ -77,7 +77,7 @@ function NavLink({ item, pathname, count }: { item: ShellNavItem; pathname: stri
 }
 
 function GroupLabel({ children }: { children: ReactNode }) {
-  return <p className="mb-1.5 mt-5 px-2.5 text-xs font-bold uppercase tracking-[0.12em] text-muted">{children}</p>;
+  return <p className="mb-1.5 mt-6 px-2.5 text-xs text-muted">{children}</p>;
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -119,14 +119,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col min-[900px]:flex-row">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface/90 px-3 backdrop-blur min-[900px]:hidden">
+      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background/85 px-3 backdrop-blur min-[900px]:hidden">
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
           aria-label={t("shell.openNav")}
           aria-expanded={drawerOpen}
           aria-controls="app-sidebar"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-foreground/10 hover:text-foreground"
         >
           <Menu aria-hidden="true" className="h-5 w-5" />
         </button>
@@ -149,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-modal={drawerActive ? true : undefined}
         aria-label={t("shell.mainNav")}
         inert={hidden}
-        className={`flex w-[min(300px,86vw)] flex-col border-r border-border bg-surface/95 px-2.5 py-3.5 outline-none backdrop-blur transition-transform duration-300 ease-out motion-reduce:transition-none max-[899.98px]:fixed max-[899.98px]:inset-y-0 max-[899.98px]:left-0 max-[899.98px]:z-40 max-[899.98px]:shadow-card min-[900px]:w-[248px] min-[900px]:shrink-0 ${
+        className={`flex w-[min(300px,86vw)] flex-col border-r border-border bg-background/90 px-2.5 py-3.5 outline-none backdrop-blur transition-transform duration-300 ease-out motion-reduce:transition-none max-[899.98px]:fixed max-[899.98px]:inset-y-0 max-[899.98px]:left-0 max-[899.98px]:z-40 max-[899.98px]:shadow-card min-[900px]:w-[248px] min-[900px]:shrink-0 ${
           hidden ? "max-[899.98px]:-translate-x-full" : ""
         }`}
       >
@@ -160,7 +160,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
             data-autofocus
             aria-label={t("shell.closeNav")}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-subtle hover:text-foreground min-[900px]:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-foreground/10 hover:text-foreground min-[900px]:hidden"
           >
             <X aria-hidden="true" className="h-[18px] w-[18px]" />
           </button>
@@ -169,7 +169,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Link
           href={NEW_PROJECT_HREF}
           onClick={() => setDrawerOpen(false)}
-          className="mb-2 flex h-9 items-center justify-center gap-1.5 rounded-md border border-accent bg-accent text-[13px] font-semibold text-accent-foreground transition-colors hover:border-accent-hover hover:bg-accent-hover"
+          className="mb-2 flex h-9 items-center justify-center gap-1.5 rounded-full bg-accent text-sm font-semibold text-accent-foreground transition-[background-color,transform] duration-200 ease-out hover:bg-accent-hover active:scale-[0.98] motion-reduce:transition-none"
         >
           <Plus aria-hidden="true" className="h-4 w-4" /> {t("nav.newProject")}
         </Link>
@@ -177,11 +177,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           type="button"
           onClick={() => setFindOpen(true)}
           aria-keyshortcuts="Control+K Meta+K"
-          className="mb-3 flex h-9 items-center gap-2 rounded-md border border-border-strong px-2.5 text-[13px] text-muted transition-colors hover:bg-surface-subtle hover:text-foreground"
+          className="mb-4 flex h-9 items-center gap-2 rounded-full border border-border-strong px-3.5 text-sm text-muted transition-colors hover:border-foreground hover:text-foreground"
         >
           <Search aria-hidden="true" className="h-4 w-4" />
           {t("shell.quickFind")}
-          <kbd className="ml-auto rounded bg-surface-muted px-1.5 font-mono text-xs text-muted">{t("shell.quickFindKeys")}</kbd>
+          <kbd className="ml-auto rounded-md bg-foreground/10 px-1.5 font-mono text-xs text-muted">{t("shell.quickFindKeys")}</kbd>
         </button>
 
         <div className="min-h-0 flex-1 overflow-y-auto" onClick={closeOnNavigate}>
@@ -206,7 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   return (
                     <li key={project.id}>
                       <Link href={href} aria-current={active ? "page" : undefined} className={rowClass(active)}>
-                        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                        <span aria-hidden="true" className="ml-1 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70" />
                         <span className="truncate">{project.name}</span>
                       </Link>
                     </li>
@@ -241,7 +241,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-2.5 px-2.5 py-1.5" aria-label={t("shell.signedInAs", { name: displayLabel })} role="group">
             {user && <Avatar id={user.id} label={displayLabel} imageUrl={profile?.avatar_url} />}
-            <span className="truncate text-[13px] font-medium">{displayLabel}</span>
+            <span className="truncate text-sm font-medium">{displayLabel}</span>
           </div>
           <button
             type="button"
@@ -249,7 +249,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               setDrawerOpen(false);
               requestSignOut();
             }}
-            className={`${ROW} w-full text-left text-muted hover:bg-surface-subtle hover:text-danger`}
+            className={`${ROW} w-full text-left text-muted hover:bg-foreground/[0.07] hover:text-danger`}
           >
             <LogOut aria-hidden="true" className="h-4 w-4 shrink-0" /> {t("nav.signOut")}
           </button>

@@ -23,10 +23,11 @@ import {
 import { PageHeader } from '../../components/ui/page-header';
 import { EmptyState } from '../../components/ui/empty-state';
 import { Button } from '../../components/ui/button';
-import { INPUT_CLASS } from '../../components/ui/form';
 import { ProjectRows, ProjectRowsSkeleton } from '../../components/explore/project-rows';
+import { FeaturedCards } from '../../components/explore/featured-cards';
 import { useI18n } from '../../context/i18n-context';
 import { tNow } from '../../lib/i18n';
+import { useSpaceScene, useSpaceScroll } from '../../components/space/use-space-scene';
 
 const GENRES = ['Jazz', 'Rock', 'Pop', 'Lo-Fi', 'Electronic', 'Classical', 'Hip-Hop'] as const;
 
@@ -36,7 +37,13 @@ const SORT_OPTIONS = [
 ] as const;
 
 const CHIP_BASE =
-  'inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors';
+  'inline-flex h-10 items-center gap-1.5 rounded-full border px-[18px] text-sm font-medium transition-colors';
+const CHIP_ON = 'border-accent bg-accent text-accent-foreground';
+const CHIP_OFF = 'border-border-strong bg-background/60 text-foreground hover:border-foreground';
+const SELECT_CLASS =
+  'h-10 max-w-full rounded-full border border-border-strong bg-surface-subtle px-4 text-base text-foreground transition-colors hover:border-foreground/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 disabled:text-muted sm:text-sm';
+const FILTER_PILL =
+  'flex h-10 items-center gap-1.5 rounded-full border border-accent/60 bg-accent-muted px-4 text-[13px] font-medium text-accent transition-colors hover:border-accent';
 
 function ExploreContent() {
   const { t } = useI18n();
@@ -109,11 +116,11 @@ function ExploreContent() {
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] max-w-[420px] flex-1">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-[560px]">
           <SearchIcon
             aria-hidden="true"
-            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
+            className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted"
           />
           <input
             name="q"
@@ -123,29 +130,16 @@ function ExploreContent() {
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t('ex.search')}
             aria-label={t('ex.search')}
-            className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
+            className="h-14 w-full rounded-full border border-border-strong bg-surface-subtle/60 pl-[52px] pr-5 text-base transition-colors placeholder:text-muted hover:border-foreground/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 sm:text-[17px]"
           />
         </div>
-
-        <select
-          value={sort}
-          onChange={(e) => updateParams({ sort: e.target.value })}
-          aria-label={t('ex.sort')}
-          className={`${INPUT_CLASS} h-[34px]`}
-        >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {t(opt.label)}
-            </option>
-          ))}
-        </select>
 
         {tag && (
           <button
             type="button"
             onClick={() => updateParams({ tag: null })}
             aria-label={t('explorePage.removeTag', { tag })}
-            className="flex h-[34px] items-center gap-1.5 rounded-md border border-accent bg-accent-muted px-3 text-xs font-semibold text-accent"
+            className={FILTER_PILL}
           >
             #{tag}
             <X aria-hidden="true" className="h-3.5 w-3.5" />
@@ -153,16 +147,12 @@ function ExploreContent() {
         )}
       </div>
 
-      <div role="group" aria-label={t('ex.filterGenre')} className="mb-6 flex flex-wrap gap-2">
+      <div role="group" aria-label={t('ex.filterGenre')} className="mb-4 flex flex-wrap gap-2">
         <button
           type="button"
           aria-pressed={genre === ''}
           onClick={() => updateParams({ genre: null })}
-          className={`${CHIP_BASE} ${
-            genre === ''
-              ? 'border-accent bg-accent-muted text-foreground'
-              : 'border-border-strong text-muted hover:text-foreground'
-          }`}
+          className={`${CHIP_BASE} ${genre === '' ? CHIP_ON : CHIP_OFF}`}
         >
           {t('ex.allGenres')}
         </button>
@@ -172,18 +162,14 @@ function ExploreContent() {
             type="button"
             aria-pressed={genre === g}
             onClick={() => updateParams({ genre: g })}
-            className={`${CHIP_BASE} ${
-              genre === g
-                ? 'border-accent bg-accent-muted text-foreground'
-                : 'border-border-strong text-muted hover:text-foreground'
-            }`}
+            className={`${CHIP_BASE} ${genre === g ? CHIP_ON : CHIP_OFF}`}
           >
             {g}
           </button>
         ))}
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center gap-2">
+      <div className="mb-12 flex flex-wrap items-center gap-2">
         <select
           value=""
           onChange={(e) => {
@@ -194,7 +180,7 @@ function ExploreContent() {
           }}
           disabled={instruments.length >= MAX_INSTRUMENT_FILTERS}
           aria-label={t('exi.filterLabel')}
-          className={`${INPUT_CLASS} h-[34px] max-w-full`}
+          className={SELECT_CLASS}
         >
           <option value="">
             {instruments.length >= MAX_INSTRUMENT_FILTERS
@@ -227,7 +213,7 @@ function ExploreContent() {
               })
             }
             aria-label={t('exi.remove', { name })}
-            className="flex h-[34px] items-center gap-1.5 rounded-md border border-accent bg-accent-muted px-3 text-xs font-semibold text-accent"
+            className={FILTER_PILL}
           >
             {name}
             <X aria-hidden="true" className="h-3.5 w-3.5" />
@@ -236,8 +222,8 @@ function ExploreContent() {
       </div>
 
       {showFeatured && (featuredProjects.length > 0 || featuredError) && (
-        <section aria-labelledby="explore-featured" className="mb-8">
-          <h2 id="explore-featured" className="mb-2.5 text-[17px] font-semibold">
+        <section aria-labelledby="explore-featured" className="mb-14">
+          <h2 id="explore-featured" className="text-section mb-5">
             {t('explorePage.featured')}
           </h2>
           {featuredError ? (
@@ -251,15 +237,29 @@ function ExploreContent() {
               </Button>
             </div>
           ) : (
-            <ProjectRows projects={featuredProjects} />
+            <FeaturedCards projects={featuredProjects} />
           )}
         </section>
       )}
 
       <section aria-labelledby="explore-all">
-        <h2 id="explore-all" className="mb-2.5 text-[17px] font-semibold">
-          {t('explorePage.allProjects')}
-        </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="explore-all" className="text-section">
+            {t('explorePage.allProjects')}
+          </h2>
+          <select
+            value={sort}
+            onChange={(e) => updateParams({ sort: e.target.value })}
+            aria-label={t('ex.sort')}
+            className={SELECT_CLASS}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {t(opt.label)}
+              </option>
+            ))}
+          </select>
+        </div>
         {loading ? (
           <ProjectRowsSkeleton />
         ) : error ? (
@@ -294,7 +294,7 @@ function ExploreContent() {
           />
         ) : (
           <>
-            <p role="status" className="mb-2 text-xs text-muted">
+            <p role="status" className="mb-3 text-[13px] text-muted">
               {search
                 ? t('ex.resultsFor', { n: data?.total ?? 0, q: search })
                 : t('ex.publicCount', { n: data?.total ?? 0 })}
@@ -332,9 +332,12 @@ function ExploreContent() {
 
 export default function ExplorePage() {
   const { t } = useI18n();
+  useSpaceScene('full', 4);
+  useSpaceScroll(4, 0.7);
   return (
-    <div className="mx-auto min-h-full w-full max-w-page px-5 py-8">
+    <div className="mx-auto min-h-full w-full max-w-page px-5 py-10 sm:px-8 lg:px-10">
       <PageHeader
+        size="hero"
         breadcrumbs={[{ label: t('ex.crumb') }]}
         title={t('ex.title')}
         description={t('ex.description')}
