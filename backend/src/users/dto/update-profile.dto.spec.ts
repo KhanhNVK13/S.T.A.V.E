@@ -3,8 +3,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { UpdateProfileDto } from './update-profile.dto';
 
-const usernameMessage =
-  'username must be 3-20 chars: lowercase letters, digits, _';
+const usernameMessage = 'username must be 3-20 chars: letters, digits, _';
 
 async function profileErrors(value: Record<string, unknown>) {
   return validate(plainToInstance(UpdateProfileDto, value));
@@ -73,14 +72,9 @@ describe('BE-USR-06 UpdateProfileDto.validate(dto)', () => {
     ]);
   });
 
-  it.failing(
-    'UTCID07 accepts a username with uppercase letters (SRS)',
-    async () => {
-      await expect(profileErrors({ username: 'Khanh' })).resolves.toHaveLength(
-        0,
-      );
-    },
-  );
+  it('UTCID07 accepts a username with uppercase letters (SRS)', async () => {
+    await expect(profileErrors({ username: 'Khanh' })).resolves.toHaveLength(0);
+  });
 
   it('UTCID08 rejects a username with a hyphen', async () => {
     await expect(constraintsOf({ username: 'kh-01' })).resolves.toEqual([

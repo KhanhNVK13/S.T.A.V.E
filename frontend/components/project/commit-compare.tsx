@@ -1,5 +1,7 @@
 "use client";
 
+import type { MergeResolutionRecord } from "@stave/shared-types";
+import { MergeResolutionsSummary } from "./merge-resolutions-summary";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, GitCompareArrows, Loader2, Play, Square } from "lucide-react";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
@@ -130,6 +132,7 @@ export function CommitCompare({
   const [diff, setDiff] = useState<SnapshotDiff | null>(null);
   const [baseSnap, setBaseSnap] = useState<DraftSnapshot | null>(null);
   const [targetSnap, setTargetSnap] = useState<DraftSnapshot | null>(null);
+  const [targetResolutions, setTargetResolutions] = useState<MergeResolutionRecord[] | null>(null);
   const [error, setError] = useState<ErrorSource | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackFilter, setTrackFilter] = useState<string>("all");
@@ -213,6 +216,7 @@ export function CommitCompare({
         if (cancelled) return;
         setBaseSnap(b.value.snapshot);
         setTargetSnap(t.value.snapshot);
+        setTargetResolutions(t.value.merge_resolutions ?? null);
         setDiff(result);
       } catch (err) {
         if (!cancelled)
@@ -327,6 +331,7 @@ export function CommitCompare({
           </p>
         ) : diff ? (
           <div className="flex flex-col gap-5">
+            <MergeResolutionsSummary records={targetResolutions} />
             <dl
               aria-label={tt("comparePage.statsLabel")}
               className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border sm:grid-cols-5"

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, Package, Plus, X } from "lucide-react";
 import { PLAN_FEATURES, type PlanFeatureKey } from "@stave/shared-types";
 import {
+  changeAdminPlanFeatures,
   changeAdminPlanPrice,
   createAdminPlan,
   listAdminPlans,
@@ -68,10 +69,12 @@ function featureOverlapWarnings(
 function PlanRow({
   plan,
   onPrice,
+  onFeatures,
   onToggle,
 }: {
   plan: AdminPlanItem;
   onPrice: (plan: AdminPlanItem) => void;
+  onFeatures: (plan: AdminPlanItem) => void;
   onToggle: (plan: AdminPlanItem) => void;
 }) {
   const { t, locale } = useI18n();
@@ -112,6 +115,19 @@ function PlanRow({
         >
           {t("apl.changePrice")}
         </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => onFeatures(plan)}
+          disabled={plan.isDefault}
+        >
+          {t("apl.editFeatures")}
+        </Button>
+        {plan.featuresEffectiveAt && (
+          <span className="basis-full text-xs text-muted">
+            {t("apl.featuresFrom", { date: formatDateTime(plan.featuresEffectiveAt) })}
+          </span>
+        )}
         {!plan.isDefault && (
           <Button type="button" variant="ghost" onClick={() => onToggle(plan)}>
             {plan.isActive ? t("apl.disable") : t("apl.enable")}
@@ -473,6 +489,193 @@ function PriceDialog({
   );
 }
 
+function FeaturesDialog({
+  plan,
+  onClose,
+  onChanged,
+}: {
+  plan: AdminPlanItem | null;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { t, locale } = useI18n();
+  const [features, setFeatures] = useState<FeatureValues>(EMPTY_FEATURES);
+  const [extraStorage, setExtraStorage] = useState("0");
+  const [effectiveAt, setEffectiveAt] = useState("");
+  const [error, setError] = useState<ErrorSource | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [earliest, setEarliest] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!plan) return;
+    const limit = earliestPriceChange();
+    /* eslint-disable react-hooks/set-state-in-effect -- nạp giá trị mặc định khi mở hộp */
+    setEarliest(limit);
+    setFeatures(
+      Object.fromEntries(
+        PLAN_FEATURES.map(({ key }) => [key, plan.features[key] === true]),
+      ),
+    );
+    setExtraStorage(String(Number(plan.features.extra_storage_mb ?? 0)));
+    setEffectiveAt(toDateTimeLocal(new Date(limit.getTime() + 60_000)));
+    setError(null);
+    setSaving(false);
+    setConfirming(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [plan]);
+
+  if (!plan || !earliest) return null;
+
+  function validate(): { features: Record<string, unknown>; effectiveAt: string } | null {
+    if (!plan || !earliest) return null;
+    const extraStorageMb = Number(extraStorage);
+    if (
+      !Number.isInteger(extraStorageMb) ||
+      extraStorageMb < MIN_EXTRA_STORAGE_MB ||
+      extraStorageMb > MAX_EXTRA_STORAGE_MB
+    ) {
+      setError(errorSource(null, "apl.errStorage"));
+      return null;
+    }
+    const selected = new Date(effectiveAt);
+    if (
+      !effectiveAt ||
+      Number.isNaN(selected.getTime()) ||
+      selected.getTime() < earliest.getTime()
+    ) {
+      setError(errorSource(null, "apl.earliest", { date: earliest.toLocaleString(locale) }));
+      return null;
+    }
+    return {
+      features: { ...features, extra_storage_mb: extraStorageMb },
+      effectiveAt: selected.toISOString(),
+    };
+  }
+
+  async function submit() {
+    if (!plan) return;
+    const payload = validate();
+    if (!payload) {
+      setConfirming(false);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await changeAdminPlanFeatures(plan.id, payload.features, payload.effectiveAt);
+      onChanged();
+      onClose();
+    } catch (err) {
+      setConfirming(false);
+      setError(errorSource(err, "apl.featuresFailed"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <Dialog
+        title={t("apl.featuresTitle", { plan: plan.name })}
+        onClose={onClose}
+        closeDisabled={saving}
+        className="max-w-md p-6"
+      >
+        <DialogError message={renderError(error)} />
+        <p className="mb-4 rounded-card bg-warning-muted px-3 py-2 text-xs text-warning-foreground">
+          {t("apl.featuresNotice", { n: plan.subscriberCount })}
+        </p>
+        <div className="space-y-4">
+          <fieldset>
+            <legend className="mb-2 text-xs font-semibold text-foreground">
+              {t("apl.features")}
+            </legend>
+            <div className="space-y-2 rounded-card border border-border bg-surface-subtle p-3">
+              {PLAN_FEATURES.map((feature) => (
+                <label key={feature.key} className="flex items-center gap-2 text-[13px]">
+                  <input
+                    type="checkbox"
+                    checked={features[feature.key] === true}
+                    onChange={(event) =>
+                      setFeatures((current) => ({ ...current, [feature.key]: event.target.checked }))
+                    }
+                    className="h-4 w-4 accent-accent"
+                  />
+                  {featureLabel(feature.key, t)}
+                </label>
+              ))}
+              <label className="block pt-2 text-xs text-muted">
+                {t("apl.extraStorage")}
+                <input
+                  name="extra-storage-mb"
+                  autoComplete="off"
+                  inputMode="numeric"
+                  type="number"
+                  min={MIN_EXTRA_STORAGE_MB}
+                  max={MAX_EXTRA_STORAGE_MB}
+                  step={1}
+                  value={extraStorage}
+                  onChange={(event) => setExtraStorage(event.target.value)}
+                  className={`${INPUT_CLASS} mt-1 w-full`}
+                />
+              </label>
+            </div>
+          </fieldset>
+          <p className="text-xs text-muted">
+            {t("apl.earliest", { date: earliest.toLocaleString(locale) })}
+          </p>
+          <label className="block text-xs text-muted">
+            {t("apl.effectiveFrom")}
+            <input
+              name="features-effective-at"
+              autoComplete="off"
+              type="datetime-local"
+              min={toDateTimeLocal(earliest)}
+              value={effectiveAt}
+              onChange={(event) => setEffectiveAt(event.target.value)}
+              className={`${INPUT_CLASS} mt-1 w-full`}
+            />
+          </label>
+        </div>
+        <div className="mt-6">
+          <DialogActions>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
+              {t("apl.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (validate()) {
+                  setError(null);
+                  setConfirming(true);
+                }
+              }}
+              disabled={saving}
+            >
+              {t("apl.scheduleFeatures")}
+            </Button>
+          </DialogActions>
+        </div>
+      </Dialog>
+      <ConfirmDialog
+        open={confirming}
+        title={t("apl.featuresConfirmTitle")}
+        message={t("apl.featuresConfirmBody", {
+          plan: plan.name,
+          date: effectiveAt ? new Date(effectiveAt).toLocaleString(locale) : "",
+        })}
+        confirmLabel={t("apl.scheduleFeatures")}
+        loading={saving}
+        onCancel={() => {
+          if (!saving) setConfirming(false);
+        }}
+        onConfirm={() => void submit()}
+      />
+    </>
+  );
+}
+
 export default function AdminPlansPage() {
   const { t } = useI18n();
   const [plans, setPlans] = useState<AdminPlanItem[]>([]);
@@ -480,6 +683,7 @@ export default function AdminPlansPage() {
   const [error, setError] = useState<ErrorSource | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [pricePlan, setPricePlan] = useState<AdminPlanItem | null>(null);
+  const [featuresPlan, setFeaturesPlan] = useState<AdminPlanItem | null>(null);
   const [togglePlan, setTogglePlan] = useState<AdminPlanItem | null>(null);
   const [toggleLoading, setToggleLoading] = useState(false);
   const [toggleError, setToggleError] = useState<ErrorSource | null>(null);
@@ -622,6 +826,7 @@ export default function AdminPlansPage() {
               key={plan.id}
               plan={plan}
               onPrice={setPricePlan}
+              onFeatures={setFeaturesPlan}
               onToggle={openToggle}
             />
           ))}
@@ -639,6 +844,14 @@ export default function AdminPlansPage() {
         onClose={() => setPricePlan(null)}
         onChanged={() => {
           setNotice(t("apl.priceScheduled"));
+          void loadPlans();
+        }}
+      />
+      <FeaturesDialog
+        plan={featuresPlan}
+        onClose={() => setFeaturesPlan(null)}
+        onChanged={() => {
+          setNotice(t("apl.featuresScheduled"));
           void loadPlans();
         }}
       />

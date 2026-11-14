@@ -81,8 +81,8 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('PlatformSettingsAdminService.update — kiểm đầu vào', () => {
-  it('khoá lạ → 400, không chạm DB', async () => {
+describe('BE-PLS-03 PlatformSettingsAdminService.update validation', () => {
+  it('UTCID01 rejects an unknown key without touching the database', async () => {
     const { service, mock, from } = makeService();
 
     const error = await catchError(
@@ -99,7 +99,7 @@ describe('PlatformSettingsAdminService.update — kiểm đầu vào', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('một khoá sai trong nhiều khoá → 400 và không khoá nào được ghi', async () => {
+  it('UTCID02 rejects the whole request when one key is out of range and writes nothing', async () => {
     const { service, settings, audit, invalidate, from } = makeService();
 
     const error = await catchError(
@@ -150,7 +150,7 @@ describe('PlatformSettingsAdminService.update — kiểm đầu vào', () => {
     ]);
   });
 
-  it('mảng rỗng → 400', async () => {
+  it('UTCID03 rejects an empty list of changes', async () => {
     const { service } = makeService();
     await expect(service.update(ADMIN_ID, { changes: [] })).rejects.toThrow(
       BadRequestException,
@@ -158,8 +158,8 @@ describe('PlatformSettingsAdminService.update — kiểm đầu vào', () => {
   });
 });
 
-describe('PlatformSettingsAdminService.update — hạn mức âm thanh', () => {
-  it('giảm dưới mức dùng lớn nhất, thiếu xác nhận → 409 và không ghi', async () => {
+describe('BE-PLS-03 PlatformSettingsAdminService.update custom sound quota', () => {
+  it('UTCID15 asks for confirmation when the quota drops below the largest usage', async () => {
     const { service, settings, audit, invalidate } = makeService({
       stored: [{ key: QUOTA, value: 50 * MB }],
       maxUsage: { data: 30 * MB, error: null },
@@ -181,7 +181,7 @@ describe('PlatformSettingsAdminService.update — hạn mức âm thanh', () => 
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it('có confirmReduction: true thì ghi', async () => {
+  it('UTCID16 saves the lowered quota once the reduction is confirmed', async () => {
     const { service, settings } = makeService({
       stored: [{ key: QUOTA, value: 50 * MB }],
       maxUsage: { data: 30 * MB, error: null },
@@ -197,7 +197,7 @@ describe('PlatformSettingsAdminService.update — hạn mức âm thanh', () => 
     expect(upsertRows(settings)).toEqual([{ key: QUOTA, value: 20 * MB }]);
   });
 
-  it('giảm nhưng vẫn bằng mức dùng lớn nhất → không cần xác nhận', async () => {
+  it('UTCID17 needs no confirmation when the quota stays equal to the largest usage', async () => {
     const { service } = makeService({
       stored: [{ key: QUOTA, value: 50 * MB }],
       maxUsage: { data: 30 * MB, error: null },
@@ -223,7 +223,7 @@ describe('PlatformSettingsAdminService.update — hạn mức âm thanh', () => 
     ).resolves.toEqual({ updated: [QUOTA] });
   });
 
-  it('tăng hạn mức → không gọi RPC, không cần xác nhận dù nhỏ hơn mức dùng', async () => {
+  it('UTCID18 raises the quota without checking usage', async () => {
     const { service, mock } = makeService({
       stored: [{ key: QUOTA, value: 20 * MB }],
       maxUsage: { data: 900 * MB, error: null },
@@ -253,7 +253,7 @@ describe('PlatformSettingsAdminService.update — hạn mức âm thanh', () => 
     expect(error).toBeInstanceOf(ConflictException);
   });
 
-  it('RPC lỗi → 500, không cho giảm, không ghi, kể cả khi đã gửi confirmReduction', async () => {
+  it('UTCID19 refuses the reduction when usage cannot be read, even if confirmed', async () => {
     const { service, settings, audit, invalidate } = makeService({
       stored: [{ key: QUOTA, value: 50 * MB }],
       maxUsage: { data: null, error: { message: 'rpc missing' } },
@@ -289,7 +289,7 @@ describe('PlatformSettingsAdminService.update — hạn mức âm thanh', () => 
     });
   });
 
-  it('RPC trả giá trị không phải số → 500, không ghi', async () => {
+  it('UTCID20 refuses the reduction when usage is not a number', async () => {
     const { service, settings } = makeService({
       stored: [{ key: QUOTA, value: 50 * MB }],
       maxUsage: { data: 'abc', error: null },
@@ -318,8 +318,8 @@ describe('PlatformSettingsAdminService.update — hạn mức âm thanh', () => 
   });
 });
 
-describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
-  it('upsert một lệnh duy nhất, theo khoá, value đúng kiểu jsonb (số/boolean, không chuỗi)', async () => {
+describe('BE-PLS-03 PlatformSettingsAdminService.update save, cache and audit', () => {
+  it('UTCID04 saves all changes in one upsert with typed values', async () => {
     const { service, settings } = makeService({
       stored: [
         { key: 'price_change_notice_days', value: 7 },
@@ -358,7 +358,7 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
     ]);
   });
 
-  it('ghi xong mới invalidate, đúng các khoá đã đổi', async () => {
+  it('UTCID05 invalidates the cache of each changed key after saving', async () => {
     const { service, settings, invalidate } = makeService({
       stored: [{ key: 'jam_edit_cooldown_sec', value: 5 }],
     });
@@ -380,7 +380,7 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
     }
   });
 
-  it('audit đúng một dòng mỗi khoá, reason "<key>: <cũ> -> <mới>"', async () => {
+  it('UTCID06 records one audit entry per key with the previous and new value', async () => {
     const { service, audit } = makeService({
       stored: [
         { key: 'price_change_notice_days', value: 7 },
@@ -414,7 +414,7 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
     ]);
   });
 
-  it('hàng chưa có: giá trị cũ trong audit là mặc định của danh mục', async () => {
+  it('UTCID07 uses the catalog default as the previous value when no row exists', async () => {
     const { service, audit } = makeService({ stored: [] });
 
     await service.update(ADMIN_ID, {
@@ -426,7 +426,7 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
     );
   });
 
-  it('trả updated theo thứ tự yêu cầu', async () => {
+  it('UTCID08 returns the updated keys in request order', async () => {
     const { service } = makeService();
 
     await expect(
@@ -441,7 +441,7 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
     });
   });
 
-  it('ghi lỗi → 500, không invalidate, không audit', async () => {
+  it('UTCID09 fails with a server error when saving fails and keeps the cache and audit untouched', async () => {
     const { service, invalidate, audit } = makeService({
       upsert: { data: null, error: { message: 'boom' } },
     });
@@ -457,7 +457,7 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
     expect(errorLog).toHaveBeenCalled();
   });
 
-  it('đọc giá trị cũ lỗi → 500, không ghi', async () => {
+  it('UTCID10 fails with a server error when the previous values cannot be read', async () => {
     const { service, settings } = makeService({ readError: true });
 
     await expect(
@@ -468,7 +468,7 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
     expect(settings.upsert).not.toHaveBeenCalled();
   });
 
-  it('audit lỗi sau khi đã lưu: log mức error, vẫn trả 200 và đã invalidate', async () => {
+  it('UTCID11 still succeeds when the audit entry cannot be written after saving', async () => {
     const { service, invalidate } = makeService({
       audit: { data: null, error: { message: 'audit down' } },
     });
@@ -486,8 +486,8 @@ describe('PlatformSettingsAdminService.update — ghi, cache, audit', () => {
   });
 });
 
-describe('PlatformSettingsAdminService.update — giá trị không đổi', () => {
-  it('toàn bộ không đổi → không ghi, không audit, không invalidate, updated rỗng', async () => {
+describe('BE-PLS-03 PlatformSettingsAdminService.update unchanged values', () => {
+  it('UTCID12 writes nothing when every value is unchanged', async () => {
     const { service, settings, audit, invalidate, mock } = makeService({
       stored: [
         { key: 'price_change_notice_days', value: 7 },
@@ -512,7 +512,7 @@ describe('PlatformSettingsAdminService.update — giá trị không đổi', () 
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('lẫn đổi và không đổi: chỉ khoá đã đổi được ghi, invalidate và audit', async () => {
+  it('UTCID13 saves only the keys that changed', async () => {
     const { service, settings, audit, invalidate } = makeService({
       stored: [
         { key: 'price_change_notice_days', value: 7 },
@@ -536,7 +536,7 @@ describe('PlatformSettingsAdminService.update — giá trị không đổi', () 
     expect(invalidate).toHaveBeenCalledTimes(1);
   });
 
-  it('hàng chưa có và giá trị mới bằng mặc định → coi là không đổi', async () => {
+  it('UTCID14 treats a missing row set to its default as unchanged', async () => {
     const { service, settings } = makeService({ stored: [] });
 
     await expect(
@@ -547,7 +547,7 @@ describe('PlatformSettingsAdminService.update — giá trị không đổi', () 
     expect(settings.upsert).not.toHaveBeenCalled();
   });
 
-  it('dòng cũ lưu dạng chuỗi "false" thì ghi lại thành boolean', async () => {
+  it('UTCID21 rewrites a legacy string value as a boolean', async () => {
     const { service, settings } = makeService({
       stored: [{ key: 'registration_enabled', value: 'false' }],
     });
@@ -578,8 +578,8 @@ describe('PlatformSettingsAdminService.update — giá trị không đổi', () 
   });
 });
 
-describe('PlatformSettingsAdminService.getAll', () => {
-  it('hàng chưa có → giá trị mặc định của danh mục; nhóm theo thứ tự danh mục', async () => {
+describe('BE-PLS-02 PlatformSettingsAdminService.getAll', () => {
+  it('UTCID01 returns catalog defaults grouped in catalog order when no row exists', async () => {
     const { service } = makeService({ stored: [] });
 
     const result = await service.getAll();
@@ -601,7 +601,7 @@ describe('PlatformSettingsAdminService.getAll', () => {
     expect(result.groups[0].items).toHaveLength(2);
   });
 
-  it('trả giá trị đang lưu và thông số của danh mục', async () => {
+  it('UTCID02 returns the stored value with the catalog limits', async () => {
     const { service } = makeService({
       stored: [{ key: 'moderation_retention_days', value: 90 }],
     });
@@ -620,7 +620,7 @@ describe('PlatformSettingsAdminService.getAll', () => {
     });
   });
 
-  it('không trả khoá ngoài danh mục dù có trong bảng', async () => {
+  it('UTCID03 leaves out keys that are not in the catalog', async () => {
     const { service } = makeService({
       stored: [
         { key: 'ranking_weight_play', value: 1 },
@@ -638,7 +638,7 @@ describe('PlatformSettingsAdminService.getAll', () => {
     expect(keys).toHaveLength(5);
   });
 
-  it('chỉ truy vấn các khoá của danh mục', async () => {
+  it('UTCID04 reads only the catalog keys', async () => {
     const { service, settings } = makeService({ stored: [] });
 
     await service.getAll();
@@ -652,7 +652,7 @@ describe('PlatformSettingsAdminService.getAll', () => {
     ]);
   });
 
-  it('giá trị sai kiểu → mặc định; chuỗi số và "false" được hiểu như nơi đọc thật', async () => {
+  it('UTCID05 falls back to the default for a wrongly typed value', async () => {
     const { service } = makeService({
       stored: [
         { key: QUOTA, value: '20971520' },
@@ -675,7 +675,7 @@ describe('PlatformSettingsAdminService.getAll', () => {
     });
   });
 
-  it('đọc lỗi → 500 (không giả làm mặc định)', async () => {
+  it('UTCID06 fails with a server error when the settings cannot be read', async () => {
     const { service } = makeService({ readError: true });
 
     await expect(service.getAll()).rejects.toThrow(

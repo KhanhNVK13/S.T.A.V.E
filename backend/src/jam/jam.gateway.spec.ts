@@ -502,3 +502,40 @@ describe('BE-JAM-10 JamGateway — onModuleInit wires the sweep listener (12.E1)
     ]);
   });
 });
+
+describe('JamGateway — onModuleInit wires the user-removed listener (suspension)', () => {
+  it('tells the room the user left and disconnects every socket of that user', () => {
+    const { gateway, service } = makeGateway();
+    const emits: Array<{ room: string; event: string; payload: unknown }> = [];
+    const disconnect = jest.fn();
+    (gateway as unknown as { server: unknown }).server = {
+      to: (room: string) => ({
+        emit: jest.fn((event: string, payload: unknown) => {
+          emits.push({ room, event, payload });
+        }),
+      }),
+      sockets: new Map([['socket-a1', { disconnect }]]),
+    };
+
+    gateway.onModuleInit();
+    (
+      service as unknown as {
+        userRemovedListener: (
+          eventId: string,
+          userId: string,
+          socketIds: string[],
+          total: number,
+        ) => void;
+      }
+    ).userRemovedListener(EVENT_ID, ALICE, ['socket-a1', 'socket-gone'], 2);
+
+    expect(emits).toEqual([
+      {
+        room: `jam:${EVENT_ID}`,
+        event: 'jam:user_left',
+        payload: { userId: ALICE, totalParticipants: 2 },
+      },
+    ]);
+    expect(disconnect).toHaveBeenCalledWith(true);
+  });
+});

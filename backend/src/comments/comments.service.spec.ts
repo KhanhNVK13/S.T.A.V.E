@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  ValidationPipe,
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -512,6 +513,44 @@ describe('BE-CMM-02 CommentsService — UC-63 createComment', () => {
         OWNER,
       ),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('UTCID07 rejects a user with no access to the project and stores nothing (1.E1)', async () => {
+    const rows = baseRows();
+    const service = makeService(rows, {
+      ...fakeProjectAccess(),
+      assertCanView: jest
+        .fn()
+        .mockRejectedValue(new ForbiddenException('no access')),
+    });
+    await expect(
+      service.createComment('p-1', { body: 'hello' }, 'stranger-1'),
+    ).rejects.toThrow(ForbiddenException);
+    expect(rows.comments).toHaveLength(0);
+  });
+
+  it('UTCID08 lets a view-only collaborator comment without needing edit permission (BR-69)', async () => {
+    const rows = baseRows();
+    const access = fakeProjectAccess();
+    const service = makeService(rows, access);
+
+    const item = await service.createComment('p-1', { body: 'Nice' }, VIEWER);
+
+    expect(item.body).toBe('Nice');
+    expect(access.assertCanView).toHaveBeenCalledWith('p-1', VIEWER);
+    expect(access.assertCanEdit).not.toHaveBeenCalled();
+    expect(rows.comments).toHaveLength(1);
+  });
+
+  it('UTCID09 rejects a body above the 1000 character limit at validation (4.E2)', async () => {
+    const pipe = new ValidationPipe({ whitelist: true, transform: true });
+    const transform = (body: unknown) =>
+      pipe.transform(body, { type: 'body', metatype: CreateCommentDto });
+
+    await expect(transform({ body: 'a'.repeat(1000) })).resolves.toBeDefined();
+    await expect(transform({ body: 'a'.repeat(1001) })).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });
 

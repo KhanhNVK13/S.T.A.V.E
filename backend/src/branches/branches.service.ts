@@ -4,7 +4,10 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
+  Logger,
+  Optional,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -15,6 +18,7 @@ import {
 } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import { JamLockService } from '../project-access/jam-lock.service';
 import { ActiveBranchService } from '../active-branch/active-branch.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { SwitchBranchDto, DraftSnapshotDto } from './dto/switch-branch.dto';
@@ -127,11 +131,14 @@ interface CommitGraphNode {
 
 @Injectable()
 export class BranchesService {
+  private readonly logger = new Logger(BranchesService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient<any, 'public', any>,
     private readonly access: ProjectAccessService,
     private readonly activeBranch: ActiveBranchService,
+    @Optional() private readonly jamLock?: JamLockService,
   ) {}
 
   // ==========================================================================
@@ -144,6 +151,7 @@ export class BranchesService {
     userId: string,
   ): Promise<BranchWithAuthor> {
     await this.verifyUserEditPermission(projectId, userId);
+    await this.jamLock?.assertNoActiveJam(projectId);
 
     const hasCommits = await this.projectHasCommits(projectId);
     if (!hasCommits) {
@@ -167,6 +175,7 @@ export class BranchesService {
       projectId,
       dto.sourceBranchId,
       dto.startCommitId,
+      userId,
     );
 
     const branchId = uuidv4();
@@ -228,7 +237,7 @@ export class BranchesService {
     dto: SwitchBranchDto,
     userId: string,
   ): Promise<SwitchBranchResponse> {
-    await this.verifyUserEditPermission(projectId, userId);
+    const canEdit = await this.resolveSwitchAccess(projectId, userId);
 
     const branchCount = await this.getProjectBranchCount(projectId);
     if (branchCount <= 1) {
@@ -252,12 +261,14 @@ export class BranchesService {
     // BR-50 / CLAUDE.md §4.2: save the outgoing branch's draft before
     // switching — currentDraft is now required in the DTO, and saveDraft
     // throws on failure instead of silently swallowing the error.
-    await this.saveDraft(
-      dto.currentBranchId,
-      dto.currentDraft,
-      userId,
-      dto.expectedDraftVersion,
-    );
+    if (canEdit) {
+      await this.saveDraft(
+        dto.currentBranchId,
+        dto.currentDraft,
+        userId,
+        dto.expectedDraftVersion,
+      );
+    }
 
     const { snapshot: activeSnapshot, version: activeDraftVersion } =
       await this.getActiveSnapshot(dto.targetBranchId, userId);
@@ -608,6 +619,8 @@ export class BranchesService {
       );
     }
 
+    await this.closeOpenPullRequestsOf(branchId);
+
     // A fast-forward merge moves another branch's head_commit_id to point at
     // a commit whose `branch_id` is still THIS branch; re-home those commits
     // before the cascade so a branch head never ends up dangling.
@@ -634,6 +647,25 @@ export class BranchesService {
     if (error) {
       throw new InternalServerErrorException(
         `Failed to delete branch: ${error.message}`,
+      );
+    }
+  }
+
+  private async closeOpenPullRequestsOf(branchId: string): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('pull_requests')
+        .update({ status: 'closed', closed_at: new Date().toISOString() })
+        .eq('status', 'open')
+        .or(`source_branch_id.eq.${branchId},target_branch_id.eq.${branchId}`);
+      if (error) {
+        this.logger.warn(
+          `Could not close the open pull requests of branch ${branchId}: ${error.message}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not close the open pull requests of branch ${branchId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -720,6 +752,21 @@ export class BranchesService {
     return this.access.assertCanEdit(projectId, userId);
   }
 
+  private async resolveSwitchAccess(
+    projectId: string,
+    userId: string,
+  ): Promise<boolean> {
+    try {
+      await this.verifyUserEditPermission(projectId, userId);
+      return true;
+    } catch (err) {
+      if (!(err instanceof ForbiddenException)) throw err;
+      const access = await this.access.getAccess(projectId, userId);
+      if (access === null) throw err;
+      return false;
+    }
+  }
+
   private async projectHasCommits(projectId: string): Promise<boolean> {
     const { data: branches } = await this.supabase
       .from('branches')
@@ -758,6 +805,7 @@ export class BranchesService {
     projectId: string,
     sourceBranchId?: string,
     startCommitId?: string,
+    userId?: string,
   ): Promise<string | null> {
     if (startCommitId) {
       const { data: commit } = await this.supabase
@@ -792,6 +840,22 @@ export class BranchesService {
         .single();
 
       return branch?.head_commit_id ?? null;
+    }
+
+    if (userId) {
+      const activeId = await this.activeBranch.getActiveBranchId(
+        projectId,
+        userId,
+      );
+      if (activeId) {
+        const { data: active } = await this.supabase
+          .from('branches')
+          .select('head_commit_id')
+          .eq('id', activeId)
+          .eq('project_id', projectId)
+          .maybeSingle<{ head_commit_id: string | null }>();
+        if (active?.head_commit_id) return active.head_commit_id;
+      }
     }
 
     const defaultBranch = await this.getDefaultBranch(projectId);
@@ -1157,7 +1221,7 @@ export class BranchesService {
         trackId: n.trackId,
         pitch: n.pitch,
         start: n.startTime ?? n.start ?? 0,
-        duration: n.duration ?? 0,
+        duration: n.duration ?? dto.meta?.ppq ?? 480,
         velocity: n.velocity ?? 80,
       })),
     };

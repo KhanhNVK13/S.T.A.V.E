@@ -47,7 +47,7 @@ describe('BE-SKT-06 AudioSketchesService.remove', () => {
     expect(storage.from).toHaveBeenCalledWith('audio-sketches');
   });
 
-  it('UTCID02 restores the entry and reports failure when the file cannot be removed', async () => {
+  it('UTCID06 restores the entry and reports failure when the file cannot be removed', async () => {
     const { service, builders } = makeService({
       tables: {
         projects: [{ data: { owner_id: ownerId } }],
@@ -109,7 +109,7 @@ describe('BE-SKT-06 AudioSketchesService.remove', () => {
     );
   });
 
-  it('UTCID06 refuses a user who cannot edit the project', async () => {
+  it('UTCID02 refuses a user who cannot edit the project', async () => {
     const { service, builders } = makeService({
       tables: {
         projects: [{ data: { owner_id: ownerId } }],
@@ -124,6 +124,9 @@ describe('BE-SKT-06 AudioSketchesService.remove', () => {
   });
 
   it('UTCID07 logs error when restoring sketch fails after storage removal failure', async () => {
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
     const { service, builders } = makeService({
       tables: {
         projects: [{ data: { owner_id: ownerId } }],
@@ -143,6 +146,8 @@ describe('BE-SKT-06 AudioSketchesService.remove', () => {
       service.remove(projectId, sketchId, ownerId),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
     expect(builders.audio_sketches.insert).toHaveBeenCalledWith(sketchRow);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(sketchId));
+    errorSpy.mockRestore();
   });
 });
 

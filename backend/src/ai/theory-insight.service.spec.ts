@@ -96,8 +96,8 @@ function makeService(options: {
   return { service, assertCanRead, getDraft, generateText };
 }
 
-describe('TheoryInsightService', () => {
-  it('analyses a commit and attaches the Gemini explanation', async () => {
+describe('BE-AIX-06 TheoryInsightService.insight', () => {
+  it('UTCID01 analyses a commit and attaches the Gemini explanation', async () => {
     const { service, generateText } = makeService({});
     const result = await service.insight(userId, projectId, commitId, 'vi');
     expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
@@ -106,7 +106,7 @@ describe('TheoryInsightService', () => {
     expect(prompt).toContain('"chord":"C"');
   });
 
-  it('rejects a stranger on a private project and never touches data', async () => {
+  it('UTCID02 rejects a stranger on a private project and never touches data', async () => {
     const { service, generateText } = makeService({ denyRead: true });
     await expect(
       service.insight(userId, projectId, commitId),
@@ -114,21 +114,21 @@ describe('TheoryInsightService', () => {
     expect(generateText).not.toHaveBeenCalled();
   });
 
-  it('returns 404 when the commit belongs to another project', async () => {
+  it('UTCID03 returns 404 when the commit belongs to another project', async () => {
     const { service } = makeService({ branch: null });
     await expect(
       service.insight(userId, projectId, commitId),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('returns 404 when the commit does not exist', async () => {
+  it('UTCID04 returns 404 when the commit does not exist', async () => {
     const { service } = makeService({ commit: null });
     await expect(
       service.insight(userId, projectId, commitId),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('still returns the analysis with explanation null when Gemini throws', async () => {
+  it('UTCID05 still returns the analysis with explanation null when Gemini throws', async () => {
     const { service } = makeService({
       generateText: jest.fn().mockRejectedValue(new Error('boom')),
     });
@@ -137,7 +137,7 @@ describe('TheoryInsightService', () => {
     expect(result.chords).toHaveLength(1);
   });
 
-  it('returns explanation null when Gemini has no key (null text)', async () => {
+  it('UTCID06 returns explanation null when Gemini has no key (null text)', async () => {
     const { service } = makeService({
       generateText: jest.fn().mockResolvedValue(null),
     });
@@ -146,14 +146,14 @@ describe('TheoryInsightService', () => {
     ).toBeNull();
   });
 
-  it('skips Gemini when the rate limit is reached', async () => {
+  it('UTCID07 skips Gemini when the rate limit is reached', async () => {
     const { service, generateText } = makeService({ rateLimited: true });
     const result = await service.insight(userId, projectId, commitId);
     expect(result.explanation).toBeNull();
     expect(generateText).not.toHaveBeenCalled();
   });
 
-  it('does not call Gemini when there is nothing to explain', async () => {
+  it('UTCID08 does not call Gemini when the project has too few notes to analyse', async () => {
     const { service, generateText } = makeService({
       commit: {
         snapshot: { ...cMajorChord, notes: [] },
@@ -170,7 +170,25 @@ describe('TheoryInsightService', () => {
     expect(generateText).not.toHaveBeenCalled();
   });
 
-  it('never sends track names or the project id to Gemini', async () => {
+  it('UTCID09 does not call Gemini when the notes match no key or chord', async () => {
+    const cluster: DraftSnapshot = {
+      ...cMajorChord,
+      notes: [n('a', 60), n('b', 61), n('c', 62)],
+    };
+    const { service, generateText } = makeService({
+      commit: { snapshot: cluster, branch_id: branchId },
+    });
+    const result = await service.insight(userId, projectId, commitId);
+    expect(result).toEqual({
+      tonality: null,
+      chords: [{ bar: 1, chord: null }],
+      truncated: false,
+      explanation: null,
+    });
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('UTCID10 never sends track names or the project id to Gemini', async () => {
     const snapshot: DraftSnapshot = {
       ...cMajorChord,
       tracks: [
@@ -196,14 +214,14 @@ describe('TheoryInsightService', () => {
     expect(prompt).not.toContain(projectId);
   });
 
-  it('uses the caller draft when no commit is given and the caller has access', async () => {
+  it('UTCID11 uses the caller draft when no commit is given and the caller has access', async () => {
     const { service, getDraft } = makeService({ accessLevel: 'owner' });
     const result = await service.insight(userId, projectId, null);
     expect(getDraft).toHaveBeenCalledWith(projectId, userId);
     expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
   });
 
-  it('falls back to the default branch head for a public-project reader', async () => {
+  it('UTCID12 falls back to the default branch head for a public-project reader', async () => {
     const { service, getDraft } = makeService({
       accessLevel: null,
       defaultBranchHead: commitId,
@@ -213,7 +231,7 @@ describe('TheoryInsightService', () => {
     expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
   });
 
-  it('returns an empty analysis for a public project whose default branch has no commit', async () => {
+  it('UTCID13 returns an empty analysis for a public project whose default branch has no commit', async () => {
     const { service } = makeService({
       accessLevel: null,
       defaultBranchHead: null,

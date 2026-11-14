@@ -31,4 +31,8 @@ export class FakeGateway implements PaymentGateway {
     if (error) throw new Error('Could not read payment status');
     return data?.status ?? 'failed';
   }
+
+  cancelPayment(): Promise<void> {
+    return Promise.resolve();
+  }
 }

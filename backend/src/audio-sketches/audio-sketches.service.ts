@@ -53,6 +53,10 @@ export interface AudioSketchResponse extends AudioSketchRow {
   playbackUrl: string | null;
 }
 
+function defaultSketchName(now: Date): string {
+  return `Sketch ${now.toISOString().slice(0, 16).replace('T', ' ')}`;
+}
+
 @Injectable()
 export class AudioSketchesService {
   private readonly logger = new Logger(AudioSketchesService.name);
@@ -249,7 +253,7 @@ export class AudioSketchesService {
         id: dto.sketchId,
         project_id: projectId,
         created_by: userId,
-        name: dto.name,
+        name: dto.name.trim() || defaultSketchName(new Date()),
         file_url: path,
         duration_sec: dto.durationSec,
         size_bytes: dto.sizeBytes,

@@ -69,7 +69,7 @@ describe('BE-NTF-01 notification types', () => {
 });
 
 describe('BE-NTF-02 NotificationsService.notify', () => {
-  it('UTCID09 keeps raw params and formats money and dates only in the fallback text', async () => {
+  it('keeps raw params and formats money and dates only in the fallback text', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: null }],
       notification_templates: [{ data: null }],
@@ -93,7 +93,7 @@ describe('BE-NTF-02 NotificationsService.notify', () => {
     expect(call.payload.customText).toBeUndefined();
   });
 
-  it('UTCID10 marks the payload as custom text when an admin template exists', async () => {
+  it('marks the payload as custom text when an admin template exists', async () => {
     const { service, builders } = makeService({
       notification_preferences: [{ data: null }],
       notification_templates: [

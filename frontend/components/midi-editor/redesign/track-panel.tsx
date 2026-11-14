@@ -267,6 +267,7 @@ export function TrackPanel({
                       max={100}
                       value={Math.round(panValue * 100)}
                       onChange={(e) => onSetTrackPan(track.id, Number(e.target.value) / 100)}
+                      onDoubleClick={() => onSetTrackPan(track.id, 0)}
                       aria-label={`Pan track ${track.name}`}
                       style={styles.volInput}
                     />

@@ -86,9 +86,9 @@ describe('BE-FRK-01 ForksService.fork', () => {
   });
 
   it.each([
-    ['a private project', { visibility: 'private' }],
-    ['an archived project', { archived_at: '2026-10-20' }],
-  ])('refuses %s as no longer available', async (_label, overrides) => {
+    ['UTCID08', 'a private project', { visibility: 'private' }],
+    ['UTCID09', 'an archived project', { archived_at: '2026-10-20' }],
+  ])('%s refuses %s as no longer available', async (_id, _label, overrides) => {
     const { service, rpc } = makeService({
       projects: [{ data: source(overrides) }],
       users: [{ data: { status: 'active' } }],

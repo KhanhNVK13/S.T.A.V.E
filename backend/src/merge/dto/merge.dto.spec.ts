@@ -208,17 +208,13 @@ describe('BE-MRG-02 ResolveConflictDto.validate(dto)', () => {
     );
   });
 
-  it('UTCID10 rejects KEEP_BOTH as an unsupported choice', async () => {
+  it('UTCID10 accepts KEEP_BOTH (UC-86 4.1)', async () => {
     const errors = await resolveErrors({
       sourceBranchId,
       targetBranchId,
       resolutions: [{ noteId: 'n1', choice: 'KEEP_BOTH' }],
     });
-    expect(errors[0]?.children?.[0]?.children?.[0]?.constraints).toEqual(
-      expect.objectContaining({
-        isEnum: expect.stringContaining('choice must be one of'),
-      }),
-    );
+    expect(errors).toHaveLength(0);
   });
 
   it('UTCID11 rejects a non-string note id', async () => {

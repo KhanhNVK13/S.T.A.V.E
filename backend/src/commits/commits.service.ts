@@ -6,6 +6,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  Optional,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -13,6 +14,7 @@ import type {
   DraftSnapshot,
   CommitRow,
   CommitWithAuthor,
+  MergeResolutionRecord,
   TagRow,
   PaginatedCommitHistory,
 } from '@stave/shared-types';
@@ -20,6 +22,8 @@ import { DRAFT_SCHEMA_VERSION, sanitizeSoundMap } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectsService } from '../projects/projects.service';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import { JamLockService } from '../project-access/jam-lock.service';
+import { BranchMovedNotifier } from '../project-access/branch-moved-notifier';
 import { DiffService } from './diff.service';
 import {
   CreateCommitDto,
@@ -39,6 +43,7 @@ interface CommitDbRow {
   snapshot: DraftSnapshot;
   parent_commit_id: string | null;
   merged_from_branch_id: string | null;
+  merge_resolutions?: MergeResolutionRecord[] | null;
   created_at: string;
 }
 
@@ -71,6 +76,8 @@ export class CommitsService {
     private readonly projectsService: ProjectsService,
     private readonly diffService: DiffService,
     private readonly access: ProjectAccessService,
+    @Optional() private readonly jamLock?: JamLockService,
+    @Optional() private readonly branchMoved?: BranchMovedNotifier,
   ) {}
 
   // ==========================================================================
@@ -98,6 +105,7 @@ export class CommitsService {
 
     // Step 1: Verify branch exists and user owns the project
     const branch = await this.verifyBranchAccess(branch_id, userId, 'edit');
+    await this.jamLock?.assertNoActiveJam(branch.project_id);
 
     // Step 2: UC-42 Exception 6.E1 - Concurrency Protection
     if (
@@ -160,6 +168,7 @@ export class CommitsService {
     }
 
     const row = commit as CommitDbRow;
+    this.branchMoved?.notify(branch.project_id, branch_id, row.id, userId);
 
     return {
       id: row.id,
@@ -310,6 +319,7 @@ export class CommitsService {
       created_at: commit.created_at,
       author: authorInfo,
       tags: tags.get(commit.id) ?? [],
+      merge_resolutions: commit.merge_resolutions ?? null,
     };
   }
 
@@ -509,6 +519,7 @@ export class CommitsService {
 
     // Step 1: Verify user has access to the target branch (also verifies ownership)
     const branch = await this.verifyBranchAccess(branch_id, userId, 'edit');
+    await this.jamLock?.assertNoActiveJam(branch.project_id);
 
     // Step 2: Get the commit to restore and verify it belongs to the same project
     const { data: commitToRestore, error: commitError } = await this.supabase
@@ -564,6 +575,7 @@ export class CommitsService {
     }
 
     const row = newCommit as CommitDbRow;
+    this.branchMoved?.notify(branch.project_id, branch_id, row.id, userId);
 
     return {
       id: row.id,
@@ -790,7 +802,7 @@ export class CommitsService {
         trackId: n.trackId,
         pitch: n.pitch,
         start: n.start ?? 0,
-        duration: n.duration ?? 0,
+        duration: n.duration ?? snapshot.meta?.ppq ?? 480,
         velocity: n.velocity ?? 80,
       })),
     };

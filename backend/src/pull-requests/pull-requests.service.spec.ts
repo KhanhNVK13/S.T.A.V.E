@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -11,6 +12,7 @@ jest.mock('uuid', () => ({
 
 import {
   createSupabaseMock,
+  type QueryResult,
   type SupabaseMockOptions,
 } from '../test-utils/supabase-mock';
 import type { ProjectAccessService } from '../project-access/project-access.service';
@@ -68,8 +70,17 @@ function makeService(options: {
   tables: SupabaseMockOptions['tables'];
   accessOf?: Record<string, string | null>;
   analysis?: Partial<Record<'analyze', jest.Mock>>;
+  authUser?: QueryResult;
 }) {
-  const mock = createSupabaseMock([], { tables: options.tables });
+  const mock = createSupabaseMock([], {
+    tables: options.tables,
+    authAdmin: {
+      getUserById: options.authUser ?? {
+        data: { user: { email_confirmed_at: '2026-01-01T00:00:00Z' } },
+        error: null,
+      },
+    },
+  });
   const getAccess = jest
     .fn()
     .mockImplementation((_project: string, user: string) =>
@@ -141,9 +152,14 @@ describe('BE-PRQ-02 PullRequestsService.create', () => {
   });
 
   it.each([
-    ['an empty title', '   ', BadRequestException],
-    ['a title over 150 characters', 'a'.repeat(151), BadRequestException],
-  ])('rejects %s', async (_label, title, error) => {
+    ['UTCID08', 'an empty title', '   ', BadRequestException],
+    [
+      'UTCID09',
+      'a title over 150 characters',
+      'a'.repeat(151),
+      BadRequestException,
+    ],
+  ])('%s rejects %s', async (_id, _label, title, error) => {
     const { service, builders } = makeService({ tables: createTables() });
     await expect(
       service.create(forkId, author, { ...dto, title }),
@@ -220,6 +236,20 @@ describe('BE-PRQ-02 PullRequestsService.create', () => {
     expect(builders.pull_requests.insert).toHaveBeenCalledWith(
       expect.objectContaining({ has_conflicts: true }),
     );
+  });
+
+  it('UTCID10 refuses an account whose email address is not verified and stores nothing', async () => {
+    const { service, builders } = makeService({
+      tables: createTables(),
+      authUser: {
+        data: { user: { email_confirmed_at: null } },
+        error: null,
+      },
+    });
+    await expect(service.create(forkId, author, dto)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(builders.pull_requests.insert).not.toHaveBeenCalled();
   });
 });
 
@@ -351,6 +381,46 @@ describe('BE-PRQ-04 PullRequestsService.addComment', () => {
       expect.objectContaining({ pullRequestId: prId, title: 'Thêm bè' }),
     );
   });
+
+  it('UTCID03 accepts a comment on a merged pull request', async () => {
+    const tables = base();
+    tables!.pull_requests = [{ data: prRow({ status: 'merged' }) }];
+    const { service, builders } = makeService({
+      tables,
+      accessOf: { [owner]: 'owner' },
+    });
+    await expect(
+      service.addComment(prId, owner, { body: 'Giải thích quyết định' }),
+    ).resolves.toMatchObject({ id: 'c1' });
+    expect(builders.pull_request_comments.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ body: 'Giải thích quyết định' }),
+    );
+  });
+
+  it('UTCID04 reports a failure when the comment cannot be stored', async () => {
+    const tables = base();
+    tables!.pull_request_comments = [{ data: null, error: { message: 'db' } }];
+    const { service, notify } = makeService({
+      tables,
+      accessOf: { [owner]: 'owner' },
+    });
+    await expect(
+      service.addComment(prId, owner, { body: 'Ổn' }),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('UTCID05 refuses a user who has no access to the private target project', async () => {
+    const tables = base();
+    tables!.projects = [
+      { data: project(originalId, { visibility: 'private' }) },
+    ];
+    const { service, builders } = makeService({ tables });
+    await expect(
+      service.addComment(prId, stranger, { body: 'Ổn' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(builders.pull_request_comments.insert).not.toHaveBeenCalled();
+  });
 });
 
 describe('BE-PRQ-05 PullRequestsService.close', () => {
@@ -407,6 +477,22 @@ describe('BE-PRQ-05 PullRequestsService.close', () => {
       expect.objectContaining({ pullRequestId: prId }),
     );
   });
+
+  it('UTCID05 reports a failure when the closure cannot be recorded and notifies nobody', async () => {
+    const failing = tables();
+    failing!.pull_requests = [
+      { data: prRow() },
+      { data: null, error: { message: 'db' } },
+    ];
+    const { service, notify } = makeService({
+      tables: failing,
+      accessOf: { [owner]: 'owner' },
+    });
+    await expect(service.close(prId, owner, {})).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    expect(notify).not.toHaveBeenCalled();
+  });
 });
 
 describe('BE-PRQ-06 PullRequestsService.listForProject', () => {
@@ -437,6 +523,51 @@ describe('BE-PRQ-06 PullRequestsService.listForProject', () => {
     });
     const items = await service.listForProject(originalId, stranger);
     expect(items.map((i) => i.id)).toEqual(['own']);
+  });
+
+  it('UTCID03 lists only the pull requests of the chosen status', async () => {
+    const { service, builders } = makeService({
+      tables: {
+        projects: [{ data: project(originalId) }],
+        pull_requests: [{ data: [prRow({ status: 'merged' })] }],
+        users: [{ data: [] }],
+      },
+    });
+    const items = await service.listForProject(originalId, stranger, 'merged');
+    expect(builders.pull_requests.eq).toHaveBeenCalledWith('status', 'merged');
+    expect(items.map((i) => i.status)).toEqual(['merged']);
+  });
+
+  it('UTCID04 keeps a pull request whose target project was deleted and marks it as not applicable', async () => {
+    const orphan = prRow({
+      id: 'orphan',
+      target_project_id: null,
+      target_branch_id: null,
+      source_project_id: originalId,
+    });
+    const { service } = makeService({
+      tables: {
+        projects: [{ data: project(originalId) }],
+        pull_requests: [{ data: [orphan] }],
+        users: [{ data: [] }],
+      },
+      accessOf: { [owner]: 'owner' },
+    });
+    const items = await service.listForProject(originalId, owner);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ id: 'orphan', applicable: false });
+  });
+
+  it('UTCID05 reports a failure instead of an empty list when the query errors', async () => {
+    const { service } = makeService({
+      tables: {
+        projects: [{ data: project(originalId) }],
+        pull_requests: [{ data: null, error: { message: 'db' } }],
+      },
+    });
+    await expect(
+      service.listForProject(originalId, stranger),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 });
 
@@ -491,5 +622,97 @@ describe('BE-PRQ-08 PullRequestsService.markMerged', () => {
     await expect(service.markMerged(prId, 'commit-1')).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+});
+
+describe('BE-PRQ-09 PullRequestsService.deleteComment', () => {
+  const commentId = '77777777-7777-4777-8777-777777777777';
+  const tables = (
+    comment: Record<string, unknown> | null,
+    deleteResult: QueryResult = { data: null, error: null },
+    pr: Record<string, unknown> = {},
+  ) =>
+    ({
+      pull_requests: [{ data: prRow(pr) }],
+      projects: [{ data: project(originalId) }],
+      pull_request_comments: [{ data: comment }, deleteResult],
+    }) as SupabaseMockOptions['tables'];
+  const own = (by: string) => ({ id: commentId, author_id: by });
+
+  it('UTCID01 lets the author delete their own comment', async () => {
+    const { service, builders } = makeService({
+      tables: tables(own(stranger)),
+    });
+    await expect(
+      service.deleteComment(prId, commentId, stranger),
+    ).resolves.toEqual({ ok: true });
+    expect(builders.pull_request_comments.delete).toHaveBeenCalled();
+    expect(builders.pull_request_comments.eq).toHaveBeenCalledWith(
+      'id',
+      commentId,
+    );
+  });
+
+  it('UTCID02 lets the owner of the target project delete a comment written by someone else', async () => {
+    const { service, builders } = makeService({
+      tables: tables(own(stranger)),
+      accessOf: { [owner]: 'owner' },
+    });
+    await expect(
+      service.deleteComment(prId, commentId, owner),
+    ).resolves.toEqual({ ok: true });
+    expect(builders.pull_request_comments.delete).toHaveBeenCalled();
+  });
+
+  it('UTCID03 lets a collaborator with edit permission delete a comment written by someone else', async () => {
+    const { service } = makeService({
+      tables: tables(own(stranger)),
+      accessOf: { [author]: 'edit' },
+    });
+    await expect(
+      service.deleteComment(prId, commentId, author),
+    ).resolves.toBeDefined();
+  });
+
+  it('UTCID04 refuses someone who is neither the author nor allowed to edit the target', async () => {
+    const { service, builders } = makeService({
+      tables: tables(own(owner)),
+      accessOf: { [stranger]: 'view' },
+    });
+    await expect(
+      service.deleteComment(prId, commentId, stranger),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(builders.pull_request_comments.delete).not.toHaveBeenCalled();
+  });
+
+  it('UTCID05 answers not found for a missing comment', async () => {
+    const { service } = makeService({ tables: tables(null) });
+    await expect(
+      service.deleteComment(prId, commentId, owner),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('UTCID06 reports a failure when the comment cannot be deleted', async () => {
+    const { service } = makeService({
+      tables: tables(own(stranger), { data: null, error: { message: 'db' } }),
+    });
+    await expect(
+      service.deleteComment(prId, commentId, stranger),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  it('UTCID07 still deletes a comment on a merged pull request', async () => {
+    const { service } = makeService({
+      tables: tables(
+        own(stranger),
+        { data: null, error: null },
+        {
+          status: 'merged',
+        },
+      ),
+    });
+    await expect(
+      service.deleteComment(prId, commentId, stranger),
+    ).resolves.toEqual({ ok: true });
   });
 });

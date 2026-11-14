@@ -202,4 +202,62 @@ describe("FE-ADM-01 AdminJamConfigDialog (UC-94)", () => {
       expect(save?.disabled).toBe(false);
     });
   });
+
+  it("UTCID06 end time in the past is refused with a message and nothing is saved", async () => {
+    const event = makeEvent({ status: "scheduled" });
+    const onSaved = vi.fn();
+    render(<AdminJamConfigDialog event={event} projects={mockProjects} onClose={vi.fn()} onSaved={onSaved} />);
+
+    const end = document.querySelector('input[name="jam-end"]') as HTMLInputElement;
+    fireEvent.change(end, { target: { value: "2020-01-01T10:00" } });
+    fireEvent.click(screen.getByText("Lưu thay đổi"));
+
+    expect(
+      await screen.findByText(
+        "Thời gian kết thúc không hợp lệ. Thời gian phải lớn hơn thời điểm hiện tại và thời gian bắt đầu.",
+      ),
+    ).toBeDefined();
+    expect(apiJam.adminConfigureJamEvent).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("UTCID07 a failed save reports the failure and keeps the dialog open", async () => {
+    const event = makeEvent({ status: "scheduled" });
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    vi.mocked(apiJam.adminConfigureJamEvent).mockRejectedValueOnce(new Error("boom"));
+    render(<AdminJamConfigDialog event={event} projects={mockProjects} onClose={onClose} onSaved={onSaved} />);
+
+    fireEvent.click(screen.getByText("Lưu thay đổi"));
+
+    expect(await screen.findByText("Không lưu được cấu hình sự kiện.")).toBeDefined();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("UTCID08 cancelling a scheduled event asks first, then cancels it and reports it to the caller", async () => {
+    const event = makeEvent({ status: "scheduled" });
+    const onClose = vi.fn();
+    const onCancelled = vi.fn();
+    vi.mocked(apiJam.adminCancelJamEvent).mockResolvedValueOnce(undefined as never);
+    render(
+      <AdminJamConfigDialog
+        event={event}
+        projects={mockProjects}
+        onClose={onClose}
+        onSaved={vi.fn()}
+        onCancelled={onCancelled}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Hủy sự kiện này"));
+    expect(apiJam.adminCancelJamEvent).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Chắc chắn hủy"));
+
+    await vi.waitFor(() => {
+      expect(apiJam.adminCancelJamEvent).toHaveBeenCalledWith(event.id);
+      expect(onCancelled).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
 });

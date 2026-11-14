@@ -34,7 +34,7 @@ import { isDialogOpen } from "../../lib/use-dialog";
 import { appLocale } from "../../lib/format-date";
 import { tNow } from "../../lib/i18n";
 import { useI18n } from "../../context/i18n-context";
-import { parseMidiBuffer } from "../../lib/midi-parser";
+import { MidiImportError, parseMidiBuffer } from "../../lib/midi-parser";
 import { startNoteScheduler } from "../../lib/note-scheduler";
 import { exportMidiFile } from "../../lib/midi-exporter";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -141,6 +141,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
     noteCount: number;
   } | null>(null);
   const [confirmEmptyExport, setConfirmEmptyExport] = useState(false);
+  const [confirmCustomSoundExport, setConfirmCustomSoundExport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pianoRollRef = useRef<PianoRollHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1023,9 +1024,15 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       let merged: DraftSnapshot;
       try {
         merged = parseMidiBuffer(await file.arrayBuffer(), snapshot);
-      } catch {
+      } catch (err) {
+        const key =
+          err instanceof MidiImportError
+            ? err.code === "TOO_MANY_TRACKS"
+              ? "edc.importTooManyTracks"
+              : "edc.importTooBig"
+            : "edc.importUnreadable";
         setEditorToast({
-          message: tNow("edc.importUnreadable"),
+          message: tNow(key, { n: MAX_TRACKS }),
           variant: "danger",
         });
         return;
@@ -1055,6 +1062,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       setConfirmEmptyExport(true);
       return;
     }
+    const usedTrackIds = new Set(snapshot.notes.map((n) => n.trackId));
+    const usesCustomSounds = snapshot.tracks.some(
+      (t) => usedTrackIds.has(t.id) && Object.keys(t.soundMap ?? {}).length > 0,
+    );
+    if (usesCustomSounds) {
+      setConfirmCustomSoundExport(true);
+      return;
+    }
     runExportMidi();
   }
 
@@ -1075,6 +1090,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   function runExportMidi(source: DraftSnapshot = snapshot, nameSuffix = "") {
     setConfirmEmptyExport(false);
+    setConfirmCustomSoundExport(false);
     try {
       const bytes = exportMidiFile(source);
       // Uint8Array isn't a valid BlobPart type on its own in the current DOM
@@ -1582,6 +1598,14 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         confirmLabel={t("edc.emptyExportConfirm")}
         onConfirm={() => runExportMidi()}
         onCancel={() => setConfirmEmptyExport(false)}
+      />
+      <ConfirmDialog
+        open={confirmCustomSoundExport}
+        title={t("edc.customSoundExportTitle")}
+        message={t("edc.customSoundExportBody")}
+        confirmLabel={t("edc.customSoundExportConfirm")}
+        onConfirm={() => runExportMidi()}
+        onCancel={() => setConfirmCustomSoundExport(false)}
       />
       <ConfirmDialog
         open={pendingDeleteTrack !== null}

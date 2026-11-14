@@ -4,10 +4,14 @@ import {
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 import type { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
 import { AccountRemovalService } from '../account-removal/account-removal.service';
+import { AccountBillingCancellation } from '../billing/account-billing-cancellation.service';
+import type { PaymentGateway } from '../billing/payment-gateway';
+import type { JamService } from '../jam/jam.service';
 import {
   createSupabaseMock,
   type QueryResult,
@@ -200,6 +204,7 @@ describe('BE-ADM-02 AdminService.suspendUser(adminId, targetId, reason)', () => 
       notifications?: QueryResult[];
       projects?: QueryResult[];
       updateUserById?: QueryResult | QueryResult[];
+      jam?: { removeUserFromRooms: jest.Mock };
     } = {},
   ) => {
     const mock = createSupabaseMock([], {
@@ -217,6 +222,8 @@ describe('BE-ADM-02 AdminService.suspendUser(adminId, targetId, reason)', () => 
     const service = new AdminService(
       mock.client,
       {} as unknown as AccountRemovalService,
+      undefined,
+      opts.jam as unknown as JamService | undefined,
     );
     return { service, mock };
   };
@@ -366,6 +373,38 @@ describe('BE-ADM-02 AdminService.suspendUser(adminId, targetId, reason)', () => 
     // UC-97 4.E1: a failed update is reported; side effects that mutate
     // auth state must not run on a broken transaction.
     expect(mock.auth.admin.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it('UTCID10 removes the suspended user from the live jam rooms', async () => {
+    const jam = { removeUserFromRooms: jest.fn().mockReturnValue(1) };
+    const { service } = makeSuspend([{ data: row() }, ok], {
+      projects: [ok],
+      jam,
+    });
+
+    await expect(
+      service.suspendUser('usr_1', 'usr_2', 'Spam uploads'),
+    ).resolves.toBeUndefined();
+
+    expect(jam.removeUserFromRooms).toHaveBeenCalledWith('usr_2');
+  });
+
+  it('UTCID11 still completes the suspension when the jam removal fails', async () => {
+    const jam = {
+      removeUserFromRooms: jest.fn(() => {
+        throw new Error('jam down');
+      }),
+    };
+    const { service, mock } = makeSuspend([{ data: row() }, ok], {
+      projects: [ok],
+      jam,
+    });
+
+    await expect(
+      service.suspendUser('usr_1', 'usr_2', 'Spam uploads'),
+    ).resolves.toBeUndefined();
+
+    expect(mock.builders.admin_audit_log.insert).toHaveBeenCalled();
   });
 });
 
@@ -525,6 +564,9 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
       sessions?: QueryResult[];
       audit?: QueryResult[];
       notifications?: QueryResult[];
+      emailSender?: { enabled: boolean; send: jest.Mock };
+      gateway?: { cancelPayment: jest.Mock };
+      transactions?: QueryResult[];
       deleteUser?: QueryResult | QueryResult[];
       sounds?: {
         removeAllFilesOf?: jest.Mock;
@@ -539,6 +581,12 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
         sessions: opts.sessions ?? [ok],
         admin_audit_log: opts.audit ?? [ok],
         notifications: opts.notifications ?? [ok],
+        ...(opts.gateway
+          ? {
+              transactions: opts.transactions ?? [{ data: [], error: null }],
+              subscriptions: [ok],
+            }
+          : {}),
       },
       authAdmin: {
         getUserById: { data: { user: { banned_until: null } }, error: null },
@@ -561,7 +609,14 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
         mock.client,
         sketches as unknown as AudioSketchesService,
         sounds as unknown as CustomSoundsService,
+        opts.gateway
+          ? new AccountBillingCancellation(
+              mock.client,
+              opts.gateway as unknown as PaymentGateway,
+            )
+          : undefined,
       ),
+      opts.emailSender,
     );
     return { service, mock, sounds };
   };
@@ -680,5 +735,84 @@ describe('BE-ADM-04 AdminService.removeUser(adminId, targetId, reason, confirmUs
     expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith('usr_2');
     expect(mock.builders.users.delete).toHaveBeenCalled();
     expect(mock.builders.admin_audit_log.insert).toHaveBeenCalled();
+  });
+
+  it('UTCID08 emails the removal reason to the holder at the registered address', async () => {
+    const emailSender = {
+      enabled: true,
+      send: jest.fn(() => Promise.resolve()),
+    };
+    const { service } = makeRemove([{ data: row() }, ok], { emailSender });
+
+    await service.removeUser('usr_1', 'usr_2', 'Spam uploads', 'khanh_01');
+
+    expect(emailSender.send).toHaveBeenCalledTimes(1);
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'user@stave.io',
+        text: expect.stringContaining('Spam uploads'),
+      }),
+    );
+  });
+
+  it('UTCID09 still removes the account when the removal email cannot be sent', async () => {
+    const emailSender = {
+      enabled: true,
+      send: jest.fn(() => Promise.reject(new Error('smtp down'))),
+    };
+    const { service, mock } = makeRemove([{ data: row() }, ok], {
+      emailSender,
+    });
+
+    await expect(
+      service.removeUser('usr_1', 'usr_2', 'Spam uploads', 'khanh_01'),
+    ).resolves.toBeUndefined();
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+    expect(emailSender.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('UTCID10 cancels the pending order and the subscription before removing the account', async () => {
+    const gateway = { cancelPayment: jest.fn().mockResolvedValue(undefined) };
+    const { service, mock } = makeRemove([{ data: row() }, ok], {
+      gateway,
+      transactions: [
+        { data: [{ id: 't1', order_code: 987654 }], error: null },
+        ok,
+      ],
+    });
+
+    await expect(
+      service.removeUser('usr_1', 'usr_2', 'Spam uploads', 'khanh_01'),
+    ).resolves.toBeUndefined();
+
+    expect(gateway.cancelPayment).toHaveBeenCalledWith(
+      987654,
+      expect.any(String),
+    );
+    expect(mock.builders.subscriptions.update).toHaveBeenCalledWith({
+      status: 'canceled',
+      pending_plan_id: null,
+    });
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+  });
+
+  it('UTCID11 halts the removal entirely when the payment gateway is unreachable', async () => {
+    const gateway = {
+      cancelPayment: jest.fn().mockRejectedValue(new Error('gateway down')),
+    };
+    const { service, mock } = makeRemove([{ data: row() }, ok], {
+      gateway,
+      transactions: [{ data: [{ id: 't1', order_code: 987654 }], error: null }],
+    });
+
+    await expect(
+      service.removeUser('usr_1', 'usr_2', 'Spam uploads', 'khanh_01'),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(mock.builders.subscriptions.update).not.toHaveBeenCalled();
+    expect(mock.builders.sessions.update).not.toHaveBeenCalled();
+    expect(mock.builders.users.delete).not.toHaveBeenCalled();
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+    expect(mock.builders.admin_audit_log.insert).not.toHaveBeenCalled();
   });
 });

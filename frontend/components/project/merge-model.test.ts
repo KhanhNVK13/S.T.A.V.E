@@ -38,6 +38,7 @@ describe("merge conflict choices", () => {
 
   it("tallies the two sides", () => {
     expect(tallyChoices({ a: "PICK_SOURCE", b: "PICK_TARGET", c: "PICK_SOURCE" })).toEqual({ ours: 1, theirs: 2 });
+    expect(tallyChoices({ a: "KEEP_BOTH", b: "PICK_TARGET" })).toEqual({ ours: 2, theirs: 1 });
   });
 
   it("returns to the defaults once the choices are forgotten", () => {

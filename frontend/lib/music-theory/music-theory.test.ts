@@ -291,6 +291,21 @@ describe("FE-INS-01 music-theory.analyzeSnapshot", () => {
     const result = analyze(snap);
     expect(result.insufficient).toBe(true);
   });
+
+  it("UTCID18 music that fits two keys (C major scale, A minor shares its notes) → the second reading is offered as a possibility (3.E2)", () => {
+    const scale = [0, 2, 4, 5, 7, 9, 11];
+    const notes = [
+      ...chordNotes("s1", scale, 0),
+      ...chordNotes("s2", scale, B),
+      ...chordNotes("s3", scale, B * 2),
+      ...chordNotes("s4", scale, B * 3),
+    ];
+    const result = analyze(snapshot(notes));
+    expect(result.insufficient).toBe(false);
+    const keyInsight = result.insights.find((i) => i.kind === "key");
+    expect(keyInsight?.alternatives?.length).toBe(1);
+    expect(keyInsight?.alternatives?.[0]).not.toBe("");
+  });
 });
 
 describe("FE-INS-02 music-theory regressions", () => {

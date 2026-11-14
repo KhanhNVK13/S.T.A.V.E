@@ -2,6 +2,7 @@ import { Logger, Module, type DynamicModule } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { AccountBillingCancellation } from './account-billing-cancellation.service';
 import { BillingHistoryService } from './billing-history.service';
 import {
   BillingSchedulerService,
@@ -43,6 +44,7 @@ export class BillingModule {
         PaymentsService,
         BillingHistoryService,
         SubscriptionChangesService,
+        AccountBillingCancellation,
         BillingSchedulerService,
         { provide: BILLING_FRONTEND_URL, useValue: frontendUrl(env) },
         {
@@ -61,6 +63,7 @@ export class BillingModule {
         PaymentsService,
         PAYMENT_GATEWAY,
         BILLING_PAYMENT_PROVIDER,
+        AccountBillingCancellation,
       ],
     };
   }

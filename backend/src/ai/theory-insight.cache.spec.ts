@@ -67,8 +67,8 @@ function build(opts: {
   return { service, assertCanRead, generateText, mock };
 }
 
-describe('TheoryInsightService commit cache', () => {
-  it('serves a repeated commit from memory without re-reading or calling Gemini', async () => {
+describe('BE-AIX-06 TheoryInsightService.insight commit cache', () => {
+  it('UTCID14 serves a repeated commit from memory without re-reading or calling Gemini', async () => {
     const { service, generateText, mock } = build({});
     const first = await service.insight(userId, projectId, commitId, 'vi');
     const second = await service.insight(userId, projectId, commitId, 'vi');
@@ -77,7 +77,7 @@ describe('TheoryInsightService commit cache', () => {
     expect(mock.builders.commits.select).toHaveBeenCalledTimes(1);
   });
 
-  it('checks read access on every call, including cache hits', async () => {
+  it('UTCID15 checks read access on every call, including cache hits', async () => {
     const assertCanRead = jest
       .fn()
       .mockResolvedValueOnce(undefined)
@@ -102,7 +102,7 @@ describe('TheoryInsightService commit cache', () => {
     expect(generateText).toHaveBeenCalledTimes(2);
   });
 
-  it('does not let a commit cached for one project answer for another', async () => {
+  it('UTCID16 does not let a commit cached for one project answer for another', async () => {
     const otherProject = '55555555-5555-4555-8555-555555555555';
     const { service } = build({
       tables: {
@@ -119,7 +119,7 @@ describe('TheoryInsightService commit cache', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('does not cache a result whose explanation failed, so it can be retried', async () => {
+  it('UTCID17 does not cache a result whose explanation failed, so it can be retried', async () => {
     const generateText = jest
       .fn()
       .mockRejectedValueOnce(new Error('boom'))
@@ -131,7 +131,7 @@ describe('TheoryInsightService commit cache', () => {
     expect(second.explanation).toBe('Hợp âm Đô trưởng.');
   });
 
-  it('never caches the draft (no commit id)', async () => {
+  it('UTCID18 never caches the draft (no commit id)', async () => {
     const getDraft = jest.fn().mockResolvedValue(cMajor);
     const { service } = build({
       getAccess: jest.fn().mockResolvedValue('owner'),
@@ -142,7 +142,7 @@ describe('TheoryInsightService commit cache', () => {
     expect(getDraft).toHaveBeenCalledTimes(2);
   });
 
-  it('evicts the least recently used entry beyond the size limit', async () => {
+  it('UTCID19 evicts the least recently used entry beyond the size limit', async () => {
     const total = THEORY_CACHE_MAX_ENTRIES + 1;
     const { service, generateText } = build({ commitReads: total + 1 });
     const ids = Array.from(
@@ -158,8 +158,8 @@ describe('TheoryInsightService commit cache', () => {
   });
 });
 
-describe('TheoryInsightService current snapshot for limited readers', () => {
-  it('falls back to the default branch head when the draft read is forbidden', async () => {
+describe('BE-AIX-06 TheoryInsightService.insight current snapshot for limited readers', () => {
+  it('UTCID20 falls back to the default branch head when the draft read is forbidden', async () => {
     const getDraft = jest
       .fn()
       .mockRejectedValue(new ForbiddenException('no draft access'));
@@ -190,7 +190,7 @@ describe('TheoryInsightService current snapshot for limited readers', () => {
     expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
   });
 
-  it('does not swallow other draft errors', async () => {
+  it('UTCID21 does not swallow other draft errors', async () => {
     const { service } = build({
       getAccess: jest.fn().mockResolvedValue('view'),
       getDraft: jest.fn().mockRejectedValue(new Error('db down')),

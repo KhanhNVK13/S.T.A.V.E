@@ -143,6 +143,21 @@ export class UsersService {
     if (dto.avatarUrl !== undefined) patch.avatar_url = dto.avatarUrl ?? null;
     if (dto.language !== undefined) patch.language = dto.language;
 
+    if (dto.username !== undefined) {
+      const { data: clash, error: clashError } = await this.supabase
+        .from('users')
+        .select('id')
+        .ilike('username', dto.username.replace(/_/g, '\\_'))
+        .neq('id', userId)
+        .limit(1);
+      if (clashError) {
+        throw new BadRequestException('Could not update profile');
+      }
+      if ((clash ?? []).length > 0) {
+        throw new BadRequestException('Username already taken');
+      }
+    }
+
     const { data, error } = await this.supabase
       .from('users')
       .update(patch)

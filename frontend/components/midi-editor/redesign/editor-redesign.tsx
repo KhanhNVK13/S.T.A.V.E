@@ -622,7 +622,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
           <PresenceAvatars
             projectId={projectId}
             myId={currentUser?.id ?? null}
-            onBranchMoved={() => vc.reloadHistory()}
+            onBranchMoved={(info) => {
+              if (info.byUserId !== currentUser?.id) vc.noteBranchMoved(info);
+            }}
           />
           {/* UC-63: bật/tắt panel bình luận ghim — chỉ thêm, không đổi logic. */}
           <button
@@ -729,6 +731,15 @@ export function EditorRedesign(props: EditorRedesignProps) {
           </span>
           <button type="button" onClick={() => setNoChangeHint(false)} style={styles.saveErrorBtn}>
             {t("ed.gotIt")}
+          </button>
+        </div>
+      )}
+
+      {vc.branchMoved && (
+        <div role="status" style={styles.narrowNotice}>
+          <span>{t("ed.branchMoved")}</span>
+          <button type="button" onClick={() => void vc.acknowledgeBranchMoved()} style={styles.saveErrorBtn}>
+            {t("ed.branchMovedReload")}
           </button>
         </div>
       )}
@@ -1199,6 +1210,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           projectId={projectId}
           snapshot={snapshot}
           projectName={projectName}
+          selectedNoteIds={selectedNoteIds}
           onClose={() => setShowExportAudio(false)}
         />
       )}

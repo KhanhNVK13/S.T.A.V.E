@@ -551,6 +551,33 @@ describe('BE-SKT-04 AudioSketchesService.attach(projectId, userId, dto)', () => 
     expect(result.id).toBe(sketchId);
     expect(result.playbackUrl).toBeNull();
   });
+
+  it('UTCID16 assigns a default name based on the date and time when the name is blank', async () => {
+    const sketchRow = makeSketchRow();
+    const { service, builders } = makeService([], {
+      tables: {
+        projects: [{ data: { owner_id: ownerId } }],
+        audio_sketches: [{ data: sketchRow }],
+      },
+      storage: {
+        'audio-sketches': {
+          list: { data: [{ name: fileName }], error: null },
+          createSignedUrl: { data: { signedUrl }, error: null },
+        },
+      },
+    });
+
+    await service.attach(projectId, ownerId, {
+      ...defaultAttachDto,
+      name: '   ',
+    });
+
+    expect(builders.audio_sketches.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: expect.stringMatching(/^Sketch \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+      }),
+    );
+  });
 });
 
 describe('BE-SKT-05 AudioSketchesService.list(projectId, userId) + assertCanView', () => {

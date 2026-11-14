@@ -75,7 +75,7 @@ const expectNoValidationError = async (
 // =============================================================================
 
 describe('BE-CMT-20 CompareCommitsDto.validate(dto)', () => {
-  it('BE-CMT-20 UTCID01 (N): accepts two valid UUID v4 ids', async () => {
+  it('UTCID01 (N): accepts two valid UUID v4 ids', async () => {
     await expectNoValidationError(
       validate(CompareCommitsDto, {
         baseCommitId: UUID_V4,
@@ -84,7 +84,7 @@ describe('BE-CMT-20 CompareCommitsDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-20 UTCID02 (A): rejects a non-UUID baseCommitId with the custom message', async () => {
+  it('UTCID02 (A): rejects a non-UUID baseCommitId with the custom message', async () => {
     const messages = await validationMessages(
       validate(CompareCommitsDto, {
         baseCommitId: 'abc',
@@ -95,7 +95,7 @@ describe('BE-CMT-20 CompareCommitsDto.validate(dto)', () => {
     expect(messages).toContain('Base commit ID must be a valid UUID');
   });
 
-  it('BE-CMT-20 UTCID03 (A): rejects a missing baseCommitId with the custom message', async () => {
+  it('UTCID03 (A): rejects a missing baseCommitId with the custom message', async () => {
     const messages = await validationMessages(
       validate(CompareCommitsDto, { targetCommitId: UUID_V4_B }),
     );
@@ -103,7 +103,7 @@ describe('BE-CMT-20 CompareCommitsDto.validate(dto)', () => {
     expect(messages).toContain('Base commit ID must be a valid UUID');
   });
 
-  it('BE-CMT-20 UTCID04 (A): rejects a UUID v1 baseCommitId with the custom message', async () => {
+  it('UTCID04 (A): rejects a UUID v1 baseCommitId with the custom message', async () => {
     const messages = await validationMessages(
       validate(CompareCommitsDto, {
         baseCommitId: UUID_V1,
@@ -114,7 +114,7 @@ describe('BE-CMT-20 CompareCommitsDto.validate(dto)', () => {
     expect(messages).toContain('Base commit ID must be a valid UUID');
   });
 
-  it('BE-CMT-20 UTCID05 (A): rejects an empty targetCommitId with the custom message', async () => {
+  it('UTCID05 (A): rejects an empty targetCommitId with the custom message', async () => {
     const messages = await validationMessages(
       validate(CompareCommitsDto, {
         baseCommitId: UUID_V4,
@@ -134,27 +134,26 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
   const validDto = (over: Record<string, unknown> = {}) => ({
     branch_id: UUID_V4,
     message: 'Add bass',
-    snapshot: validSnapshot(),
     ...over,
   });
 
-  it('BE-CMT-21 UTCID01 (N): accepts a valid branch id, message and snapshot', async () => {
+  it('UTCID01 (N): accepts a valid branch id and message without a snapshot', async () => {
     await expectNoValidationError(validate(CreateCommitDto, validDto()));
   });
 
-  it('BE-CMT-21 UTCID02 (B): accepts a 1-character message', async () => {
+  it('UTCID02 (B): accepts a 1-character message', async () => {
     await expectNoValidationError(
       validate(CreateCommitDto, validDto({ message: 'a' })),
     );
   });
 
-  it('BE-CMT-21 UTCID03 (B): accepts a 200-character message', async () => {
+  it('UTCID03 (B): accepts a 200-character message', async () => {
     await expectNoValidationError(
       validate(CreateCommitDto, validDto({ message: 'a'.repeat(200) })),
     );
   });
 
-  it('BE-CMT-21 UTCID04 (A): rejects an empty message with "Message is required"', async () => {
+  it('UTCID04 (A): rejects an empty message with "Message is required"', async () => {
     const messages = await validationMessages(
       validate(CreateCommitDto, validDto({ message: '' })),
     );
@@ -162,7 +161,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     expect(messages).toContain('Message is required');
   });
 
-  it('BE-CMT-21 UTCID05 (A): rejects a 201-character message', async () => {
+  it('UTCID05 (A): rejects a 201-character message', async () => {
     const messages = await validationMessages(
       validate(CreateCommitDto, validDto({ message: 'a'.repeat(201) })),
     );
@@ -170,7 +169,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     expect(messages).toContain('Message must not exceed 200 characters');
   });
 
-  it('BE-CMT-21 UTCID06 (A): rejects a numeric message with "Message must be a string"', async () => {
+  it('UTCID06 (A): rejects a numeric message with "Message must be a string"', async () => {
     const messages = await validationMessages(
       validate(CreateCommitDto, validDto({ message: 123 })),
     );
@@ -178,7 +177,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     expect(messages).toContain('Message must be a string');
   });
 
-  it('BE-CMT-21 UTCID07 (A): rejects a non-UUID branch_id', async () => {
+  it('UTCID07 (A): rejects a non-UUID branch_id', async () => {
     const messages = await validationMessages(
       validate(CreateCommitDto, validDto({ branch_id: 'not-a-uuid' })),
     );
@@ -186,13 +185,16 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     expect(messages).toContain('branch_id must be a UUID');
   });
 
-  it('BE-CMT-21 UTCID08 (N): accepts a valid snapshot', async () => {
+  it('UTCID08 (N): accepts a valid snapshot and expectedHeadCommitId', async () => {
     await expectNoValidationError(
-      validate(CreateCommitDto, validDto({ snapshot: validSnapshot() })),
+      validate(
+        CreateCommitDto,
+        validDto({ snapshot: validSnapshot(), expectedHeadCommitId: UUID_V4 }),
+      ),
     );
   });
 
-  it('BE-CMT-21 UTCID09 (A): rejects a non-UUID expectedHeadCommitId', async () => {
+  it('UTCID09 (A): rejects a non-UUID expectedHeadCommitId', async () => {
     const messages = await validationMessages(
       validate(CreateCommitDto, validDto({ expectedHeadCommitId: 'head-1' })),
     );
@@ -200,7 +202,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     expect(messages).toContain('expectedHeadCommitId must be a UUID');
   });
 
-  it('BE-CMT-21 UTCID10 (A): rejects a note velocity of 0 (must not be less than 1)', async () => {
+  it('UTCID10 (A): rejects a note velocity of 0 (must not be less than 1)', async () => {
     const messages = await validationMessages(
       validate(
         CreateCommitDto,
@@ -218,7 +220,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID11 (B): accepts a note velocity of 1', async () => {
+  it('UTCID11 (B): accepts a note velocity of 1', async () => {
     await expectNoValidationError(
       validate(
         CreateCommitDto,
@@ -232,7 +234,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID12 (B): accepts a note velocity of 127', async () => {
+  it('UTCID12 (B): accepts a note velocity of 127', async () => {
     await expectNoValidationError(
       validate(
         CreateCommitDto,
@@ -246,7 +248,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID13 (A): rejects a note velocity of 128', async () => {
+  it('UTCID13 (A): rejects a note velocity of 128', async () => {
     const messages = await validationMessages(
       validate(
         CreateCommitDto,
@@ -264,7 +266,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID14 (A): rejects a note pitch of -1 (must not be less than 0)', async () => {
+  it('UTCID14 (A): rejects a note pitch of -1 (must not be less than 0)', async () => {
     const messages = await validationMessages(
       validate(
         CreateCommitDto,
@@ -282,7 +284,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID15 (B): accepts a note pitch of 0', async () => {
+  it('UTCID15 (B): accepts a note pitch of 0', async () => {
     await expectNoValidationError(
       validate(
         CreateCommitDto,
@@ -296,7 +298,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID16 (B): accepts a note pitch of 127', async () => {
+  it('UTCID16 (B): accepts a note pitch of 127', async () => {
     await expectNoValidationError(
       validate(
         CreateCommitDto,
@@ -310,7 +312,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID17 (A): rejects a note pitch of 128', async () => {
+  it('UTCID17 (A): rejects a note pitch of 128', async () => {
     const messages = await validationMessages(
       validate(
         CreateCommitDto,
@@ -328,7 +330,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID18 (A): rejects a note duration of 0', async () => {
+  it('UTCID18 (A): rejects a note duration of 0', async () => {
     const messages = await validationMessages(
       validate(
         CreateCommitDto,
@@ -346,7 +348,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID19 (B): accepts a snapshot with 0 tracks (a new project starts empty)', async () => {
+  it('UTCID19 (B): accepts a snapshot with 0 tracks (a new project starts empty)', async () => {
     await expectNoValidationError(
       validate(
         CreateCommitDto,
@@ -357,7 +359,7 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-21 UTCID20 (A): rejects a snapshot with 33 tracks (no more than 32 elements)', async () => {
+  it('UTCID20 (A): rejects a snapshot with 33 tracks (no more than 32 elements)', async () => {
     const tracks = Array.from({ length: 33 }, (_, i) => ({
       ...validSnapshot().tracks[0],
       id: `track-${i + 1}`,
@@ -383,13 +385,13 @@ describe('BE-CMT-21 CreateCommitDto.validate(dto)', () => {
 // =============================================================================
 
 describe('BE-CMT-22 GetCommitHistoryDto.validate(dto)', () => {
-  it('BE-CMT-22 UTCID01 (N): applies the defaults page = 1 and limit = 20', async () => {
+  it('UTCID01 (N): applies the defaults page = 1 and limit = 20', async () => {
     const result = await validate(GetCommitHistoryDto, {});
 
     expect(result).toEqual(expect.objectContaining({ page: 1, limit: 20 }));
   });
 
-  it('BE-CMT-22 UTCID02 (N): converts a valid branch_id, page and limit to their values', async () => {
+  it('UTCID02 (N): converts a valid branch_id, page and limit to their values', async () => {
     const result = await validate(GetCommitHistoryDto, {
       branch_id: UUID_V4,
       page: '1',
@@ -401,13 +403,13 @@ describe('BE-CMT-22 GetCommitHistoryDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-22 UTCID03 (B): accepts a limit of exactly 100', async () => {
+  it('UTCID03 (B): accepts a limit of exactly 100', async () => {
     const result = await validate(GetCommitHistoryDto, { limit: '100' });
 
     expect(result).toEqual(expect.objectContaining({ limit: 100 }));
   });
 
-  it('BE-CMT-22 UTCID04 (A): rejects a non-UUID branch_id', async () => {
+  it('UTCID04 (A): rejects a non-UUID branch_id', async () => {
     const messages = await validationMessages(
       validate(GetCommitHistoryDto, { branch_id: 'xyz' }),
     );
@@ -415,7 +417,7 @@ describe('BE-CMT-22 GetCommitHistoryDto.validate(dto)', () => {
     expect(messages).toContain('branch_id must be a UUID');
   });
 
-  it('BE-CMT-22 UTCID05 (A): rejects a page of 0', async () => {
+  it('UTCID05 (A): rejects a page of 0', async () => {
     const messages = await validationMessages(
       validate(GetCommitHistoryDto, { page: '0' }),
     );
@@ -423,7 +425,7 @@ describe('BE-CMT-22 GetCommitHistoryDto.validate(dto)', () => {
     expect(messages).toContain('page must not be less than 1');
   });
 
-  it('BE-CMT-22 UTCID06 (A): rejects a non-numeric page', async () => {
+  it('UTCID06 (A): rejects a non-numeric page', async () => {
     const messages = await validationMessages(
       validate(GetCommitHistoryDto, { page: 'abc' }),
     );
@@ -433,7 +435,7 @@ describe('BE-CMT-22 GetCommitHistoryDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-22 UTCID07 (A): rejects a limit of 101', async () => {
+  it('UTCID07 (A): rejects a limit of 101', async () => {
     const messages = await validationMessages(
       validate(GetCommitHistoryDto, { limit: '101' }),
     );
@@ -441,7 +443,7 @@ describe('BE-CMT-22 GetCommitHistoryDto.validate(dto)', () => {
     expect(messages).toContain('limit must not be greater than 100');
   });
 
-  it('BE-CMT-22 UTCID08 (A): rejects a limit of 0', async () => {
+  it('UTCID08 (A): rejects a limit of 0', async () => {
     const messages = await validationMessages(
       validate(GetCommitHistoryDto, { limit: '0' }),
     );
@@ -455,13 +457,13 @@ describe('BE-CMT-22 GetCommitHistoryDto.validate(dto)', () => {
 // =============================================================================
 
 describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
-  it('BE-CMT-23 UTCID01 (N): accepts a valid branch id', async () => {
+  it('UTCID01 (N): accepts a valid branch id', async () => {
     await expectNoValidationError(
       validate(RestoreCommitDto, { branch_id: UUID_V4 }),
     );
   });
 
-  it('BE-CMT-23 UTCID02 (N): accepts a custom message', async () => {
+  it('UTCID02 (N): accepts a custom message', async () => {
     await expectNoValidationError(
       validate(RestoreCommitDto, {
         branch_id: UUID_V4,
@@ -470,7 +472,7 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-23 UTCID03 (A): rejects an empty message (must be at least 1 character)', async () => {
+  it('UTCID03 (A): rejects an empty message (must be at least 1 character)', async () => {
     const messages = await validationMessages(
       validate(RestoreCommitDto, { branch_id: UUID_V4, message: '' }),
     );
@@ -478,7 +480,7 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
     expect(messages).toContain('Message must be at least 1 character');
   });
 
-  it('BE-CMT-23 UTCID04 (B): accepts a 200-character message', async () => {
+  it('UTCID04 (B): accepts a 200-character message', async () => {
     await expectNoValidationError(
       validate(RestoreCommitDto, {
         branch_id: UUID_V4,
@@ -487,7 +489,7 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-23 UTCID05 (A): rejects a 201-character message', async () => {
+  it('UTCID05 (A): rejects a 201-character message', async () => {
     const messages = await validationMessages(
       validate(RestoreCommitDto, {
         branch_id: UUID_V4,
@@ -498,7 +500,7 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
     expect(messages).toContain('Message must not exceed 200 characters');
   });
 
-  it('BE-CMT-23 UTCID06 (A): rejects a numeric message', async () => {
+  it('UTCID06 (A): rejects a numeric message', async () => {
     const messages = await validationMessages(
       validate(RestoreCommitDto, { branch_id: UUID_V4, message: 42 }),
     );
@@ -506,7 +508,7 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
     expect(messages).toContain('Message must be a string');
   });
 
-  it('BE-CMT-23 UTCID07 (A): rejects a non-UUID branch id', async () => {
+  it('UTCID07 (A): rejects a non-UUID branch id', async () => {
     const messages = await validationMessages(
       validate(RestoreCommitDto, { branch_id: '123' }),
     );
@@ -514,7 +516,7 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
     expect(messages).toContain('Branch ID must be a valid UUID');
   });
 
-  it('BE-CMT-23 UTCID08 (A): rejects a missing branch id', async () => {
+  it('UTCID08 (A): rejects a missing branch id', async () => {
     const messages = await validationMessages(validate(RestoreCommitDto, {}));
 
     expect(messages).toContain('Branch ID must be a valid UUID');
@@ -526,21 +528,21 @@ describe('BE-CMT-23 RestoreCommitDto.validate(dto)', () => {
 // =============================================================================
 
 describe('BE-CMT-24 TagCommitDto.validate(dto)', () => {
-  it('BE-CMT-24 UTCID01 (N): accepts a valid tag name', async () => {
+  it('UTCID01 (N): accepts a valid tag name', async () => {
     await expectNoValidationError(validate(TagCommitDto, { tag: 'v1-0' }));
   });
 
-  it('BE-CMT-24 UTCID02 (B): accepts a 1-character tag name', async () => {
+  it('UTCID02 (B): accepts a 1-character tag name', async () => {
     await expectNoValidationError(validate(TagCommitDto, { tag: 'a' }));
   });
 
-  it('BE-CMT-24 UTCID03 (B): accepts a 30-character tag name', async () => {
+  it('UTCID03 (B): accepts a 30-character tag name', async () => {
     await expectNoValidationError(
       validate(TagCommitDto, { tag: 'a'.repeat(30) }),
     );
   });
 
-  it('BE-CMT-24 UTCID04 (A): rejects an empty tag name', async () => {
+  it('UTCID04 (A): rejects an empty tag name', async () => {
     const messages = await validationMessages(
       validate(TagCommitDto, { tag: '' }),
     );
@@ -548,7 +550,7 @@ describe('BE-CMT-24 TagCommitDto.validate(dto)', () => {
     expect(messages).toContain('Tag name is required');
   });
 
-  it('BE-CMT-24 UTCID05 (A): rejects a 31-character tag name', async () => {
+  it('UTCID05 (A): rejects a 31-character tag name', async () => {
     const messages = await validationMessages(
       validate(TagCommitDto, { tag: 'a'.repeat(31) }),
     );
@@ -556,7 +558,7 @@ describe('BE-CMT-24 TagCommitDto.validate(dto)', () => {
     expect(messages).toContain('Tag name must not exceed 30 characters');
   });
 
-  it('BE-CMT-24 UTCID06 (A): rejects a tag name with a leading hyphen', async () => {
+  it('UTCID06 (A): rejects a tag name with a leading hyphen', async () => {
     const messages = await validationMessages(
       validate(TagCommitDto, { tag: '-v1' }),
     );
@@ -566,7 +568,7 @@ describe('BE-CMT-24 TagCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-24 UTCID07 (A): rejects a tag name with a trailing hyphen', async () => {
+  it('UTCID07 (A): rejects a tag name with a trailing hyphen', async () => {
     const messages = await validationMessages(
       validate(TagCommitDto, { tag: 'v1-' }),
     );
@@ -576,7 +578,7 @@ describe('BE-CMT-24 TagCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-24 UTCID08 (A): rejects a tag name containing a dot', async () => {
+  it('UTCID08 (A): rejects a tag name containing a dot', async () => {
     const messages = await validationMessages(
       validate(TagCommitDto, { tag: 'v1.0' }),
     );
@@ -586,7 +588,7 @@ describe('BE-CMT-24 TagCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-24 UTCID09 (A): rejects a tag name containing a space', async () => {
+  it('UTCID09 (A): rejects a tag name containing a space', async () => {
     const messages = await validationMessages(
       validate(TagCommitDto, { tag: 'v 1' }),
     );
@@ -596,7 +598,7 @@ describe('BE-CMT-24 TagCommitDto.validate(dto)', () => {
     );
   });
 
-  it('BE-CMT-24 UTCID10 (A): rejects a numeric tag name', async () => {
+  it('UTCID10 (A): rejects a numeric tag name', async () => {
     const messages = await validationMessages(
       validate(TagCommitDto, { tag: 123 }),
     );

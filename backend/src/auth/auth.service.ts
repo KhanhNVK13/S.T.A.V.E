@@ -19,6 +19,11 @@ import {
 } from '../common/utils/username.util';
 import type { UserRow } from '../users/user-row.type';
 import { AccountRemovalService } from '../account-removal/account-removal.service';
+import {
+  buildEmailContent,
+  EMAIL_SENDER,
+  type EmailSender,
+} from '../notifications/email-sender';
 
 export interface SessionRow {
   id: string;
@@ -29,6 +34,8 @@ export interface SessionRow {
   last_active_at: string;
   revoked_at: string | null;
 }
+
+const REAUTH_WINDOW_SECONDS = 5 * 60;
 
 let warnedMissingAnonKey = false;
 
@@ -42,6 +49,9 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly accountRemoval: AccountRemovalService,
     @Optional() private readonly activityLog?: ActivityLogService,
+    @Optional()
+    @Inject(EMAIL_SENDER)
+    private readonly emailSender?: EmailSender,
   ) {}
 
   private authApiKey(): string {
@@ -83,7 +93,7 @@ export class AuthService {
 
   /**
    * GoTrue's admin.updateUserById(...) invalidates the CALLER's own current
-   * session too (verified empirically), which would break BR-10 ("keep only
+   * session too (verified empirically), which would break BR-09 ("keep only
    * the session that performed the action"). Calling the self-service
    * /auth/v1/user endpoint scoped to the user's own access token updates the
    * password while leaving that same session valid.
@@ -155,7 +165,8 @@ export class AuthService {
       const { data } = await this.supabase
         .from('users')
         .select('id')
-        .eq('username', candidate)
+        .ilike('username', candidate.replace(/[\\_%]/g, '\\$&'))
+        .limit(1)
         .maybeSingle();
       if (!data) return candidate;
     }
@@ -254,22 +265,54 @@ export class AuthService {
   }
 
   /** UC-85 (and UC-13 logout, called with id = current session). */
-  async revokeSession(userId: string, sessionId: string): Promise<void> {
+  async revokeSession(
+    userId: string,
+    sessionId: string,
+    notifyEmail?: string,
+  ): Promise<void> {
     const { data, error } = await this.supabase
       .from('sessions')
       .update({ revoked_at: new Date().toISOString() })
       .eq('id', sessionId)
       .eq('user_id', userId)
       .is('revoked_at', null)
-      .select('id')
-      .maybeSingle();
+      .select('id, device_label')
+      .maybeSingle<{ id: string; device_label: string | null }>();
 
     if (error || !data) {
       throw new UnauthorizedException('Session not found or no longer active');
     }
+
+    if (notifyEmail) {
+      void this.sendSessionEndedEmail(notifyEmail, data.device_label);
+    }
   }
 
-  /** BR-10: revoke every other business session + Supabase refresh token. */
+  private async sendSessionEndedEmail(
+    email: string,
+    deviceLabel: string | null,
+  ): Promise<void> {
+    if (!this.emailSender?.enabled) return;
+    const device = deviceLabel?.trim() || 'Unknown device';
+    const title = 'A session on your STAVE account was ended';
+    const body = [
+      `A session on your STAVE account (${device}) was just ended from another device. If you did not do this, change your password right away.`,
+      `Một phiên đăng nhập trên tài khoản STAVE của bạn (${device}) vừa bị kết thúc từ thiết bị khác. Nếu không phải bạn, hãy đổi mật khẩu ngay.`,
+    ].join('\n\n');
+    try {
+      await this.emailSender.send({
+        to: email,
+        subject: title,
+        ...buildEmailContent(title, body),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Could not send the session ended email: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /** BR-09: revoke every other business session + Supabase refresh token. */
   async revokeOtherSessions(
     userId: string,
     accessToken: string,
@@ -285,7 +328,7 @@ export class AuthService {
     await this.supabase.auth.admin.signOut(accessToken, 'others');
   }
 
-  /** UC-16, BR-02, BR-10 */
+  /** UC-16, BR-02, BR-09 */
   async changePassword(
     userId: string,
     email: string,
@@ -307,19 +350,75 @@ export class AuthService {
     await this.selfUpdatePassword(accessToken, newPassword);
 
     await this.revokeOtherSessions(userId, accessToken, currentSessionId);
+
+    void this.sendPasswordChangedEmail(email);
   }
 
-  /** UC-17 */
+  private async sendPasswordChangedEmail(email: string): Promise<void> {
+    if (!email || !this.emailSender?.enabled) return;
+    const title = 'Your STAVE password was changed';
+    const body = [
+      'The password of your STAVE account was just changed and your other devices were signed out. If you did not do this, reset your password right away.',
+      'Mật khẩu tài khoản STAVE của bạn vừa được đổi và các thiết bị khác đã bị đăng xuất. Nếu không phải bạn, hãy đặt lại mật khẩu ngay.',
+    ].join('\n\n');
+    try {
+      await this.emailSender.send({
+        to: email,
+        subject: title,
+        ...buildEmailContent(title, body),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Could not send the password changed email: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /** UC-17, BR-22 */
   async deleteAccount(
     userId: string,
     email: string,
     password: string,
+    reauth?: { user: Pick<User, 'app_metadata'>; accessToken: string },
   ): Promise<void> {
-    const verified = await this.verifyPassword(email, password);
-    if (!verified) {
-      throw new UnauthorizedException('Password is incorrect');
+    if (reauth && !this.hasPasswordIdentity(reauth.user)) {
+      if (!this.hasRecentOAuthLogin(reauth.accessToken)) {
+        throw new UnauthorizedException(
+          'Please sign in with Google again to confirm account deletion',
+        );
+      }
+    } else {
+      const verified = await this.verifyPassword(email, password);
+      if (!verified) {
+        throw new UnauthorizedException('Password is incorrect');
+      }
     }
 
     await this.accountRemoval.remove(userId, 'Could not delete account');
+  }
+
+  private hasPasswordIdentity(user: Pick<User, 'app_metadata'>): boolean {
+    const providers = user.app_metadata?.providers;
+    return !Array.isArray(providers) || providers.includes('email');
+  }
+
+  private hasRecentOAuthLogin(accessToken: string): boolean {
+    try {
+      const payload = JSON.parse(
+        Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString(
+          'utf8',
+        ),
+      ) as { amr?: { method?: string; timestamp?: number }[] };
+      const nowSeconds = Date.now() / 1000;
+      return (payload.amr ?? []).some(
+        (entry) =>
+          entry.method === 'oauth' &&
+          typeof entry.timestamp === 'number' &&
+          nowSeconds - entry.timestamp >= 0 &&
+          nowSeconds - entry.timestamp <= REAUTH_WINDOW_SECONDS,
+      );
+    } catch {
+      return false;
+    }
   }
 }

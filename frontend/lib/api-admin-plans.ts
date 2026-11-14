@@ -11,6 +11,7 @@ export interface AdminPlanItem {
   isDefault: boolean;
   sortOrder: number;
   priceEffectiveAt: string | null;
+  featuresEffectiveAt: string | null;
   subscriberCount: number;
 }
 
@@ -60,4 +61,15 @@ export function setAdminPlanActive(
     `/admin/plans/${id}/${active ? "activate" : "deactivate"}`,
     { method: "POST" },
   );
+}
+
+export function changeAdminPlanFeatures(
+  id: string,
+  features: Record<string, unknown>,
+  effectiveAt: string,
+): Promise<AdminPlanItem> {
+  return apiFetch<AdminPlanItem>(`/admin/plans/${id}/features`, {
+    method: "PATCH",
+    body: JSON.stringify({ features, effectiveAt }),
+  });
 }

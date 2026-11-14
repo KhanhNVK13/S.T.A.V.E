@@ -7,10 +7,17 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { maskEmail } from '../common/utils/mask-email.util';
+import {
+  buildEmailContent,
+  EMAIL_SENDER,
+  type EmailSender,
+} from '../notifications/email-sender';
+import { JamService } from '../jam/jam.service';
 import type { UserRow } from '../users/user-row.type';
 import type { ListUsersQueryDto } from './dto/list-users-query.dto';
 
@@ -24,6 +31,10 @@ export class AdminService {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly accountRemoval: AccountRemovalService,
+    @Optional()
+    @Inject(EMAIL_SENDER)
+    private readonly emailSender?: EmailSender,
+    @Optional() private readonly jam?: JamService,
   ) {}
 
   /** UC-96 */
@@ -204,6 +215,13 @@ export class AdminService {
     await this.supabase.auth.admin.updateUserById(targetId, {
       ban_duration: PERMANENT_BAN,
     });
+    try {
+      this.jam?.removeUserFromRooms(targetId);
+    } catch (err) {
+      this.logger.error(
+        `Could not remove ${targetId} from the live jam: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
 
     await this.writeAuditLog(adminId, 'suspend_user', targetId, reason);
     await this.notify(targetId, 'account_suspended', { reason });
@@ -250,8 +268,36 @@ export class AdminService {
       throw new BadRequestException('Username confirmation does not match');
     }
 
-    await this.accountRemoval.remove(targetId, 'Could not remove user', () =>
-      this.writeAuditLog(adminId, 'remove_user', targetId, reason),
+    await this.accountRemoval.remove(
+      targetId,
+      'Could not remove user',
+      async () => {
+        await this.writeAuditLog(adminId, 'remove_user', targetId, reason);
+        await this.sendRemovalEmail(target.email, reason);
+      },
     );
+  }
+
+  private async sendRemovalEmail(
+    email: string | null,
+    reason: string,
+  ): Promise<void> {
+    if (!email || !this.emailSender?.enabled) return;
+    const title = 'Your STAVE account was removed';
+    const body = [
+      `An administrator removed your STAVE account. Reason: ${reason}`,
+      `Quản trị viên đã xoá tài khoản STAVE của bạn. Lý do: ${reason}`,
+    ].join('\n\n');
+    try {
+      await this.emailSender.send({
+        to: email,
+        subject: title,
+        ...buildEmailContent(title, body),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Could not send the account removal email: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }

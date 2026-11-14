@@ -3,11 +3,13 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
 import { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
+import { AccountBillingCancellation } from '../billing/account-billing-cancellation.service';
 import { purgeUserAvatars } from '../common/utils/avatar-storage.util';
 
 const REMOVAL_BAN = '87600h';
@@ -21,6 +23,7 @@ export class AccountRemovalService {
     private readonly supabase: SupabaseClient,
     private readonly audioSketches: AudioSketchesService,
     private readonly customSounds: CustomSoundsService,
+    @Optional() private readonly billing?: AccountBillingCancellation,
   ) {}
 
   /**
@@ -34,6 +37,8 @@ export class AccountRemovalService {
     afterRecordsDeleted?: () => Promise<void>,
   ): Promise<void> {
     const fail = () => new InternalServerErrorException(failureMessage);
+
+    await this.billing?.cancelAll(userId, failureMessage);
 
     const { data: authData, error: authReadError } =
       await this.supabase.auth.admin.getUserById(userId);

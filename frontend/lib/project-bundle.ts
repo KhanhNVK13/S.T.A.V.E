@@ -15,6 +15,7 @@ export interface BundleResult {
   blob: Blob;
   skippedSounds: string[];
   hasAudio: boolean;
+  hasMappedSounds: boolean;
 }
 
 function safeName(value: string): string {
@@ -94,6 +95,22 @@ export async function buildProjectBundle(
     entries.push({ name: `${base}.wav`, data: new Uint8Array(await wav.arrayBuffer()), modified: now });
   }
 
+  const fileBySoundId = new Map(soundManifest.map((s) => [s.id, s.file]));
+  const soundMapping = snapshot.tracks.flatMap((track) =>
+    Object.entries(track.soundMap ?? {}).map(([pitch, soundId]) => ({
+      trackId: track.id,
+      track: track.name,
+      pitch: Number(pitch),
+      soundId,
+      file: fileBySoundId.get(soundId) ?? null,
+    })),
+  );
+  entries.push({
+    name: "sound-mapping.json",
+    data: new TextEncoder().encode(JSON.stringify(soundMapping, null, 2)),
+    modified: now,
+  });
+
   const manifest = {
     project: projectName,
     exportedAt: now.toISOString(),
@@ -114,5 +131,5 @@ export async function buildProjectBundle(
   });
 
   onProgress?.(1);
-  return { blob: createZipBlob(entries), skippedSounds, hasAudio };
+  return { blob: createZipBlob(entries), skippedSounds, hasAudio, hasMappedSounds: soundIds.length > 0 };
 }

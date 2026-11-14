@@ -547,6 +547,29 @@ describe('BE-JAM-01 JamService — UC-66 handleUserJoin', () => {
       service.handleUserJoin('event-1', seedUser(0), 'socket-0-rejoin'),
     ).resolves.toBeDefined();
   });
+
+  it('UTCID07 5.1: leaving and rejoining restores the project in its current state', async () => {
+    const { service } = makeJamService(jamTables());
+
+    await service.handleUserJoin('event-1', aliceUser(), 'socket-a');
+    await service.handleEditNote(
+      aliceUser(),
+      editDto({ action: 'add', note: { ...editDto().note, id: 'note-9' } }),
+    );
+
+    service.handleUserLeave('socket-a', 'event-1');
+    const rejoined = await service.handleUserJoin(
+      'event-1',
+      aliceUser(),
+      'socket-a2',
+    );
+
+    expect(rejoined.snapshot.notes.map((n) => n.id)).toContain('note-9');
+    expect(
+      rejoined.participants.filter((p) => p.userId === ALICE),
+    ).toHaveLength(1);
+    expect(service.participantCount('event-1')).toBe(1);
+  });
 });
 
 describe('BE-JAM-02 JamService — UC-66 listEvents / getEventById / ensureStatus', () => {
@@ -595,7 +618,7 @@ describe('BE-JAM-02 JamService — UC-66 listEvents / getEventById / ensureStatu
   });
 });
 
-// ── UC-67 — handleEditNote (LWW note ops, BR-68/69/71, 12.E1 sweep) ────────
+// ── UC-67 — handleEditNote (LWW note ops, BR-74, 12.E1 sweep) ────────
 
 describe('BE-JAM-03 JamService — UC-67 handleEditNote', () => {
   it('UTCID01 add: note lands in the RAM snapshot, room goes dirty, edit_count bumps', async () => {
@@ -889,7 +912,7 @@ describe('BE-JAM-03 JamService — UC-67 handleEditNote', () => {
   });
 });
 
-describe('BE-JAM-04 JamService — UC-67 sweep + flush failures (BR-116, 12.E1)', () => {
+describe('BE-JAM-04 JamService — UC-67 sweep + flush failures (12.E1)', () => {
   it('UTCID01 12.E1: a failing flush stays dirty, retries, and warns past the threshold', async () => {
     const { service, state, failTables } = makeJamService(jamTables(), {
       failUpsertTables: new Set(['drafts']),
@@ -1172,6 +1195,7 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       events?: Row[];
       projects?: Row[];
       participants?: Row[];
+      failUpdateTables?: Set<string>;
     } = {},
   ) {
     const notifyMock = jest.fn().mockResolvedValue(undefined);
@@ -1182,7 +1206,9 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       jam_participants: overrides.participants ?? [],
       admin_audit_log: [],
     };
-    const supabase = createInMemorySupabase(tables);
+    const supabase = createInMemorySupabase(tables, {
+      failUpdateTables: overrides.failUpdateTables,
+    });
     const service = new JamService(supabase, mockNotifications as any);
     return {
       service,
@@ -1392,6 +1418,28 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('UTCID09 5.E1: a storage failure is reported and the previous configuration is kept', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-fail',
+        status: 'scheduled',
+        name: 'Original name',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const { service, state } = setupAdminService({
+        events: [schedEvent],
+        failUpdateTables: new Set(['jam_events']),
+      });
+
+      await expect(
+        service.configureEvent(ADMIN_ID, 'ev-sched-fail', {
+          name: 'Renamed',
+        }),
+      ).rejects.toThrow(InternalServerErrorException);
+      expect(state.jam_events[0].name).toBe('Original name');
+      expect(state.admin_audit_log).toHaveLength(0);
+    });
   });
 
   describe('BE-JAM-07 cancelEvent', () => {
@@ -1460,6 +1508,29 @@ describe('JamService — UC-94 configureEvent & cancelEvent', () => {
       await expect(
         service.cancelEvent(ADMIN_ID, '00000000-0000-0000-0000-000000000099'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('UTCID05 a storage failure is reported, the event stays scheduled and nobody is notified', async () => {
+      const schedEvent = activeEventRow({
+        id: 'ev-sched-cancel-fail',
+        status: 'scheduled',
+        scheduled_start_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+        scheduled_end_at: new Date(Date.now() + 7200 * 1000).toISOString(),
+      });
+      const { service, state, notifyMock } = setupAdminService({
+        events: [schedEvent],
+        participants: [
+          { event_id: 'ev-sched-cancel-fail', user_id: 'user-p1' },
+        ],
+        failUpdateTables: new Set(['jam_events']),
+      });
+
+      await expect(
+        service.cancelEvent(ADMIN_ID, 'ev-sched-cancel-fail'),
+      ).rejects.toThrow(InternalServerErrorException);
+      expect(state.jam_events[0].status).toBe('scheduled');
+      expect(state.admin_audit_log).toHaveLength(0);
+      expect(notifyMock).not.toHaveBeenCalled();
     });
   });
 });
@@ -1731,14 +1802,16 @@ describe('BE-JAM-11 JamService.createEvent', () => {
       scheduledStartAt: '2026-11-04T14:00:00.000Z',
       scheduledEndAt: '2026-11-04T16:00:00.000Z',
       description: 'Mô tả Jam tương lai',
-      editCooldownSec: 15,
     });
 
     expect(result.name).toBe('Future Jam');
     expect(result.status).toBe('scheduled');
     expect(result.started_at).toBeNull();
     expect(result.ended_at).toBeNull();
-    expect(result.edit_cooldown_sec).toBe(15);
+    expect(result.edit_cooldown_sec).toBe(JamService.DEFAULT_COOLDOWN_SEC);
+    expect(state.projects[0].name).toBe('[Jam] Future Jam');
+    expect(state.projects[0].visibility).toBe('private');
+    expect(state.admin_audit_log[0].action).toBe('create_jam_event');
     expect(state.jam_events).toHaveLength(1);
     expect(state.projects).toHaveLength(1);
     expect(state.branches).toHaveLength(1);
@@ -1822,13 +1895,13 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     expect((createdDraft!.snapshot as DraftSnapshot).meta.tempo).toBe(130);
   });
 
-  it('UTCID04 creates event with confirmOverlap: true bypassing overlap check', async () => {
+  it('UTCID09 creates event with confirmOverlap: true bypassing overlap check', async () => {
     const { service, state } = setupCreateService({
       jam_events: [
         {
           id: 'ev-existing',
           name: 'Existing Jam',
-          status: 'scheduled',
+          status: 'active',
           scheduled_start_at: '2026-11-04T14:00:00.000Z',
           scheduled_end_at: '2026-11-04T16:00:00.000Z',
         },
@@ -1846,7 +1919,7 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     expect(state.jam_events).toHaveLength(2);
   });
 
-  it('UTCID05 rejects when end time equals start time', async () => {
+  it('UTCID06 rejects when end time equals start time', async () => {
     const { service } = setupCreateService();
     await expect(
       service.createEvent(adminId, {
@@ -1859,7 +1932,7 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     );
   });
 
-  it('UTCID06 rejects when end time is before start time', async () => {
+  it('UTCID05 rejects when end time is before start time', async () => {
     const { service } = setupCreateService();
     await expect(
       service.createEvent(adminId, {
@@ -1885,7 +1958,7 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     );
   });
 
-  it('UTCID08 rejects when startingProjectId cannot be copied', async () => {
+  it('UTCID10 rejects when startingProjectId cannot be copied', async () => {
     const { service } = setupCreateService({
       projects: [
         {
@@ -1909,7 +1982,7 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     );
   });
 
-  it('UTCID09 rejects with JAM_OVERLAP_CONFLICT when window overlaps existing event', async () => {
+  it('UTCID08 rejects with JAM_OVERLAP_CONFLICT when window overlaps existing event', async () => {
     const { service } = setupCreateService({
       jam_events: [
         {
@@ -1939,7 +2012,7 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     });
   });
 
-  it('UTCID10 rolls back workspace project quietly and throws 500 when jam_events insert fails', async () => {
+  it('UTCID11 rolls back workspace project quietly and throws 500 when jam_events insert fails', async () => {
     const { service, state } = setupCreateService(
       {},
       { failInsertTables: new Set(['jam_events']) },
@@ -1958,7 +2031,7 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     expect(state.projects).toHaveLength(0);
   });
 
-  it('UTCID11 creates and returns event successfully even when admin_audit_log insert fails', async () => {
+  it('UTCID12 creates and returns event successfully even when admin_audit_log insert fails', async () => {
     const { service, state } = setupCreateService(
       {},
       { failInsertTables: new Set(['admin_audit_log']) },
@@ -1975,15 +2048,17 @@ describe('BE-JAM-11 JamService.createEvent', () => {
     expect(state.admin_audit_log).toHaveLength(0);
   });
 
-  it('UTCID12 applies default cooldown of 30 seconds when editCooldownSec is omitted', async () => {
-    const { service } = setupCreateService();
+  it('UTCID04 stores the editCooldownSec given by the admin', async () => {
+    const { service, state } = setupCreateService();
     const result = await service.createEvent(adminId, {
-      name: 'Default Cooldown Jam',
+      name: 'Custom Cooldown Jam',
       scheduledStartAt: '2026-11-04T14:00:00.000Z',
       scheduledEndAt: '2026-11-04T16:00:00.000Z',
+      editCooldownSec: 60,
     });
 
-    expect(result.edit_cooldown_sec).toBe(JamService.DEFAULT_COOLDOWN_SEC);
+    expect(result.edit_cooldown_sec).toBe(60);
+    expect(state.jam_events[0].edit_cooldown_sec).toBe(60);
   });
 });
 
@@ -2250,5 +2325,37 @@ describe('JamService — durable jam.started / jam.ended dedupe', () => {
     await (service as any).announce(endedRow(), 'jam.ended');
     expect(notify).toHaveBeenCalledTimes(45);
     expect(peak).toBe(20);
+  });
+});
+
+describe('JamService.removeUserFromRooms (suspended user leaves the live jam)', () => {
+  it('drops every socket of the user from the room and notifies the listener', async () => {
+    const service = makeService(makeTables());
+    await service.handleUserJoin('event-1', aliceUser(), 'socket-a1');
+    await service.handleUserJoin('event-1', aliceUser(), 'socket-a2');
+    const listener = jest.fn();
+    service.settleUserRemoved(listener);
+
+    expect(service.removeUserFromRooms(ALICE)).toBe(1);
+
+    expect(listener).toHaveBeenCalledWith(
+      'event-1',
+      ALICE,
+      expect.arrayContaining(['socket-a1', 'socket-a2']),
+      0,
+    );
+    expect(service.participantCount('event-1')).toBe(0);
+  });
+
+  it('returns 0 and notifies nobody when the user is in no room', async () => {
+    const service = makeService(makeTables());
+    await service.handleUserJoin('event-1', aliceUser(), 'socket-a');
+    const listener = jest.fn();
+    service.settleUserRemoved(listener);
+
+    expect(service.removeUserFromRooms(BOB)).toBe(0);
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(service.participantCount('event-1')).toBe(1);
   });
 });

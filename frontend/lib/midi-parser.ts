@@ -12,6 +12,93 @@ import { nextTrackColor } from "./track-colors";
 
 const TRACK_NAME_MAX_LENGTH = 50;
 
+export const MAX_MIDI_IMPORT_BYTES = 5 * 1024 * 1024;
+export const MAX_PROJECT_TRACKS = 32;
+
+export type MidiImportErrorCode = "FILE_TOO_LARGE" | "TOO_MANY_TRACKS";
+
+export class MidiImportError extends Error {
+  constructor(public readonly code: MidiImportErrorCode) {
+    super(code);
+    this.name = "MidiImportError";
+  }
+}
+
+export interface MidiDiscardReport {
+  pitchBends: number;
+  controlChanges: number;
+  sysex: number;
+  extraTempoChanges: number;
+  extraTimeSignatureChanges: number;
+}
+
+function countSysexEvents(buffer: ArrayBuffer): number {
+  const data = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  let pos = 0;
+  let count = 0;
+  const readVlq = () => {
+    let value = 0;
+    for (let i = 0; i < 4; i++) {
+      const byte = data[pos++];
+      value = (value << 7) | (byte & 0x7f);
+      if ((byte & 0x80) === 0) break;
+    }
+    return value;
+  };
+  try {
+    if (data.length < 14 || view.getUint32(0) !== 0x4d546864) return 0;
+    pos = 8 + view.getUint32(4);
+    while (pos + 8 <= data.length) {
+      const id = view.getUint32(pos);
+      const len = view.getUint32(pos + 4);
+      pos += 8;
+      const end = Math.min(data.length, pos + len);
+      if (id === 0x4d54726b) {
+        let running = 0;
+        while (pos < end) {
+          readVlq();
+          let status = data[pos];
+          if (status < 0x80) status = running;
+          else pos++;
+          if (status === 0xff) {
+            pos++;
+            pos += readVlq();
+          } else if (status === 0xf0 || status === 0xf7) {
+            count++;
+            pos += readVlq();
+          } else {
+            running = status;
+            const kind = status & 0xf0;
+            pos += kind === 0xc0 || kind === 0xd0 ? 1 : 2;
+          }
+        }
+      }
+      pos = end;
+    }
+  } catch {
+    return count;
+  }
+  return count;
+}
+
+export function countDiscardedMidiEvents(buffer: ArrayBuffer): MidiDiscardReport {
+  const midi = new Midi(buffer);
+  let pitchBends = 0;
+  let controlChanges = 0;
+  midi.tracks.forEach((t) => {
+    pitchBends += t.pitchBends.length;
+    controlChanges += Object.values(t.controlChanges).reduce((sum, list) => sum + list.length, 0);
+  });
+  return {
+    pitchBends,
+    controlChanges,
+    sysex: countSysexEvents(buffer),
+    extraTempoChanges: Math.max(0, midi.header.tempos.length - 1),
+    extraTimeSignatureChanges: Math.max(0, midi.header.timeSignatures.length - 1),
+  };
+}
+
 const UNSAFE_NAME_CHARS =
   /[\u0000-\u001F\u007F-\u009F\u200E\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
@@ -28,6 +115,9 @@ export function parseMidiBuffer(
   buffer: ArrayBuffer,
   existing?: DraftSnapshot,
 ): DraftSnapshot {
+  if (buffer.byteLength > MAX_MIDI_IMPORT_BYTES) {
+    throw new MidiImportError("FILE_TOO_LARGE");
+  }
   const midi = new Midi(buffer);
 
   const ppq = midi.header.ppq ?? 480;
@@ -45,6 +135,10 @@ export function parseMidiBuffer(
       : [4, 4];
 
   const existingTrackCount = existing?.tracks.length ?? 0;
+  const importedTrackCount = midi.tracks.filter((t) => t.notes.length > 0).length;
+  if (existingTrackCount + importedTrackCount > MAX_PROJECT_TRACKS) {
+    throw new MidiImportError("TOO_MANY_TRACKS");
+  }
   const newTracks: DraftTrack[] = [];
   const newNotes: DraftNote[] = [];
 
@@ -94,7 +188,7 @@ export function parseMidiBuffer(
         // Ticks của file quy đổi sang ppq của dự án
         start: Math.round((n.ticks * targetPpq) / ppq),
         duration: Math.max(1, Math.round((n.durationTicks * targetPpq) / ppq)),
-        velocity: Math.round(n.velocity * 127),
+        velocity: Math.min(127, Math.max(1, Math.round(n.velocity * 127))),
       });
     });
   });

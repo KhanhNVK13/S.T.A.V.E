@@ -95,6 +95,7 @@ interface GatewayMock {
   createCheckout: jest.Mock;
   verifyWebhook: jest.Mock;
   getPaymentStatus: jest.Mock;
+  cancelPayment: jest.Mock;
 }
 
 function fakeGateway(): GatewayMock {
@@ -105,6 +106,7 @@ function fakeGateway(): GatewayMock {
     }),
     verifyWebhook: jest.fn(),
     getPaymentStatus: jest.fn(),
+    cancelPayment: jest.fn(),
   };
 }
 
@@ -186,7 +188,7 @@ describe('BE-BIL-19 PaymentsService.createCheckout', () => {
     });
   });
 
-  it('UTCID16 charges the previous price for a new subscription until the new price takes effect', async () => {
+  it('UTCID13 charges the previous price for a new subscription until the new price takes effect', async () => {
     const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     const { service, mock } = makeService({
       tables: {

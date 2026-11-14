@@ -2,6 +2,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { PresenceUser } from '@stave/shared-types';
 import { CollaborationGateway } from './collaboration.gateway';
 import { PresenceRegistry } from './presence-registry';
+import { BranchMovedNotifier } from '../project-access/branch-moved-notifier';
 
 type Row = Record<string, unknown>;
 
@@ -401,5 +402,40 @@ describe('BE-PRS-04 CollaborationGateway — leave + disconnect cleanup (4.E1)',
     // The collaborator is gone from the room even though their two sockets
     // are what triggered the kick.
     expect(registry.users('p-1')).toHaveLength(0);
+  });
+});
+
+describe('CollaborationGateway — branch:moved fan-out (UC-64 4.1)', () => {
+  it('emits branch:moved to the project room when the commit service announces a move', () => {
+    const notifier = new BranchMovedNotifier();
+    const gateway = new CollaborationGateway(
+      mockSupabase({}),
+      fakeAccess() as never,
+      notifier,
+    );
+    const emits: Array<{ room: string; event: string; payload: unknown }> = [];
+    (gateway as unknown as { server: unknown }).server = {
+      to: (room: string) => ({
+        emit: (event: string, payload: unknown) => {
+          emits.push({ room, event, payload });
+        },
+      }),
+    };
+
+    gateway.onModuleInit();
+    notifier.notify('p-1', 'br-1', 'c-1', OWNER);
+
+    expect(emits).toEqual([
+      {
+        room: 'project:p-1',
+        event: 'branch:moved',
+        payload: {
+          projectId: 'p-1',
+          branchId: 'br-1',
+          commitId: 'c-1',
+          byUserId: OWNER,
+        },
+      },
+    ]);
   });
 });

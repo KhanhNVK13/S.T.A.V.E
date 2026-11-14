@@ -3,7 +3,7 @@ import type {
   PlanListItem,
   SubscriptionPlan,
 } from '@stave/shared-types';
-import { currentPlanPrice } from './renewal';
+import { currentPlanFeatures, currentPlanPrice } from './renewal';
 
 export interface PlanRow {
   id: string;
@@ -16,6 +16,8 @@ export interface PlanRow {
   sort_order: number;
   price_effective_at: string | null;
   previous_price_vnd?: number | null;
+  previous_features?: Record<string, unknown> | null;
+  features_effective_at?: string | null;
 }
 
 export interface SubscriptionRow {
@@ -32,7 +34,7 @@ export interface SubscriptionRow {
 }
 
 export const PLAN_COLUMNS =
-  'id, name, description, price_vnd, features, is_active, is_default, sort_order, price_effective_at, previous_price_vnd';
+  'id, name, description, price_vnd, features, is_active, is_default, sort_order, price_effective_at, previous_price_vnd, previous_features, features_effective_at';
 
 export const SUBSCRIPTION_COLUMNS =
   'id, user_id, plan_id, status, price_locked_vnd, started_at, current_period_end, pending_plan_id, grace_until, renewal_notified_at';
@@ -98,7 +100,7 @@ export function toSubscriptionPlan(
     name: row.name,
     description: row.description ?? '',
     priceVnd: currentPlanPrice(row, now),
-    features: row.features ?? {},
+    features: currentPlanFeatures(row, now),
     isActive: row.is_active,
     isDefault: row.is_default,
     sortOrder: row.sort_order,

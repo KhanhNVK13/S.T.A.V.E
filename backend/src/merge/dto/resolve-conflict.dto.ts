@@ -16,6 +16,7 @@ export enum ConflictChoice {
   PICK_SOURCE = 'PICK_SOURCE',
   PICK_TARGET = 'PICK_TARGET',
   PICK_CUSTOM = 'PICK_CUSTOM',
+  KEEP_BOTH = 'KEEP_BOTH',
 }
 
 /**

@@ -45,4 +45,11 @@ describe("FE-LIB-43 encodeMp3", () => {
     expect(blob.size).toBeGreaterThan(500);
     expect(seen[seen.length - 1]).toBe(1);
   });
+
+  it("UTCID03 a higher bitrate produces a larger stream for the same audio", async () => {
+    const buffer = fakeBuffer(2, 44100, 1);
+    const low = await encodeMp3(buffer, 128);
+    const high = await encodeMp3(buffer, 320);
+    expect(high.size).toBeGreaterThan(low.size);
+  });
 });

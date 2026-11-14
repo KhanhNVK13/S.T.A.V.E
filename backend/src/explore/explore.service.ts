@@ -106,7 +106,7 @@ export class ExploreService {
     query: PublicProjectsQueryDto,
   ): Promise<PaginatedResult<PublicProjectCard>> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 12;
+    const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
 
     if (query.sort === 'popular' || query.sort === 'most_played') {

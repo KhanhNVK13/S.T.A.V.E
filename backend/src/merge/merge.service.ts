@@ -5,7 +5,9 @@ import {
   BadRequestException,
   ConflictException as HttpConflictException,
   InternalServerErrorException,
+  Optional,
 } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   DraftSnapshot,
@@ -17,8 +19,10 @@ import { DRAFT_SCHEMA_VERSION } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { BranchesService } from '../branches/branches.service';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import { JamLockService } from '../project-access/jam-lock.service';
 import { MergeBranchDto } from './dto/merge-branch.dto';
 import { ResolveConflictDto, ConflictChoice } from './dto/resolve-conflict.dto';
+import { isTrackModified } from '../commits/diff.service';
 
 /** Raw row from branches table */
 interface BranchDbRow {
@@ -83,6 +87,7 @@ export class MergeService {
     private readonly supabase: SupabaseClient<any, 'public', any>,
     private readonly branchesService: BranchesService,
     private readonly access: ProjectAccessService,
+    @Optional() private readonly jamLock?: JamLockService,
   ) {}
 
   // ==========================================================================
@@ -120,6 +125,7 @@ export class MergeService {
 
     // Verify user has edit permission
     await this.verifyUserEditPermission(sourceBranch.project_id, userId);
+    await this.jamLock?.assertNoActiveJam(sourceBranch.project_id);
 
     // 8.E1: someone else may have committed to target while this merge was
     // being reviewed on the client — caller must restart against fresh state.
@@ -264,6 +270,7 @@ export class MergeService {
     // Same authorization requirement as starting a merge — this endpoint
     // writes a commit into the target project, it can't be left open.
     await this.verifyUserEditPermission(sourceBranch.project_id, userId);
+    await this.jamLock?.assertNoActiveJam(sourceBranch.project_id);
 
     if (
       expectedTargetHeadCommitId !== undefined &&
@@ -278,9 +285,12 @@ export class MergeService {
       sourceBranch.head_commit_id,
       targetBranch.head_commit_id,
     );
+    if (!mergeBase) {
+      throw new BadRequestException('Branches have no common ancestor');
+    }
 
     const [baseSnapshot, sourceSnapshot, targetSnapshot] = await Promise.all([
-      mergeBase ? this.getCommitSnapshot(mergeBase) : Promise.resolve(null),
+      this.getCommitSnapshot(mergeBase),
       this.getCommitSnapshot(sourceBranch.head_commit_id),
       this.getCommitSnapshot(targetBranch.head_commit_id),
     ]);
@@ -305,6 +315,14 @@ export class MergeService {
     const commitMessage =
       message ??
       `Merge branch '${sourceBranch.name}' into ${targetBranch.name}`;
+    const conflictIds = new Set(notesResult.conflicts.map((c) => c.noteId));
+    const mergeResolutions = resolutions
+      .filter((r) => conflictIds.has(r.noteId))
+      .map((r) => ({
+        noteId: r.noteId,
+        choice: r.choice,
+        ...(r.customNote ? { customNote: r.customNote } : {}),
+      }));
     const commit = await this.createMergeCommit(
       userId,
       targetBranch,
@@ -312,6 +330,7 @@ export class MergeService {
       sourceBranch.head_commit_id,
       finalMergedSnapshot,
       commitMessage,
+      mergeResolutions,
     );
 
     return { hasConflicts: false, commit };
@@ -381,7 +400,11 @@ export class MergeService {
         target.meta ??
         base.meta ?? { tempo: 120, timeSignature: [4, 4], ppq: 480 },
       tracks: tracksResult,
-      notes: notesResult.merged,
+      notes: this.dropOrphanNotes(notesResult.merged, tracksResult, [
+        base.tracks,
+        source.tracks,
+        target.tracks,
+      ]),
     };
 
     const message = `Merge branch '${sourceBranch.name}' into ${targetBranch.name}`;
@@ -524,12 +547,18 @@ export class MergeService {
       const targetTrack = targetMap.get(trackId);
       const baseTrack = baseMap.get(trackId);
 
-      if (sourceTrack) {
-        merged.push(sourceTrack);
+      if (sourceTrack && targetTrack) {
+        const sourceChanged =
+          !baseTrack || isTrackModified(baseTrack, sourceTrack);
+        merged.push(sourceChanged ? sourceTrack : targetTrack);
+      } else if (sourceTrack) {
+        if (!baseTrack || isTrackModified(baseTrack, sourceTrack)) {
+          merged.push(sourceTrack);
+        }
       } else if (targetTrack) {
-        merged.push(targetTrack);
-      } else if (baseTrack) {
-        merged.push(baseTrack);
+        if (!baseTrack || isTrackModified(baseTrack, targetTrack)) {
+          merged.push(targetTrack);
+        }
       }
     }
 
@@ -551,7 +580,7 @@ export class MergeService {
     resolutions: Array<{
       noteId: string;
       choice: ConflictChoice;
-      customNote?: Partial<DraftNote>;
+      customNote?: Partial<DraftNote> & { startTime?: number };
     }>,
   ): DraftSnapshot {
     const resultNotes: DraftNote[] = [...preMergedNotes];
@@ -563,10 +592,12 @@ export class MergeService {
 
     for (const conflict of conflicts) {
       const resolution = resolutions.find((r) => r.noteId === conflict.noteId);
-      const { noteId, choice, customNote } = resolution ?? {
-        noteId: conflict.noteId,
-        choice: ConflictChoice.PICK_TARGET as ConflictChoice,
-      };
+      if (!resolution) {
+        throw new BadRequestException(
+          'Every conflict must be resolved before merging',
+        );
+      }
+      const { noteId, choice, customNote } = resolution;
 
       switch (choice) {
         case ConflictChoice.PICK_SOURCE: {
@@ -582,17 +613,43 @@ export class MergeService {
           break;
         }
         case ConflictChoice.PICK_CUSTOM: {
-          if (customNote) {
-            resultNotes.push({
-              id: noteId,
-              trackId: customNote.trackId ?? conflict.baseNote?.trackId ?? '',
-              pitch: customNote.pitch ?? conflict.baseNote?.pitch ?? 60,
-              start: customNote.start ?? conflict.baseNote?.start ?? 0,
-              duration:
-                customNote.duration ?? conflict.baseNote?.duration ?? 480,
-              velocity:
-                customNote.velocity ?? conflict.baseNote?.velocity ?? 80,
-            });
+          if (!customNote) {
+            throw new BadRequestException(
+              'A custom resolution needs the note to use',
+            );
+          }
+          resultNotes.push({
+            id: noteId,
+            trackId: customNote.trackId ?? conflict.baseNote?.trackId ?? '',
+            pitch: customNote.pitch ?? conflict.baseNote?.pitch ?? 60,
+            start:
+              customNote.start ??
+              customNote.startTime ??
+              conflict.baseNote?.start ??
+              0,
+            duration: customNote.duration ?? conflict.baseNote?.duration ?? 480,
+            velocity: customNote.velocity ?? conflict.baseNote?.velocity ?? 80,
+          });
+          break;
+        }
+        case ConflictChoice.KEEP_BOTH: {
+          const { targetNote, sourceNote } = conflict;
+          if (
+            targetNote &&
+            sourceNote &&
+            targetNote.trackId === sourceNote.trackId &&
+            targetNote.pitch === sourceNote.pitch &&
+            targetNote.start === sourceNote.start
+          ) {
+            throw new BadRequestException(
+              'Both versions place a note at the same pitch and moment; choose one of them',
+            );
+          }
+          if (targetNote) resultNotes.push(targetNote);
+          if (sourceNote) {
+            resultNotes.push(
+              targetNote ? { ...sourceNote, id: uuidv4() } : sourceNote,
+            );
           }
           break;
         }
@@ -603,8 +660,27 @@ export class MergeService {
       schemaVersion: DRAFT_SCHEMA_VERSION,
       meta: source.meta ?? target.meta ?? base.meta,
       tracks: resultTracks,
-      notes: resultNotes,
+      notes: this.dropOrphanNotes(resultNotes, resultTracks, [
+        base.tracks,
+        source.tracks,
+        target.tracks,
+      ]),
     };
+  }
+
+  private dropOrphanNotes(
+    notes: DraftNote[],
+    mergedTracks: DraftTrack[],
+    allTrackLists: DraftTrack[][],
+  ): DraftNote[] {
+    const kept = new Set(mergedTracks.map((t) => t.id));
+    const deleted = new Set<string>();
+    for (const list of allTrackLists) {
+      for (const t of list) {
+        if (!kept.has(t.id)) deleted.add(t.id);
+      }
+    }
+    return notes.filter((n) => !deleted.has(n.trackId));
   }
 
   private notesEqual(a: DraftNote, b: DraftNote): boolean {
@@ -675,6 +751,7 @@ export class MergeService {
     sourceHeadCommitId: string | null,
     snapshot: DraftSnapshot,
     message: string,
+    mergeResolutions: unknown[] | null = null,
   ): Promise<CommitRow> {
     const { data: commit, error } = await this.supabase.rpc(
       'create_merge_commit_atomic',
@@ -686,6 +763,7 @@ export class MergeService {
         p_parent_commit_id: targetBranch.head_commit_id,
         p_merged_from_branch_id: sourceBranchId,
         p_merged_from_commit_id: sourceHeadCommitId,
+        ...(mergeResolutions ? { p_merge_resolutions: mergeResolutions } : {}),
       },
     );
 

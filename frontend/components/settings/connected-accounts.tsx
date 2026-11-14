@@ -12,6 +12,7 @@ import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Field, INPUT_CLASS } from "../ui/form";
 import { useI18n } from "../../context/i18n-context";
 import { tNow } from "../../lib/i18n";
+import { isLastSignInMethod } from "../../lib/auth-methods";
 
 const LINK_PENDING_KEY = "stave_google_link_pending";
 const MIN_PASSWORD_LENGTH = 8;
@@ -149,6 +150,14 @@ export function ConnectedAccounts() {
     if (!google) return;
     setBusy(true);
     setError(null);
+    const fresh = await load();
+    if (fresh && isLastSignInMethod(fresh.map((identity) => identity.provider), "google")) {
+      setBusy(false);
+      setConfirmOpen(false);
+      setNeedsPassword(true);
+      setError(errorSource(null, "conn.lastMethod"));
+      return;
+    }
     const { error: unlinkError } = await supabase.auth.unlinkIdentity(google);
     setBusy(false);
     setConfirmOpen(false);

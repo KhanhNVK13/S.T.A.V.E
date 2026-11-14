@@ -82,7 +82,7 @@ const priv = (service: CommitsService, name: string) =>
 // =============================================================================
 
 describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
-  it('BE-CMT-09 UTCID01 (N): returns the project id of a commit owned by the user', async () => {
+  it('UTCID01 (N): returns the project id of a commit owned by the user', async () => {
     const { service } = buildService({
       commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
       projects: [{ data: { id: PROJECT, owner_id: USER } }],
@@ -97,7 +97,7 @@ describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
     expect(result).toBe(PROJECT);
   });
 
-  it('BE-CMT-09 UTCID02 (A): throws NotFoundException when the commit query errors', async () => {
+  it('UTCID02 (A): throws NotFoundException when the commit query errors', async () => {
     const { service } = buildService({
       commits: [{ data: null, error: { message: 'boom' } }],
     });
@@ -110,7 +110,7 @@ describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
     );
   });
 
-  it('BE-CMT-09 UTCID03 (A): throws NotFoundException when the commit row is null', async () => {
+  it('UTCID03 (A): throws NotFoundException when the commit row is null', async () => {
     const { service } = buildService({
       commits: [{ data: null, error: null }],
     });
@@ -122,7 +122,7 @@ describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
     );
   });
 
-  it('BE-CMT-09 UTCID04 (A): throws NotFoundException when the commit has no branch join', async () => {
+  it('UTCID04 (A): throws NotFoundException when the commit has no branch join', async () => {
     const { service } = buildService({
       commits: [{ data: { id: 'c1', branch: null } }],
     });
@@ -134,7 +134,7 @@ describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
     );
   });
 
-  it('BE-CMT-09 UTCID05 (A): throws NotFoundException when the project does not exist', async () => {
+  it('UTCID05 (A): throws NotFoundException when the project does not exist', async () => {
     const { service } = buildService({
       commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
       projects: [{ data: null, error: null }],
@@ -147,7 +147,7 @@ describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
     );
   });
 
-  it('BE-CMT-09 UTCID06 (A): throws ForbiddenException when the project belongs to another user', async () => {
+  it('UTCID06 (A): throws ForbiddenException when the project belongs to another user', async () => {
     const { service } = buildService({
       commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
       projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
@@ -161,7 +161,7 @@ describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
     );
   });
 
-  it('BE-CMT-09 UTCID07 (N): allows an accepted edit collaborator to pass the access check', async () => {
+  it('UTCID07 (N): allows an accepted edit collaborator to pass the access check', async () => {
     const { service } = buildService({
       commits: [{ data: { id: 'c1', branch: { project_id: PROJECT } } }],
       projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
@@ -192,7 +192,7 @@ describe('BE-CMT-09 CommitsService.verifyCommitAccess', () => {
 // =============================================================================
 
 describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
-  it('BE-CMT-10 UTCID01 (N): returns the BranchDbRow including head_commit_id', async () => {
+  it('UTCID01 (N): returns the BranchDbRow including head_commit_id', async () => {
     const { service } = buildService({
       branches: [
         {
@@ -221,7 +221,7 @@ describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
     expect(result.head_commit_id).toBe('head-1');
   });
 
-  it('BE-CMT-10 UTCID02 (A): throws NotFoundException when the branch query errors', async () => {
+  it('UTCID02 (A): throws NotFoundException when the branch query errors', async () => {
     const { service } = buildService({
       branches: [{ data: null, error: { message: 'boom' } }],
     });
@@ -238,7 +238,7 @@ describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
     );
   });
 
-  it('BE-CMT-10 UTCID03 (A): throws NotFoundException when the branch row is null', async () => {
+  it('UTCID03 (A): throws NotFoundException when the branch row is null', async () => {
     const { service } = buildService({
       branches: [{ data: null, error: null }],
     });
@@ -254,7 +254,7 @@ describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
     );
   });
 
-  it('BE-CMT-10 UTCID04 (A): throws NotFoundException when the project row is missing', async () => {
+  it('UTCID04 (A): throws NotFoundException when the project row is missing', async () => {
     const { service } = buildService({
       branches: [
         {
@@ -284,7 +284,7 @@ describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
     );
   });
 
-  it('BE-CMT-10 UTCID05 (A): throws ForbiddenException when the project owner differs', async () => {
+  it('UTCID05 (A): throws ForbiddenException when the project owner differs', async () => {
     const { service } = buildService({
       branches: [
         {
@@ -314,7 +314,7 @@ describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
     );
   });
 
-  it('BE-CMT-10 UTCID06 (N): allows an accepted edit collaborator to pass the access check', async () => {
+  it('UTCID06 (N): allows an accepted edit collaborator to pass the access check', async () => {
     const { service } = buildService({
       branches: [
         {
@@ -368,7 +368,7 @@ describe('BE-CMT-10 CommitsService.verifyBranchAccess', () => {
 // =============================================================================
 
 describe('BE-CMT-11 CommitsService.isSnapshotIdenticalToHead', () => {
-  it('BE-CMT-11 UTCID01 (N): returns true when the snapshot equals the head snapshot', async () => {
+  it('UTCID01 (N): returns true when the snapshot equals the head snapshot', async () => {
     const { service } = buildService({
       commits: [{ data: { id: 'head-1', snapshot: snapshot() } }],
     });
@@ -381,7 +381,7 @@ describe('BE-CMT-11 CommitsService.isSnapshotIdenticalToHead', () => {
     expect(result).toBe(true);
   });
 
-  it('BE-CMT-11 UTCID02 (N): returns false when one note velocity changed', async () => {
+  it('UTCID02 (N): returns false when one note velocity changed', async () => {
     const head = snapshot({
       notes: [
         {
@@ -419,7 +419,7 @@ describe('BE-CMT-11 CommitsService.isSnapshotIdenticalToHead', () => {
     expect(result).toBe(false);
   });
 
-  it('BE-CMT-11 UTCID03 (N): returns false when only the tempo changed', async () => {
+  it('UTCID03 (N): returns false when only the tempo changed', async () => {
     const head = snapshot({
       meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
     });
@@ -439,7 +439,7 @@ describe('BE-CMT-11 CommitsService.isSnapshotIdenticalToHead', () => {
     expect(result).toBe(false);
   });
 
-  it('BE-CMT-11 UTCID04 (A): returns false when the head commit query errors', async () => {
+  it('UTCID04 (A): returns false when the head commit query errors', async () => {
     const { service } = buildService({
       commits: [{ data: null, error: { message: 'boom' } }],
     });
@@ -452,7 +452,7 @@ describe('BE-CMT-11 CommitsService.isSnapshotIdenticalToHead', () => {
     expect(result).toBe(false);
   });
 
-  it('BE-CMT-11 UTCID05 (A): returns false when the head commit row is null', async () => {
+  it('UTCID05 (A): returns false when the head commit row is null', async () => {
     const { service } = buildService({
       commits: [{ data: null, error: null }],
     });
@@ -471,8 +471,27 @@ describe('BE-CMT-11 CommitsService.isSnapshotIdenticalToHead', () => {
 // =============================================================================
 
 describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
-  it('BE-CMT-12 UTCID01 (N): keeps schemaVersion 3 and the meta block', () => {
+  it('UTCID01 (N): keeps schemaVersion 3, the meta block and fully set track and note fields', () => {
     const { service } = buildService({});
+    const track = {
+      id: 't1',
+      name: 'Piano',
+      instrument: 'piano',
+      order: 2,
+      color: '#ff0000',
+      volume: 0.5,
+      pan: -0.25,
+      muted: false,
+      solo: false,
+    };
+    const note = {
+      id: 'n1',
+      trackId: 't1',
+      pitch: 60,
+      start: 0,
+      duration: 480,
+      velocity: 100,
+    };
 
     const result = priv(
       service,
@@ -480,15 +499,17 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
     )({
       schemaVersion: 3,
       meta: { tempo: 90, timeSignature: [3, 4], ppq: 480 },
-      tracks: [],
-      notes: [],
+      tracks: [track],
+      notes: [note],
     });
 
     expect(result.schemaVersion).toBe(3);
     expect(result.meta).toEqual({ tempo: 90, timeSignature: [3, 4], ppq: 480 });
+    expect(result.tracks[0]).toEqual(expect.objectContaining(track));
+    expect(result.notes[0]).toEqual(expect.objectContaining(note));
   });
 
-  it('BE-CMT-12 UTCID02 (N): falls back to schemaVersion 1 and a default meta block', () => {
+  it('UTCID02 (N): falls back to schemaVersion 1 and a default meta block', () => {
     const { service } = buildService({});
 
     const result = priv(service, 'normalizeSnapshot')({});
@@ -503,7 +524,7 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
     expect(result.notes).toEqual([]);
   });
 
-  it('BE-CMT-12 UTCID03 (N): keeps an empty track list and note list', () => {
+  it('UTCID03 (N): keeps an empty track list and note list', () => {
     const { service } = buildService({});
 
     const result = priv(
@@ -520,7 +541,7 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
     expect(result.notes).toEqual([]);
   });
 
-  it('BE-CMT-12 UTCID04 (N): applies track defaults for a missing id, order, color, volume and pan', () => {
+  it('UTCID04 (N): applies track and note defaults for missing fields', () => {
     const { service } = buildService({});
 
     const result = priv(
@@ -541,9 +562,16 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
     expect(track.color).toBe('#6366f1');
     expect(track.volume).toBe(1);
     expect(track.pan).toBe(0);
+    const note = result.notes[0];
+    expect(note.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(note.start).toBe(0);
+    expect(note.velocity).toBe(80);
+    expect(note.duration).toBeGreaterThan(0);
   });
 
-  it('BE-CMT-12 UTCID05 (N): maps isMuted/isSolo onto muted/solo', () => {
+  it('UTCID05 (N): maps isMuted/isSolo onto muted/solo', () => {
     const { service } = buildService({});
 
     const result = priv(
@@ -560,7 +588,7 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
     expect(result.tracks[0].solo).toBe(true);
   });
 
-  it('BE-CMT-12 UTCID06 (N): sanitizes a soundMap entry with an out-of-range pitch', () => {
+  it('UTCID06 (N): sanitizes a soundMap entry with an out-of-range pitch', () => {
     const { service } = buildService({});
 
     const result = priv(
@@ -578,7 +606,7 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
     expect(result.tracks[0].soundMap).toBeUndefined();
   });
 
-  it('BE-CMT-12 UTCID07 (N): copies note fields unchanged when all are set', () => {
+  it('copies note fields unchanged when all are set', () => {
     const { service } = buildService({});
 
     const result = priv(
@@ -612,7 +640,7 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
     );
   });
 
-  it('BE-CMT-12 UTCID08 (N): applies note defaults for a missing id, start, duration and velocity', () => {
+  it('applies note defaults for a missing id, start, duration and velocity', () => {
     const { service } = buildService({});
 
     const result = priv(
@@ -639,7 +667,7 @@ describe('BE-CMT-12 CommitsService.normalizeSnapshot', () => {
 // =============================================================================
 
 describe('BE-CMT-13 CommitsService.getTagsForCommits', () => {
-  it('BE-CMT-13 UTCID01 (N): returns an empty Map and sends no query for an empty id list', async () => {
+  it('UTCID01 (N): returns an empty Map and sends no query for an empty id list', async () => {
     const { service, calls } = buildService({});
 
     const result = await priv(service, 'getTagsForCommits')([]);
@@ -648,7 +676,7 @@ describe('BE-CMT-13 CommitsService.getTagsForCommits', () => {
     expect(calls.find((c) => c.table === 'commit_tags')).toBeUndefined();
   });
 
-  it('BE-CMT-13 UTCID02 (N): groups the tags of each commit into the Map', async () => {
+  it('UTCID02 (N): groups the tags of each commit into the Map', async () => {
     const { service, calls } = buildService({
       commit_tags: [
         {
@@ -689,7 +717,7 @@ describe('BE-CMT-13 CommitsService.getTagsForCommits', () => {
     });
   });
 
-  it('BE-CMT-13 UTCID03 (N): returns an empty Map when the query returns no rows', async () => {
+  it('UTCID03 (N): returns an empty Map when the query returns no rows', async () => {
     const { service } = buildService({ commit_tags: [{ data: [] }] });
 
     const result = await priv(service, 'getTagsForCommits')(['c1', 'c2']);
@@ -697,7 +725,7 @@ describe('BE-CMT-13 CommitsService.getTagsForCommits', () => {
     expect(result.size).toBe(0);
   });
 
-  it('BE-CMT-13 UTCID04 (A): returns an empty Map and logs when the query errors', async () => {
+  it('UTCID04 (A): returns an empty Map and logs when the query errors', async () => {
     const spy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -714,7 +742,7 @@ describe('BE-CMT-13 CommitsService.getTagsForCommits', () => {
     spy.mockRestore();
   });
 
-  it('BE-CMT-13 UTCID05 (A): returns an empty Map when the query returns null data', async () => {
+  it('UTCID05 (A): returns an empty Map when the query returns null data', async () => {
     const { service } = buildService({
       commit_tags: [{ data: null, error: null }],
     });
@@ -730,7 +758,7 @@ describe('BE-CMT-13 CommitsService.getTagsForCommits', () => {
 // =============================================================================
 
 describe('BE-CMT-14 CommitsService.getAuthorsInfo', () => {
-  it('BE-CMT-14 UTCID01 (N): returns an empty Map and sends no query for an empty id list', async () => {
+  it('UTCID01 (N): returns an empty Map and sends no query for an empty id list', async () => {
     const { service, calls } = buildService({});
 
     const result = await priv(service, 'getAuthorsInfo')([]);
@@ -739,7 +767,7 @@ describe('BE-CMT-14 CommitsService.getAuthorsInfo', () => {
     expect(calls.find((c) => c.table === 'users')).toBeUndefined();
   });
 
-  it('BE-CMT-14 UTCID02 (N): maps each user id to its author info', async () => {
+  it('UTCID02 (N): maps each user id to its author info', async () => {
     const { service, calls } = buildService({
       users: [
         {
@@ -776,7 +804,7 @@ describe('BE-CMT-14 CommitsService.getAuthorsInfo', () => {
     });
   });
 
-  it('BE-CMT-14 UTCID03 (N): contains only the returned user when only one row comes back', async () => {
+  it('UTCID03 (N): contains only the returned user when only one row comes back', async () => {
     const { service } = buildService({
       users: [
         {
@@ -798,7 +826,7 @@ describe('BE-CMT-14 CommitsService.getAuthorsInfo', () => {
     expect(result.has('u2')).toBe(false);
   });
 
-  it('BE-CMT-14 UTCID04 (A): returns an empty Map and logs when the query errors', async () => {
+  it('UTCID04 (A): returns an empty Map and logs when the query errors', async () => {
     const spy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -815,7 +843,7 @@ describe('BE-CMT-14 CommitsService.getAuthorsInfo', () => {
     spy.mockRestore();
   });
 
-  it('BE-CMT-14 UTCID05 (N): maps missing profile fields to null', async () => {
+  it('UTCID05 (N): maps missing profile fields to null', async () => {
     const { service } = buildService({
       users: [{ data: [{ id: 'u1' }] }],
     });
@@ -836,7 +864,7 @@ describe('BE-CMT-14 CommitsService.getAuthorsInfo', () => {
 // =============================================================================
 
 describe('BE-CMT-15 CommitsService.verifyProjectAccess', () => {
-  it('BE-CMT-15 UTCID01 (N): resolves void when the user owns the project', async () => {
+  it('UTCID01 (N): resolves void when the user owns the project', async () => {
     const { service } = buildService({
       projects: [{ data: { id: PROJECT, owner_id: USER } }],
     });
@@ -846,7 +874,7 @@ describe('BE-CMT-15 CommitsService.verifyProjectAccess', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('BE-CMT-15 UTCID02 (A): throws NotFoundException when the project row is null', async () => {
+  it('UTCID02 (A): throws NotFoundException when the project row is null', async () => {
     const { service } = buildService({
       projects: [{ data: null, error: null }],
     });
@@ -859,7 +887,7 @@ describe('BE-CMT-15 CommitsService.verifyProjectAccess', () => {
     );
   });
 
-  it('BE-CMT-15 UTCID03 (A): throws InternalServerErrorException when the project query errors', async () => {
+  it('UTCID03 (A): throws InternalServerErrorException when the project query errors', async () => {
     const { service } = buildService({
       projects: [{ data: null, error: { message: 'boom' } }],
     });
@@ -871,7 +899,7 @@ describe('BE-CMT-15 CommitsService.verifyProjectAccess', () => {
     );
   });
 
-  it('BE-CMT-15 UTCID04 (A): throws ForbiddenException when the project owner differs', async () => {
+  it('UTCID04 (A): throws ForbiddenException when the project owner differs', async () => {
     const { service } = buildService({
       projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
     });
@@ -884,7 +912,7 @@ describe('BE-CMT-15 CommitsService.verifyProjectAccess', () => {
     );
   });
 
-  it('BE-CMT-15 UTCID05 (N): allows an accepted edit collaborator to pass the access check', async () => {
+  it('UTCID05 (N): allows an accepted edit collaborator to pass the access check', async () => {
     const { service } = buildService({
       projects: [{ data: { id: PROJECT, owner_id: OTHER } }],
       project_collaborators: [

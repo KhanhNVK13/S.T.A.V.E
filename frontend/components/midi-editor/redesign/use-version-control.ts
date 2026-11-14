@@ -28,6 +28,7 @@ import {
 } from "../../../lib/api-client";
 import type { Branch, CommitWithAuthor } from "../../../lib/api-client";
 import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
+import { BRANCH_POLL_INTERVAL_MS, isBranchAhead } from "../../../lib/branch-moved";
 
 /**
  * Số commit tải mỗi lần. Response của `GET /commits` kèm nguyên snapshot của
@@ -101,6 +102,10 @@ export interface VersionControl {
 
   /** Thông báo ngắn sau thao tác thành công (tự ẩn sau vài giây). */
   notice: string | null;
+
+  branchMoved: boolean;
+  noteBranchMoved: (info: { branchId: string; commitId: string }) => void;
+  acknowledgeBranchMoved: () => Promise<void>;
 }
 
 export function useVersionControl({
@@ -237,6 +242,54 @@ export function useVersionControl({
     } catch {
       // Không chặn luồng chính: lần commit sau sẽ báo lại nếu vẫn lệch.
     }
+  }, [projectId, branchId]);
+
+  const [branchMoved, setBranchMoved] = useState(false);
+
+  const noteBranchMoved = useCallback(
+    (info: { branchId: string; commitId: string }) => {
+      if (
+        isBranchAhead({
+          openBranchId: branchId,
+          movedBranchId: info.branchId,
+          knownHeadId: headCommitIdRef.current,
+          newHeadId: info.commitId,
+        })
+      ) {
+        setBranchMoved(true);
+      }
+    },
+    [branchId],
+  );
+
+  const acknowledgeBranchMoved = useCallback(async () => {
+    await refreshHeadFromServer();
+    if (branchId) void loadHistory(branchId);
+    if (mountedRef.current) setBranchMoved(false);
+  }, [refreshHeadFromServer, loadHistory, branchId]);
+
+  useEffect(() => {
+    if (!branchId) return;
+    const timer = setInterval(() => {
+      listProjectBranches(projectId)
+        .then((list) => {
+          const fresh = list.find((b) => b.id === branchId);
+          if (
+            mountedRef.current &&
+            fresh &&
+            isBranchAhead({
+              openBranchId: branchId,
+              movedBranchId: fresh.id,
+              knownHeadId: headCommitIdRef.current,
+              newHeadId: fresh.head_commit_id,
+            })
+          ) {
+            setBranchMoved(true);
+          }
+        })
+        .catch(() => undefined);
+    }, BRANCH_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
   }, [projectId, branchId]);
 
   // ── UC-42: tạo commit ─────────────────────────────────────────
@@ -461,5 +514,8 @@ export function useVersionControl({
     restore,
     clearRestoreError,
     notice,
+    branchMoved,
+    noteBranchMoved,
+    acknowledgeBranchMoved,
   };
 }

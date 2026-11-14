@@ -249,6 +249,15 @@ export class JamService {
   private endEventEndedListener: ((payload: JamEndedPayload) => void) | null =
     null;
 
+  private userRemovedListener:
+    | ((
+        eventId: string,
+        userId: string,
+        socketIds: string[],
+        totalParticipants: number,
+      ) => void)
+    | null = null;
+
   /** Minimum scope cap (duc.md): ~50 simultaneous participants per room. */
   static readonly MAX_JAM_PARTICIPANTS = 50;
 
@@ -1139,7 +1148,7 @@ export class JamService {
     return this.participantIds(ids);
   }
 
-  private async persistStatus(row: JamEventRow): Promise<void> {
+  private async persistStatus(row: JamEventRow, strict = false): Promise<void> {
     const seeded = SEEDED_JAM_EVENTS.find((e) => e.id === row.id);
     if (seeded) {
       Object.assign(seeded, {
@@ -1162,9 +1171,14 @@ export class JamService {
         JamService.logger.debug(
           `Persist status in DB skipped: ${error.message}`,
         );
+        if (strict && !seeded) {
+          throw new InternalServerErrorException(
+            'Could not update the jam event status',
+          );
+        }
       }
-    } catch {
-      // In-memory or pre-migration fallback
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
     }
   }
 
@@ -1301,6 +1315,38 @@ export class JamService {
 
     this.recordActivity(room, leaving, 'leave');
     return true;
+  }
+
+  settleUserRemoved(
+    listener: (
+      eventId: string,
+      userId: string,
+      socketIds: string[],
+      totalParticipants: number,
+    ) => void,
+  ): void {
+    this.userRemovedListener = listener;
+  }
+
+  /** UC-97 4.E2 — drop a suspended user from every live room, closing all their sockets. */
+  removeUserFromRooms(userId: string): number {
+    let removed = 0;
+    for (const [eventId, room] of this.rooms) {
+      const entries = Object.entries(room.participants).filter(
+        ([, p]) => p.userId === userId,
+      );
+      if (entries.length === 0) continue;
+      for (const [socketId] of entries) delete room.participants[socketId];
+      this.recordActivity(room, entries[0][1], 'leave');
+      this.userRemovedListener?.(
+        eventId,
+        userId,
+        entries.map(([socketId]) => socketId),
+        this.participantCount(eventId),
+      );
+      removed += 1;
+    }
+    return removed;
   }
 
   /** Distinct user count of a room (0 when the room is not in RAM). */
@@ -1796,9 +1842,10 @@ export class JamService {
     // Nothing writable was supplied — return the event unchanged.
     if (Object.keys(patch).length === 0) return this.toPublicEvent(row);
 
-    row.updated_at = new Date().toISOString();
+    const updatedAt = new Date().toISOString();
+    await this.persistJamConfigure(row.id, patch, updatedAt);
+    row.updated_at = updatedAt;
     Object.assign(row, patch);
-    await this.persistJamConfigure(row, patch);
 
     // BR-75 / 3.1 — push the change into the live room.
     if (isActive && patch.scheduled_end_at) {
@@ -1857,10 +1904,20 @@ export class JamService {
     }
 
     const nowIso = new Date().toISOString();
+    const previous = {
+      status: row.status,
+      ended_at: row.ended_at,
+      updated_at: row.updated_at,
+    };
     row.status = 'cancelled';
     row.ended_at = nowIso;
     row.updated_at = nowIso;
-    await this.persistStatus(row);
+    try {
+      await this.persistStatus(row, true);
+    } catch (err) {
+      Object.assign(row, previous);
+      throw err;
+    }
     this.freezeRoom(eventId); // defensive: a scheduled event has no live room
 
     await this.writeJamAuditLog(
@@ -2056,30 +2113,36 @@ export class JamService {
   }
 
   /**
-   * Persist a `configureEvent` patch. Best-effort (like `persistStatus`): a
-   * pre-migration DB without these columns logs and swallows so the live
-   * room still honors the change in-process this sweep.
+   * Persist a `configureEvent` patch. A storage failure is a 500 so the
+   * previous configuration stands; only the in-memory seeded events fall
+   * back to the process copy.
    */
   private async persistJamConfigure(
-    row: JamEventRow,
+    eventId: string,
     patch: Partial<JamEventRow>,
+    updatedAt: string,
   ): Promise<void> {
-    const seeded = SEEDED_JAM_EVENTS.find((e) => e.id === row.id);
+    const seeded = SEEDED_JAM_EVENTS.find((e) => e.id === eventId);
     if (seeded) {
-      Object.assign(seeded, patch, { updated_at: row.updated_at });
+      Object.assign(seeded, patch, { updated_at: updatedAt });
     }
     try {
       const { error } = await this.supabase
         .from('jam_events')
-        .update({ ...patch, updated_at: row.updated_at })
-        .eq('id', row.id);
+        .update({ ...patch, updated_at: updatedAt })
+        .eq('id', eventId);
       if (error) {
         JamService.logger.debug(
           `Persist jam configure in DB skipped: ${error.message}`,
         );
+        if (!seeded) {
+          throw new InternalServerErrorException(
+            'Could not save the jam event configuration',
+          );
+        }
       }
-    } catch {
-      // In-memory or pre-migration fallback.
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
     }
   }
 

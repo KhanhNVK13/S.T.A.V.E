@@ -97,4 +97,13 @@ export class PayosGateway implements PaymentGateway {
     const link = await this.client.paymentRequests.get(orderCode);
     return mapPayosStatus(link.status);
   }
+
+  async cancelPayment(orderCode: number, reason?: string): Promise<void> {
+    try {
+      await this.client.paymentRequests.cancel(orderCode, reason);
+    } catch (error) {
+      const status = await this.getPaymentStatus(orderCode);
+      if (status !== 'failed') throw error;
+    }
+  }
 }

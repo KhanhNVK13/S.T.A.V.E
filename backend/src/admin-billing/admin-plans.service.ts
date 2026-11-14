@@ -13,7 +13,8 @@ import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { formatVnd } from '../billing/billing-format';
-import { currentPlanPrice } from '../billing/renewal';
+import { currentPlanFeatures, currentPlanPrice } from '../billing/renewal';
+import type { UpdatePlanFeaturesDto } from './dto/update-plan-features.dto';
 import type { CreatePlanDto } from './dto/create-plan.dto';
 import { MAX_EXTRA_STORAGE_MB } from './dto/create-plan.dto';
 import type { UpdatePlanPriceDto } from './dto/update-plan-price.dto';
@@ -174,6 +175,63 @@ export class AdminPlansService {
       'plan.price_change',
       id,
       `${formatVnd(fromPrice)} → ${formatVnd(data.price_vnd)}, áp dụng từ ${effectiveAt.toISOString()}`,
+    );
+
+    return this.toItem(data, new Map());
+  }
+
+  /** UC-106 5.1: hẹn giờ đổi tính năng — người đang đăng ký giữ tính năng cũ tới ngày hiệu lực. */
+  async changeFeatures(
+    adminId: string,
+    id: string,
+    dto: UpdatePlanFeaturesDto,
+    now: Date = new Date(),
+  ): Promise<AdminPlanItem> {
+    const plan = await this.getPlan(id);
+    if (plan.is_default) {
+      throw new BadRequestException(
+        'Default plan features cannot be scheduled',
+      );
+    }
+    const features = this.buildFeatures(dto.features);
+    const noticeDays =
+      (await this.platformSettings.get(
+        'price_change_notice_days',
+        DEFAULT_NOTICE_DAYS,
+      )) ?? DEFAULT_NOTICE_DAYS;
+    const earliest = new Date(now.getTime() + noticeDays * DAY_MS);
+    const effectiveAt = new Date(dto.effectiveAt);
+    if (
+      Number.isNaN(effectiveAt.getTime()) ||
+      effectiveAt.getTime() < earliest.getTime()
+    ) {
+      throw new BadRequestException({
+        message: 'Feature change takes effect too soon',
+        earliestEffectiveAt: earliest.toISOString(),
+        noticeDays,
+      });
+    }
+
+    const featuresInForce = currentPlanFeatures(plan, now);
+    const { data, error } = await this.supabase
+      .from('subscription_plans')
+      .update({
+        features,
+        previous_features: featuresInForce,
+        features_effective_at: effectiveAt.toISOString(),
+      })
+      .eq('id', id)
+      .select(ADMIN_PLAN_COLUMNS)
+      .single<AdminPlanRow>();
+    if (error || !data) {
+      throw new InternalServerErrorException('Could not update plan features');
+    }
+
+    await this.writeAuditLog(
+      adminId,
+      'plan.features_change',
+      id,
+      `Đổi tính năng gói "${plan.name}" từ ${effectiveAt.toISOString()}: ${JSON.stringify(featuresInForce)} → ${JSON.stringify(features)}`,
     );
 
     return this.toItem(data, new Map());
@@ -373,6 +431,7 @@ export class AdminPlansService {
       isDefault: plan.is_default,
       sortOrder: plan.sort_order,
       priceEffectiveAt: plan.price_effective_at,
+      featuresEffectiveAt: plan.features_effective_at ?? null,
       subscriberCount: counts.get(plan.id) ?? 0,
     };
   }

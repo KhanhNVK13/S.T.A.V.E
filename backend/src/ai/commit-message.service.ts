@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DraftSnapshot } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
@@ -82,6 +82,8 @@ function buildAiSummary(diff: SnapshotDiff): AiChangeSummary {
 
 @Injectable()
 export class CommitMessageService {
+  private readonly logger = new Logger(CommitMessageService.name);
+
   constructor(
     private readonly gemini: GeminiClient,
     private readonly rateLimiter: AiRateLimiter,
@@ -155,10 +157,17 @@ export class CommitMessageService {
       return { suggestion: null };
     }
 
-    const raw = await this.gemini.generateText(
-      COMMIT_MESSAGE_PROMPTS[lang] + JSON.stringify(buildAiSummary(diff)),
-    );
-    return { suggestion: this.sanitize(raw) };
+    try {
+      const raw = await this.gemini.generateText(
+        COMMIT_MESSAGE_PROMPTS[lang] + JSON.stringify(buildAiSummary(diff)),
+      );
+      return { suggestion: this.sanitize(raw) };
+    } catch (err) {
+      this.logger.warn(
+        `Commit message suggestion failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return { suggestion: null };
+    }
   }
 
   private async readHeadSnapshot(

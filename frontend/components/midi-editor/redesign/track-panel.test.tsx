@@ -75,83 +75,122 @@ describe("FE-EDT-19 TrackPanel.commitLabel", () => {
     };
   }
 
-  it("UTCID01 clicking rename button enters editing mode with current name", () => {
-    const { clickRenameButton } = setup();
-    clickRenameButton();
-    const input = screen.getByRole("textbox") as HTMLInputElement;
-    expect(input).not.toBeNull();
-    expect(input.value).toBe("Piano");
-  });
+  const edit = (value: string, action: "Enter" | "blur" | "Escape" = "Enter") => {
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value } });
+    if (action === "blur") fireEvent.blur(input);
+    else fireEvent.keyDown(input, { key: action });
+  };
 
-  it("UTCID02 typing new name and pressing Enter commits trimmed label", () => {
+  it("UTCID01 \"Bass\" + Enter or blur → onSetTrackLabel(trackId, \"Bass\") once, editing closed", () => {
     const { clickRenameButton, onSetTrackLabel } = setup();
     clickRenameButton();
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "Synth Lead" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-
-    expect(onSetTrackLabel).toHaveBeenCalledWith("t1", "Synth Lead");
+    edit("Bass");
+    expect(onSetTrackLabel).toHaveBeenCalledTimes(1);
+    expect(onSetTrackLabel).toHaveBeenCalledWith("t1", "Bass");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    cleanup();
+    const second = setup();
+    second.clickRenameButton();
+    edit("Bass", "blur");
+    expect(second.onSetTrackLabel).toHaveBeenCalledWith("t1", "Bass");
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("UTCID03 typing new name and triggering blur commits label", () => {
+  it("UTCID02 \"  Lead  \" → onSetTrackLabel called with \"Lead\" (trimmed)", () => {
     const { clickRenameButton, onSetTrackLabel } = setup();
     clickRenameButton();
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "Acoustic Drums" } });
-    fireEvent.blur(input);
-
-    expect(onSetTrackLabel).toHaveBeenCalledWith("t1", "Acoustic Drums");
-    expect(screen.queryByRole("textbox")).toBeNull();
+    edit("  Lead  ");
+    expect(onSetTrackLabel).toHaveBeenCalledWith("t1", "Lead");
   });
 
-  it("UTCID04 typing new name with surrounding whitespace trims before commit", () => {
+  it("UTCID03 1 character → label accepted", () => {
     const { clickRenameButton, onSetTrackLabel } = setup();
     clickRenameButton();
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "   Electric Bass   " } });
-    fireEvent.keyDown(input, { key: "Enter" });
-
-    expect(onSetTrackLabel).toHaveBeenCalledWith("t1", "Electric Bass");
+    edit("X");
+    expect(onSetTrackLabel).toHaveBeenCalledWith("t1", "X");
   });
 
-  it("UTCID05 empty or whitespace-only name does not call onSetTrackLabel", () => {
+  it("UTCID04 50 characters → counter shows 50/50 and the label is accepted", () => {
     const { clickRenameButton, onSetTrackLabel } = setup();
     clickRenameButton();
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "   " } });
-    fireEvent.keyDown(input, { key: "Enter" });
-
-    expect(onSetTrackLabel).not.toHaveBeenCalled();
-    expect(screen.queryByRole("textbox")).toBeNull();
-  });
-
-  it("UTCID06 pressing Escape cancels edit without calling onSetTrackLabel", () => {
-    const { clickRenameButton, onSetTrackLabel } = setup();
-    clickRenameButton();
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "Discarded Name" } });
-    fireEvent.keyDown(input, { key: "Escape" });
-
-    expect(onSetTrackLabel).not.toHaveBeenCalled();
-    expect(screen.queryByRole("textbox")).toBeNull();
-  });
-
-  it("UTCID07 accepts and commits name at 50 characters boundary", () => {
-    const { clickRenameButton, onSetTrackLabel } = setup();
-    clickRenameButton();
-    const input = screen.getByRole("textbox");
     const name50 = "A".repeat(50);
-    fireEvent.change(input, { target: { value: name50 } });
-    fireEvent.keyDown(input, { key: "Enter" });
-
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: name50 } });
+    expect(screen.getByText("50/50")).not.toBeNull();
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
     expect(onSetTrackLabel).toHaveBeenCalledWith("t1", name50);
   });
 
-  it("UTCID08 input element specifies maxLength of 50", () => {
+  it("UTCID05 typing a 51st character → input stops at 50 characters (maxLength)", () => {
     const { clickRenameButton } = setup();
     clickRenameButton();
     const input = screen.getByRole("textbox") as HTMLInputElement;
     expect(input.maxLength).toBe(50);
+  });
+
+  it("UTCID06 \"\" (empty) + Enter → editing closed, onSetTrackLabel not called, old name kept", () => {
+    const { clickRenameButton, onSetTrackLabel } = setup();
+    clickRenameButton();
+    edit("");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(onSetTrackLabel).not.toHaveBeenCalled();
+    expect(screen.getByText("Piano")).not.toBeNull();
+  });
+
+  it("UTCID07 \"   \" (spaces only) + Enter → onSetTrackLabel not called, old name kept", () => {
+    const { clickRenameButton, onSetTrackLabel } = setup();
+    clickRenameButton();
+    edit("   ");
+    expect(onSetTrackLabel).not.toHaveBeenCalled();
+    expect(screen.getByText("Piano")).not.toBeNull();
+  });
+
+  it("UTCID08 \"New name\" + Escape → editing closed, onSetTrackLabel not called", () => {
+    const { clickRenameButton, onSetTrackLabel } = setup();
+    clickRenameButton();
+    edit("New name", "Escape");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(onSetTrackLabel).not.toHaveBeenCalled();
+  });
+
+  it("clicking the rename button enters editing mode with the current name", () => {
+    const { clickRenameButton } = setup();
+    clickRenameButton();
+    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("Piano");
+  });
+});
+
+describe("FE-EDT-17 TrackPanel pan control", () => {
+  beforeEach(() => setLang("en"));
+  afterEach(() => cleanup());
+
+  it("UTCID08 (A): double-clicking the pan slider returns the track to centre; a single change sets the pan", () => {
+    const onSetTrackPan = vi.fn();
+    const track: DraftTrack = {
+      id: "t1", name: "Piano", order: 0, color: "#6366f1", muted: false, solo: false, volume: 1, pan: -0.5, instrument: null,
+    };
+    render(
+      <TrackPanel
+        tracks={[track]}
+        selectedTrackId="t1"
+        onSelectTrack={vi.fn()}
+        onAddTrack={vi.fn()}
+        onToggleMute={vi.fn()}
+        onToggleSolo={vi.fn()}
+        onDeleteTrack={vi.fn()}
+        onAssignInstrument={vi.fn()}
+        onSetTrackColor={vi.fn()}
+        onSetTrackLabel={vi.fn()}
+        onSetTrackVolume={vi.fn()}
+        onSetTrackPan={onSetTrackPan}
+        canAddTrack={true}
+        maxTracks={32}
+      />,
+    );
+    const pan = screen.getByLabelText("Pan track Piano");
+    fireEvent.change(pan, { target: { value: "30" } });
+    expect(onSetTrackPan).toHaveBeenLastCalledWith("t1", 0.3);
+    fireEvent.doubleClick(pan);
+    expect(onSetTrackPan).toHaveBeenLastCalledWith("t1", 0);
   });
 });

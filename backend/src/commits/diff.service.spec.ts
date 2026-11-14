@@ -47,31 +47,35 @@ const snapshot = (over: Partial<DraftSnapshot> = {}): DraftSnapshot => ({
 // =============================================================================
 
 describe('BE-CMT-16 DiffService.calculateTicksPerBar', () => {
-  it('BE-CMT-16 UTCID01 (N): [4, 4] @ 480 ppq yields 1920 ticks per bar', () => {
+  it('UTCID01 (N): [4, 4] @ 480 ppq yields 1920 ticks per bar', () => {
     expect(calculateTicksPerBar([4, 4], 480)).toBe(1920);
   });
 
-  it('BE-CMT-16 UTCID02 (N): [6, 8] @ 480 ppq yields 1440 ticks per bar', () => {
+  it('UTCID02 (N): [6, 8] @ 480 ppq yields 1440 ticks per bar', () => {
     expect(calculateTicksPerBar([6, 8], 480)).toBe(1440);
   });
 
-  it('BE-CMT-16 UTCID03 (N): [3, 4] @ 96 ppq yields 288 ticks per bar', () => {
+  it('UTCID03 (N): [3, 4] @ 96 ppq yields 288 ticks per bar', () => {
     expect(calculateTicksPerBar([3, 4], 96)).toBe(288);
   });
 
-  it('BE-CMT-16 UTCID04 (B): empty timeSignature falls back to 4/4 @ 96 ppq yielding 384 ticks per bar', () => {
+  it('UTCID04 (B): [4, 4] @ 96 ppq yields 384 ticks per bar', () => {
+    expect(calculateTicksPerBar([4, 4], 96)).toBe(384);
+  });
+
+  it('empty timeSignature falls back to 4/4 @ 96 ppq yielding 384 ticks per bar', () => {
     expect(calculateTicksPerBar([] as unknown as [number, number], 96)).toBe(
       384,
     );
   });
 
-  it('BE-CMT-16 UTCID05 (B): empty timeSignature falls back to 4/4 @ 480 ppq yielding 1920 ticks per bar', () => {
+  it('UTCID05 (B): empty timeSignature falls back to 4/4 @ 480 ppq yielding 1920 ticks per bar', () => {
     expect(calculateTicksPerBar([] as unknown as [number, number], 480)).toBe(
       1920,
     );
   });
 
-  it('BE-CMT-16 UTCID06 (A): null timeSignature falls back to 4/4 @ 480 ppq yielding 1920 ticks per bar', () => {
+  it('UTCID06 (A): null timeSignature falls back to 4/4 @ 480 ppq yielding 1920 ticks per bar', () => {
     expect(calculateTicksPerBar(null as unknown as [number, number], 480)).toBe(
       1920,
     );
@@ -83,47 +87,47 @@ describe('BE-CMT-16 DiffService.calculateTicksPerBar', () => {
 // =============================================================================
 
 describe('BE-CMT-17 DiffService.deepEqual', () => {
-  it('BE-CMT-17 UTCID01 (N): 5 and 5 are deeply equal', () => {
+  it('UTCID01 (N): 5 and 5 are deeply equal', () => {
     expect(deepEqual(5, 5)).toBe(true);
   });
 
-  it('BE-CMT-17 UTCID02 (A): null and an object are not deeply equal', () => {
+  it('UTCID02 (A): null and an object are not deeply equal', () => {
     expect(deepEqual(null, {})).toBe(false);
   });
 
-  it('BE-CMT-17 UTCID03 (A): "5" and 5 are not deeply equal (type mismatch)', () => {
+  it('UTCID03 (A): "5" and 5 are not deeply equal (type mismatch)', () => {
     expect(deepEqual('5', 5)).toBe(false);
   });
 
-  it('BE-CMT-17 UTCID04 (N): [1, 2] and [1, 2] are deeply equal', () => {
+  it('UTCID04 (N): [1, 2] and [1, 2] are deeply equal', () => {
     expect(deepEqual([1, 2], [1, 2])).toBe(true);
   });
 
-  it('BE-CMT-17 UTCID05 (B): [1, 2] and [1] are not deeply equal (array length)', () => {
+  it('UTCID05 (B): [1, 2] and [1] are not deeply equal (array length)', () => {
     expect(deepEqual([1, 2], [1])).toBe(false);
   });
 
-  it('BE-CMT-17 UTCID06 (A): [1, 2] and [1, 3] are not deeply equal (array items)', () => {
+  it('UTCID06 (A): [1, 2] and [1, 3] are not deeply equal (array items)', () => {
     expect(deepEqual([1, 2], [1, 3])).toBe(false);
   });
 
-  it('BE-CMT-17 UTCID07 (N): { x: 1, y: [2] } and { x: 1, y: [2] } are deeply equal', () => {
+  it('UTCID07 (N): { x: 1, y: [2] } and { x: 1, y: [2] } are deeply equal', () => {
     expect(deepEqual({ x: 1, y: [2] }, { x: 1, y: [2] })).toBe(true);
   });
 
-  it('BE-CMT-17 UTCID08 (A): { x: 1, y: [2] } and { x: 1, y: [3] } are not deeply equal (nested value)', () => {
+  it('UTCID08 (A): { x: 1, y: [2] } and { x: 1, y: [3] } are not deeply equal (nested value)', () => {
     expect(deepEqual({ x: 1, y: [2] }, { x: 1, y: [3] })).toBe(false);
   });
 
-  it('BE-CMT-17 UTCID09 (B): { x: 1 } and { x: 1, z: 2 } are not deeply equal (key count)', () => {
+  it('UTCID09 (B): { x: 1 } and { x: 1, z: 2 } are not deeply equal (key count)', () => {
     expect(deepEqual({ x: 1 }, { x: 1, z: 2 })).toBe(false);
   });
 
-  it('BE-CMT-17 UTCID10 (A): 5 and 6 are not deeply equal', () => {
+  it('UTCID10 (A): 5 and 6 are not deeply equal', () => {
     expect(deepEqual(5, 6)).toBe(false);
   });
 
-  it('BE-CMT-17 UTCID11 (B): [1, 2] and { 0: 1, 1: 2 } are deeply equal (same key/value pairs)', () => {
+  it('UTCID11 (B): [1, 2] and { 0: 1, 1: 2 } are deeply equal (same key/value pairs)', () => {
     expect(deepEqual([1, 2], { 0: 1, 1: 2 })).toBe(true);
   });
 });
@@ -135,15 +139,15 @@ describe('BE-CMT-17 DiffService.deepEqual', () => {
 describe('BE-CMT-18 DiffService.isTrackModified', () => {
   const base = track('track-1');
 
-  it('BE-CMT-18 UTCID01 (N): an identical copy of a track is not modified', () => {
+  it('UTCID01 (N): an identical copy of a track is not modified', () => {
     expect(isTrackModified(base, { ...base })).toBe(false);
   });
 
-  it('BE-CMT-18 UTCID02 (N): a changed name marks the track modified', () => {
+  it('UTCID02 (N): a changed name marks the track modified', () => {
     expect(isTrackModified(base, { ...base, name: 'Guitar' })).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID03 (B): instrument null versus undefined does not mark the track modified', () => {
+  it('UTCID03 (B): instrument null versus undefined does not mark the track modified', () => {
     expect(
       isTrackModified(base, {
         ...base,
@@ -152,37 +156,37 @@ describe('BE-CMT-18 DiffService.isTrackModified', () => {
     ).toBe(false);
   });
 
-  it('BE-CMT-18 UTCID04 (N): a changed instrument marks the track modified', () => {
+  it('UTCID04 (N): a changed instrument marks the track modified', () => {
     expect(
       isTrackModified(base, { ...base, instrument: 'Acoustic Grand Piano' }),
     ).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID05 (N): a changed order marks the track modified', () => {
+  it('UTCID05 (N): a changed order marks the track modified', () => {
     expect(isTrackModified(base, { ...base, order: 1 })).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID06 (N): a changed volume marks the track modified', () => {
+  it('UTCID06 (N): a changed volume marks the track modified', () => {
     expect(isTrackModified(base, { ...base, volume: 0.5 })).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID07 (B): a changed pan marks the track modified', () => {
+  it('UTCID07 (B): a changed pan marks the track modified', () => {
     expect(isTrackModified(base, { ...base, pan: -1 })).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID08 (N): toggling muted marks the track modified', () => {
+  it('UTCID08 (N): toggling muted marks the track modified', () => {
     expect(isTrackModified(base, { ...base, muted: true })).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID09 (N): toggling solo marks the track modified', () => {
+  it('UTCID09 (N): toggling solo marks the track modified', () => {
     expect(isTrackModified(base, { ...base, solo: true })).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID10 (N): a changed color marks the track modified', () => {
+  it('UTCID10 (N): a changed color marks the track modified', () => {
     expect(isTrackModified(base, { ...base, color: '#ff0000' })).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID11 (N): a changed soundMap value marks the track modified', () => {
+  it('UTCID11 (N): a changed soundMap value marks the track modified', () => {
     expect(
       isTrackModified(base, {
         ...base,
@@ -191,11 +195,11 @@ describe('BE-CMT-18 DiffService.isTrackModified', () => {
     ).toBe(true);
   });
 
-  it('BE-CMT-18 UTCID12 (B): soundMap undefined versus an empty object does not mark the track modified', () => {
+  it('UTCID12 (B): soundMap undefined versus an empty object does not mark the track modified', () => {
     expect(isTrackModified(base, { ...base, soundMap: {} })).toBe(false);
   });
 
-  it('BE-CMT-18 UTCID13 (N): gaining a second soundMap entry marks the track modified', () => {
+  it('UTCID13 (N): gaining a second soundMap entry marks the track modified', () => {
     expect(
       isTrackModified(base, {
         ...base,
@@ -216,7 +220,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     service = new DiffService();
   });
 
-  it('BE-CMT-19 UTCID01 (N): deeply equal snapshots report areIdentical with zero counts', () => {
+  it('UTCID01 (N): deeply equal snapshots report areIdentical with zero counts', () => {
     const a = snapshot({ tracks: [track('t1')], notes: [note('n1')] });
     const b = snapshot({ tracks: [track('t1')], notes: [note('n1')] });
 
@@ -239,7 +243,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.tracksDiff.noteCounts).toEqual({});
   });
 
-  it('BE-CMT-19 UTCID02 (N): a note added at start 0 is counted and grouped in bar 1', () => {
+  it('UTCID02 (N): a note added at start 0 is counted and grouped in bar 1', () => {
     const a = snapshot({ tracks: [track('t1')], notes: [note('n1')] });
     const b = snapshot({
       tracks: [track('t1')],
@@ -254,7 +258,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.changesByBar[1].added.map((n) => n.id)).toEqual(['n2']);
   });
 
-  it('BE-CMT-19 UTCID03 (N): a note removed at start 1920 is counted and grouped in bar 2', () => {
+  it('UTCID03 (N): a note removed at start 1920 is counted and grouped in bar 2', () => {
     const a = snapshot({
       tracks: [track('t1')],
       notes: [note('n1'), note('n2', { start: 1920 })],
@@ -267,7 +271,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.changesByBar[2].removed.map((n) => n.id)).toEqual(['n2']);
   });
 
-  it('BE-CMT-19 UTCID04 (N): a changed note velocity is counted and grouped in bar 3', () => {
+  it('UTCID04 (N): a changed note velocity is counted and grouped in bar 3', () => {
     const a = snapshot({
       tracks: [track('t1')],
       notes: [note('n1'), note('n3', { start: 3840, velocity: 100 })],
@@ -285,7 +289,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.changesByBar[3].modified[0].new.velocity).toBe(64);
   });
 
-  it('BE-CMT-19 UTCID05 (B): a moved note is grouped by its new start (bar 2)', () => {
+  it('UTCID05 (B): a moved note is grouped by its new start (bar 2)', () => {
     const a = snapshot({
       tracks: [track('t1')],
       notes: [note('n1'), note('n4', { start: 0 })],
@@ -302,7 +306,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.changesByBar[2].modified[0].new.start).toBe(2000);
   });
 
-  it('BE-CMT-19 UTCID06 (N): a whole added track is counted with its 3 notes and no individual note additions', () => {
+  it('UTCID06 (N): a whole added track is counted with its 3 notes and no individual note additions', () => {
     const a = snapshot({ tracks: [track('t1')], notes: [] });
     const b = snapshot({
       tracks: [track('t1'), track('t2')],
@@ -321,7 +325,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.summary.notes.added).toBe(0);
   });
 
-  it('BE-CMT-19 UTCID07 (N): a whole removed track is counted with its 2 notes and no individual note removals', () => {
+  it('UTCID07 (N): a whole removed track is counted with its 2 notes and no individual note removals', () => {
     const a = snapshot({
       tracks: [track('t1')],
       notes: [note('m1', { trackId: 't1' }), note('m2', { trackId: 't1' })],
@@ -336,7 +340,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.summary.notes.removed).toBe(0);
   });
 
-  it('BE-CMT-19 UTCID08 (N): a changed track volume marks the track modified', () => {
+  it('UTCID08 (N): a changed track volume marks the track modified', () => {
     const a = snapshot({ tracks: [track('t1', { volume: 1 })], notes: [] });
     const b = snapshot({ tracks: [track('t1', { volume: 0.5 })], notes: [] });
 
@@ -347,7 +351,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     expect(result.tracksDiff.modified[0].new.volume).toBe(0.5);
   });
 
-  it('BE-CMT-19 UTCID09 (N): a changed tempo is reported in metaChanges', () => {
+  it('UTCID09 (N): a changed tempo is reported in metaChanges', () => {
     const a = snapshot({
       meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
     });
@@ -363,7 +367,7 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
     ]);
   });
 
-  it('BE-CMT-19 UTCID10 (B): the target 3/4 signature gives 1440 ticks per bar, putting a note at 1440 in bar 2', () => {
+  it('UTCID10 (B): the target 3/4 signature gives 1440 ticks per bar, putting a note at 1440 in bar 2', () => {
     const a = snapshot({
       meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
       tracks: [track('t1')],
@@ -383,5 +387,22 @@ describe('BE-CMT-19 DiffService.compareSnapshots', () => {
       old: [4, 4],
       new: [3, 4],
     });
+  });
+
+  it('UTCID11 (N): swapping base and compared reports added notes as removed', () => {
+    const a = snapshot({ tracks: [track('t1')], notes: [note('n1')] });
+    const b = snapshot({
+      tracks: [track('t1')],
+      notes: [note('n1'), note('n2')],
+    });
+
+    const forward = service.compareSnapshots(a, b);
+    const backward = service.compareSnapshots(b, a);
+
+    expect(forward.summary.notes.added).toBe(1);
+    expect(forward.summary.notes.removed).toBe(0);
+    expect(backward.summary.notes.added).toBe(0);
+    expect(backward.summary.notes.removed).toBe(1);
+    expect(backward.changesByBar[1].removed.map((n) => n.id)).toEqual(['n2']);
   });
 });

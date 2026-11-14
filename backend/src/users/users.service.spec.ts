@@ -1,5 +1,9 @@
 import 'reflect-metadata';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import {
   createSupabaseMock,
@@ -83,7 +87,9 @@ describe('BE-USR-02 UsersService.updateProfile(userId, dto)', () => {
 
   it('UTCID01 patches all four fields and returns the updated row', async () => {
     const updated = { ...userRow, display_name: 'New Name' };
-    const { service, builders } = makeService({ users: [{ data: updated }] });
+    const { service, builders } = makeService({
+      users: [{ data: [] }, { data: updated }],
+    });
 
     await expect(service.updateProfile(userId, fullDto)).resolves.toBe(updated);
     expect(builders.users.update).toHaveBeenCalledWith({
@@ -117,7 +123,7 @@ describe('BE-USR-02 UsersService.updateProfile(userId, dto)', () => {
     expect(builders.users.update).toHaveBeenCalledWith({ bio: '' });
   });
 
-  it('UTCID03b patches only language when only language is set, and repeating it is harmless', async () => {
+  it('patches only language when only language is set, and repeating it is harmless', async () => {
     const updated = { ...userRow, language: 'en' };
     const { service, builders } = makeService({
       users: [{ data: updated }, { data: updated }],
@@ -146,12 +152,27 @@ describe('BE-USR-02 UsersService.updateProfile(userId, dto)', () => {
 
   it('UTCID05 maps unique violation 23505 to "Username already taken"', async () => {
     const { service } = makeService({
-      users: [{ data: null, error: { code: '23505', message: 'dup' } }],
+      users: [
+        { data: [] },
+        { data: null, error: { code: '23505', message: 'dup' } },
+      ],
     });
 
     await expect(service.updateProfile(userId, fullDto)).rejects.toThrow(
       new BadRequestException('Username already taken'),
     );
+  });
+
+  it('refuses a username that differs from another account only by letter case', async () => {
+    const { service, builders } = makeService({
+      users: [{ data: [{ id: 'other-user' }] }],
+    });
+
+    await expect(
+      service.updateProfile(userId, { username: 'Khanh_01' }),
+    ).rejects.toThrow(new BadRequestException('Username already taken'));
+    expect(builders.users.ilike).toHaveBeenCalledWith('username', 'Khanh\\_01');
+    expect(builders.users.update).not.toHaveBeenCalled();
   });
 
   it('UTCID06 maps any other error code to "Could not update profile"', async () => {
@@ -378,37 +399,28 @@ describe('BE-USR-04 UsersService.setPresetTheme(userId, presetKey)', () => {
   });
 });
 
-describe('BE-USR-05 UsersService avatar upload', () => {
-  const fileName = '33333333-3333-4333-8333-333333333333.webp';
-  const path = `${userId}/${fileName}`;
+const avatarFileName = '33333333-3333-4333-8333-333333333333.webp';
+const avatarPath = `${userId}/${avatarFileName}`;
 
-  function makeAvatarService(
-    storage: Record<string, unknown>,
-    tables: SupabaseMockOptions['tables'] = {},
-  ) {
-    const mock = createSupabaseMock([], {
-      tables,
-      storage: { avatars: storage as never },
-    });
-    const service = new UsersService(mock.client, {
-      getOrThrow: () => 'https://project.supabase.co',
-    } as unknown as ConfigService);
-    return { service, ...mock };
-  }
-
-  it('UTCID01 creates a signed upload URL under the user folder', async () => {
-    const { service } = makeAvatarService(
-      { createSignedUploadUrl: { data: { token: 'tok' } } },
-      { users: [{ data: { avatar_url: null } }] },
-    );
-
-    const result = await service.createAvatarUploadUrl(userId, 'image/webp');
-
-    expect(result.token).toBe('tok');
-    expect(result.path).toMatch(new RegExp(`^${userId}/[0-9a-f-]{36}[.]webp$`));
+function makeAvatarService(
+  storage: Record<string, unknown>,
+  tables: SupabaseMockOptions['tables'] = {},
+) {
+  const mock = createSupabaseMock([], {
+    tables,
+    storage: { avatars: storage as never },
   });
+  const service = new UsersService(mock.client, {
+    getOrThrow: () => 'https://project.supabase.co',
+  } as unknown as ConfigService);
+  return { service, ...mock };
+}
 
-  it('UTCID02 rejects a confirm for a path outside the user folder', async () => {
+describe('BE-USR-07 UsersService.confirmAvatar(userId, path)', () => {
+  const fileName = avatarFileName;
+  const path = avatarPath;
+
+  it('UTCID01 rejects a confirm for a path outside the user folder', async () => {
     const { service } = makeAvatarService({});
 
     await expect(
@@ -416,11 +428,21 @@ describe('BE-USR-05 UsersService avatar upload', () => {
     ).rejects.toThrow(new BadRequestException('Invalid avatar path'));
   });
 
-  it('UTCID03 rejects a confirm when the file was never uploaded', async () => {
+  it('UTCID02 rejects a confirm when the file was never uploaded', async () => {
     const { service } = makeAvatarService({ list: { data: [] } });
 
     await expect(service.confirmAvatar(userId, path)).rejects.toThrow(
       new BadRequestException('Avatar file was not uploaded'),
+    );
+  });
+
+  it('UTCID03 reports a failure when the uploaded file cannot be listed', async () => {
+    const { service } = makeAvatarService({
+      list: { data: null, error: { message: 'storage down' } },
+    });
+
+    await expect(service.confirmAvatar(userId, path)).rejects.toThrow(
+      new InternalServerErrorException('Could not verify avatar file'),
     );
   });
 
@@ -436,7 +458,23 @@ describe('BE-USR-05 UsersService avatar upload', () => {
     expect(storage.from).toHaveBeenCalledWith('avatars');
   });
 
-  it('UTCID05 saves the public URL and removes older avatars', async () => {
+  it('UTCID05 accepts a file of exactly 2 MB', async () => {
+    const { service, builders } = makeAvatarService(
+      {
+        list: [
+          { data: [{ name: fileName, metadata: { size: 2 * 1024 * 1024 } }] },
+          { data: [{ name: fileName }] },
+        ],
+        remove: { data: [] },
+      },
+      { users: [{ data: { ...userRow, avatar_url: 'x' } }] },
+    );
+
+    await expect(service.confirmAvatar(userId, path)).resolves.toBeDefined();
+    expect(builders.users.update).toHaveBeenCalled();
+  });
+
+  it('UTCID06 saves the public URL and removes older avatars', async () => {
     const { service, builders } = makeAvatarService(
       {
         list: [
@@ -455,7 +493,57 @@ describe('BE-USR-05 UsersService avatar upload', () => {
     });
   });
 
-  it('UTCID06 clears the avatar column when removing', async () => {
+  it('UTCID07 reports a failure when the avatar address cannot be saved', async () => {
+    const { service } = makeAvatarService(
+      {
+        list: { data: [{ name: fileName, metadata: { size: 40_000 } }] },
+        remove: { data: [] },
+      },
+      { users: [{ data: null, error: { message: 'db' } }] },
+    );
+
+    await expect(service.confirmAvatar(userId, path)).rejects.toThrow(
+      new InternalServerErrorException('Could not save avatar'),
+    );
+  });
+});
+
+describe('BE-USR-08 UsersService.createAvatarUploadUrl(userId, contentType)', () => {
+  it.each([
+    { id: 'UTCID01', type: 'image/jpeg' as const, ext: 'jpg' },
+    { id: 'UTCID02', type: 'image/png' as const, ext: 'png' },
+    { id: 'UTCID03', type: 'image/webp' as const, ext: 'webp' },
+  ])(
+    '$id creates a signed upload URL under the user folder for $type',
+    async ({ type, ext }) => {
+      const { service } = makeAvatarService({
+        createSignedUploadUrl: { data: { token: 'tok' } },
+      });
+
+      const result = await service.createAvatarUploadUrl(userId, type);
+
+      expect(result.token).toBe('tok');
+      expect(result.path).toMatch(
+        new RegExp(`^${userId}/[0-9a-f-]{36}[.]${ext}$`),
+      );
+    },
+  );
+
+  it('UTCID04 reports a failure when the signed URL cannot be created', async () => {
+    const { service } = makeAvatarService({
+      createSignedUploadUrl: { data: null, error: { message: 'down' } },
+    });
+
+    await expect(
+      service.createAvatarUploadUrl(userId, 'image/png'),
+    ).rejects.toThrow(
+      new InternalServerErrorException('Could not create upload URL'),
+    );
+  });
+});
+
+describe('BE-USR-10 UsersService.removeAvatar(userId)', () => {
+  it('UTCID01 clears the avatar column and removes the stored files', async () => {
     const { service, builders } = makeAvatarService(
       { list: { data: [{ name: 'old.png' }] }, remove: { data: [] } },
       { users: [{ data: { ...userRow, avatar_url: null } }] },
@@ -464,5 +552,16 @@ describe('BE-USR-05 UsersService avatar upload', () => {
     await service.removeAvatar(userId);
 
     expect(builders.users.update).toHaveBeenCalledWith({ avatar_url: null });
+  });
+
+  it('UTCID02 reports a failure when the avatar cannot be cleared', async () => {
+    const { service } = makeAvatarService(
+      {},
+      { users: [{ data: null, error: { message: 'db' } }] },
+    );
+
+    await expect(service.removeAvatar(userId)).rejects.toThrow(
+      new InternalServerErrorException('Could not remove avatar'),
+    );
   });
 });

@@ -5,6 +5,7 @@ import { CollaborationGateway } from './collaboration.gateway';
 import { ProjectAccessModule } from '../project-access/project-access.module';
 import { CommitsModule } from '../commits/commits.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { DraftsModule } from '../drafts/drafts.module';
 
 /**
  * UC-60/61/62/64: collaborator invitations, permission levels, removal,
@@ -17,7 +18,12 @@ import { NotificationsModule } from '../notifications/notifications.module';
  * import CollaborationModule.
  */
 @Module({
-  imports: [ProjectAccessModule, CommitsModule, NotificationsModule],
+  imports: [
+    ProjectAccessModule,
+    CommitsModule,
+    NotificationsModule,
+    DraftsModule,
+  ],
   controllers: [CollaborationController],
   providers: [CollaborationService, CollaborationGateway],
   exports: [CollaborationService, CollaborationGateway],

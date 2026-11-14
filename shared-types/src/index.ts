@@ -415,6 +415,13 @@ export interface TagRow {
   created_at: string;
 }
 
+/** One conflict choice stored on a merge commit (kept outside the snapshot). */
+export interface MergeResolutionRecord {
+  noteId: string;
+  choice: "PICK_SOURCE" | "PICK_TARGET" | "PICK_CUSTOM" | "KEEP_BOTH";
+  customNote?: Record<string, unknown>;
+}
+
 /** Commit with author info and tags (UC-43, UC-45) */
 export interface CommitWithAuthor {
   id: string;
@@ -430,6 +437,7 @@ export interface CommitWithAuthor {
     avatar_url: string | null;
   };
   tags: TagRow[];
+  merge_resolutions?: MergeResolutionRecord[] | null;
 }
 
 /** Paginated commit history response (UC-43) */

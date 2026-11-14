@@ -49,8 +49,31 @@ const LANE_COLOR_SPEC = {
   selectedBorder: "var(--foreground)",
 } as const;
 
-function clampVelocity(v: number): number {
+export function clampVelocity(v: number): number {
+  if (Number.isNaN(v)) return VELOCITY_MIN;
   return Math.max(VELOCITY_MIN, Math.min(VELOCITY_MAX, Math.round(v)));
+}
+
+/** Áp velocity mới cho note đang cầm, và dịch đều các note cùng được chọn. */
+export function applyVelocity(
+  notes: DraftNote[],
+  selectedNoteIds: ReadonlySet<string>,
+  grabbed: DraftNote,
+  nextVelocity: number,
+  originals: Map<string, number>,
+): DraftNote[] {
+  const original = originals.get(grabbed.id) ?? grabbed.velocity;
+  const delta = nextVelocity - original;
+  return notes.map((n) => {
+    const isGrabbed = n.id === grabbed.id;
+    const inSelection = selectedNoteIds.has(grabbed.id) && selectedNoteIds.has(n.id);
+    if (!isGrabbed && !inSelection) return n;
+    const base = originals.get(n.id) ?? n.velocity;
+    const value = clampVelocity(isGrabbed ? nextVelocity : base + delta);
+    if (value === n.velocity) return n;
+    // BR-28: giữ nguyên `id` — sửa tại chỗ, không xoá rồi tạo note mới.
+    return { ...n, velocity: value };
+  });
 }
 
 interface VelocityLaneProps {
@@ -223,24 +246,9 @@ export function VelocityLane({
     return null;
   }
 
-  /** Áp velocity mới cho note đang cầm, và dịch đều các note cùng được chọn. */
-  const applyVelocity = useCallback(
+  const applyGrab = useCallback(
     (grabbed: DraftNote, nextVelocity: number, originals: Map<string, number>) => {
-      const original = originals.get(grabbed.id) ?? grabbed.velocity;
-      const delta = nextVelocity - original;
-
-      onNotesChange(
-        notes.map((n) => {
-          const isGrabbed = n.id === grabbed.id;
-          const inSelection = selectedNoteIds.has(grabbed.id) && selectedNoteIds.has(n.id);
-          if (!isGrabbed && !inSelection) return n;
-          const base = originals.get(n.id) ?? n.velocity;
-          const value = clampVelocity(isGrabbed ? nextVelocity : base + delta);
-          if (value === n.velocity) return n;
-          // BR-28: giữ nguyên `id` — sửa tại chỗ, không xoá rồi tạo note mới.
-          return { ...n, velocity: value };
-        }),
-      );
+      onNotesChange(applyVelocity(notes, selectedNoteIds, grabbed, nextVelocity, originals));
     },
     [notes, selectedNoteIds, onNotesChange],
   );
@@ -256,7 +264,7 @@ export function VelocityLane({
     const originals = new Map<string, number>();
     notes.forEach((n) => originals.set(n.id, n.velocity));
     dragRef.current = { noteId: hit.id, originalVelocities: originals };
-    applyVelocity(hit, velocityFromY(cy, canvas.clientHeight), originals);
+    applyGrab(hit, velocityFromY(cy, canvas.clientHeight), originals);
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -275,7 +283,7 @@ export function VelocityLane({
     const grabbed = notes.find((n) => n.id === drag.noteId);
     if (!grabbed) return;
     const { cy } = coords(e);
-    applyVelocity(grabbed, velocityFromY(cy, canvas.clientHeight), drag.originalVelocities);
+    applyGrab(grabbed, velocityFromY(cy, canvas.clientHeight), drag.originalVelocities);
   }
 
   // Thả chuột ngoài canvas (kéo vượt mép) vẫn phải kết thúc thao tác — nghe

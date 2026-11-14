@@ -191,6 +191,17 @@ export function MergeConflictDialog({
                             body={describe(conflict.sourceNote, sourceDeleted)}
                             kind={sourceDeleted || !conflict.sourceNote ? "remove" : "modify"}
                           />
+                          {conflict.sourceNote && conflict.targetNote && (
+                            <Option
+                              name={`conflict-${conflict.noteId}`}
+                              checked={choice === "KEEP_BOTH"}
+                              onSelect={() => setChoices((c) => ({ ...c, [conflict.noteId]: "KEEP_BOTH" }))}
+                              title={t("mc.keepBoth")}
+                              body={keepBothBlocked(conflict) ? t("mc.keepBothBlocked") : t("mc.keepBothBody")}
+                              kind="add"
+                              disabled={keepBothBlocked(conflict)}
+                            />
+                          )}
                         </div>
                       </fieldset>
                     );
@@ -214,6 +225,12 @@ function Stat({ label, value, tone = "text-foreground" }: { label: string; value
   );
 }
 
+function keepBothBlocked(conflict: MergeNoteConflict): boolean {
+  const s = conflict.sourceNote;
+  const t = conflict.targetNote;
+  return !!s && !!t && s.trackId === t.trackId && s.pitch === t.pitch && s.start === t.start;
+}
+
 function Option({
   name,
   checked,
@@ -221,6 +238,7 @@ function Option({
   title,
   body,
   kind,
+  disabled = false,
 }: {
   name: string;
   checked: boolean;
@@ -228,14 +246,26 @@ function Option({
   title: string;
   body: string;
   kind: DiffKind;
+  disabled?: boolean;
 }) {
   return (
     <label
-      className={`flex min-w-0 cursor-pointer gap-2.5 rounded-md border p-3 transition-colors ${
-        checked ? "border-accent bg-accent-muted" : "border-border hover:bg-surface-subtle"
+      className={`flex min-w-0 gap-2.5 rounded-md border p-3 transition-colors ${
+        disabled
+          ? "cursor-not-allowed border-border opacity-60"
+          : checked
+            ? "cursor-pointer border-accent bg-accent-muted"
+            : "cursor-pointer border-border hover:bg-surface-subtle"
       }`}
     >
-      <input type="radio" name={name} className="mt-0.5 accent-accent" checked={checked} onChange={onSelect} />
+      <input
+        type="radio"
+        name={name}
+        className="mt-0.5 accent-accent"
+        checked={checked}
+        disabled={disabled}
+        onChange={onSelect}
+      />
       <span className="min-w-0">
         <span className="block break-words text-xs font-bold uppercase tracking-wide text-muted">{title}</span>
         <span className={`mt-0.5 block break-words font-mono text-xs ${DIFF_TEXT[kind]}`}>

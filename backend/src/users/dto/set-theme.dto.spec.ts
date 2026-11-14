@@ -29,6 +29,10 @@ describe('BE-USR-05 SetThemeDto.validate(dto)', () => {
     await expect(themeErrors({ presetKey: 'tide' })).resolves.toHaveLength(0);
   });
 
+  it('UTCID08 accepts "space" (the default look)', async () => {
+    await expect(themeErrors({ presetKey: 'space' })).resolves.toHaveLength(0);
+  });
+
   it('UTCID04 rejects "Moss" with the wrong case', async () => {
     const errors = await themeErrors({ presetKey: 'Moss' });
     expect(errors).toHaveLength(1);

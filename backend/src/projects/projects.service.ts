@@ -1,9 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -18,11 +20,15 @@ import { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 import { ProjectAccessService } from '../project-access/project-access.service';
 import { ActiveBranchService } from '../active-branch/active-branch.service';
 import { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
+import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
 
 export const DEFAULT_BRANCH_NAME = 'main';
+export const INITIAL_COMMIT_MESSAGE = 'Initial commit';
 
 @Injectable()
 export class ProjectsService {
+  private readonly logger = new Logger(ProjectsService.name);
+
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
@@ -33,8 +39,29 @@ export class ProjectsService {
     @Optional() private readonly activityLog?: ActivityLogService,
   ) {}
 
-  /** UC-18 (core): tạo project + branch mặc định 'main' đi kèm. */
-  async create(ownerId: string, dto: CreateProjectDto): Promise<ProjectRow> {
+  /** UC-18 (core): tạo project + branch mặc định 'main' + commit khởi tạo. */
+  async create(
+    ownerId: string,
+    dto: CreateProjectDto,
+  ): Promise<ProjectRow & { visibilityKeptPrivate?: true }> {
+    let visibilityPatch: {
+      visibility: 'public';
+      license: ProjectLicense;
+    } | null = null;
+    let visibilityKeptPrivate = false;
+    if (dto.visibility === 'public') {
+      if (await this.isEmailVerified(ownerId)) {
+        if (!dto.license) {
+          throw new BadRequestException(
+            'Choose a license before making the project public',
+          );
+        }
+        visibilityPatch = { visibility: 'public', license: dto.license };
+      } else {
+        visibilityKeptPrivate = true;
+      }
+    }
+
     const { data: project, error: projectError } = await this.supabase
       .from('projects')
       .insert({
@@ -42,6 +69,7 @@ export class ProjectsService {
         name: dto.name,
         description: dto.description ?? null,
         genre: dto.genre ?? null,
+        ...visibilityPatch,
       })
       .select('*')
       .single<ProjectRow>();
@@ -53,17 +81,40 @@ export class ProjectsService {
       throw new InternalServerErrorException('Could not create project');
     }
 
-    const { error: branchError } = await this.supabase.from('branches').insert({
-      project_id: project.id,
-      name: DEFAULT_BRANCH_NAME,
-      is_default: true,
-      created_by: ownerId,
-    });
+    const { data: branch, error: branchError } = await this.supabase
+      .from('branches')
+      .insert({
+        project_id: project.id,
+        name: DEFAULT_BRANCH_NAME,
+        is_default: true,
+        created_by: ownerId,
+      })
+      .select('id')
+      .single<{ id: string }>();
 
-    if (branchError) {
+    if (branchError || !branch) {
       await this.supabase.from('projects').delete().eq('id', project.id);
       throw new InternalServerErrorException(
         'Project creation rolled back: default branch could not be created',
+      );
+    }
+
+    const { error: commitError } = await this.supabase.rpc(
+      'create_commit_atomic',
+      {
+        p_branch_id: branch.id,
+        p_author_id: ownerId,
+        p_message: INITIAL_COMMIT_MESSAGE,
+        p_snapshot: buildDefaultDraftSnapshot(),
+        p_parent_commit_id: null,
+        p_merged_from_branch_id: null,
+      },
+    );
+
+    if (commitError) {
+      await this.supabase.from('projects').delete().eq('id', project.id);
+      throw new InternalServerErrorException(
+        'Project creation rolled back: initial commit could not be created',
       );
     }
 
@@ -74,7 +125,9 @@ export class ProjectsService {
       targetId: project.id,
       targetName: project.name,
     });
-    return project;
+    return visibilityKeptPrivate
+      ? { ...project, visibilityKeptPrivate: true }
+      : project;
   }
 
   /** UC-22 (core): list project của user hiện tại. */
@@ -83,7 +136,7 @@ export class ProjectsService {
       .from('projects')
       .select('*')
       .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
+      .order('updated_at', { ascending: false });
 
     if (error) {
       throw new InternalServerErrorException('Could not list projects');
@@ -251,13 +304,36 @@ export class ProjectsService {
   }
 
   /** UC-20: archive project — chỉ owner. */
-  archiveOwned(projectId: string, ownerId: string): Promise<ProjectRow> {
-    return this.updateOwnedProject(
+  async archiveOwned(projectId: string, ownerId: string): Promise<ProjectRow> {
+    const archived = await this.updateOwnedProject(
       projectId,
       ownerId,
       { archived_at: new Date().toISOString() },
       'Could not archive project',
     );
+    await this.closeOpenPullRequestsTargeting(projectId);
+    return archived;
+  }
+
+  private async closeOpenPullRequestsTargeting(
+    projectId: string,
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('pull_requests')
+        .update({ status: 'closed', closed_at: new Date().toISOString() })
+        .eq('target_project_id', projectId)
+        .eq('status', 'open');
+      if (error) {
+        this.logger.warn(
+          `Could not close the open pull requests of archived project ${projectId}: ${error.message}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not close the open pull requests of archived project ${projectId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /** UC-20: khôi phục project đã lưu trữ — chỉ owner. */
@@ -291,8 +367,36 @@ export class ProjectsService {
         return { visibility, license: chosen };
       },
       'Could not update project visibility',
-      { rejectArchived: true },
+      {
+        rejectArchived: true,
+        beforeUpdate:
+          visibility === 'public'
+            ? () => this.assertEmailVerified(ownerId)
+            : undefined,
+      },
     );
+  }
+
+  private async isEmailVerified(userId: string): Promise<boolean> {
+    const { data, error } = await this.supabase.auth.admin.getUserById(userId);
+    if (error || !data?.user) {
+      throw new InternalServerErrorException('Could not create project');
+    }
+    return !!data.user.email_confirmed_at;
+  }
+
+  private async assertEmailVerified(userId: string): Promise<void> {
+    const { data, error } = await this.supabase.auth.admin.getUserById(userId);
+    if (error || !data?.user) {
+      throw new InternalServerErrorException(
+        'Could not update project visibility',
+      );
+    }
+    if (!data.user.email_confirmed_at) {
+      throw new ForbiddenException(
+        'Unverified account cannot make project public',
+      );
+    }
   }
 
   /** UC-21: xóa project — chỉ owner. */
@@ -347,10 +451,14 @@ export class ProjectsService {
       | Record<string, unknown>
       | ((project: ProjectRow) => Record<string, unknown>),
     errorMessage: string,
-    options: { rejectArchived?: boolean } = {},
+    options: {
+      rejectArchived?: boolean;
+      beforeUpdate?: () => Promise<void>;
+    } = {},
   ): Promise<ProjectRow> {
     const project = await this.getOwned(projectId, ownerId);
     if (options.rejectArchived) this.assertNotArchived(project);
+    await options.beforeUpdate?.();
 
     const { data, error } = await this.supabase
       .from('projects')

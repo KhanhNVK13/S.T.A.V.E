@@ -13,7 +13,7 @@ import {
  * Ngưỡng nằm trong hằng số có tên ở đầu file; test bám sát từng điều kiện
  * biên để đổi ngưỡng không làm hỏng hàm.
  */
-describe('assessMergeRisk', () => {
+describe('BE-AIX-04 assessMergeRisk(input)', () => {
   const base: MergeRiskInput = {
     sourceChanged: 0,
     targetChanged: 0,
@@ -27,11 +27,11 @@ describe('assessMergeRisk', () => {
   // Mức thấp
   // ==========================================================================
 
-  it('returns low when nothing changed on either side', () => {
+  it('UTCID01 returns low when nothing changed on either side', () => {
     expect(assessMergeRisk(base)).toBe('low');
   });
 
-  it('returns low when there are no conflicts, little overlap and few commits', () => {
+  it('UTCID02 returns low when there are no conflicts, little overlap and few commits', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 10,
@@ -48,7 +48,7 @@ describe('assessMergeRisk', () => {
   // Biên: số xung đột (4 / 5)
   // ==========================================================================
 
-  it('returns medium at 4 conflicts (just below the high threshold)', () => {
+  it('UTCID03 returns medium at 4 conflicts (just below the high threshold)', () => {
     expect(
       assessMergeRisk({
         ...base,
@@ -59,7 +59,7 @@ describe('assessMergeRisk', () => {
     ).toBe('medium');
   });
 
-  it('returns high at 5 conflicts (the high threshold)', () => {
+  it('UTCID04 returns high at 5 conflicts (the high threshold)', () => {
     expect(
       assessMergeRisk({
         ...base,
@@ -74,7 +74,7 @@ describe('assessMergeRisk', () => {
   // Biên: tỉ lệ chồng chéo (0.49 / 0.5)
   // ==========================================================================
 
-  it('returns medium at overlap ratio 0.49', () => {
+  it('UTCID05 returns medium at overlap ratio 0.49', () => {
     // overlap 49 / max 100 = 0.49 — dưới ngưỡng 0.5, và chỉ có 49 nốt
     // chồng nên vẫn không đủ để lên "vừa" theo ngưỡng overlap >= 3.
     expect(
@@ -89,7 +89,7 @@ describe('assessMergeRisk', () => {
     ).toBe('medium');
   });
 
-  it('returns high at overlap ratio 0.5', () => {
+  it('UTCID06 returns high at overlap ratio 0.5', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 50,
@@ -102,7 +102,7 @@ describe('assessMergeRisk', () => {
     ).toBe('high');
   });
 
-  it('treats an overlap ratio of exactly 0.5 as high', () => {
+  it('UTCID07 treats an overlap ratio of exactly 0.5 as high', () => {
     // 5 / 10 = 0.5 đúng bằng ngưỡng → cao
     expect(
       assessMergeRisk({
@@ -120,7 +120,7 @@ describe('assessMergeRisk', () => {
   // Biên: số nốt chồng chéo (2 / 3)
   // ==========================================================================
 
-  it('returns low at 2 overlapping notes', () => {
+  it('UTCID08 returns low at 2 overlapping notes', () => {
     // Tỉ lệ chồng chéo 2/10 = 0.2 (< 0.5) nên không lên cao; 2 nốt < 3 nên
     // cũng không lên vừa → thấp.
     expect(
@@ -135,7 +135,7 @@ describe('assessMergeRisk', () => {
     ).toBe('low');
   });
 
-  it('returns medium at 3 overlapping notes', () => {
+  it('UTCID09 returns medium at 3 overlapping notes', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 10,
@@ -152,7 +152,7 @@ describe('assessMergeRisk', () => {
   // Biên: số commit mới mỗi phía (9 / 10)
   // ==========================================================================
 
-  it('returns low when both sides have 9 new commits', () => {
+  it('UTCID10 returns low when both sides have 9 new commits', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 1,
@@ -165,7 +165,7 @@ describe('assessMergeRisk', () => {
     ).toBe('low');
   });
 
-  it('returns medium when both sides have 10 new commits', () => {
+  it('UTCID11 returns medium when both sides have 10 new commits', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 1,
@@ -178,7 +178,7 @@ describe('assessMergeRisk', () => {
     ).toBe('medium');
   });
 
-  it('returns low when only one side has 10 new commits', () => {
+  it('UTCID12 returns low when only one side has 10 new commits', () => {
     // Điều kiện "cả hai phía" — một phía có 10 commit chưa đủ để lên vừa.
     expect(
       assessMergeRisk({
@@ -196,7 +196,7 @@ describe('assessMergeRisk', () => {
   // Thứ tự ưu tiên: cao thắng vừa
   // ==========================================================================
 
-  it('returns high when both the conflict count and the overlap ratio are high', () => {
+  it('UTCID13 returns high when both the conflict count and the overlap ratio are high', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 10,
@@ -209,7 +209,7 @@ describe('assessMergeRisk', () => {
     ).toBe('high');
   });
 
-  it('returns medium for a single conflict', () => {
+  it('UTCID14 returns medium for a single conflict', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 2,
@@ -222,7 +222,7 @@ describe('assessMergeRisk', () => {
     ).toBe('medium');
   });
 
-  it('does not divide by zero when neither side changed', () => {
+  it('UTCID15 does not divide by zero when neither side changed', () => {
     expect(
       assessMergeRisk({
         sourceChanged: 0,

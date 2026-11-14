@@ -67,7 +67,7 @@ const removeRow = {
   o_closed_count: 2,
 };
 
-describe('ReportModerationService.removeProject', () => {
+describe('BE-RPT-05 ReportModerationService.removeProject', () => {
   const withSounds = {
     projects: [
       { data: { id: PROJECT, owner_id: OWNER }, error: null },
@@ -85,7 +85,7 @@ describe('ReportModerationService.removeProject', () => {
     custom_sounds: [{ data: [{ id: SOUND, name: 'Kick' }], error: null }],
   };
 
-  it('chỉ nhận sound thuộc dự án: id lạ bị từ chối và không gọi RPC', async () => {
+  it('UTCID01 chỉ nhận sound thuộc dự án: id lạ bị từ chối và không gọi RPC', async () => {
     const { service, mock } = build(
       { admin_remove_reported_project: { data: [removeRow], error: null } },
       withSounds,
@@ -103,7 +103,7 @@ describe('ReportModerationService.removeProject', () => {
     );
   });
 
-  it('gọi một RPC, xoá file âm thanh, báo chủ dự án và người báo cáo', async () => {
+  it('UTCID02 gọi một RPC, xoá file âm thanh, báo chủ dự án và người báo cáo', async () => {
     const { service, mock, notifications, customSounds } = build(
       { admin_remove_reported_project: { data: [removeRow], error: null } },
       withSounds,
@@ -135,7 +135,7 @@ describe('ReportModerationService.removeProject', () => {
     expect(result.removedSounds).toBe(1);
   });
 
-  it('không lộ người báo cáo trong thông báo gửi chủ dự án', async () => {
+  it('UTCID03 không lộ người báo cáo trong thông báo gửi chủ dự án', async () => {
     const { service, notifications } = build({
       admin_remove_reported_project: { data: [removeRow], error: null },
     });
@@ -144,6 +144,52 @@ describe('ReportModerationService.removeProject', () => {
       (call: unknown[]) => call[0] === OWNER,
     ) as unknown[];
     expect(JSON.stringify(ownerCall)).not.toContain(REPORTER);
+  });
+
+  it('UTCID10 RPC báo PROJECT_NOT_FOUND thì 404 và không gửi thông báo', async () => {
+    const { service, notifications, customSounds } = build({
+      admin_remove_reported_project: {
+        data: null,
+        error: { message: 'PROJECT_NOT_FOUND' },
+      },
+    });
+    await expect(
+      service.removeProject(ADMIN, PROJECT, removeDto()),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(customSounds.removeFiles).not.toHaveBeenCalled();
+  });
+
+  it('UTCID11 RPC báo ALREADY_REMOVED thì 409', async () => {
+    const { service } = build({
+      admin_remove_reported_project: {
+        data: null,
+        error: { message: 'ALREADY_REMOVED' },
+      },
+    });
+    await expect(
+      service.removeProject(ADMIN, PROJECT, removeDto()),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('UTCID12 lỗi máy chủ thì 500, dự án không bị gỡ và không xoá file hay gửi thông báo', async () => {
+    const { service, notifications, customSounds } = build({
+      admin_remove_reported_project: { data: null, error: { message: 'boom' } },
+    });
+    await expect(
+      service.removeProject(ADMIN, PROJECT, removeDto()),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(customSounds.removeFiles).not.toHaveBeenCalled();
+  });
+
+  it('UTCID13 RPC không trả dòng nào thì 500', async () => {
+    const { service } = build({
+      admin_remove_reported_project: { data: [], error: null },
+    });
+    await expect(
+      service.removeProject(ADMIN, PROJECT, removeDto()),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 
   it.each([
@@ -164,7 +210,7 @@ describe('ReportModerationService.removeProject', () => {
     },
   );
 
-  it('lỗi xoá file Storage không làm hỏng thao tác đã commit, vẫn chạy quét mồ côi', async () => {
+  it('UTCID04 lỗi xoá file Storage không làm hỏng thao tác đã commit, vẫn chạy quét mồ côi', async () => {
     const { service, customSounds } = build({
       admin_remove_reported_project: { data: [removeRow], error: null },
     });
@@ -175,7 +221,7 @@ describe('ReportModerationService.removeProject', () => {
     expect(customSounds.collectGarbage).toHaveBeenCalledTimes(1);
   });
 
-  it('file không xoá được thì log cảnh báo nêu rõ đường dẫn và để lần quét sau thu dọn', async () => {
+  it('UTCID05 file không xoá được thì log cảnh báo nêu rõ đường dẫn và để lần quét sau thu dọn', async () => {
     const { service, customSounds } = build({
       admin_remove_reported_project: { data: [removeRow], error: null },
     });
@@ -193,7 +239,7 @@ describe('ReportModerationService.removeProject', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('orphan sweep'));
   });
 
-  it('removedSounds là số âm thanh đã xoá khỏi DB, không phải số file Storage lọc được', async () => {
+  it('UTCID06 removedSounds là số âm thanh đã xoá khỏi DB, không phải số file Storage lọc được', async () => {
     const { service } = build({
       admin_remove_reported_project: {
         data: [
@@ -206,7 +252,7 @@ describe('ReportModerationService.removeProject', () => {
     expect(result.removedSounds).toBe(3);
   });
 
-  it('không xoá âm thanh nào thì removedSounds là 0 và không đụng Storage', async () => {
+  it('UTCID07 không xoá âm thanh nào thì removedSounds là 0 và không đụng Storage', async () => {
     const { service, customSounds } = build({
       admin_remove_reported_project: {
         data: [{ ...removeRow, o_file_urls: [] }],
@@ -218,7 +264,7 @@ describe('ReportModerationService.removeProject', () => {
     expect(customSounds.removeFiles).not.toHaveBeenCalled();
   });
 
-  it('báo cáo đã xử lý: chọn âm thanh hay không đều trả 409, không gọi RPC', async () => {
+  it('UTCID08 báo cáo đã xử lý: chọn âm thanh hay không đều trả 409, không gọi RPC', async () => {
     const closed = build(
       { admin_remove_reported_project: { data: [removeRow], error: null } },
       {
@@ -246,7 +292,7 @@ describe('ReportModerationService.removeProject', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('báo người báo cáo theo lô, một người lỗi không làm hỏng thao tác và được log', async () => {
+  it('UTCID09 báo người báo cáo theo lô, một người lỗi không làm hỏng thao tác và được log', async () => {
     const reporters = Array.from(
       { length: 45 },
       (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
@@ -287,8 +333,8 @@ describe('ReportModerationService.removeProject', () => {
   });
 });
 
-describe('ReportModerationService.dismissReports', () => {
-  it('đóng báo cáo và báo người báo cáo mà không nói kết quả', async () => {
+describe('BE-RPT-07 ReportModerationService.dismissReports', () => {
+  it('UTCID01 đóng báo cáo và báo người báo cáo mà không nói kết quả', async () => {
     const { service, notifications } = build({
       admin_dismiss_reports: {
         data: [
@@ -314,7 +360,7 @@ describe('ReportModerationService.dismissReports', () => {
     );
   });
 
-  it('có báo cáo mới trong lúc xem thì 409 kèm danh sách mới và không đóng gì', async () => {
+  it('UTCID02 có báo cáo mới trong lúc xem thì 409 kèm danh sách mới và không đóng gì', async () => {
     const { service, notifications } = build({
       admin_dismiss_reports: {
         data: [
@@ -339,7 +385,7 @@ describe('ReportModerationService.dismissReports', () => {
     expect(notifications.notify).not.toHaveBeenCalled();
   });
 
-  it('dự án không tồn tại thì 404', async () => {
+  it('UTCID03 dự án không tồn tại thì 404', async () => {
     const { service } = build({
       admin_dismiss_reports: {
         data: null,
@@ -353,9 +399,33 @@ describe('ReportModerationService.dismissReports', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+  it('UTCID04 lỗi máy chủ thì 500 và không báo người báo cáo', async () => {
+    const { service, notifications } = build({
+      admin_dismiss_reports: { data: null, error: { message: 'boom' } },
+    });
+    await expect(
+      service.dismissReports(ADMIN, PROJECT, {
+        reportIds: [R1],
+        reason: 'Does not break any rule',
+      }),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('UTCID05 RPC không trả dòng nào thì 500', async () => {
+    const { service } = build({
+      admin_dismiss_reports: { data: [], error: null },
+    });
+    await expect(
+      service.dismissReports(ADMIN, PROJECT, {
+        reportIds: [R1],
+        reason: 'Does not break any rule',
+      }),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
 });
 
-describe('ReportModerationService.restoreProject', () => {
+describe('BE-RPT-06 ReportModerationService.restoreProject', () => {
   const rpcRow = (status: string) => ({
     admin_restore_project: {
       data: [{ o_status: status, o_owner_id: OWNER, o_project_name: 'Song' }],
@@ -363,7 +433,7 @@ describe('ReportModerationService.restoreProject', () => {
     },
   });
 
-  it('khôi phục và báo chủ dự án, truyền thời hạn lưu giữ đọc từ cài đặt', async () => {
+  it('UTCID01 khôi phục và báo chủ dự án, truyền thời hạn lưu giữ đọc từ cài đặt', async () => {
     const { service, mock, notifications } = build(rpcRow('restored'), {}, 14);
     await expect(service.restoreProject(ADMIN, PROJECT)).resolves.toEqual({
       restored: true,
@@ -380,7 +450,7 @@ describe('ReportModerationService.restoreProject', () => {
     );
   });
 
-  it('hết hạn lưu giữ thì 410', async () => {
+  it('UTCID02 hết hạn lưu giữ thì 410', async () => {
     const { service, notifications } = build(rpcRow('expired'));
     await expect(service.restoreProject(ADMIN, PROJECT)).rejects.toBeInstanceOf(
       GoneException,
@@ -388,14 +458,14 @@ describe('ReportModerationService.restoreProject', () => {
     expect(notifications.notify).not.toHaveBeenCalled();
   });
 
-  it('dự án chưa bị gỡ thì 409', async () => {
+  it('UTCID03 dự án chưa bị gỡ thì 409', async () => {
     const { service } = build(rpcRow('not_removed'));
     await expect(service.restoreProject(ADMIN, PROJECT)).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
 
-  it('cài đặt lưu giữ sai kiểu thì dùng mặc định 30 ngày', async () => {
+  it('UTCID04 cài đặt lưu giữ sai kiểu thì dùng mặc định 30 ngày', async () => {
     const { service, mock } = build(rpcRow('restored'), {}, 'abc');
     await service.restoreProject(ADMIN, PROJECT);
     expect(mock.rpc).toHaveBeenCalledWith(
@@ -403,10 +473,32 @@ describe('ReportModerationService.restoreProject', () => {
       expect.objectContaining({ p_retention_days: 30 }),
     );
   });
+
+  it('UTCID05 dự án không tồn tại thì 404', async () => {
+    const { service } = build({
+      admin_restore_project: {
+        data: null,
+        error: { message: 'PROJECT_NOT_FOUND' },
+      },
+    });
+    await expect(service.restoreProject(ADMIN, PROJECT)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('UTCID06 lỗi máy chủ thì 500 và không báo chủ dự án', async () => {
+    const { service, notifications } = build({
+      admin_restore_project: { data: null, error: { message: 'boom' } },
+    });
+    await expect(service.restoreProject(ADMIN, PROJECT)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
 });
 
-describe('ReportModerationService.getRemovalContext', () => {
-  it('đếm fork và chỉ liệt kê custom sound của chủ có trong snapshot', async () => {
+describe('BE-RPT-04 ReportModerationService.getRemovalContext', () => {
+  it('UTCID01 đếm fork và chỉ liệt kê custom sound của chủ có trong snapshot', async () => {
     const { service } = build(
       {},
       {
@@ -440,7 +532,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     });
   });
 
-  it('dự án không có commit thì không có sound để chọn', async () => {
+  it('UTCID02 dự án không có commit thì không có sound để chọn', async () => {
     const { service } = build(
       {},
       {
@@ -459,7 +551,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     });
   });
 
-  it('lấy sound từ mọi nhánh và từ nháp, mỗi sound một lần', async () => {
+  it('UTCID03 lấy sound từ mọi nhánh và từ nháp, mỗi sound một lần', async () => {
     const OTHER = '77777777-7777-4777-8777-777777777777';
     const DRAFT_ONLY = '88888888-8888-4888-8888-888888888888';
     const { service, mock } = build(
@@ -533,7 +625,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     custom_sounds: [{ data: soundRows, error: null }],
   });
 
-  it('quét cả lịch sử qua RPC phân trang: sound chỉ có ở commit cũ vẫn được liệt kê', async () => {
+  it('UTCID04 quét cả lịch sử qua RPC phân trang: sound chỉ có ở commit cũ vẫn được liệt kê', async () => {
     const { service, mock } = build(
       {
         sound_mappings_page: {
@@ -555,7 +647,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     });
   });
 
-  it('trang đầy thì gọi tiếp với con trỏ là id cuối, dừng khi trang chưa đầy', async () => {
+  it('UTCID05 trang đầy thì gọi tiếp với con trỏ là id cuối, dừng khi trang chưa đầy', async () => {
     const full = Array.from({ length: 500 }, (_, i) => ({
       o_id: `id-${String(i).padStart(3, '0')}`,
       o_custom_sound_id: SOUND,
@@ -577,7 +669,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     expect(calls[1][1]).toMatchObject({ p_after: 'id-499' });
   });
 
-  it('chạm trần số trang thì trả danh sách đã gom kèm truncated: true, không ném lỗi', async () => {
+  it('UTCID06 chạm trần số trang thì trả danh sách đã gom kèm truncated: true, không ném lỗi', async () => {
     const { service, mock } = build({}, contextTables());
     mock.rpc.mockImplementation((name: string) => {
       if (name !== 'sound_mappings_page') {
@@ -600,7 +692,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     expect(calls).toHaveLength(SOUND_INDEX_MAX_PAGES);
   });
 
-  it('lỗi RPC giữa chừng sau nhiều trang vẫn là 500, không biến thành kết quả một phần', async () => {
+  it('UTCID07 lỗi RPC giữa chừng sau nhiều trang vẫn là 500, không biến thành kết quả một phần', async () => {
     const { service, mock } = build({}, contextTables());
     let calls = 0;
     mock.rpc.mockImplementation(() => {
@@ -621,7 +713,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     );
   });
 
-  it('lỗi RPC chỉ mục sound thì 500, không coi là không có sound', async () => {
+  it('UTCID08 lỗi RPC chỉ mục sound thì 500, không coi là không có sound', async () => {
     const { service } = build(
       { sound_mappings_page: { data: null, error: { message: 'boom' } } },
       contextTables(),
@@ -631,7 +723,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     );
   });
 
-  it('lỗi đọc nhánh thì 500', async () => {
+  it('UTCID09 lỗi đọc nhánh thì 500', async () => {
     const { service } = build(
       {},
       {
@@ -648,14 +740,14 @@ describe('ReportModerationService.getRemovalContext', () => {
     );
   });
 
-  it('dự án không tồn tại thì 404', async () => {
+  it('UTCID10 dự án không tồn tại thì 404', async () => {
     const { service } = build({}, { projects: [{ data: null, error: null }] });
     await expect(service.getRemovalContext(PROJECT)).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
 
-  it('dự án không có báo cáo đang mở thì 403 và không đọc snapshot hay custom sound', async () => {
+  it('UTCID11 dự án không có báo cáo đang mở thì 403 và không đọc snapshot hay custom sound', async () => {
     const { service, mock } = build(
       {},
       {
@@ -674,7 +766,7 @@ describe('ReportModerationService.getRemovalContext', () => {
     expect(tables).not.toContain('custom_sounds');
   });
 
-  it('lỗi đếm báo cáo thì 500, không coi như không có báo cáo', async () => {
+  it('UTCID12 lỗi đếm báo cáo thì 500, không coi như không có báo cáo', async () => {
     const { service } = build(
       {},
       {

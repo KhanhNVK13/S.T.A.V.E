@@ -39,8 +39,12 @@ export type GridDivision = 4 | 8 | 16 | 32;
 const PITCH_COUNT = 128;
 const RESIZE_HANDLE_PX = 6; // px at right edge = resize zone
 
-function resizeZonePx(noteWidth: number) {
+export function resizeZonePx(noteWidth: number) {
   return Math.min(RESIZE_HANDLE_PX, noteWidth * 0.4);
+}
+
+export function snapTickToGrid(tick: number, gridStep: number): number {
+  return Math.round(tick / gridStep) * gridStep;
 }
 
 /**
@@ -247,7 +251,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     const gridStep = ppq / (gridDivision / 4);
     // Snap a tick value to the nearest grid boundary
     const snapToGrid = useCallback(
-      (tick: number) => (snapEnabled ? Math.round(tick / gridStep) * gridStep : Math.round(tick)),
+      (tick: number) => (snapEnabled ? snapTickToGrid(tick, gridStep) : Math.round(tick)),
       [gridStep, snapEnabled],
     );
     // total canvas width (ticks) — 128 bars

@@ -17,8 +17,8 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^[a-z0-9_]{3,20}$/, {
-    message: 'username must be 3-20 chars: lowercase letters, digits, _',
+  @Matches(/^[A-Za-z0-9_]{3,20}$/, {
+    message: 'username must be 3-20 chars: letters, digits, _',
   })
   username?: string;
 

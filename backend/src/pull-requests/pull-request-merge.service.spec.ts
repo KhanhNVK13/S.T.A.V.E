@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 
 jest.mock('uuid', () => ({
@@ -138,8 +139,8 @@ const importTables = (extra: SupabaseMockOptions['tables'] = {}) =>
     ...extra,
   }) as SupabaseMockOptions['tables'];
 
-describe('PullRequestMergeService.mergePullRequest', () => {
-  it('imports the commits oldest first, merges and records the result', async () => {
+describe('BE-PRQ-10 PullRequestMergeService.mergePullRequest', () => {
+  it('UTCID01 imports the commits oldest first, credits their authors, merges and records the result', async () => {
     const {
       service,
       builders,
@@ -195,7 +196,7 @@ describe('PullRequestMergeService.mergePullRequest', () => {
     );
   });
 
-  it('reuses commits already imported by an earlier attempt', async () => {
+  it('UTCID02 reuses commits already imported by an earlier attempt', async () => {
     const { service, builders } = setup({
       row: row({ merge_branch_id: 'merge-branch' }),
       tables: {
@@ -228,7 +229,7 @@ describe('PullRequestMergeService.mergePullRequest', () => {
     );
   });
 
-  it('never adopts an existing branch that already has the pull request name', async () => {
+  it('UTCID03 never adopts an existing branch that already has the pull request name', async () => {
     const { service, builders } = setup({
       tables: importTables({
         branches: [
@@ -249,7 +250,7 @@ describe('PullRequestMergeService.mergePullRequest', () => {
     );
   });
 
-  it('reports conflicts without marking the pull request merged', async () => {
+  it('UTCID04 reports conflicts without marking the pull request merged', async () => {
     const { service, markMerged, notify } = setup({
       tables: importTables(),
       mergeResult: {
@@ -267,7 +268,7 @@ describe('PullRequestMergeService.mergePullRequest', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('refuses a pull request that is no longer open', async () => {
+  it('UTCID05 refuses a pull request that is no longer open', async () => {
     const { service, mergeBranch } = setup({ row: row({ status: 'closed' }) });
     await expect(
       service.mergePullRequest(prId, owner, {}),
@@ -275,37 +276,73 @@ describe('PullRequestMergeService.mergePullRequest', () => {
     expect(mergeBranch).not.toHaveBeenCalled();
   });
 
-  it('refuses someone without permission to merge', async () => {
+  it('UTCID06 refuses someone without permission to merge', async () => {
     const { service } = setup({ canMerge: false });
     await expect(
       service.mergePullRequest(prId, author, {}),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('refuses when the fork or its branch no longer exists', async () => {
+  it('UTCID07 refuses when the fork or its branch no longer exists', async () => {
     const { service } = setup({ row: row({ source_branch_id: null }) });
     await expect(
       service.mergePullRequest(prId, owner, {}),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('refuses when there is nothing left to merge', async () => {
+  it('UTCID08 refuses when there is nothing left to merge', async () => {
     const { service } = setup({ newCommits: [] });
     await expect(
       service.mergePullRequest(prId, owner, {}),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('UTCID09 leaves the pull request open and unnotified when the merge fails partway', async () => {
+    const { service, markMerged, notify, mergeBranch } = setup({
+      tables: importTables(),
+    });
+    mergeBranch.mockRejectedValueOnce(new Error('server error'));
+    await expect(service.mergePullRequest(prId, owner, {})).rejects.toThrow(
+      'server error',
+    );
+    expect(markMerged).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('UTCID10 reports a failure when a pull request commit cannot be read', async () => {
+    const { service, mergeBranch, markMerged } = setup({
+      tables: importTables({
+        commits: [{ data: [] }, { data: null, error: { message: 'db' } }],
+      }),
+    });
+    await expect(
+      service.mergePullRequest(prId, owner, {}),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(mergeBranch).not.toHaveBeenCalled();
+    expect(markMerged).not.toHaveBeenCalled();
+  });
+
+  it('UTCID11 passes the expected target head to the merge', async () => {
+    const { service, mergeBranch } = setup({ tables: importTables() });
+    await service.mergePullRequest(prId, owner, {
+      expectedTargetHeadCommitId: 'head-1',
+    });
+    expect(mergeBranch).toHaveBeenCalledWith(
+      owner,
+      expect.objectContaining({ expectedTargetHeadCommitId: 'head-1' }),
+    );
+  });
 });
 
-describe('PullRequestMergeService.resolvePullRequest', () => {
-  it('needs the merge to have been started first', async () => {
+describe('BE-PRQ-11 PullRequestMergeService.resolvePullRequest', () => {
+  it('UTCID01 needs the merge to have been started first', async () => {
     const { service } = setup({});
     await expect(
       service.resolvePullRequest(prId, owner, { resolutions: [] }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('completes the merge with the chosen resolutions', async () => {
+  it('UTCID02 completes the merge with the chosen resolutions', async () => {
     const { service, resolveConflictsAndMerge, markMerged } = setup({
       row: row({ merge_branch_id: 'merge-branch' }),
     });

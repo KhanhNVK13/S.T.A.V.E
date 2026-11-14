@@ -191,6 +191,71 @@ describe("UC-79 ảnh không đủ màu", () => {
   });
 });
 
+describe("FE-LIB-50 theme-from-image extractPalette(pixels)", () => {
+  const colourful = (): Rgb[] => {
+    const pixels: Rgb[] = [];
+    for (let i = 0; i < 60; i += 1) pixels.push([220, 30, 40]);
+    for (let i = 0; i < 30; i += 1) pixels.push([20, 60, 200]);
+    for (let i = 0; i < 30; i += 1) pixels.push([40, 200, 90]);
+    return pixels;
+  };
+
+  it("UTCID01 (N): a multi-colour image gives a palette that passes the shared validator", () => {
+    expect(isValidPalette(extractPalette(colourful()))).toBe(true);
+  });
+
+  it("UTCID02 (N): the palette has exactly the ten decorative variables", () => {
+    const palette = extractPalette(colourful());
+    expect(Object.keys(palette).sort()).toEqual([...PALETTE_KEYS].sort());
+  });
+
+  it("UTCID03 (N): the palette never touches accent, success, warning or danger", () => {
+    const keys = Object.keys(extractPalette(colourful()));
+    expect(keys.some((key) => /^--(accent|success|warning|danger)/.test(key))).toBe(false);
+  });
+
+  it("UTCID04 (N): text stays readable on the extracted background and surface (at least 4.5:1)", () => {
+    const palette = extractPalette(colourful());
+    const bg = oklchToSrgb(...parse(palette["--background"]));
+    const surface = oklchToSrgb(...parse(palette["--surface"]));
+    const fg = oklchToSrgb(...parse(palette["--foreground"]));
+    const muted = oklchToSrgb(...parse(palette["--muted-foreground"]));
+    expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(muted, bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(fg, surface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("UTCID05 (A): a single-colour image is refused as not enough colour", () => {
+    const pixels: Rgb[] = Array.from({ length: 200 }, () => [120, 120, 120]);
+    expect(() => extractPalette(pixels)).toThrow(/not_enough_color/);
+  });
+
+  it("UTCID06 (B): an image where one colour covers more than 85% is refused", () => {
+    const pixels: Rgb[] = [];
+    for (let i = 0; i < 95; i += 1) pixels.push([10, 10, 10]);
+    for (let i = 0; i < 5; i += 1) pixels.push([220, 30, 30]);
+    expect(() => extractPalette(pixels)).toThrow(/not_enough_color/);
+  });
+
+  it("UTCID07 (A): an image with no pixels is refused", () => {
+    expect(() => extractPalette([])).toThrow(/no_pixels/);
+  });
+
+  it("UTCID08 (A): an image made only of greys is refused as not enough colour", () => {
+    const pixels: Rgb[] = [];
+    for (let i = 0; i < 60; i += 1) pixels.push([60, 60, 60]);
+    for (let i = 0; i < 60; i += 1) pixels.push([200, 200, 200]);
+    expect(() => extractPalette(pixels)).toThrow(/not_enough_color/);
+  });
+
+  it("UTCID09 (N): the pixels are only read, never changed", () => {
+    const pixels = colourful();
+    const copy = structuredClone(pixels);
+    extractPalette(pixels);
+    expect(pixels).toEqual(copy);
+  });
+});
+
 function parse(token: string): [number, number, number] {
   const m = token.match(/^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
   if (!m) throw new Error(`bad token: ${token}`);

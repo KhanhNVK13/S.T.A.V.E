@@ -72,7 +72,7 @@ describe('sanitizeReportDetails', () => {
   });
 });
 
-describe('groupReportRows', () => {
+describe('BE-RPT-08 groupReportRows(rows)', () => {
   const row = (over: Partial<ReportRow>): ReportRow => ({
     id: 'r',
     project_id: 'p1',
@@ -81,7 +81,7 @@ describe('groupReportRows', () => {
     ...over,
   });
 
-  it('gom theo project_id và đếm reportCount', () => {
+  it('UTCID01 gom theo project_id và đếm reportCount', () => {
     const groups = groupReportRows([
       row({ id: 'a', project_id: 'p1' }),
       row({ id: 'b', project_id: 'p2' }),
@@ -92,7 +92,7 @@ describe('groupReportRows', () => {
     expect(groups.find((g) => g.projectId === 'p2')?.reportCount).toBe(1);
   });
 
-  it('reasons đếm đúng, nhiều trước, hoà thì theo thứ tự REPORT_REASONS', () => {
+  it('UTCID02 reasons đếm đúng, nhiều trước, hoà thì theo thứ tự REPORT_REASONS', () => {
     const [group] = groupReportRows([
       row({ reason: 'other' }),
       row({ reason: 'spam' }),
@@ -108,12 +108,12 @@ describe('groupReportRows', () => {
     ]);
   });
 
-  it('lý do ngoài danh mục được tính vào other', () => {
+  it('UTCID03 lý do ngoài danh mục được tính vào other', () => {
     const [group] = groupReportRows([row({ reason: 'weird' })]);
     expect(group.reasons).toEqual([{ reason: 'other', count: 1 }]);
   });
 
-  it('latestAt là thời điểm lớn nhất, sắp nhóm theo latestAt giảm dần', () => {
+  it('UTCID04 latestAt là thời điểm lớn nhất, sắp nhóm theo latestAt giảm dần', () => {
     const groups = groupReportRows([
       row({ project_id: 'old', created_at: '2026-10-01T00:00:00.000Z' }),
       row({ project_id: 'new', created_at: '2026-11-03T00:00:00.000Z' }),
@@ -123,7 +123,7 @@ describe('groupReportRows', () => {
     expect(groups[1].latestAt).toBe('2026-10-05T00:00:00.000Z');
   });
 
-  it('so sánh thời điểm theo giá trị chứ không theo chuỗi', () => {
+  it('UTCID05 so sánh thời điểm theo giá trị chứ không theo chuỗi', () => {
     const groups = groupReportRows([
       row({ project_id: 'a', created_at: '2026-11-01T10:00:00+07:00' }),
       row({ project_id: 'b', created_at: '2026-11-01T05:00:00Z' }),
@@ -131,7 +131,7 @@ describe('groupReportRows', () => {
     expect(groups.map((g) => g.projectId)).toEqual(['b', 'a']);
   });
 
-  it('project_id null thành nhóm projectExists false', () => {
+  it('UTCID06 project_id null thành nhóm projectExists false', () => {
     const groups = groupReportRows([
       row({ project_id: null }),
       row({ project_id: null }),
@@ -142,7 +142,7 @@ describe('groupReportRows', () => {
     expect(groups.find((g) => g.projectId === 'p1')?.projectExists).toBe(true);
   });
 
-  it('lấy quyết định của báo cáo được xử lý gần nhất', () => {
+  it('UTCID07 lấy quyết định của báo cáo được xử lý gần nhất', () => {
     const [group] = groupReportRows([
       row({
         resolution: 'dismissed',
@@ -162,20 +162,20 @@ describe('groupReportRows', () => {
     });
   });
 
-  it('báo cáo đang mở không có trường quyết định', () => {
+  it('UTCID08 báo cáo đang mở không có trường quyết định', () => {
     const [group] = groupReportRows([row({})]);
     expect(group).not.toHaveProperty('resolution');
     expect(group).not.toHaveProperty('resolutionNote');
   });
 
-  it('không đổi dữ liệu đầu vào', () => {
+  it('UTCID09 không đổi dữ liệu đầu vào', () => {
     const input = [row({ id: 'a' }), row({ id: 'b', project_id: 'p2' })];
     const snapshot = JSON.parse(JSON.stringify(input)) as ReportRow[];
     groupReportRows(input);
     expect(input).toEqual(snapshot);
   });
 
-  it('danh sách rỗng -> mảng rỗng', () => {
+  it('UTCID10 danh sách rỗng -> mảng rỗng', () => {
     expect(groupReportRows([])).toEqual([]);
   });
 });

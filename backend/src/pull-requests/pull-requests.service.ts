@@ -156,6 +156,18 @@ export class PullRequestsService {
     };
   }
 
+  private async assertEmailVerified(userId: string): Promise<void> {
+    const { data, error } = await this.supabase.auth.admin.getUserById(userId);
+    if (error || !data?.user) {
+      throw new InternalServerErrorException('Could not create pull request');
+    }
+    if (!data.user.email_confirmed_at) {
+      throw new ForbiddenException(
+        'Unverified account cannot open a pull request',
+      );
+    }
+  }
+
   async create(
     projectId: string,
     userId: string,
@@ -174,6 +186,8 @@ export class PullRequestsService {
         'Description must not exceed 2000 characters',
       );
     }
+
+    await this.assertEmailVerified(userId);
 
     const { source, target, sourceBranch, targetBranch } =
       await this.validateTarget(

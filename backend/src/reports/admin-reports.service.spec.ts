@@ -62,8 +62,8 @@ const groupRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe('AdminReportsService.listGroups', () => {
-  it('open: gọi RPC với status pending, không có resolution', async () => {
+describe('BE-RPT-01 AdminReportsService.listGroups', () => {
+  it('UTCID01 open: gọi RPC với status pending, không có resolution', async () => {
     const { service, mock } = build({
       rpc: ok([]),
     });
@@ -94,7 +94,7 @@ describe('AdminReportsService.listGroups', () => {
     },
   );
 
-  it('offset = (page-1)*limit', async () => {
+  it('UTCID02 offset = (page-1)*limit', async () => {
     const { service, mock } = build({
       rpc: ok([groupRow()]),
       tables: {
@@ -109,7 +109,7 @@ describe('AdminReportsService.listGroups', () => {
     );
   });
 
-  it('ghép tên dự án và display_name của chủ; total ép số một lần', async () => {
+  it('UTCID03 ghép tên dự án và display_name của chủ; total ép số một lần', async () => {
     const { service } = build({
       rpc: ok([
         groupRow(),
@@ -154,7 +154,7 @@ describe('AdminReportsService.listGroups', () => {
     expect(result.items[1].ownerDisplayName).toBeNull();
   });
 
-  it('thứ tự nhóm giữ nguyên thứ tự RPC, mỗi nhóm một dự án (không trộn)', async () => {
+  it('UTCID04 thứ tự nhóm giữ nguyên thứ tự RPC, mỗi nhóm một dự án (không trộn)', async () => {
     const { service } = build({
       rpc: ok([
         groupRow({ project_id: P2, report_count: 1 }),
@@ -180,7 +180,7 @@ describe('AdminReportsService.listGroups', () => {
     expect(new Set(items.map((i) => i.projectId)).size).toBe(items.length);
   });
 
-  it('chỉ tra dự án và chủ của đúng các nhóm trong trang', async () => {
+  it('UTCID05 chỉ tra dự án và chủ của đúng các nhóm trong trang', async () => {
     const { service, mock } = build({
       rpc: ok([groupRow()]),
       tables: {
@@ -194,7 +194,7 @@ describe('AdminReportsService.listGroups', () => {
     expect(mock.builders.users.select).toHaveBeenCalledWith('id, display_name');
   });
 
-  it('không bao giờ chọn email hay chạm bảng reports', async () => {
+  it('UTCID06 không bao giờ chọn email hay chạm bảng reports', async () => {
     const { service, mock } = build({
       rpc: ok([groupRow()]),
       tables: {
@@ -214,7 +214,7 @@ describe('AdminReportsService.listGroups', () => {
     }
   });
 
-  it('nhóm project_id null đánh dấu projectExists false và không tra dự án', async () => {
+  it('UTCID07 nhóm project_id null đánh dấu projectExists false và không tra dự án', async () => {
     const { service, mock } = build({
       rpc: ok([groupRow({ project_id: null, report_count: 3 })]),
     });
@@ -234,7 +234,7 @@ describe('AdminReportsService.listGroups', () => {
     expect(touched(mock, 'users')).toBe(0);
   });
 
-  it('dự án không còn trong bảng projects -> projectExists false', async () => {
+  it('UTCID08 dự án không còn trong bảng projects -> projectExists false', async () => {
     const { service } = build({
       rpc: ok([groupRow()]),
       tables: { projects: [ok([])] },
@@ -251,7 +251,7 @@ describe('AdminReportsService.listGroups', () => {
     });
   });
 
-  it('tab đã xử lý trả resolution, resolutionNote, resolvedAt', async () => {
+  it('UTCID09 tab đã xử lý trả resolution, resolutionNote, resolvedAt', async () => {
     const { service } = build({
       rpc: ok([
         groupRow({
@@ -277,7 +277,7 @@ describe('AdminReportsService.listGroups', () => {
     });
   });
 
-  it('tab đang mở không có trường quyết định', async () => {
+  it('UTCID10 tab đang mở không có trường quyết định', async () => {
     const { service } = build({
       rpc: ok([groupRow()]),
       tables: {
@@ -294,7 +294,7 @@ describe('AdminReportsService.listGroups', () => {
     expect(items[0]).not.toHaveProperty('resolutionNote');
   });
 
-  it('lý do ngoài danh mục từ RPC được tính là other', async () => {
+  it('UTCID11 lý do ngoài danh mục từ RPC được tính là other', async () => {
     const { service } = build({
       rpc: ok([groupRow({ reasons: [{ reason: 'weird', count: 2 }] })]),
       tables: {
@@ -310,14 +310,14 @@ describe('AdminReportsService.listGroups', () => {
     expect(items[0].reasons).toEqual([{ reason: 'other', count: 2 }]);
   });
 
-  it('không có nhóm nào -> items rỗng, total 0 (trang đầu)', async () => {
+  it('UTCID12 không có nhóm nào -> items rỗng, total 0 (trang đầu)', async () => {
     const { service } = build({ rpc: ok([]) });
     await expect(
       service.listGroups({ status: 'open', page: 1, limit: 20 }),
     ).resolves.toEqual({ items: [], total: 0, page: 1, limit: 20 });
   });
 
-  it('trang vượt cuối: items rỗng nhưng total vẫn đúng (hỏi lại trang đầu)', async () => {
+  it('UTCID13 trang vượt cuối: items rỗng nhưng total vẫn đúng (hỏi lại trang đầu)', async () => {
     const { service, mock } = build({
       rpc: [ok([]), ok([groupRow({ total_groups: '7' })])],
       tables: {
@@ -338,7 +338,7 @@ describe('AdminReportsService.listGroups', () => {
     );
   });
 
-  it('RPC lỗi (chưa áp migration) -> 500, không trả danh sách rỗng giả', async () => {
+  it('UTCID14 RPC lỗi (chưa áp migration) -> 500, không trả danh sách rỗng giả', async () => {
     const { service } = build({
       rpc: {
         data: null,
@@ -350,7 +350,7 @@ describe('AdminReportsService.listGroups', () => {
     ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 
-  it('lỗi tra dự án -> 500', async () => {
+  it('UTCID15 lỗi tra dự án -> 500', async () => {
     const { service } = build({
       rpc: ok([groupRow()]),
       tables: { projects: [{ data: null, error: { message: 'boom' } }] },
@@ -360,7 +360,7 @@ describe('AdminReportsService.listGroups', () => {
     ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 
-  it('lỗi tra chủ dự án -> 500', async () => {
+  it('UTCID16 lỗi tra chủ dự án -> 500', async () => {
     const { service } = build({
       rpc: ok([groupRow()]),
       tables: {
@@ -374,7 +374,7 @@ describe('AdminReportsService.listGroups', () => {
   });
 });
 
-describe('AdminReportsService.getDetails', () => {
+describe('BE-RPT-02 AdminReportsService.getDetails', () => {
   const reportRow = (over: Record<string, unknown> = {}) => ({
     id: 'r1',
     reason: 'copyright',
@@ -386,7 +386,7 @@ describe('AdminReportsService.getDetails', () => {
     ...over,
   });
 
-  it('trả reporter {id, displayName} duy nhất ở endpoint này', async () => {
+  it('UTCID01 trả reporter {id, displayName} duy nhất ở endpoint này', async () => {
     const { service } = build({
       tables: {
         reports: [ok([reportRow()])],
@@ -407,7 +407,7 @@ describe('AdminReportsService.getDetails', () => {
     ]);
   });
 
-  it('không bao giờ chọn hay trả email', async () => {
+  it('UTCID02 không bao giờ chọn hay trả email', async () => {
     const { service, mock } = build({
       tables: {
         reports: [ok([reportRow()])],
@@ -419,7 +419,7 @@ describe('AdminReportsService.getDetails', () => {
     expect(mock.builders.users.select).toHaveBeenCalledWith('id, display_name');
   });
 
-  it('reporter null (tài khoản đã xoá) -> reporter null và không tra users', async () => {
+  it('UTCID03 reporter null (tài khoản đã xoá) -> reporter null và không tra users', async () => {
     const { service, mock } = build({
       tables: { reports: [ok([reportRow({ reporter_id: null })])] },
     });
@@ -428,7 +428,7 @@ describe('AdminReportsService.getDetails', () => {
     expect(touched(mock, 'users')).toBe(0);
   });
 
-  it('người báo cáo còn id nhưng không tìm thấy hồ sơ -> displayName null', async () => {
+  it('UTCID04 người báo cáo còn id nhưng không tìm thấy hồ sơ -> displayName null', async () => {
     const { service } = build({
       tables: { reports: [ok([reportRow()])], users: [ok([])] },
     });
@@ -436,7 +436,7 @@ describe('AdminReportsService.getDetails', () => {
     expect(detail.reporter).toEqual({ id: REPORTER, displayName: null });
   });
 
-  it('open lọc status pending, không lọc resolution', async () => {
+  it('UTCID05 open lọc status pending, không lọc resolution', async () => {
     const { service, mock } = build({ tables: { reports: [ok([])] } });
     await service.getDetails(P1, 'open');
     expect(mock.builders.reports.eq).toHaveBeenCalledWith('project_id', P1);
@@ -447,7 +447,7 @@ describe('AdminReportsService.getDetails', () => {
     );
   });
 
-  it('dismissed lọc status resolved và resolution dismissed', async () => {
+  it('UTCID06 dismissed lọc status resolved và resolution dismissed', async () => {
     const { service, mock } = build({ tables: { reports: [ok([])] } });
     await service.getDetails(P1, 'dismissed');
     expect(mock.builders.reports.eq).toHaveBeenCalledWith('status', 'resolved');
@@ -457,7 +457,7 @@ describe('AdminReportsService.getDetails', () => {
     );
   });
 
-  it('giới hạn 500 báo cáo mỗi nhóm, mới nhất trước', async () => {
+  it('UTCID07 giới hạn 500 báo cáo mỗi nhóm, mới nhất trước', async () => {
     const { service, mock } = build({ tables: { reports: [ok([])] } });
     await service.getDetails(P1, 'open');
     expect(mock.builders.reports.range).toHaveBeenCalledWith(0, 499);
@@ -466,13 +466,13 @@ describe('AdminReportsService.getDetails', () => {
     });
   });
 
-  it('nhóm không có báo cáo -> mảng rỗng và không tra users', async () => {
+  it('UTCID08 nhóm không có báo cáo -> mảng rỗng và không tra users', async () => {
     const { service, mock } = build({ tables: { reports: [ok([])] } });
     await expect(service.getDetails(P1, 'open')).resolves.toEqual([]);
     expect(touched(mock, 'users')).toBe(0);
   });
 
-  it('lý do ngoài danh mục là other; báo cáo đã xử lý mang resolution', async () => {
+  it('UTCID09 lý do ngoài danh mục là other; báo cáo đã xử lý mang resolution', async () => {
     const { service } = build({
       tables: {
         reports: [
@@ -493,7 +493,7 @@ describe('AdminReportsService.getDetails', () => {
     expect(detail.resolution).toBe('upheld');
   });
 
-  it('lỗi đọc báo cáo -> 500', async () => {
+  it('UTCID10 lỗi đọc báo cáo -> 500', async () => {
     const { service } = build({
       tables: { reports: [{ data: null, error: { message: 'boom' } }] },
     });
@@ -502,7 +502,7 @@ describe('AdminReportsService.getDetails', () => {
     );
   });
 
-  it('lỗi tra người báo cáo -> 500', async () => {
+  it('UTCID11 lỗi tra người báo cáo -> 500', async () => {
     const { service } = build({
       tables: {
         reports: [ok([reportRow()])],
@@ -515,7 +515,7 @@ describe('AdminReportsService.getDetails', () => {
   });
 });
 
-describe('AdminReportsService.getPreview', () => {
+describe('BE-RPT-03 AdminReportsService.getPreview', () => {
   const project = {
     id: P1,
     name: 'Song A',
@@ -564,7 +564,7 @@ describe('AdminReportsService.getPreview', () => {
     commits: [ok({ snapshot })],
   });
 
-  it('dự án không tồn tại -> 404 và không đọc báo cáo, nhánh, commit', async () => {
+  it('UTCID01 dự án không tồn tại -> 404 và không đọc báo cáo, nhánh, commit', async () => {
     const { service, mock } = build({ tables: { projects: [ok(null)] } });
     await expect(service.getPreview(P1)).rejects.toBeInstanceOf(
       NotFoundException,
@@ -573,7 +573,7 @@ describe('AdminReportsService.getPreview', () => {
     expect(touched(mock, 'commits')).toBe(0);
   });
 
-  it('không có báo cáo pending -> 403, không đọc nhánh, commit hay draft', async () => {
+  it('UTCID02 không có báo cáo pending -> 403, không đọc nhánh, commit hay draft', async () => {
     const { service, mock } = build({
       tables: { projects: [ok(project)], reports: [ok(null, { count: 0 })] },
     });
@@ -585,7 +585,7 @@ describe('AdminReportsService.getPreview', () => {
     expect(touched(mock, 'drafts')).toBe(0);
   });
 
-  it('403 dùng message cố định, không lộ thông tin dự án', async () => {
+  it('UTCID03 403 dùng message cố định, không lộ thông tin dự án', async () => {
     const { service } = build({
       tables: { projects: [ok(project)], reports: [ok(null, { count: 0 })] },
     });
@@ -594,14 +594,14 @@ describe('AdminReportsService.getPreview', () => {
     );
   });
 
-  it('chỉ đếm báo cáo pending của đúng dự án', async () => {
+  it('UTCID04 chỉ đếm báo cáo pending của đúng dự án', async () => {
     const { service, mock } = build({ tables: full() });
     await service.getPreview(P1);
     expect(mock.builders.reports.eq).toHaveBeenCalledWith('project_id', P1);
     expect(mock.builders.reports.eq).toHaveBeenCalledWith('status', 'pending');
   });
 
-  it('có báo cáo: trả đúng số track, số nốt, tên và nhạc cụ track', async () => {
+  it('UTCID05 có báo cáo: trả đúng số track, số nốt, tên và nhạc cụ track', async () => {
     const { service } = build({ tables: full() });
     await expect(service.getPreview(P1)).resolves.toEqual({
       project: { id: P1, name: 'Song A', description: 'desc', genre: 'Pop' },
@@ -615,7 +615,7 @@ describe('AdminReportsService.getPreview', () => {
     });
   });
 
-  it('response không chứa snapshot, nốt, id track, màu hay email', async () => {
+  it('UTCID06 response không chứa snapshot, nốt, id track, màu hay email', async () => {
     const { service } = build({ tables: full() });
     const json = JSON.stringify(await service.getPreview(P1));
     for (const forbidden of [
@@ -632,7 +632,7 @@ describe('AdminReportsService.getPreview', () => {
     }
   });
 
-  it('lấy head của nhánh mặc định rồi đọc đúng commit đó, bằng truy vấn đơn giản', async () => {
+  it('UTCID07 lấy head của nhánh mặc định rồi đọc đúng commit đó, bằng truy vấn đơn giản', async () => {
     const { service, mock } = build({ tables: full() });
     await service.getPreview(P1);
     expect(mock.builders.branches.eq).toHaveBeenCalledWith('project_id', P1);
@@ -645,13 +645,13 @@ describe('AdminReportsService.getPreview', () => {
     }
   });
 
-  it('không bao giờ đọc bản nháp', async () => {
+  it('UTCID08 không bao giờ đọc bản nháp', async () => {
     const { service, mock } = build({ tables: full() });
     await service.getPreview(P1);
     expect(touched(mock, 'drafts')).toBe(0);
   });
 
-  it('chưa có nhánh mặc định -> hasCommit false, số liệu 0, không đọc commit', async () => {
+  it('UTCID09 chưa có nhánh mặc định -> hasCommit false, số liệu 0, không đọc commit', async () => {
     const { service, mock } = build({
       tables: {
         projects: [ok(project)],
@@ -668,7 +668,7 @@ describe('AdminReportsService.getPreview', () => {
     expect(touched(mock, 'commits')).toBe(0);
   });
 
-  it('nhánh chưa có head_commit_id -> hasCommit false', async () => {
+  it('UTCID10 nhánh chưa có head_commit_id -> hasCommit false', async () => {
     const { service, mock } = build({
       tables: {
         projects: [ok(project)],
@@ -682,7 +682,7 @@ describe('AdminReportsService.getPreview', () => {
     expect(touched(mock, 'commits')).toBe(0);
   });
 
-  it('commit không còn -> hasCommit false', async () => {
+  it('UTCID11 commit không còn -> hasCommit false', async () => {
     const { service } = build({
       tables: {
         projects: [ok(project)],

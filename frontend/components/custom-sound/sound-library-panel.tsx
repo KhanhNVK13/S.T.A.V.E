@@ -81,6 +81,10 @@ async function saveSound(
   return confirmCustomSoundUpload({ soundId, name, source: kind });
 }
 
+function isErrorSource(value: unknown): value is ErrorSource {
+  return typeof value === "object" && value !== null && "fallback" in value;
+}
+
 function toErrorSource(err: unknown, fallback: TKey): ErrorSource {
   if (err instanceof Error && !("status" in err)) return rawErrorSource(err.message);
   return errorSource(err, fallback);
@@ -465,28 +469,29 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
   }, []);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
-    if (!/\.(wav|mp3)$/i.test(file.name)) {
-      setError(errorSource(null, "snd.onlyWavMp3"));
-      return;
-    }
-    if (file.size > MAX_SIZE_BYTES) {
-      setError(errorSource(null, "snd.fileTooBig", { size: formatSize(file.size) }));
-      return;
-    }
+    if (files.length === 0) return;
     setUploading(true);
     setError(null);
-    try {
-      const name = file.name.replace(/\.[^.]+$/, "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 100) || t("snd.defaultName");
-      await saveSound(file, name, "uploaded");
-      await load();
-    } catch (err) {
-      setError(toErrorSource(err, "snd.uploadError"));
-    } finally {
-      setUploading(false);
+    const rejected: string[] = [];
+    let saved = 0;
+    for (const file of files) {
+      try {
+        if (!/\.(wav|mp3)$/i.test(file.name)) throw errorSource(null, "snd.onlyWavMp3");
+        if (file.size > MAX_SIZE_BYTES) throw errorSource(null, "snd.fileTooBig", { size: formatSize(file.size) });
+        const name = file.name.replace(/\.[^.]+$/, "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 100) || t("snd.defaultName");
+        await saveSound(file, name, "uploaded");
+        saved++;
+      } catch (err) {
+        const source = isErrorSource(err) ? err : toErrorSource(err, "snd.uploadError");
+        const reason = renderError(source) ?? "";
+        rejected.push(files.length > 1 ? `${file.name}: ${reason}` : reason);
+      }
     }
+    if (saved > 0) await load();
+    if (rejected.length > 0) setError(rawErrorSource(rejected.join(" ")));
+    setUploading(false);
   }
 
   async function submitRename(sound: CustomSound) {
@@ -537,7 +542,7 @@ export function SoundLibraryPanel({ renderRowAction, mappedIds, onLibraryChange 
       <audio ref={audioRef} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <input ref={fileInputRef} type="file" accept={ACCEPT} onChange={(e) => void handleFileSelect(e)} className="hidden" />
+        <input ref={fileInputRef} type="file" accept={ACCEPT} multiple onChange={(e) => void handleFileSelect(e)} className="hidden" />
         <Button onClick={() => fileInputRef.current?.click()} disabled={uploading || recording}>
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
           {uploading ? t("snd.uploading") : t("snd.upload")}

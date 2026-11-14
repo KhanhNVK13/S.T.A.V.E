@@ -18,36 +18,62 @@ function stubComputed(...values: string[]) {
 }
 
 describe("FE-LIB-23 resolveCssColors", () => {
-  it("FE-LIB-23 UTCID01 (N): every CSS expression is replaced by the browser-computed colour", () => {
-    stubComputed("rgb(255, 255, 255)", "oklab(0.5 0.1 0.1)");
-    expect(resolveCssColors({ bg: "var(--surface)", grid: "color-mix(in oklab, var(--border) 50%, white)" })).toEqual({
-      bg: "rgb(255, 255, 255)",
-      grid: "oklab(0.5 0.1 0.1)",
-    });
+  const probeCount = () => document.body.childElementCount;
+
+  it("UTCID01 (N): no DOM (SSR) → returns a copy of {bg: var(--surface)} unchanged", () => {
+    const spec = { bg: "var(--surface)" };
+    vi.stubGlobal("document", undefined);
+    const out = resolveCssColors(spec);
+    expect(out).toEqual({ bg: "var(--surface)" });
+    expect(out).not.toBe(spec);
   });
 
-  it("FE-LIB-23 UTCID02 (N): output has exactly the same keys as the spec", () => {
+  it("UTCID02 (N): computed rgb(18, 18, 20) → {bg: rgb(18, 18, 20)}, probe removed", () => {
+    const before = probeCount();
+    stubComputed("rgb(18, 18, 20)");
+    expect(resolveCssColors({ bg: "var(--surface)" })).toEqual({ bg: "rgb(18, 18, 20)" });
+    expect(probeCount()).toBe(before);
+  });
+
+  it("UTCID03 (N): color-mix expression resolved to oklab(...), probe removed", () => {
+    const before = probeCount();
+    stubComputed("oklab(0.5 0.1 0.1)");
+    expect(resolveCssColors({ a: "color-mix(in oklab, red, blue)" })).toEqual({ a: "oklab(0.5 0.1 0.1)" });
+    expect(probeCount()).toBe(before);
+  });
+
+  it("UTCID04 (A): computed rgba(0, 0, 0, 0) → original var(--missing) kept", () => {
+    stubComputed("rgba(0, 0, 0, 0)");
+    expect(resolveCssColors({ bg: "var(--missing)" })).toEqual({ bg: "var(--missing)" });
+  });
+
+  it("UTCID05 (A): computed \"\" → original \"notacolor\" kept", () => {
+    stubComputed("");
+    expect(resolveCssColors({ bg: "notacolor" })).toEqual({ bg: "notacolor" });
+  });
+
+  it("UTCID06 (B): empty spec → {} and no probe left in the DOM", () => {
+    const before = probeCount();
+    stubComputed("rgb(18, 18, 20)");
+    expect(resolveCssColors({})).toEqual({});
+    expect(probeCount()).toBe(before);
+  });
+
+  it("UTCID07 (A): getComputedStyle throws → error propagated, probe still removed (finally)", () => {
+    const before = probeCount();
+    vi.spyOn(window, "getComputedStyle").mockImplementation(() => {
+      throw new Error("boom");
+    });
+    expect(() => resolveCssColors({ bg: "var(--surface)" })).toThrow("boom");
+    expect(probeCount()).toBe(before);
+  });
+
+  it("output has exactly the same keys as the spec", () => {
     stubComputed("rgb(1, 1, 1)", "rgb(2, 2, 2)", "rgb(3, 3, 3)");
     expect(Object.keys(resolveCssColors({ a: "x", b: "y", c: "z" }))).toEqual(["a", "b", "c"]);
   });
 
-  it("FE-LIB-23 UTCID03 (A): invalid expression (computed = transparent) → original expression kept so the bug stays visible", () => {
-    stubComputed("rgba(0, 0, 0, 0)");
-    expect(resolveCssColors({ bad: "var(--does-not-exist" })).toEqual({ bad: "var(--does-not-exist" });
-  });
-
-  it("FE-LIB-23 UTCID04 (A): browser returns an empty string → original expression kept", () => {
-    stubComputed("");
-    expect(resolveCssColors({ k: "var(--x)" })).toEqual({ k: "var(--x)" });
-  });
-
-  it("FE-LIB-23 UTCID05 (B): empty spec → empty object; no probe element left in the DOM", () => {
-    const before = document.body.childElementCount;
-    expect(resolveCssColors({})).toEqual({});
-    expect(document.body.childElementCount).toBe(before);
-  });
-
-  it("FE-LIB-23 UTCID06 (N): the probe is invisible / non-interactive and removed afterwards", () => {
+  it("the probe is invisible / non-interactive and removed afterwards", () => {
     let probe: HTMLElement | null = null;
     vi.spyOn(window, "getComputedStyle").mockImplementation((el) => {
       probe = el as HTMLElement;
@@ -60,28 +86,11 @@ describe("FE-LIB-23 resolveCssColors", () => {
     expect(probe!.isConnected).toBe(false);
   });
 
-  it("FE-LIB-23 UTCID07 (A): getComputedStyle throws → error propagates but the probe is still removed (finally)", () => {
-    const before = document.body.childElementCount;
-    vi.spyOn(window, "getComputedStyle").mockImplementation(() => {
-      throw new Error("boom");
-    });
-    expect(() => resolveCssColors({ k: "red" })).toThrow("boom");
-    expect(document.body.childElementCount).toBe(before);
-  });
-
-  it("FE-LIB-23 UTCID08 (B): no DOM (SSR) → returns a copy of the spec unchanged", () => {
-    const spec = { bg: "var(--surface)" };
-    vi.stubGlobal("document", undefined);
-    const out = resolveCssColors(spec);
-    expect(out).toEqual(spec);
-    expect(out).not.toBe(spec);
-  });
-
-  it("FE-LIB-23 UTCID09 (N): real jsdom computation — an already-concrete rgb() colour is returned as rgb()", () => {
+  it("real jsdom computation — an already-concrete rgb() colour is returned as rgb()", () => {
     expect(resolveCssColors({ k: "rgb(10, 20, 30)" })).toEqual({ k: "rgb(10, 20, 30)" });
   });
 
-  it("FE-LIB-23 UTCID10 (N): each key is probed independently (previous value cleared between keys)", () => {
+  it("each key is probed independently (previous value cleared between keys)", () => {
     const seen: string[] = [];
     vi.spyOn(window, "getComputedStyle").mockImplementation((el) => {
       seen.push((el as HTMLElement).style.backgroundColor);

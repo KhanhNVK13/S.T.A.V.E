@@ -166,6 +166,27 @@ describe('BE-BRN-03 BranchesService.getBranchDetails — collaborator access', (
 
     expect(result.branchInfo.id).toBe(branchId);
   });
+
+  it('UTCID10 lets an accepted view collaborator read branch details (BR-43)', async () => {
+    const { service } = makeService({
+      project_collaborators: [collabRow('view')],
+      branches: [
+        { data: makeBranch({ head_commit_id: commitId }) },
+        { data: makeBranch({ id: otherBranchId, is_default: true }) },
+      ],
+      projects: [{ data: ownerProject() }],
+      commits: [
+        { data: [{ id: commitId, merged_from_commit_id: null }] },
+        { data: [] },
+      ],
+      users: [{ data: { id: ownerId, username: 'owner' } }],
+    });
+
+    const result = await service.getBranchDetails(branchId, callerId);
+
+    expect(result.branchInfo.id).toBe(branchId);
+    expect(result.isMerged).toBe(false);
+  });
 });
 
 describe('BE-BRN-04 BranchesService.getBranchHistory — collaborator access', () => {
@@ -330,5 +351,172 @@ describe('BE-BRN-08 BranchesService verifyUserEditPermission — collaborator', 
     ).rejects.toThrow(
       new ForbiddenException('You do not have edit permission on this project'),
     );
+  });
+});
+
+describe('BE-BRN-02 BranchesService.switchBranch — collaborator access', () => {
+  const currentDraft = {
+    schemaVersion: 3,
+    meta: { tempo: 120, timeSignature: [4, 4] as [number, number], ppq: 480 },
+    tracks: [],
+    notes: [],
+  };
+  const targetSnapshot = { schemaVersion: 3, meta: {}, tracks: [], notes: [] };
+  const branchTables = () => [
+    { count: 3, data: null },
+    { data: makeBranch({ id: otherBranchId }) },
+    { data: makeBranch() },
+  ];
+
+  it('UTCID11 lets an accepted edit collaborator switch branches and saves their outgoing draft', async () => {
+    const { service, builders } = makeService({
+      projects: [{ data: ownerProject() }, { data: { owner_id: ownerId } }],
+      project_collaborators: [collabRow('edit')],
+      branches: branchTables(),
+      drafts: [
+        { data: { updated_at: '2026-11-12T00:00:00Z' } },
+        {
+          data: {
+            snapshot: targetSnapshot,
+            updated_at: '2026-11-12T01:00:00Z',
+          },
+        },
+      ],
+      users: [{ data: { id: ownerId, username: 'owner' } }],
+      project_member_active_branches: [{ data: null, error: null }],
+    });
+
+    const result = await service.switchBranch(
+      projectId,
+      {
+        currentBranchId: branchId,
+        targetBranchId: otherBranchId,
+        currentDraft,
+      },
+      callerId,
+    );
+
+    expect(result.branch.id).toBe(otherBranchId);
+    expect(result.activeSnapshot).toBe(targetSnapshot);
+    expect(builders.drafts.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ branch_id: branchId, user_id: callerId }),
+      { onConflict: 'branch_id,user_id' },
+    );
+    expect(builders.project_member_active_branches.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: projectId,
+        user_id: callerId,
+        branch_id: otherBranchId,
+      }),
+      { onConflict: 'project_id,user_id' },
+    );
+  });
+
+  it('UTCID12 lets an accepted view collaborator switch branches without writing a draft (UC-48 PRE-2)', async () => {
+    const { service, builders } = makeService({
+      projects: [
+        { data: ownerProject() },
+        { data: ownerProject() },
+        { data: { owner_id: ownerId } },
+      ],
+      project_collaborators: [collabRow('view'), collabRow('view')],
+      branches: branchTables(),
+      drafts: [
+        {
+          data: {
+            snapshot: targetSnapshot,
+            updated_at: '2026-11-12T01:00:00Z',
+          },
+        },
+      ],
+      users: [{ data: { id: ownerId, username: 'owner' } }],
+      project_member_active_branches: [{ data: null, error: null }],
+    });
+
+    const result = await service.switchBranch(
+      projectId,
+      {
+        currentBranchId: branchId,
+        targetBranchId: otherBranchId,
+        currentDraft,
+      },
+      callerId,
+    );
+
+    expect(result.branch.id).toBe(otherBranchId);
+    expect(result.activeSnapshot).toBe(targetSnapshot);
+    expect(builders.drafts.upsert).not.toHaveBeenCalled();
+    expect(builders.drafts.update).not.toHaveBeenCalled();
+    expect(builders.project_member_active_branches.upsert).toHaveBeenCalled();
+  });
+
+  it('still refuses a user who is not a member of the project', async () => {
+    const { service } = makeService({
+      projects: [{ data: ownerProject() }, { data: ownerProject() }],
+      project_collaborators: [{ data: null }, { data: null }],
+    });
+
+    await expect(
+      service.switchBranch(
+        projectId,
+        {
+          currentBranchId: branchId,
+          targetBranchId: otherBranchId,
+          currentDraft,
+        },
+        callerId,
+      ),
+    ).rejects.toThrow(
+      new ForbiddenException('You do not have edit permission on this project'),
+    );
+  });
+});
+
+describe('BE-BRN-05 BranchesService.getDeletePreview — view collaborator', () => {
+  it('UTCID11 refuses an accepted view collaborator', async () => {
+    const { service } = makeService({
+      project_collaborators: [collabRow('view')],
+      branches: [{ data: makeBranch() }],
+      projects: [{ data: ownerProject() }],
+    });
+
+    await expect(service.getDeletePreview(branchId, callerId)).rejects.toThrow(
+      new ForbiddenException('You do not have edit permission on this project'),
+    );
+  });
+});
+
+describe('BE-BRN-06 BranchesService.deleteBranch — view collaborator', () => {
+  it('UTCID14 refuses an accepted view collaborator', async () => {
+    const { service, builders } = makeService({
+      project_collaborators: [collabRow('view')],
+      branches: [{ data: makeBranch() }],
+      projects: [{ data: ownerProject() }],
+    });
+
+    await expect(service.deleteBranch(branchId, callerId)).rejects.toThrow(
+      new ForbiddenException('You do not have edit permission on this project'),
+    );
+    expect(builders.branches.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('BE-BRN-07 BranchesService.getProjectBranches — view collaborator', () => {
+  it('UTCID10 lets an accepted view collaborator list the project branches (BR-43)', async () => {
+    const { service } = makeService({
+      project_collaborators: [collabRow('view')],
+      projects: [
+        { data: ownerProject() },
+        { data: { owner_id: ownerId, active_branch_id: null } },
+      ],
+      branches: [{ data: [makeBranch({ is_default: true })] }],
+      users: [{ data: [{ id: ownerId, username: 'owner' }] }],
+      project_member_active_branches: [{ data: null }],
+    });
+
+    const result = await service.getProjectBranches(projectId, callerId);
+
+    expect(result.map((branch) => branch.id)).toEqual([branchId]);
+    expect(result[0].is_active).toBe(true);
   });
 });

@@ -72,7 +72,7 @@ function setup(noticeDays: number | undefined, notify = jest.fn()) {
   return { service, notify, get, ...mock };
 }
 
-describe('BE-PLN-01 changePrice with notice days', () => {
+describe('BE-ABL-05 AdminPlansService.changePrice', () => {
   it('UTCID01 notifies active subscribers with the effective date and stores the old price', async () => {
     const { service, notify, get, builders } = setup(7);
     const effectiveAt = new Date(now.getTime() + 7 * DAY).toISOString();
@@ -181,5 +181,101 @@ describe('BE-PLN-01 changePrice with notice days', () => {
         now,
       ),
     ).resolves.toMatchObject({ priceVnd: 99000 });
+  });
+});
+
+describe('BE-ABL-05 AdminPlansService.changeFeatures', () => {
+  const features = { theme_from_image: true };
+
+  function featureSetup(noticeDays: number | undefined, updateError = false) {
+    const mock = createSupabaseMock([], {
+      tables: {
+        subscription_plans: [
+          { data: planRow({ features: { old: true } }) },
+          updateError
+            ? { data: null, error: { message: 'boom' } }
+            : { data: planRow({ features }) },
+        ],
+        admin_audit_log: [{ error: null }],
+      },
+    });
+    const get = jest.fn().mockResolvedValue(noticeDays);
+    const service = new AdminPlansService(
+      mock.client,
+      { get } as unknown as PlatformSettingsService,
+      { notify: jest.fn() } as unknown as NotificationsService,
+    );
+    return { service, ...mock };
+  }
+
+  it('UTCID13 schedules the new features and keeps the features in force as previous', async () => {
+    const { service, builders } = featureSetup(7);
+    const effectiveAt = new Date(now.getTime() + 7 * DAY).toISOString();
+    await service.changeFeatures(
+      adminId,
+      planId,
+      { features, effectiveAt },
+      now,
+    );
+    expect(builders.subscription_plans.update).toHaveBeenCalledWith({
+      features,
+      previous_features: { old: true },
+      features_effective_at: effectiveAt,
+    });
+    expect(builders.admin_audit_log.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        admin_id: adminId,
+        action: 'plan.features_change',
+        target_id: planId,
+      }),
+    );
+  });
+
+  it('UTCID14 rejects a feature change with less than the notice period', async () => {
+    const { service, builders } = featureSetup(7);
+    await expect(
+      service.changeFeatures(
+        adminId,
+        planId,
+        {
+          features,
+          effectiveAt: new Date(now.getTime() + 6 * DAY).toISOString(),
+        },
+        now,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(builders.subscription_plans.update).not.toHaveBeenCalled();
+  });
+
+  it('UTCID15 rejects an unknown feature key', async () => {
+    const { service, builders } = featureSetup(7);
+    await expect(
+      service.changeFeatures(
+        adminId,
+        planId,
+        {
+          features: { nonsense: true },
+          effectiveAt: new Date(now.getTime() + 7 * DAY).toISOString(),
+        },
+        now,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(builders.subscription_plans.update).not.toHaveBeenCalled();
+  });
+
+  it('UTCID16 keeps the old features when the update fails', async () => {
+    const { service, builders } = featureSetup(7, true);
+    await expect(
+      service.changeFeatures(
+        adminId,
+        planId,
+        {
+          features,
+          effectiveAt: new Date(now.getTime() + 7 * DAY).toISOString(),
+        },
+        now,
+      ),
+    ).rejects.toThrow('Could not update plan features');
+    expect(builders.admin_audit_log.insert).not.toHaveBeenCalled();
   });
 });

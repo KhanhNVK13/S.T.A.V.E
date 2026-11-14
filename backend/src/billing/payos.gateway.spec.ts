@@ -43,7 +43,7 @@ async function signedWebhook(data: WebhookData, key = credentials.checksumKey) {
 
 function fakeClient() {
   return {
-    paymentRequests: { create: jest.fn(), get: jest.fn() },
+    paymentRequests: { create: jest.fn(), get: jest.fn(), cancel: jest.fn() },
     webhooks: { verify: jest.fn() },
   };
 }
@@ -151,6 +151,36 @@ describe('BE-BIL-04 PayosGateway.createCheckout and getPaymentStatus', () => {
     client.paymentRequests.get.mockRejectedValue(new Error('offline'));
     const gateway = new PayosGateway(credentials, client as never);
     await expect(gateway.getPaymentStatus(5)).rejects.toThrow('offline');
+  });
+});
+
+describe('PayosGateway.cancelPayment', () => {
+  it('cancels the payment link at PayOS', async () => {
+    const client = fakeClient();
+    client.paymentRequests.cancel.mockResolvedValue({});
+    const gateway = new PayosGateway(credentials, client as never);
+
+    await expect(gateway.cancelPayment(5, 'reason')).resolves.toBeUndefined();
+
+    expect(client.paymentRequests.cancel).toHaveBeenCalledWith(5, 'reason');
+  });
+
+  it('treats a link that is already cancelled or expired as cancelled', async () => {
+    const client = fakeClient();
+    client.paymentRequests.cancel.mockRejectedValue(new Error('already'));
+    client.paymentRequests.get.mockResolvedValue({ status: 'EXPIRED' });
+    const gateway = new PayosGateway(credentials, client as never);
+
+    await expect(gateway.cancelPayment(5)).resolves.toBeUndefined();
+  });
+
+  it('rethrows when the link is still open and cannot be cancelled', async () => {
+    const client = fakeClient();
+    client.paymentRequests.cancel.mockRejectedValue(new Error('offline'));
+    client.paymentRequests.get.mockResolvedValue({ status: 'PENDING' });
+    const gateway = new PayosGateway(credentials, client as never);
+
+    await expect(gateway.cancelPayment(5)).rejects.toThrow('offline');
   });
 });
 

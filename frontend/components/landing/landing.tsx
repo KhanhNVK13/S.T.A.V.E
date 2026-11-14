@@ -134,10 +134,9 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
             gsap.set(q(".s-tools .gmrow, .s-tools .pads span, .s-tools .wave, .s-how .step, .s-hist .g-edge, .s-hist .cstar, .s-hist .dec"), { opacity: 0 });
 
             ScrollTrigger.create({
-              trigger: root,
               scroller,
-              start: "top top",
-              end: "bottom bottom",
+              start: 0,
+              end: "max",
               onUpdate: (self) => setSpaceProgress(self.progress * (sections.length - 1)),
             });
 

@@ -58,8 +58,8 @@ function build(
   return { service, mock, notify };
 }
 
-describe('AdminPlansService.changePrice khi đã có một lần đổi giá chờ hiệu lực', () => {
-  it('lần đổi thứ hai: giá gốc lấy theo giá đang áp, thông báo và nhật ký cùng nêu giá mới', async () => {
+describe('BE-ABL-05 AdminPlansService.changePrice (đã có một lần đổi giá chờ hiệu lực)', () => {
+  it('UTCID06 lần đổi thứ hai: giá gốc lấy theo giá đang áp, thông báo và nhật ký cùng nêu giá mới', async () => {
     const firstEffective = new Date(now.getTime() + 3 * DAY).toISOString();
     const secondEffective = new Date(now.getTime() + 10 * DAY).toISOString();
     const { service, mock, notify } = build(
@@ -99,7 +99,7 @@ describe('AdminPlansService.changePrice khi đã có một lần đổi giá ch�
     expect(audit.reason).not.toContain('99.000');
   });
 
-  it('hai lần đổi liên tiếp: lần hai sau khi lần một đã hiệu lực lấy giá của lần một làm giá gốc', async () => {
+  it('UTCID07 hai lần đổi liên tiếp: lần hai sau khi lần một đã hiệu lực lấy giá của lần một làm giá gốc', async () => {
     const firstEffective = new Date(now.getTime() - DAY).toISOString();
     const secondEffective = new Date(now.getTime() + 8 * DAY).toISOString();
     const { service, mock } = build(

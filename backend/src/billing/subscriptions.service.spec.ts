@@ -88,6 +88,20 @@ describe('BE-BIL-09 SubscriptionsService.getEffective', () => {
     expect(result.hasPaidAccess).toBe(false);
   });
 
+  it('UTCID06 reports the plan scheduled to replace the current one', async () => {
+    const { service } = makeService(
+      {
+        data: { ...subscription, status: 'active', pending_plan_id: 'free' },
+        error: null,
+      },
+      { data: [free, plus], error: null },
+    );
+    const result = await service.getEffective(userId, NOW);
+    expect(result.plan.id).toBe('plus');
+    expect(result.pendingPlan?.id).toBe('free');
+    expect(result.cancelAtPeriodEnd).toBe(false);
+  });
+
   it('UTCID03 throws when the subscription cannot be read', async () => {
     const { service } = makeService(
       { data: null, error: { message: 'down' } },
@@ -145,6 +159,17 @@ describe('BE-BIL-17 SubscriptionsService.listPlans', () => {
       ['free', true],
       ['plus', false],
     ]);
+  });
+
+  it('UTCID05 orders the plans by sort order and shows every active plan', async () => {
+    const pro: PlanRow = { ...plus, id: 'pro', name: 'Pro', sort_order: 2 };
+    const { service } = makeService(
+      { data: subscription, error: null },
+      { data: [pro, plus, free], error: null },
+    );
+    const result = await service.listPlans(userId, NOW);
+    expect(result.map((p) => p.id)).toEqual(['free', 'plus', 'pro']);
+    expect(result.map((p) => p.priceVnd)).toEqual([0, 49000, 49000]);
   });
 
   it('UTCID03 throws instead of returning a partial list when plans cannot be read', async () => {

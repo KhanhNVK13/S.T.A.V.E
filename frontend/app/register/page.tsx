@@ -9,7 +9,7 @@ import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { useI18n } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
-import {validateEmail, requiredMessage, focusFirstInvalid } from "../../lib/validation";
+import {validateEmail, validatePassword, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 import { MailCheck } from "lucide-react";
 
 async function isRegistrationOpen(): Promise<boolean> {
@@ -59,8 +59,8 @@ export default function RegisterPage() {
     const nextErrors: typeof fieldErrors = {};
     const emailError = validateEmail(email);
     if (emailError) nextErrors.email = emailError;
-    if (!password) nextErrors.password = requiredMessage();
-    else if (password.length < 8) nextErrors.password = t("auth.passwordTooShort");
+    const passwordError = validatePassword(password);
+    if (passwordError) nextErrors.password = passwordError;
     if (!confirmPassword) nextErrors.confirmPassword = requiredMessage();
     else if (password && password !== confirmPassword)
       nextErrors.confirmPassword = t("auth.passwordMismatch");

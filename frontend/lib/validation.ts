@@ -13,6 +13,14 @@ export function validateEmail(value: string): string | null {
   return null;
 }
 
+export const PASSWORD_MIN_LENGTH = 8;
+
+export function validatePassword(value: string, shortMessage = tNow("auth.passwordTooShort")): string | null {
+  if (!value) return requiredMessage();
+  if (value.length < PASSWORD_MIN_LENGTH) return shortMessage;
+  return null;
+}
+
 export function validateRequired(value: string, message = requiredMessage()): string | null {
   return value.trim() ? null : message;
 }
