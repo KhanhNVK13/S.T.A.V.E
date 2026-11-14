@@ -10,16 +10,16 @@ import {
 const UUID = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-11-06T10:00:00.000Z');
 
-describe('maskIp', () => {
-  it('che octet cuối của IPv4', () => {
+describe('BE-ACT-04 maskIp(raw)', () => {
+  it('UTCID01 che octet cuối của IPv4', () => {
     expect(maskIp('203.0.113.45')).toBe('203.0.113.*');
   });
 
-  it('bỏ cổng của IPv4', () => {
+  it('UTCID02 bỏ cổng của IPv4', () => {
     expect(maskIp('203.0.113.45:51234')).toBe('203.0.113.*');
   });
 
-  it('xử lý IPv4-mapped như IPv4', () => {
+  it('UTCID03 xử lý IPv4-mapped như IPv4', () => {
     expect(maskIp('::ffff:203.0.113.45')).toBe('203.0.113.*');
     expect(maskIp('::FFFF:203.0.113.45')).toBe('203.0.113.*');
   });
@@ -28,24 +28,24 @@ describe('maskIp', () => {
     expect(maskIp('::ffff:cb00:712d')).toBe('203.0.113.*');
   });
 
-  it('giữ 3 nhóm đầu của IPv6 đầy đủ', () => {
+  it('UTCID04 giữ 3 nhóm đầu của IPv6 đầy đủ', () => {
     expect(maskIp('2001:db8:85a3:8d3:1319:8a2e:370:7348')).toBe(
       '2001:db8:85a3::*',
     );
   });
 
-  it('bỏ cổng và ngoặc của IPv6 dạng [v6]:cổng', () => {
+  it('UTCID05 bỏ cổng và ngoặc của IPv6 dạng [v6]:cổng', () => {
     const masked = maskIp('[2001:db8::1]:443');
     expect(masked).toBe('2001:db8:0::*');
     expect(masked).not.toContain('443');
     expect(masked).not.toContain('[');
   });
 
-  it('nhận IPv6 trong ngoặc không cổng', () => {
+  it('UTCID06 nhận IPv6 trong ngoặc không cổng', () => {
     expect(maskIp('[2001:db8:1:2:3:4:5:6]')).toBe('2001:db8:1::*');
   });
 
-  it('bỏ zone id của IPv6', () => {
+  it('UTCID07 bỏ zone id của IPv6', () => {
     expect(maskIp('fe80::1%eth0')).toBe('fe80:0:0::*');
   });
 
@@ -53,7 +53,7 @@ describe('maskIp', () => {
     expect(maskIp('::1')).toBe('0:0:0::*');
   });
 
-  it('không bao giờ để lộ nhóm cuối của IPv6', () => {
+  it('UTCID08 không bao giờ để lộ nhóm cuối của IPv6', () => {
     expect(maskIp('2001:db8:85a3:8d3:1319:8a2e:370:7348')).not.toContain(
       '7348',
     );
@@ -72,14 +72,14 @@ describe('maskIp', () => {
     expect(maskIp(value)).toBeNull();
   });
 
-  it('trả null cho null và undefined', () => {
+  it('UTCID09 trả null cho null và undefined', () => {
     expect(maskIp(null)).toBeNull();
     expect(maskIp(undefined)).toBeNull();
   });
 });
 
-describe('maskIp — hậu tố CIDR', () => {
-  it('bỏ hậu tố /32 của IPv4 (kiểu inet ép sang text)', () => {
+describe('BE-ACT-04 maskIp(raw) (hậu tố CIDR)', () => {
+  it('UTCID10 bỏ hậu tố /32 của IPv4 (kiểu inet ép sang text)', () => {
     expect(maskIp('203.0.113.45/32')).toBe('203.0.113.*');
   });
 
@@ -87,7 +87,7 @@ describe('maskIp — hậu tố CIDR', () => {
     expect(maskIp('203.0.113.0/24')).toBe('203.0.113.*');
   });
 
-  it('bỏ hậu tố /128 của IPv6', () => {
+  it('UTCID11 bỏ hậu tố /128 của IPv6', () => {
     expect(maskIp('2001:db8:85a3:8d3:1319:8a2e:370:7348/128')).toBe(
       '2001:db8:85a3::*',
     );
@@ -231,8 +231,8 @@ describe('cursor', () => {
   });
 });
 
-describe('parseActivityQuery', () => {
-  it('mặc định 30 ngày gần nhất, limit 50, không lọc loại, không con trỏ', () => {
+describe('BE-ACT-03 parseActivityQuery(query)', () => {
+  it('UTCID01 mặc định 30 ngày gần nhất, limit 50, không lọc loại, không con trỏ', () => {
     const parsed = parseActivityQuery({}, NOW);
     expect(parsed.to).toBe('2026-11-06T10:00:00.000Z');
     expect(parsed.from).toBe('2026-10-07T10:00:00.000Z');
@@ -241,7 +241,7 @@ describe('parseActivityQuery', () => {
     expect(parsed.cursor).toBeNull();
   });
 
-  it('nhận from/to ISO và chuẩn hoá về ISO UTC', () => {
+  it('UTCID02 nhận from/to ISO và chuẩn hoá về ISO UTC', () => {
     const parsed = parseActivityQuery(
       { from: '2026-10-01T00:00:00Z', to: '2026-10-31T23:59:59.999Z' },
       NOW,
@@ -250,7 +250,7 @@ describe('parseActivityQuery', () => {
     expect(parsed.to).toBe('2026-10-31T23:59:59.999Z');
   });
 
-  it('nhận ngày không có giờ: from đầu ngày, to cuối ngày', () => {
+  it('UTCID03 nhận ngày không có giờ: from đầu ngày, to cuối ngày', () => {
     const parsed = parseActivityQuery(
       { from: '2026-10-01', to: '2026-10-31' },
       NOW,
@@ -259,23 +259,23 @@ describe('parseActivityQuery', () => {
     expect(parsed.to).toBe('2026-10-31T23:59:59.999Z');
   });
 
-  it('chỉ có from thì to là bây giờ', () => {
+  it('UTCID04 chỉ có from thì to là bây giờ', () => {
     const parsed = parseActivityQuery({ from: '2026-11-01' }, NOW);
     expect(parsed.to).toBe('2026-11-06T10:00:00.000Z');
   });
 
-  it('chỉ có to thì from lùi 30 ngày từ to', () => {
+  it('UTCID05 chỉ có to thì from lùi 30 ngày từ to', () => {
     const parsed = parseActivityQuery({ to: '2026-10-31T00:00:00Z' }, NOW);
     expect(parsed.from).toBe('2026-10-01T00:00:00.000Z');
   });
 
-  it('from lớn hơn to bị từ chối', () => {
+  it('UTCID06 from lớn hơn to bị từ chối', () => {
     expect(() =>
       parseActivityQuery({ from: '2026-11-02', to: '2026-11-01' }, NOW),
     ).toThrow(BadRequestException);
   });
 
-  it('from bằng to được chấp nhận', () => {
+  it('UTCID07 from bằng to được chấp nhận', () => {
     expect(() =>
       parseActivityQuery(
         { from: '2026-11-01T00:00:00Z', to: '2026-11-01T00:00:00Z' },
@@ -284,7 +284,7 @@ describe('parseActivityQuery', () => {
     ).not.toThrow();
   });
 
-  it('ISO sai bị từ chối', () => {
+  it('UTCID08 ISO sai bị từ chối', () => {
     for (const bad of [
       'hôm qua',
       '2026-13-01',
@@ -301,12 +301,12 @@ describe('parseActivityQuery', () => {
     }
   });
 
-  it('limit nằm trong 1 đến 100', () => {
+  it('UTCID09 limit nằm trong 1 đến 100', () => {
     expect(parseActivityQuery({ limit: '1' }, NOW).limit).toBe(1);
     expect(parseActivityQuery({ limit: '100' }, NOW).limit).toBe(100);
   });
 
-  it('limit ngoài khoảng hoặc không phải số nguyên bị từ chối', () => {
+  it('UTCID10 limit ngoài khoảng hoặc không phải số nguyên bị từ chối', () => {
     for (const bad of ['0', '101', 'abc', '-5', '1.5', '', '10abc']) {
       expect(() => parseActivityQuery({ limit: bad }, NOW)).toThrow(
         BadRequestException,
@@ -314,13 +314,13 @@ describe('parseActivityQuery', () => {
     }
   });
 
-  it('type thuộc danh mục được nhận', () => {
+  it('UTCID11 type thuộc danh mục được nhận', () => {
     for (const type of ['signin', 'projects', 'subscription', 'community']) {
       expect(parseActivityQuery({ type }, NOW).type).toBe(type);
     }
   });
 
-  it('type lạ bị từ chối', () => {
+  it('UTCID12 type lạ bị từ chối', () => {
     expect(() => parseActivityQuery({ type: 'admin' }, NOW)).toThrow(
       BadRequestException,
     );
@@ -329,7 +329,7 @@ describe('parseActivityQuery', () => {
     );
   });
 
-  it('giá trị lặp (mảng) bị từ chối thay vì lấy phần tử đầu', () => {
+  it('UTCID13 giá trị lặp (mảng) bị từ chối thay vì lấy phần tử đầu', () => {
     expect(() =>
       parseActivityQuery({ type: ['signin', 'projects'] }, NOW),
     ).toThrow(BadRequestException);
@@ -338,7 +338,7 @@ describe('parseActivityQuery', () => {
     );
   });
 
-  it('giải mã con trỏ hợp lệ và từ chối con trỏ rác', () => {
+  it('UTCID14 giải mã con trỏ hợp lệ và từ chối con trỏ rác', () => {
     const cursor = encodeCursor({
       createdAt: '2026-10-20T13:45:12.123456+00:00',
       id: UUID,

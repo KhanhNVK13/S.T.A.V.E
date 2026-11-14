@@ -15,6 +15,7 @@ import { AdminGuard } from '../common/guards/admin.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { AdminPlansService } from './admin-plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
+import { UpdatePlanFeaturesDto } from './dto/update-plan-features.dto';
 import { UpdatePlanPriceDto } from './dto/update-plan-price.dto';
 
 @UseGuards(JwtAuthGuard, SessionAuthGuard, AdminGuard)
@@ -39,6 +40,15 @@ export class AdminPlansController {
     @Body() dto: UpdatePlanPriceDto,
   ) {
     return this.service.changePrice(req.user.id, id, dto);
+  }
+
+  @Patch(':id/features')
+  changeFeatures(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlanFeaturesDto,
+  ) {
+    return this.service.changeFeatures(req.user.id, id, dto);
   }
 
   @Post(':id/deactivate')

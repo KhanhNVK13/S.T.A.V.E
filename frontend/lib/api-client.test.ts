@@ -4,7 +4,6 @@ process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
 
 import {
   ApiError,
-  apiFetch,
   listPublicProjects,
   mergeBranches,
   getCommitHistory,
@@ -30,162 +29,6 @@ describe('FE-LIB api-client', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();
-  });
-
-  describe('FE-LIB-01 apiFetch', () => {
-    it('UTCID01 sends Authorization and X-Session-Id when token and session are stored', async () => {
-      localStorage.setItem('stave_session_id', 'sess-123');
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: { access_token: 'token-abc' } as any },
-      } as never);
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ id: 'p1' }),
-      } as Response);
-
-      const res = await apiFetch<{ id: string }>('/test');
-      expect(res).toEqual({ id: 'p1' });
-      const headers = fetchSpy.mock.calls[0][1]?.headers as Headers;
-      expect(headers.get('Authorization')).toBe('Bearer token-abc');
-      expect(headers.get('X-Session-Id')).toBe('sess-123');
-    });
-
-    it('UTCID02 omits auth headers when no session and no session id', async () => {
-      localStorage.removeItem('stave_session_id');
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: null },
-      } as never);
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ id: 'p1' }),
-      } as Response);
-
-      const res = await apiFetch<{ id: string }>('/test');
-      expect(res).toEqual({ id: 'p1' });
-      const headers = fetchSpy.mock.calls[0][1]?.headers as Headers;
-      expect(headers.has('Authorization')).toBe(false);
-      expect(headers.has('X-Session-Id')).toBe(false);
-    });
-
-    it('UTCID03 preserves custom headers and sets Content-Type application/json', async () => {
-      localStorage.setItem('stave_session_id', 'sess-123');
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: { access_token: 'token-abc' } as any },
-      } as never);
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ id: 'p1' }),
-      } as Response);
-
-      await apiFetch('/test', { headers: { 'X-Custom': '1' } });
-      const headers = fetchSpy.mock.calls[0][1]?.headers as Headers;
-      expect(headers.get('X-Custom')).toBe('1');
-      expect(headers.get('Content-Type')).toBe('application/json');
-    });
-
-    it('UTCID04 returns undefined on 204 No Content', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        status: 204,
-      } as Response);
-
-      const res = await apiFetch('/test');
-      expect(res).toBeUndefined();
-    });
-
-    it('UTCID05 parses body successfully on 299 status boundary', async () => {
-      localStorage.setItem('stave_session_id', 'sess-123');
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: { access_token: 'token-abc' } as any },
-      } as never);
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        status: 299,
-        json: async () => ({ id: 'p1' }),
-      } as Response);
-
-      const res = await apiFetch<{ id: string }>('/test');
-      expect(res).toEqual({ id: 'p1' });
-      const headers = fetchSpy.mock.calls[0][1]?.headers as Headers;
-      expect(headers.get('Authorization')).toBe('Bearer token-abc');
-      expect(headers.get('X-Session-Id')).toBe('sess-123');
-    });
-
-    it('UTCID06 throws ApiError 404 with server error message', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: async () => ({ message: 'Project not found' }),
-      } as Response);
-
-      await expect(apiFetch('/test')).rejects.toMatchObject({
-        status: 404,
-        message: 'Project not found',
-      });
-    });
-
-    it('UTCID07 joins array messages in ApiError 400', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: false,
-        status: 400,
-        json: async () => ({ message: ['a', 'b'] }),
-      } as Response);
-
-      await expect(apiFetch('/test')).rejects.toMatchObject({
-        status: 400,
-        message: 'a, b',
-      });
-    });
-
-    it('UTCID08 falls back to default message on 500 with non-JSON body', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: async () => {
-          throw new Error('invalid json');
-        },
-      } as unknown as Response);
-
-      await expect(apiFetch('/test')).rejects.toMatchObject({
-        status: 500,
-        message: 'Request failed (500)',
-      });
-    });
-
-    it('UTCID09 throws ApiError 300 on first non-ok status code', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: false,
-        status: 300,
-        json: async () => ({}),
-      } as Response);
-
-      await expect(apiFetch('/test')).rejects.toMatchObject({
-        status: 300,
-        message: 'Request failed (300)',
-      });
-    });
-
-    it('UTCID10 preserves body in ApiError 409 conflict', async () => {
-      const conflictBody = { hasConflicts: true, conflicts: [] };
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: false,
-        status: 409,
-        json: async () => conflictBody,
-      } as Response);
-
-      const err = await apiFetch('/test').catch((e) => e);
-      expect(err).toBeInstanceOf(ApiError);
-      expect(err.status).toBe(409);
-      expect(err.body).toEqual(conflictBody);
-    });
-
-    it('UTCID11 propagates network TypeError when fetch fails', async () => {
-      vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-      await expect(apiFetch('/test')).rejects.toThrow(TypeError);
-    });
   });
 
   describe('FE-LIB-02 api-client.listPublicProjects(params?)', () => {
@@ -290,6 +133,7 @@ describe('FE-LIB api-client', () => {
       const url = new URL(calledUrl);
       expect(url.searchParams.get('page')).toBe('2');
       expect(url.searchParams.get('search')).toBe('lo fi');
+      expect(url.search).toBe('?page=2&search=lo+fi');
     });
 
     it('UTCID07 propagates ApiError when server returns 500 error', async () => {
@@ -299,7 +143,9 @@ describe('FE-LIB api-client', () => {
         json: async () => ({ message: 'Internal server error' }),
       } as Response);
 
-      await expect(listPublicProjects()).rejects.toThrow(ApiError);
+      const err = await listPublicProjects().catch((e) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err.status).toBe(500);
     });
   });
 

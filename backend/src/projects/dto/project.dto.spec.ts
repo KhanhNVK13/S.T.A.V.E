@@ -129,8 +129,10 @@ describe('BE-PRJ-01 CreateProjectDto.validate(dto)', () => {
 });
 
 describe('BE-PRJ-02 PublicProjectsQueryDto.validate(query)', () => {
-  it('UTCID01 accepts omitted params and keeps defaults', async () => {
-    await expect(validatePublicQuery({})).resolves.toHaveLength(0);
+  it('UTCID01 accepts omitted params and defaults to page 1, limit 20, sort newest (SRS UC-08 step 3)', async () => {
+    const dto = plainToInstance(PublicProjectsQueryDto, {});
+    await expect(validate(dto)).resolves.toHaveLength(0);
+    expect(dto).toMatchObject({ page: 1, limit: 20, sort: 'newest' });
   });
 
   it('UTCID02 accepts valid page, limit 50, filters, and sort popular', async () => {
@@ -305,6 +307,27 @@ describe('BE-PRJ-04 UpdateProjectVisibilityDto.validate(dto)', () => {
       }),
     );
   });
+
+  it('UTCID07 accepts each of the three Creative Commons licenses next to "public"', async () => {
+    for (const license of ['CC-BY', 'CC-BY-SA', 'CC-BY-NC']) {
+      expect(
+        await validateVisibility({ visibility: 'public', license }),
+      ).toHaveLength(0);
+    }
+  });
+
+  it('UTCID08 rejects a license outside the three Creative Commons ones', async () => {
+    const errors = await validateVisibility({
+      visibility: 'public',
+      license: 'GPL',
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].property).toBe('license');
+  });
+
+  it('UTCID09 accepts "public" without a license (the service checks it)', async () => {
+    expect(await validateVisibility({ visibility: 'public' })).toHaveLength(0);
+  });
 });
 
 describe('BE-PRJ-05 UpdateProjectDto.validate(dto)', () => {
@@ -392,24 +415,16 @@ describe('BE-PRJ-05 UpdateProjectDto.validate(dto)', () => {
       }),
     );
   });
-});
 
-describe('license validation', () => {
-  it('accepts the three Creative Commons licenses and rejects others', async () => {
+  it('UTCID11 accepts each of the three Creative Commons licenses', async () => {
     for (const license of ['CC-BY', 'CC-BY-SA', 'CC-BY-NC']) {
-      expect(
-        await validate(plainToInstance(UpdateProjectDto, { license })),
-      ).toHaveLength(0);
-      expect(
-        await validateVisibility({ visibility: 'public', license }),
-      ).toHaveLength(0);
+      expect(await validateUpdate({ license })).toHaveLength(0);
     }
-    expect(
-      await validate(plainToInstance(UpdateProjectDto, { license: 'MIT' })),
-    ).not.toHaveLength(0);
-    expect(
-      await validateVisibility({ visibility: 'public', license: 'GPL' }),
-    ).not.toHaveLength(0);
-    expect(await validateVisibility({ visibility: 'public' })).toHaveLength(0);
+  });
+
+  it('UTCID12 rejects a license outside the three Creative Commons ones', async () => {
+    const errors = await validateUpdate({ license: 'MIT' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].property).toBe('license');
   });
 });

@@ -7,9 +7,22 @@
  */
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import type { DraftSnapshot } from "@stave/shared-types";
-import { exportAudio, exportAudioPerTrack } from "../../lib/audio-exporter";
+import {
+  exportAudio,
+  exportAudioPerTrack,
+  rangeFromNotes,
+  withMutedIncluded,
+  hasAudibleNotes,
+  estimateExportSeconds,
+  tickToBar,
+  normalizeMp3Kbps,
+  MP3_BITRATES,
+  DEFAULT_MP3_KBPS,
+  LONG_EXPORT_SECONDS,
+  EXPORT_ABORTED,
+} from "../../lib/audio-exporter";
 import { resolveAndLoadCustomSounds } from "../../lib/custom-sound-buffers";
 import { buildProjectBundle } from "../../lib/project-bundle";
 import { useDialog } from "../../lib/use-dialog";
@@ -31,6 +44,7 @@ interface ExportDialogProps {
   projectId: string;
   snapshot: DraftSnapshot;
   projectName: string;
+  selectedNoteIds?: ReadonlySet<string>;
   onClose: () => void;
 }
 
@@ -44,7 +58,7 @@ const SAMPLE_RATE_OPTIONS: { value: number; label: TKey }[] = [
   { value: 22050, label: "exp.srSmall" },
 ];
 
-export function ExportDialog({ projectId, snapshot, projectName, onClose }: ExportDialogProps) {
+export function ExportDialog({ projectId, snapshot, projectName, selectedNoteIds, onClose }: ExportDialogProps) {
   const { t } = useI18n();
   const [sampleRate, setSampleRate] = useState(44100);
   // Xuất riêng mỗi track thành 1 file WAV thay vì trộn chung — cùng engine,
@@ -55,11 +69,23 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
+  const [rangeOnly, setRangeOnly] = useState(false);
+  const [includeMuted, setIncludeMuted] = useState(false);
+  const [kbps, setKbps] = useState<number>(DEFAULT_MP3_KBPS);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const selectionRange = selectedNoteIds ? rangeFromNotes(snapshot.notes, selectedNoteIds) : null;
+  const activeRange = rangeOnly ? selectionRange : null;
 
   const hasNotes = snapshot.notes.length > 0;
   const safeProjectName = projectName.replace(/[^a-z0-9_\-. ]/gi, "_");
 
   const handleExport = useCallback(async () => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
     setPhase("rendering");
     setProgress(0);
     setErrorMsg("");
@@ -76,6 +102,8 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
           setSkippedNote(
             tNow("exp.skipped", { list: bundle.skippedSounds.join(", ") }),
           );
+        } else if (!bundle.hasMappedSounds) {
+          setSkippedNote(tNow("exp.noCustomSounds"));
         }
         setPhase("done");
         return;
@@ -88,8 +116,13 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
           sampleRate,
           customBuffers,
           format,
+          range: activeRange,
+          includeMuted,
+          kbps,
+          signal,
           onProgress: (p) => setProgress(Math.round(p * 100)),
         });
+        if (signal.aborted) return;
         // Stagger downloads slightly — firing many a.click() in the same tick
         // can get a couple of them silently dropped by the browser's
         // multi-download prompt/limit.
@@ -103,39 +136,57 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
           sampleRate,
           customBuffers,
           format,
+          range: activeRange,
+          includeMuted,
+          kbps,
+          signal,
           onProgress: (p) => setProgress(Math.round(p * 100)),
         });
+        if (signal.aborted) return;
         triggerDownload(blob, `${safeProjectName}.${format}`);
       }
 
       setPhase("done");
     } catch (err) {
+      if (signal.aborted || (err instanceof Error && err.message === EXPORT_ABORTED)) return;
       console.error("Export failed:", err);
       setErrorMsg(
         format === "bundle"
           ? tNow("exp.errBundle")
-          : tNow("exp.errAudio"),
+          : tNow("exp.errAudio") + (!activeRange && selectionRange ? tNow("exp.errShorter") : ""),
       );
       setPhase("error");
     }
-  }, [projectId, projectName, snapshot, sampleRate, perTrack, format, safeProjectName]);
+  }, [projectId, projectName, snapshot, sampleRate, perTrack, format, safeProjectName, activeRange, selectionRange, includeMuted, kbps]);
+
+  const cancelExport = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setProgress(0);
+    setErrorMsg(tNow("exp.cancelled"));
+    setPhase("error");
+  }, []);
+
+  const handleClose = useCallback(() => {
+    abortRef.current?.abort();
+    onClose();
+  }, [onClose]);
 
   const noteCount = snapshot.notes.length;
   const trackCount = snapshot.tracks.filter((t) => !t.muted).length;
-  const anySolo = snapshot.tracks.some((t) => t.solo);
-  const audibleTrackIds = new Set(
-    snapshot.tracks.filter((t) => (anySolo ? t.solo : !t.muted)).map((t) => t.id),
-  );
-  const hasAudibleContent = snapshot.notes.some((n) => audibleTrackIds.has(n.trackId));
+  const effective = withMutedIncluded(snapshot, includeMuted);
+  const hasAudibleContent = hasAudibleNotes(effective, activeRange);
+  const barLen = snapshot.meta.timeSignature?.[0] ?? 4;
+  const estimateSec = estimateExportSeconds(effective, activeRange);
   const isAudioFile = format === "wav" || format === "mp3";
   const blockedByNoAudio = isAudioFile && !hasAudibleContent;
   const rendering = phase === "rendering";
-  const dialogRef = useDialog<HTMLDivElement>({ onClose, closeDisabled: rendering });
+  const dialogRef = useDialog<HTMLDivElement>({ onClose: handleClose });
 
   return (
     <>
       {/* Backdrop */}
-      <div style={styles.backdrop} onClick={() => !rendering && onClose()} />
+      <div style={styles.backdrop} onClick={handleClose} />
 
       {/* Modal */}
       <div
@@ -158,12 +209,12 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
                 {format === "bundle"
                   ? t("exp.subBundle")
                   : format === "mp3"
-                    ? t("exp.subMp3")
+                    ? t("exp.subMp3", { kbps })
                     : t("exp.subWav")}
               </p>
             </div>
           </div>
-          <button style={styles.closeBtn} onClick={onClose} title={t("exp.close")} aria-label={t("exp.close")} disabled={rendering}>
+          <button style={styles.closeBtn} onClick={handleClose} title={t("exp.close")} aria-label={t("exp.close")}>
             ✕
           </button>
         </div>
@@ -198,6 +249,11 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
           {hasNotes && !hasAudibleContent && isAudioFile && (
             <div role="alert" style={styles.warning}>
               {t("exp.noAudible")}
+            </div>
+          )}
+          {isAudioFile && estimateSec > LONG_EXPORT_SECONDS && (
+            <div role="alert" style={styles.warning}>
+              {t("exp.longWarn", { min: Math.round(estimateSec / 60) })}
             </div>
           )}
           {!perTrack && snapshot.tracks.some((t) => t.solo) && (
@@ -251,6 +307,56 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
               ))}
             </div>
           </div>
+
+          {format === "mp3" && (
+            <div style={styles.section}>
+              <span id="export-kbps" style={styles.sectionLabel}>{t("exp.mp3Quality")}</span>
+              <div style={styles.srRow} role="group" aria-labelledby="export-kbps">
+                {MP3_BITRATES.map((b) => (
+                  <button
+                    key={b}
+                    onClick={() => setKbps(normalizeMp3Kbps(b))}
+                    disabled={rendering}
+                    aria-pressed={kbps === b}
+                    style={{ ...styles.srBtn, ...(kbps === b ? styles.srBtnActive : {}) }}
+                  >
+                    {t("exp.kbps", { n: b })}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {format === "wav" && <p style={styles.progressHint}>{t("exp.wavQuality")}</p>}
+
+          {isAudioFile && (
+            <>
+              <label style={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={rangeOnly && !!selectionRange}
+                  onChange={(e) => setRangeOnly(e.target.checked)}
+                  disabled={rendering || !selectionRange}
+                />
+                <span>
+                  {selectionRange
+                    ? t("exp.rangeOnly", {
+                        from: tickToBar(selectionRange.fromTick, snapshot.meta.ppq, barLen),
+                        to: tickToBar(Math.max(selectionRange.fromTick, selectionRange.toTick - 1), snapshot.meta.ppq, barLen),
+                      })
+                    : t("exp.rangeNone")}
+                </span>
+              </label>
+              <label style={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={includeMuted}
+                  onChange={(e) => setIncludeMuted(e.target.checked)}
+                  disabled={rendering}
+                />
+                <span>{t("exp.includeMuted")}</span>
+              </label>
+            </>
+          )}
 
           {/* Per-track export */}
           {isAudioFile && (
@@ -314,11 +420,10 @@ export function ExportDialog({ projectId, snapshot, projectName, onClose }: Expo
         <div style={styles.footer}>
           <button
             style={styles.cancelBtn}
-            onClick={onClose}
-            disabled={phase === "rendering"}
+            onClick={rendering ? cancelExport : handleClose}
             title={phase === "done" ? t("exp.closeWindow") : t("exp.cancelTitle")}
           >
-            {phase === "done" ? t("ui.close") : t("ui.cancel")}
+            {rendering ? t("exp.cancelExport") : phase === "done" ? t("ui.close") : t("ui.cancel")}
           </button>
           <button
             style={{

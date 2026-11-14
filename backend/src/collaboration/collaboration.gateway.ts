@@ -4,6 +4,8 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
+  type OnModuleInit,
 } from '@nestjs/common';
 import {
   ConnectedSocket,
@@ -19,6 +21,7 @@ import type {
 } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import { BranchMovedNotifier } from '../project-access/branch-moved-notifier';
 import { PresenceRegistry } from './presence-registry';
 
 /** Auth handshake payload the client must attach to `/collab`. */
@@ -55,7 +58,7 @@ interface CollabSocketData {
  */
 @Injectable()
 @WebSocketGateway({ namespace: '/collab', cors: { origin: true } })
-export class CollaborationGateway {
+export class CollaborationGateway implements OnModuleInit {
   @WebSocketServer()
   private server!: Server;
 
@@ -69,7 +72,14 @@ export class CollaborationGateway {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly projectAccess: ProjectAccessService,
+    @Optional() private readonly branchMoved?: BranchMovedNotifier,
   ) {}
+
+  onModuleInit(): void {
+    this.branchMoved?.subscribe((projectId, branchId, commitId, byUserId) =>
+      this.emitBranchMoved(projectId, branchId, commitId, byUserId),
+    );
+  }
 
   /**
    * 1.E1: the handshake must carry a valid access token AND a live

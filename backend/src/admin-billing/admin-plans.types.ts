@@ -3,7 +3,7 @@ import { PLAN_FEATURES } from '@stave/shared-types';
 export const PLAN_FEATURE_KEYS: string[] = PLAN_FEATURES.map(({ key }) => key);
 
 export const ADMIN_PLAN_COLUMNS =
-  'id,name,description,price_vnd,features,is_active,is_default,sort_order,price_effective_at,previous_price_vnd';
+  'id,name,description,price_vnd,features,is_active,is_default,sort_order,price_effective_at,previous_price_vnd,previous_features,features_effective_at';
 
 export interface AdminPlanRow {
   id: string;
@@ -16,6 +16,8 @@ export interface AdminPlanRow {
   sort_order: number;
   price_effective_at: string | null;
   previous_price_vnd?: number | null;
+  previous_features?: Record<string, unknown> | null;
+  features_effective_at?: string | null;
 }
 
 export interface AdminPlanSubscription {
@@ -36,6 +38,7 @@ export interface AdminPlanItem {
   isDefault: boolean;
   sortOrder: number;
   priceEffectiveAt: string | null;
+  featuresEffectiveAt: string | null;
   /** Người đang có subscription còn hiệu lực trên gói (active + canceled chưa hết hạn). */
   subscriberCount: number;
 }

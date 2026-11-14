@@ -24,10 +24,12 @@ import { Switch } from "../../components/ui/switch";
 import { Tabs } from "../../components/ui/tabs";
 import { useAccessibility } from "../../context/accessibility-context";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
-import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
-import {validateRequired, validateMaxLength, requiredMessage, focusFirstInvalid } from "../../lib/validation";
+import { apiErrorMessage, authErrorSource, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
+import { supabase } from "../../lib/supabase-browser";
+import { hasPasswordProvider, hasRecentOAuthLogin } from "../../lib/auth-methods";
+import {validateRequired, validateMaxLength, validatePassword, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 
-const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
+const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 
 type SettingsTab = "profile" | "security" | "accessibility" | "personalisation";
 
@@ -369,13 +371,9 @@ function ChangePasswordForm() {
     setError(null);
     setSuccess(false);
     const currentInvalid = currentPassword ? null : requiredMessage();
-    const newInvalid = !newPassword
-      ? requiredMessage()
-      : newPassword.length < 8
-        ? t("profile.newPasswordShort")
-        : newPassword === currentPassword
-          ? t("profile.newPasswordSame")
-          : null;
+    const newInvalid =
+      validatePassword(newPassword, t("profile.newPasswordShort")) ??
+      (newPassword === currentPassword ? t("profile.newPasswordSame") : null);
     setCurrentError(currentInvalid);
     setNewError(newInvalid);
     if (currentInvalid || newInvalid) {
@@ -466,11 +464,20 @@ function ChangePasswordForm() {
 function DeleteAccountSection() {
   const { t } = useI18n();
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<ErrorSource | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const needsPassword = hasPasswordProvider(session?.user?.app_metadata?.providers);
+  const reauthed = !needsPassword && hasRecentOAuthLogin(session?.access_token);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reauth") === "delete" && reauthed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- tham số URL chỉ đọc được ở client
+      setConfirming(true);
+    }
+  }, [reauthed]);
 
   function close() {
     setConfirming(false);
@@ -478,13 +485,32 @@ function DeleteAccountSection() {
     setError(null);
   }
 
+  async function handleReauth() {
+    setError(null);
+    setSubmitting(true);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/profile?tab=security&reauth=delete")}`,
+      },
+    });
+    if (oauthError) {
+      setError(authErrorSource(oauthError));
+      setSubmitting(false);
+    }
+  }
+
   async function handleDelete() {
+    if (!needsPassword && !reauthed) {
+      await handleReauth();
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
       await apiFetch("/auth/account", {
         method: "DELETE",
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: needsPassword ? password : "" }),
       });
       await signOut();
       router.push("/");
@@ -511,24 +537,34 @@ function DeleteAccountSection() {
         title={t("profile.deleteAccount")}
         message={
           <div className="flex flex-col gap-3">
-            <p className="text-danger">{t("profile.deleteConfirmLead")}</p>
-            <input
-              name="password"
-              autoComplete="current-password"
-              type="password"
-              placeholder={t("auth.password")}
-              aria-label={t("auth.password")}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              data-autofocus
-              className={`${INPUT_CLASS} h-[37px]`}
-            />
+            <p className="text-danger">
+              {needsPassword
+                ? t("profile.deleteConfirmLead")
+                : reauthed
+                  ? t("profile.deleteReauthDone")
+                  : t("profile.deleteReauthLead")}
+            </p>
+            {needsPassword && (
+              <input
+                name="password"
+                autoComplete="current-password"
+                type="password"
+                placeholder={t("auth.password")}
+                aria-label={t("auth.password")}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                data-autofocus
+                className={`${INPUT_CLASS} h-[37px]`}
+              />
+            )}
           </div>
         }
-        confirmLabel={t("profile.deleteConfirm")}
+        confirmLabel={
+          needsPassword || reauthed ? t("profile.deleteConfirm") : t("profile.deleteReauth")
+        }
         danger
         loading={submitting}
-        confirmDisabled={!password}
+        confirmDisabled={needsPassword && !password}
         error={renderError(error)}
         onConfirm={() => void handleDelete()}
         onCancel={close}

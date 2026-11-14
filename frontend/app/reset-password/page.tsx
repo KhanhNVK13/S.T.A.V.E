@@ -8,7 +8,7 @@ import { authErrorSource, renderError, type ErrorSource } from "../../lib/error-
 import { apiFetch, setStoredSessionId } from "../../lib/api-client";
 import { setFlashToast } from "../../lib/flash-toast";
 import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
-import {requiredMessage, focusFirstInvalid } from "../../lib/validation";
+import {validatePassword, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 import { useAuth } from "../../context/auth-context";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { useT } from "../../context/i18n-context";
@@ -36,8 +36,8 @@ export default function ResetPasswordPage() {
     setError(null);
 
     const nextErrors: typeof fieldErrors = {};
-    if (!password) nextErrors.password = requiredMessage();
-    else if (password.length < 8) nextErrors.password = t("auth.passwordTooShort");
+    const passwordError = validatePassword(password);
+    if (passwordError) nextErrors.password = passwordError;
     if (!confirmPassword) nextErrors.confirmPassword = requiredMessage();
     else if (password && password !== confirmPassword)
       nextErrors.confirmPassword = t("auth.passwordMismatch");

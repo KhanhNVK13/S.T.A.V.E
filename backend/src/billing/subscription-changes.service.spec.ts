@@ -274,7 +274,7 @@ describe('BE-BIL-32 SubscriptionChangesService.cancelDowngrade', () => {
   });
 });
 
-describe('BE-BIL-33 SubscriptionChangesService.cancel and resume', () => {
+describe('BE-BIL-33 SubscriptionChangesService.cancel', () => {
   it('UTCID01 cancels while keeping the period end and notifies the end date', async () => {
     const canceled = effective({ status: 'canceled', cancelAtPeriodEnd: true });
     const { service, mock, notifications } = makeService(
@@ -314,9 +314,20 @@ describe('BE-BIL-33 SubscriptionChangesService.cancel and resume', () => {
     );
     expect(notifications.notify).not.toHaveBeenCalled();
   });
+  it('UTCID04 answers 409 when the plan was canceled meanwhile and nothing is updated', async () => {
+    const { service, notifications } = makeService({
+      subscriptions: [ok(null)],
+    });
+    await expect(service.cancel(userId)).rejects.toThrow(
+      'No active paid plan to cancel',
+    );
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+});
 
-  it('UTCID04 resumes a canceled plan that is still running without charging', async () => {
-    const { service, mock } = makeService(
+describe('BE-BIL-45 SubscriptionChangesService.resume', () => {
+  it('UTCID01 resumes a canceled plan that is still running without charging', async () => {
+    const { service, mock, payments } = makeService(
       { subscriptions: [ok({ id: 'sub-1' })] },
       [effective({ status: 'canceled', cancelAtPeriodEnd: true }), effective()],
     );
@@ -326,9 +337,10 @@ describe('BE-BIL-33 SubscriptionChangesService.cancel and resume', () => {
     expect(mock.builders.subscriptions.update).toHaveBeenCalledWith({
       status: 'active',
     });
+    expect(payments.createCheckout).not.toHaveBeenCalled();
   });
 
-  it('UTCID05 refuses to resume an active plan or an expired one', async () => {
+  it('UTCID02 refuses to resume an active plan or an expired one', async () => {
     const active = makeService({});
     await expect(active.service.resume(userId)).rejects.toThrow(
       'Only a canceled plan that is still running can be resumed',
@@ -337,6 +349,22 @@ describe('BE-BIL-33 SubscriptionChangesService.cancel and resume', () => {
     await expect(expired.service.resume(userId)).rejects.toThrow(
       ConflictException,
     );
+  });
+
+  it('UTCID03 throws when the subscription cannot be updated', async () => {
+    const { service } = makeService({ subscriptions: [fail()] }, [
+      effective({ status: 'canceled', cancelAtPeriodEnd: true }),
+    ]);
+    await expect(service.resume(userId)).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('UTCID04 answers 409 when the plan was resumed meanwhile and nothing is updated', async () => {
+    const { service } = makeService({ subscriptions: [ok(null)] }, [
+      effective({ status: 'canceled', cancelAtPeriodEnd: true }),
+    ]);
+    await expect(service.resume(userId)).rejects.toThrow(ConflictException);
   });
 });
 
@@ -372,6 +400,13 @@ describe('BE-BIL-34 SubscriptionChangesService.previewCancel', () => {
       'Could not read your account',
     );
   });
+
+  it('UTCID04 refuses a free plan with nothing to cancel', async () => {
+    const { service } = makeService({}, [FREE_EFFECTIVE]);
+    await expect(service.previewCancel(userId)).rejects.toThrow(
+      'No active paid plan to cancel',
+    );
+  });
 });
 
 describe('BE-BIL-44 SubscriptionChangesService.renew', () => {
@@ -400,13 +435,44 @@ describe('BE-BIL-44 SubscriptionChangesService.renew', () => {
     expect(payments.createCheckout).not.toHaveBeenCalled();
   });
 
-  it('UTCID03 refuses to renew a free plan or a canceled plan', async () => {
-    const free = makeService({}, [FREE_EFFECTIVE]);
-    await expect(free.service.renew(userId)).rejects.toThrow(ConflictException);
+  it('UTCID03 refuses to renew a free plan', async () => {
+    const { service, payments } = makeService({}, [FREE_EFFECTIVE]);
 
-    const canceled = makeService({}, [effective({ status: 'canceled' })]);
-    await expect(canceled.service.renew(userId)).rejects.toThrow(
-      ConflictException,
+    await expect(service.renew(userId)).rejects.toThrow(ConflictException);
+    expect(payments.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('UTCID04 refuses to renew a canceled plan', async () => {
+    const { service, payments } = makeService({}, [
+      effective({ status: 'canceled' }),
+    ]);
+
+    await expect(service.renew(userId)).rejects.toThrow(
+      'Only your current paid plan can be renewed',
     );
+    expect(payments.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('UTCID05 renews a plan that is in its grace period', async () => {
+    const { service, payments } = makeService({}, [
+      effective({ inGrace: true, graceUntil: '2026-12-09T10:00:00.000Z' }),
+    ]);
+
+    await service.renew(userId);
+
+    expect(payments.createCheckout).toHaveBeenCalledWith(
+      userId,
+      'plus',
+      'renew',
+    );
+  });
+
+  it('UTCID06 reports the failure when the payment gateway is unreachable', async () => {
+    const { service, payments } = makeService({}, [effective()]);
+    payments.createCheckout.mockRejectedValueOnce(
+      new BadGatewayException('Payment gateway unavailable'),
+    );
+
+    await expect(service.renew(userId)).rejects.toThrow(BadGatewayException);
   });
 });

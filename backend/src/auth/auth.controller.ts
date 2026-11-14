@@ -55,7 +55,11 @@ export class AuthController {
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
   ) {
-    await this.authService.revokeSession(req.user.id, id);
+    await this.authService.revokeSession(
+      req.user.id,
+      id,
+      id === req.sessionId ? undefined : (req.user.email ?? undefined),
+    );
     return { success: true };
   }
 
@@ -113,6 +117,7 @@ export class AuthController {
       req.user.id,
       req.user.email ?? '',
       dto.password,
+      { user: req.user, accessToken: req.accessToken },
     );
     return { success: true };
   }

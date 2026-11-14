@@ -122,8 +122,8 @@ const rpcRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
   ...overrides,
 });
 
-describe('UC-108 payment issues resolve DTO', () => {
-  it('thừa nhận bộ payload extend hợp lệ', async () => {
+describe('BE-ABL-11 ResolvePaymentIssueDto validation', () => {
+  it('UTCID01 thừa nhận bộ payload extend hợp lệ', async () => {
     const dto = plainToInstance(ResolvePaymentIssueDto, {
       remedy: 'extend',
       note: 'Đền bù thời gian lỗi',
@@ -132,7 +132,7 @@ describe('UC-108 payment issues resolve DTO', () => {
     expect(await validate(dto)).toHaveLength(0);
   });
 
-  it('thừa nhận refund với mã hoàn tiền', async () => {
+  it('UTCID02 thừa nhận refund với mã hoàn tiền', async () => {
     const dto = plainToInstance(ResolvePaymentIssueDto, {
       remedy: 'refund',
       note: 'Hoàn tiền theo yêu cầu',
@@ -142,7 +142,7 @@ describe('UC-108 payment issues resolve DTO', () => {
     expect(await validate(dto)).toHaveLength(0);
   });
 
-  it('từ chối remedy ngoài 4 giá trị cho phép', async () => {
+  it('UTCID03 từ chối remedy ngoài 4 giá trị cho phép', async () => {
     const dto = plainToInstance(ResolvePaymentIssueDto, {
       remedy: 'delete',
       note: 'x',
@@ -150,7 +150,7 @@ describe('UC-108 payment issues resolve DTO', () => {
     expect((await validate(dto)).length).toBeGreaterThan(0);
   });
 
-  it('từ chối note rỗng', async () => {
+  it('UTCID04 từ chối note rỗng', async () => {
     const dto = plainToInstance(ResolvePaymentIssueDto, {
       remedy: 'dismiss',
       note: '',
@@ -158,7 +158,7 @@ describe('UC-108 payment issues resolve DTO', () => {
     expect((await validate(dto)).length).toBeGreaterThan(0);
   });
 
-  it(`từ chối note dài hơn ${PAYMENT_ISSUE_NOTE_MAX} ký tự`, async () => {
+  it(`UTCID05 từ chối note dài hơn ${PAYMENT_ISSUE_NOTE_MAX} ký tự`, async () => {
     const dto = plainToInstance(ResolvePaymentIssueDto, {
       remedy: 'dismiss',
       note: 'a'.repeat(PAYMENT_ISSUE_NOTE_MAX + 1),
@@ -172,7 +172,7 @@ describe('UC-108 payment issues resolve DTO', () => {
     expect(await validate(boundary)).toHaveLength(0);
   });
 
-  it('ràng buộc days 1–90 cho remedy extend', async () => {
+  it('UTCID06 ràng buộc days 1–90 cho remedy extend', async () => {
     for (const days of [0, 91, -1, 1.5]) {
       const dto = plainToInstance(ResolvePaymentIssueDto, {
         remedy: 'extend',
@@ -189,7 +189,7 @@ describe('UC-108 payment issues resolve DTO', () => {
     expect(await validate(dto)).toHaveLength(0);
   });
 
-  it('từ chối refundRef không hợp lệ', async () => {
+  it('UTCID07 từ chối refundRef không hợp lệ', async () => {
     const bad = plainToInstance(ResolvePaymentIssueDto, {
       remedy: 'refund',
       note: 'x',
@@ -205,7 +205,7 @@ describe('UC-108 payment issues resolve DTO', () => {
     expect((await validate(long)).length).toBeGreaterThan(0);
   });
 
-  it('từ chối duplicateOfIssueId không phải UUID', async () => {
+  it('UTCID08 từ chối duplicateOfIssueId không phải UUID', async () => {
     const dto = plainToInstance(ResolvePaymentIssueDto, {
       remedy: 'dismiss',
       note: 'x',
@@ -235,8 +235,8 @@ describe('UC-108 issue cursor codec', () => {
   });
 });
 
-describe('UC-108 list payment issues', () => {
-  it('trả items kèm snapshot payer khi tài khoản đã xoá, nextCursor = null', async () => {
+describe('BE-ABL-07 AdminPaymentIssuesService.listIssues', () => {
+  it('UTCID01 trả items kèm snapshot payer khi tài khoản đã xoá, nextCursor = null', async () => {
     const { service } = makeService('payos', undefined, {
       payment_issues: [
         ok([issueRow({ status: 'open' })]),
@@ -260,7 +260,7 @@ describe('UC-108 list payment issues', () => {
     expect(item.transaction?.account).toBeNull();
   });
 
-  it('nextCursor được cấp khi còn thừa dòng hơn limit', async () => {
+  it('UTCID02 nextCursor được cấp khi còn thừa dòng hơn limit', async () => {
     const { service } = makeService('payos', undefined, {
       payment_issues: [ok([issueRow(), issueRow()])],
       transactions: [ok([txRow()])],
@@ -277,14 +277,14 @@ describe('UC-108 list payment issues', () => {
     );
   });
 
-  it('cursor không giải mã được → 400', async () => {
+  it('UTCID03 cursor không giải mã được → 400', async () => {
     const { service } = makeService('payos', undefined, {});
     await expect(service.listIssues('open', 20, 'rác')).rejects.toThrow(
       BadRequestException,
     );
   });
 
-  it('lỗi DB → 500, không nuốt', async () => {
+  it('UTCID04 lỗi DB → 500, không nuốt', async () => {
     const { service } = makeService('payos', undefined, {
       payment_issues: [fail('42P01')],
     });
@@ -292,7 +292,7 @@ describe('UC-108 list payment issues', () => {
   });
 });
 
-describe('UC-108 issue detail', () => {
+describe('BE-ABL-08 AdminPaymentIssuesService.getIssue', () => {
   const detailTables = (
     issue = issueRow(),
     tx = txRow(),
@@ -302,21 +302,21 @@ describe('UC-108 issue detail', () => {
     users: [ok([reporterRow])],
   });
 
-  it('không tồn tại → 404', async () => {
+  it('UTCID01 không tồn tại → 404', async () => {
     const { service } = makeService('payos', undefined, {
       payment_issues: [ok(null)],
     });
     await expect(service.getIssue(ISSUE_ID)).rejects.toThrow(NotFoundException);
   });
 
-  it('chế độ giả (fake) bỏ qua bước đối chiếu → skipped', async () => {
+  it('UTCID02 chế độ giả (fake) bỏ qua bước đối chiếu → skipped', async () => {
     const { service, gateway } = makeService('fake', undefined, detailTables());
     const detail = await service.getIssue(ISSUE_ID);
     expect(detail.verification).toBe('skipped');
     expect(gateway.getPaymentStatus).not.toHaveBeenCalled();
   });
 
-  it('cổng không phản hồi → unavailable', async () => {
+  it('UTCID03 cổng không phản hồi → unavailable', async () => {
     const { service } = makeService(
       'payos',
       new Error('timeout'),
@@ -327,21 +327,21 @@ describe('UC-108 issue detail', () => {
     expect(detail.verificationDetail).toBe('Payment provider did not respond');
   });
 
-  it('trạng thái khớp → match', async () => {
+  it('UTCID04 trạng thái khớp → match', async () => {
     const { service } = makeService('payos', 'success', detailTables());
     const detail = await service.getIssue(ISSUE_ID);
     expect(detail.verification).toBe('match');
     expect(detail.timeline).toHaveLength(1);
   });
 
-  it('trạng thái lệch → mismatch kèm lý do', async () => {
+  it('UTCID05 trạng thái lệch → mismatch kèm lý do', async () => {
     const { service } = makeService('payos', 'failed', detailTables());
     const detail = await service.getIssue(ISSUE_ID);
     expect(detail.verification).toBe('mismatch');
     expect(detail.verificationDetail).toContain('failed');
   });
 
-  it('tài khoản đã xoá: timeline gom theo payer_email, verification vẫn chạy', async () => {
+  it('UTCID06 tài khoản đã xoá: timeline gom theo payer_email, verification vẫn chạy', async () => {
     const deleted = txRow({ user_id: null, account: null });
     const { service } = makeService(
       'payos',
@@ -354,7 +354,7 @@ describe('UC-108 issue detail', () => {
     expect(detail.verification).toBe('match');
   });
 
-  it('giao dịch không có order_code → skipped', async () => {
+  it('UTCID07 giao dịch không có order_code → skipped', async () => {
     const { service, gateway } = makeService(
       'payos',
       undefined,
@@ -366,8 +366,8 @@ describe('UC-108 issue detail', () => {
   });
 });
 
-describe('UC-108 resolve payment issue', () => {
-  it('note rỗng → 400, không gọi RPC', async () => {
+describe('BE-ABL-09 AdminPaymentIssuesService.resolveIssue', () => {
+  it('UTCID01 note rỗng → 400, không gọi RPC', async () => {
     const { service, mock } = makeService('payos', 'success', {
       payment_issues: [ok(issueRow())],
       transactions: [ok([txRow()])],
@@ -381,7 +381,7 @@ describe('UC-108 resolve payment issue', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('note vượt 1000 ký tự → 400', async () => {
+  it('UTCID02 note vượt 1000 ký tự → 400', async () => {
     const { service, mock } = makeService('payos', 'success', {});
     await expect(
       service.resolveIssue(ADMIN_ID, ISSUE_ID, {
@@ -392,7 +392,7 @@ describe('UC-108 resolve payment issue', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('extend khi cổng unavailable → 409, sự cố giữ nguyên, không gọi RPC', async () => {
+  it('UTCID03 extend khi cổng unavailable → 409, sự cố giữ nguyên, không gọi RPC', async () => {
     const { service, mock } = makeService('payos', new Error('timeout'), {
       payment_issues: [ok(issueRow())],
       transactions: [ok([txRow()])],
@@ -407,7 +407,7 @@ describe('UC-108 resolve payment issue', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('activate khi cổng báo thành công nhưng DB ghi thất bại (mismatch) → được phép', async () => {
+  it('UTCID04 activate khi cổng báo thành công nhưng DB ghi thất bại (mismatch) → được phép', async () => {
     const { service, mock } = makeService(
       'payos',
       'success',
@@ -434,7 +434,7 @@ describe('UC-108 resolve payment issue', () => {
     );
   });
 
-  it('activate khi cổng không xác nhận thanh toán → 409, không gọi RPC', async () => {
+  it('UTCID05 activate khi cổng không xác nhận thanh toán → 409, không gọi RPC', async () => {
     const { service, mock } = makeService('payos', 'failed', {
       payment_issues: [ok(issueRow())],
       transactions: [ok([txRow()])],
@@ -449,7 +449,7 @@ describe('UC-108 resolve payment issue', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('refund: RPC nhận đúng thông tin hoàn tiền, gửi thông báo cho user còn tồn tại', async () => {
+  it('UTCID06 refund: RPC nhận đúng thông tin hoàn tiền, gửi thông báo cho user còn tồn tại', async () => {
     const { service, notifications, mock } = makeService(
       'fake',
       undefined,
@@ -494,7 +494,7 @@ describe('UC-108 resolve payment issue', () => {
     );
   });
 
-  it('tài khoản đã xoá: RPC trả user_id = null → không gửi thông báo, vẫn ghi audit', async () => {
+  it('UTCID07 tài khoản đã xoá: RPC trả user_id = null → không gửi thông báo, vẫn ghi audit', async () => {
     const { service, notifications, mock } = makeService(
       'fake',
       undefined,
@@ -526,7 +526,7 @@ describe('UC-108 resolve payment issue', () => {
     );
   });
 
-  it('dismiss không yêu cầu đối chiếu, gọi RPC dù cổng unavailable', async () => {
+  it('UTCID08 dismiss không yêu cầu đối chiếu, gọi RPC dù cổng unavailable', async () => {
     const { service, mock } = makeService(
       'payos',
       new Error('timeout'),
@@ -553,7 +553,7 @@ describe('UC-108 resolve payment issue', () => {
     expect(mock.rpc).toHaveBeenCalled();
   });
 
-  it('RPC báo sự cố đã resolved (ST002) → 409', async () => {
+  it('UTCID09 RPC báo sự cố đã resolved (ST002) → 409', async () => {
     const { service } = makeService(
       'fake',
       undefined,
@@ -571,7 +571,7 @@ describe('UC-108 resolve payment issue', () => {
     ).rejects.toThrow(ConflictException);
   });
 
-  it('RPC báo note thiếu (ST004) → 400', async () => {
+  it('UTCID10 RPC báo note thiếu (ST004) → 400', async () => {
     const { service } = makeService(
       'fake',
       undefined,
@@ -589,7 +589,7 @@ describe('UC-108 resolve payment issue', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('sự cố không tồn tại (ST001) → 404', async () => {
+  it('UTCID11 sự cố không tồn tại (ST001) → 404', async () => {
     const { service } = makeService(
       'fake',
       undefined,
@@ -607,7 +607,39 @@ describe('UC-108 resolve payment issue', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('lỗi RPC lạ → 500 (sự cố giữ nguyên, không báo đã xử lý)', async () => {
+  it('UTCID13 extend khi cổng xác nhận: RPC nhận số ngày và user được thông báo kèm số ngày', async () => {
+    const { service, notifications, mock } = makeService(
+      'payos',
+      'success',
+      {
+        payment_issues: [ok(issueRow())],
+        transactions: [ok([txRow()])],
+        admin_audit_log: [ok([{ id: 'x' }])],
+      },
+      {
+        resolve_payment_issue: ok(rpcRow({ remedy: 'extend' })),
+      },
+    );
+
+    const result = await service.resolveIssue(ADMIN_ID, ISSUE_ID, {
+      remedy: 'extend',
+      note: 'đền bù 7 ngày',
+      days: 7,
+    });
+
+    expect(result.remedy).toBe('extend');
+    expect(mock.rpc).toHaveBeenCalledWith(
+      'resolve_payment_issue',
+      expect.objectContaining({ p_remedy: 'extend', p_days: 7 }),
+    );
+    expect(notifications.notify).toHaveBeenCalledWith(
+      USER_ID,
+      'billing.issue_resolved',
+      expect.objectContaining({ remedy: 'extend', days: 7 }),
+    );
+  });
+
+  it('UTCID12 lỗi RPC lạ → 500 (sự cố giữ nguyên, không báo đã xử lý)', async () => {
     const { service } = makeService(
       'fake',
       undefined,

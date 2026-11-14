@@ -16,6 +16,75 @@ import type { DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import { prepareVoices, triggerNotes, createVoiceCache } from "./tone-synth-engine";
 import { encodeMp3 } from "./mp3-encoder";
 
+export const NO_AUDIBLE_CONTENT = "NO_AUDIBLE_CONTENT";
+export const EXPORT_ABORTED = "EXPORT_ABORTED";
+
+export interface ExportRange {
+  fromTick: number;
+  toTick: number;
+}
+
+export const MP3_BITRATES = [128, 192, 256, 320] as const;
+export const DEFAULT_MP3_KBPS = 192;
+export const LONG_EXPORT_SECONDS = 600;
+
+export function normalizeMp3Kbps(kbps: number | undefined): number {
+  return (MP3_BITRATES as readonly number[]).includes(kbps ?? -1) ? (kbps as number) : DEFAULT_MP3_KBPS;
+}
+
+export function rangeFromNotes(
+  notes: DraftSnapshot["notes"],
+  selectedIds: ReadonlySet<string>,
+): ExportRange | null {
+  const picked = notes.filter((n) => selectedIds.has(n.id));
+  if (picked.length === 0) return null;
+  return {
+    fromTick: Math.min(...picked.map((n) => n.start)),
+    toTick: Math.max(...picked.map((n) => n.start + n.duration)),
+  };
+}
+
+export function tickToBar(tick: number, ppq: number, beatsPerBar: number): number {
+  return Math.floor(tick / (ppq * beatsPerBar)) + 1;
+}
+
+export function withMutedIncluded(snapshot: DraftSnapshot, includeMuted: boolean): DraftSnapshot {
+  if (!includeMuted) return snapshot;
+  return { ...snapshot, tracks: snapshot.tracks.map((t) => ({ ...t, muted: false })) };
+}
+
+export function hasAudibleNotes(snapshot: DraftSnapshot, range?: ExportRange | null): boolean {
+  const anySolo = snapshot.tracks.some((t) => t.solo);
+  const audible = new Set(
+    snapshot.tracks.filter((t) => (anySolo ? t.solo : !t.muted)).map((t) => t.id),
+  );
+  return snapshot.notes.some(
+    (n) =>
+      audible.has(n.trackId) &&
+      (!range || (n.start >= range.fromTick && n.start < range.toTick)),
+  );
+}
+
+export function estimateExportSeconds(
+  snapshot: DraftSnapshot,
+  range?: ExportRange | null,
+  longestCustomSec = 0,
+): number {
+  const { tempo, ppq } = snapshot.meta;
+  const secPerTick = 60 / (tempo * ppq);
+  const fromTick = range?.fromTick ?? 0;
+  let lastEndTick = range ? range.toTick : ppq * 4 * 4;
+  for (const n of snapshot.notes) {
+    if (range && (n.start < range.fromTick || n.start >= range.toTick)) continue;
+    lastEndTick = Math.max(lastEndTick, n.start + n.duration);
+  }
+  return (lastEndTick - fromTick) * secPerTick + Math.max((60 / tempo) * 4, longestCustomSec);
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw new Error(EXPORT_ABORTED);
+}
+
 export interface ExportOptions {
   /** Sample rate for the output file (default: 44100) */
   sampleRate?: number;
@@ -25,6 +94,14 @@ export interface ExportOptions {
   customBuffers?: Map<string, AudioBuffer>;
   /** Output format (default: wav). */
   format?: "wav" | "mp3";
+  /** Render only notes starting inside this tick range. */
+  range?: ExportRange | null;
+  /** Render muted tracks too, at their stored volume. */
+  includeMuted?: boolean;
+  /** MP3 bitrate in kbps (128/192/256/320, default 192). */
+  kbps?: number;
+  /** Aborting discards the export (nothing is returned). */
+  signal?: AbortSignal;
 }
 
 /** Synthesise and export the project audio. Returns a downloadable WAV or MP3 Blob. */
@@ -32,26 +109,27 @@ export async function exportAudio(
   snapshot: DraftSnapshot,
   options: ExportOptions = {},
 ): Promise<Blob> {
-  const { sampleRate = 44100, onProgress, customBuffers, format = "wav" } = options;
-  const { meta, notes, tracks } = snapshot;
+  const { sampleRate = 44100, onProgress, customBuffers, format = "wav", range = null, signal } = options;
+  const source = withMutedIncluded(snapshot, options.includeMuted ?? false);
+  const { meta, notes, tracks } = source;
+  const fromTick = range?.fromTick ?? 0;
+  const toTick = range ? range.toTick : null;
   const bpm = meta.tempo;
   const ppq = meta.ppq;
-  const secPerTick = 60 / (bpm * ppq);
+
+  if (!hasAudibleNotes(source, range)) {
+    throw new Error(NO_AUDIBLE_CONTENT);
+  }
+  throwIfAborted(signal);
 
   onProgress?.(0.02);
 
   // ── 1. Compute total duration ──────────────────────────────
-  let lastEndTick = ppq * 4 * 4; // minimum 4 bars
-  for (const n of notes) {
-    const end = n.start + n.duration;
-    if (end > lastEndTick) lastEndTick = end;
-  }
-  // Add 1 bar of silence at the end so notes don't cut abruptly
   let longestCustomSec = 0;
   for (const buffer of customBuffers?.values() ?? []) {
     longestCustomSec = Math.max(longestCustomSec, buffer.duration);
   }
-  const totalSec = lastEndTick * secPerTick + Math.max((60 / bpm) * 4, longestCustomSec);
+  const totalSec = estimateExportSeconds(source, range, longestCustomSec);
 
   onProgress?.(0.1);
 
@@ -68,29 +146,32 @@ export async function exportAudio(
     // Fresh cache per export — each Tone.Offline call is its own audio
     // context, so voices can't be shared with live playback or other
     // export calls anyway.
-    const voiceByTrack = await prepareVoices(notes, tracks, 0, null, limiter, createVoiceCache());
+    const voiceByTrack = await prepareVoices(notes, tracks, fromTick, toTick, limiter, createVoiceCache());
     triggerNotes({
       notes,
       tracks,
       ppq,
       bpm,
       startTime: 0,
-      fromTick: 0,
-      toTick: null,
+      fromTick,
+      toTick,
       voiceByTrack,
       customBuffers,
     });
   }, totalSec, 2, sampleRate);
 
+  throwIfAborted(signal);
   onProgress?.(0.7);
 
   // ── 3. Encode ─────────────────────────────────────────────
   if (format === "mp3") {
-    const mp3 = await encodeMp3(rendered.get()!, 192, (p) => onProgress?.(0.7 + p * 0.3));
+    const mp3 = await encodeMp3(rendered.get()!, normalizeMp3Kbps(options.kbps), (p) => onProgress?.(0.7 + p * 0.3));
+    throwIfAborted(signal);
     onProgress?.(1.0);
     return mp3;
   }
   const wavBlob = audioBufferToWav(rendered.get()!);
+  throwIfAborted(signal);
   onProgress?.(1.0);
 
   return new Blob([wavBlob], { type: "audio/wav" });
@@ -107,8 +188,15 @@ export async function exportAudioPerTrack(
   snapshot: DraftSnapshot,
   options: ExportOptions = {},
 ): Promise<{ track: DraftTrack; blob: Blob }[]> {
-  const { onProgress } = options;
-  const playableTracks = snapshot.tracks.filter((t) => !t.muted);
+  const { onProgress, range = null, includeMuted = false } = options;
+  const playableTracks = snapshot.tracks.filter(
+    (t) =>
+      (includeMuted || !t.muted) &&
+      snapshot.notes.some(
+        (n) =>
+          n.trackId === t.id && (!range || (n.start >= range.fromTick && n.start < range.toTick)),
+      ),
+  );
   const results: { track: DraftTrack; blob: Blob }[] = [];
 
   for (let i = 0; i < playableTracks.length; i++) {

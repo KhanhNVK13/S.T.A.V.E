@@ -25,11 +25,11 @@ function makeService(results: Parameters<typeof createSupabaseMock>[0]) {
   return { service, ...mock };
 }
 
-describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
+describe('AuthService.syncProfile(user) batch 1', () => {
   const existingRow = { id: 'a3b1c9f0', username: 'an' } as unknown as UserRow;
   const createdRow = { id: 'a3b1c9f0', username: 'an' } as unknown as UserRow;
 
-  it('UTCID01 returns the existing row unchanged', async () => {
+  it('returns the existing row unchanged', async () => {
     const { service, builder } = makeService([{ data: existingRow }]);
 
     const result = await service.syncProfile(makeUser());
@@ -38,7 +38,7 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
     expect(builder.insert).not.toHaveBeenCalled();
   });
 
-  it('UTCID02 inserts a new row with google_id taken from the Google identity', async () => {
+  it('inserts a new row with google_id taken from the Google identity', async () => {
     const { service, builder } = makeService([
       { data: null },
       { data: null },
@@ -62,7 +62,7 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
     );
   });
 
-  it('UTCID03 inserts a new row with google_id = null when only an email identity exists', async () => {
+  it('inserts a new row with google_id = null when only an email identity exists', async () => {
     const { service, builder } = makeService([
       { data: null },
       { data: null },
@@ -80,7 +80,7 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
     );
   });
 
-  it('UTCID04 seeds the username from "user" when email and identities are undefined', async () => {
+  it('seeds the username from "user" when email and identities are undefined', async () => {
     const { service, builder } = makeService([
       { data: null },
       { data: null },
@@ -96,7 +96,7 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
     );
   });
 
-  it('UTCID05 throws "Could not provision profile" when the insert returns an error', async () => {
+  it('throws "Could not provision profile" when the insert returns an error', async () => {
     const { service } = makeService([
       { data: null },
       { data: null },
@@ -112,7 +112,7 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
     );
   });
 
-  it('UTCID06 throws "Could not provision profile" when the insert returns null data', async () => {
+  it('throws "Could not provision profile" when the insert returns null data', async () => {
     const { service } = makeService([
       { data: null },
       { data: null },
@@ -128,7 +128,7 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
     );
   });
 
-  it('UTCID07 (proposed) returns the row created by a concurrent request when the insert hits a duplicate key', async () => {
+  it('returns the row created by a concurrent request when the insert hits a duplicate key', async () => {
     const { service } = makeService([
       { data: null },
       { data: null },

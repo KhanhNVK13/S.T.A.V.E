@@ -22,7 +22,7 @@ const FALLBACK = 'Lưu thất bại.';
 beforeEach(() => setLang('vi'));
 
 describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
-  it('translates a known API message ("Project not found")', () => {
+  it('UTCID01 translates a known API message ("Project not found")', () => {
     const err = new ApiError(404, 'Project not found');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -30,13 +30,13 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('passes a Vietnamese message through unchanged', () => {
+  it('UTCID02 passes a Vietnamese message through unchanged', () => {
     const err = new ApiError(400, 'Tên dự án đã tồn tại');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe('Tên dự án đã tồn tại');
   });
 
-  it('maps the reserved-branch-name message to the friendly notice', () => {
+  it('UTCID03 maps the reserved-branch-name message to the friendly notice', () => {
     const err = new ApiError(400, 'Cannot create a branch named "HEAD"');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -44,7 +44,7 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('maps a 401 to the re-login notice', () => {
+  it('UTCID04 maps a 401 to the re-login notice', () => {
     const err = new ApiError(401, 'Unauthorized');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -52,7 +52,7 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('maps a 403 to the permission notice', () => {
+  it('UTCID05 maps a 403 to the permission notice', () => {
     const err = new ApiError(403, 'Forbidden');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -60,7 +60,7 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('maps a 404 with an unknown message to the fallback + missing-data notice', () => {
+  it('UTCID06 maps a 404 with an unknown message to the fallback + missing-data notice', () => {
     const err = new ApiError(404, 'Not Found');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -68,7 +68,7 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('maps a 409 to the fallback + changed-data notice', () => {
+  it('UTCID07 maps a 409 to the fallback + changed-data notice', () => {
     const err = new ApiError(409, 'Conflict');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -76,7 +76,7 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('maps a 413 to the fallback + payload-too-large notice', () => {
+  it('UTCID08 maps a 413 to the fallback + payload-too-large notice', () => {
     const err = new ApiError(413, 'Payload Too Large');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -84,7 +84,7 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('maps a 429 to the rate-limit notice', () => {
+  it('UTCID09 maps a 429 to the rate-limit notice', () => {
     const err = new ApiError(429, 'Too Many Requests');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -92,7 +92,7 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('maps a 500 to the fallback + server-error notice', () => {
+  it('UTCID10 maps a 500 to the fallback + server-error notice', () => {
     const err = new ApiError(500, 'Internal error');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -100,19 +100,19 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('returns the fallback unchanged for an unmapped status (499)', () => {
+  it('UTCID11 returns the fallback unchanged for an unmapped status (499)', () => {
     const err = new ApiError(499, 'Client closed');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(FALLBACK);
   });
 
-  it('returns the fallback unchanged for a 400 without a known or Vietnamese message', () => {
+  it('UTCID12 returns the fallback unchanged for a 400 without a known or Vietnamese message', () => {
     const err = new ApiError(400, 'Bad Request');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(FALLBACK);
   });
 
-  it('maps a network TypeError to the fallback + connection notice', () => {
+  it('UTCID13 maps a network TypeError to the fallback + connection notice', () => {
     const err = new TypeError('Failed to fetch');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(
@@ -120,58 +120,58 @@ describe('FE-LIB-12 apiErrorMessage(err, fallback)', () => {
     );
   });
 
-  it('returns the fallback for a generic Error', () => {
+  it('UTCID14 returns the fallback for a generic Error', () => {
     const err = new Error('boom');
 
     expect(apiErrorMessage(err, FALLBACK)).toBe(FALLBACK);
   });
 
-  it('returns the fallback unchanged for null and an empty fallback', () => {
+  it('UTCID15 returns the fallback unchanged for null and an empty fallback', () => {
     expect(apiErrorMessage(null, '')).toBe('');
     expect(apiErrorMessage(null, FALLBACK)).toBe(FALLBACK);
   });
 });
 
 describe('FE-LIB-13 authErrorMessage(error)', () => {
-  it('returns the generic message for a null error', () => {
+  it('UTCID01 returns the generic message for a null error', () => {
     expect(authErrorMessage(null)).toBe('Có lỗi xảy ra. Hãy thử lại.');
   });
 
-  it('returns the generic message for an undefined error', () => {
+  it('UTCID02 returns the generic message for an undefined error', () => {
     expect(authErrorMessage(undefined)).toBe('Có lỗi xảy ra. Hãy thử lại.');
   });
 
-  it('maps the invalid_credentials code', () => {
+  it('UTCID03 maps the invalid_credentials code', () => {
     expect(authErrorMessage({ code: 'invalid_credentials' })).toBe(
       'Email hoặc mật khẩu không đúng.',
     );
   });
 
-  it('maps the user_banned code', () => {
+  it('UTCID04 maps the user_banned code', () => {
     expect(authErrorMessage({ code: 'user_banned' })).toBe(
       'Tài khoản này đang bị đình chỉ.',
     );
   });
 
-  it('maps a 429 status to the rate-limit message for an unknown code', () => {
+  it('UTCID05 maps a 429 status to the rate-limit message for an unknown code', () => {
     expect(authErrorMessage({ code: 'unknown_x', status: 429 })).toBe(
       'Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.',
     );
   });
 
-  it('maps a network message to the connection notice', () => {
+  it('UTCID06 maps a network message to the connection notice', () => {
     expect(authErrorMessage({ message: 'Failed to fetch' })).toBe(
       'Không kết nối được máy chủ — kiểm tra mạng rồi thử lại.',
     );
   });
 
-  it('returns the generic message for an unknown code, 400 status and plain message', () => {
+  it('UTCID07 returns the generic message for an unknown code, 400 status and plain message', () => {
     expect(
       authErrorMessage({ code: 'unknown_x', status: 400, message: 'x' }),
     ).toBe('Có lỗi xảy ra. Hãy thử lại.');
   });
 
-  it('returns the generic message for an empty error object', () => {
+  it('UTCID08 returns the generic message for an empty error object', () => {
     expect(authErrorMessage({})).toBe('Có lỗi xảy ra. Hãy thử lại.');
   });
 });

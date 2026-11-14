@@ -88,10 +88,51 @@ describe('BE-THM-01 CustomThemesService.saveCustomTheme', () => {
     expect(builders.themes.update).not.toHaveBeenCalled();
     expect(builders.users.update).not.toHaveBeenCalled();
   });
+  it('UTCID05 chèn dòng themes custom mới khi user chưa có', async () => {
+    const { service, builders } = makeService({
+      themes: [{ data: null }, { data: { id: themeId } }],
+      users: [{ data: null, error: null }],
+    });
+
+    await expect(
+      service.saveCustomTheme(userId, validPalette),
+    ).resolves.toEqual({ type: 'custom', palette: validPalette });
+
+    expect(builders.themes.insert).toHaveBeenCalledWith({
+      user_id: userId,
+      type: 'custom',
+      generated_palette: validPalette,
+    });
+    expect(builders.users.update).toHaveBeenCalledWith({
+      active_theme_id: themeId,
+    });
+  });
+
+  it('UTCID06 ném 500 "Could not save theme" khi ghi palette lỗi', async () => {
+    const { service, builders } = makeService({
+      themes: [{ data: { id: themeId } }, { error: 'fail', data: null }],
+    });
+
+    await expect(service.saveCustomTheme(userId, validPalette)).rejects.toThrow(
+      new InternalServerErrorException('Could not save theme'),
+    );
+    expect(builders.users?.update).toBeUndefined();
+  });
+
+  it('UTCID07 ném 500 "Could not apply theme" khi trỏ active_theme_id lỗi và giữ theme cũ', async () => {
+    const { service } = makeService({
+      themes: [{ data: { id: themeId } }, { data: { id: themeId } }],
+      users: [{ error: 'fail', data: null }],
+    });
+
+    await expect(service.saveCustomTheme(userId, validPalette)).rejects.toThrow(
+      new InternalServerErrorException('Could not apply theme'),
+    );
+  });
 });
 
 describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
-  it('UTCID05 ném 500 khi đọc bảng users lỗi (không nuốt error)', async () => {
+  it('UTCID01 ném 500 khi đọc bảng users lỗi (không nuốt error)', async () => {
     const { service } = makeService({
       users: [{ error: 'rls denied', data: null }],
     });
@@ -101,7 +142,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
     );
   });
 
-  it('UTCID07 trả null khi user chưa chọn theme', async () => {
+  it('UTCID02 trả null khi user chưa chọn theme', async () => {
     const { service } = makeService({
       users: [{ data: { active_theme_id: null } }],
       themes: [{ data: null }],
@@ -116,7 +157,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
     });
   });
 
-  it('UTCID08 trả presetKey khi theme hiện hành là preset', async () => {
+  it('UTCID03 trả presetKey khi theme hiện hành là preset', async () => {
     const { service } = makeService({
       users: [{ data: { active_theme_id: themeId } }],
       themes: [
@@ -143,7 +184,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
     });
   });
 
-  it('UTCID09 trả palette khi theme hiện hành là custom', async () => {
+  it('UTCID04 trả palette khi theme hiện hành là custom', async () => {
     const { service } = makeService({
       users: [{ data: { active_theme_id: themeId } }],
       themes: [
@@ -169,7 +210,7 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
     });
   });
 
-  it('UTCID10 hết quyền vẫn trả palette và KHÔNG xoá dữ liệu', async () => {
+  it('UTCID05 hết quyền vẫn trả palette và KHÔNG xoá dữ liệu', async () => {
     const { service, builders } = makeService(
       {
         users: [{ data: { active_theme_id: themeId } }],
@@ -202,8 +243,8 @@ describe('BE-THM-02 CustomThemesService.getEffectiveTheme', () => {
   });
 });
 
-describe('BE-THM-02b hasSavedCustom', () => {
-  it('UTCID16 vẫn trả theme khi đọc dòng custom lỗi (cờ phụ tụt về false)', async () => {
+describe('BE-THM-02 CustomThemesService.getEffectiveTheme (saved custom flag)', () => {
+  it('UTCID06 vẫn trả theme khi đọc dòng custom lỗi (cờ phụ tụt về false)', async () => {
     const { service } = makeService({
       users: [{ data: { active_theme_id: null } }],
       themes: [{ error: 'boom', data: null }],
@@ -219,8 +260,18 @@ describe('BE-THM-02b hasSavedCustom', () => {
   });
 });
 
+describe('BE-THM-02 CustomThemesService.getEffectiveTheme (missing account)', () => {
+  it('UTCID07 ném 500 khi không có dòng users', async () => {
+    const { service } = makeService({ users: [{ data: null }] });
+
+    await expect(service.getEffectiveTheme(userId)).rejects.toThrow(
+      new InternalServerErrorException('Could not read your account'),
+    );
+  });
+});
+
 describe('BE-THM-03 CustomThemesService.activateSavedCustomTheme', () => {
-  it('UTCID11 trỏ active_theme_id về dòng custom đã lưu, không ghi palette', async () => {
+  it('UTCID01 trỏ active_theme_id về dòng custom đã lưu, không ghi palette', async () => {
     const { service, builders } = makeService({
       themes: [{ data: { id: themeId, generated_palette: validPalette } }],
       users: [{ data: null, error: null }],
@@ -237,7 +288,7 @@ describe('BE-THM-03 CustomThemesService.activateSavedCustomTheme', () => {
     expect(builders.themes.insert).not.toHaveBeenCalled();
   });
 
-  it('UTCID12 chặn gói miễn phí bằng 403 và không ghi gì', async () => {
+  it('UTCID02 chặn gói miễn phí bằng 403 và không ghi gì', async () => {
     const { service, builders } = makeService({}, false);
 
     await expect(service.activateSavedCustomTheme(userId)).rejects.toThrow(
@@ -246,7 +297,7 @@ describe('BE-THM-03 CustomThemesService.activateSavedCustomTheme', () => {
     expect(builders.users?.update).toBeUndefined();
   });
 
-  it('UTCID13 trả 404 khi chưa lưu theme từ ảnh', async () => {
+  it('UTCID03 trả 404 khi chưa lưu theme từ ảnh', async () => {
     const { service, builders } = makeService({
       themes: [{ data: null }],
     });
@@ -257,7 +308,7 @@ describe('BE-THM-03 CustomThemesService.activateSavedCustomTheme', () => {
     expect(builders.users?.update).toBeUndefined();
   });
 
-  it('UTCID14 ném 500 khi đọc themes lỗi (không nuốt error)', async () => {
+  it('UTCID04 ném 500 khi đọc themes lỗi (không nuốt error)', async () => {
     const { service } = makeService({
       themes: [{ error: 'rls denied', data: null }],
     });
@@ -267,7 +318,7 @@ describe('BE-THM-03 CustomThemesService.activateSavedCustomTheme', () => {
     );
   });
 
-  it('UTCID15 ném 500 khi trỏ active_theme_id lỗi', async () => {
+  it('UTCID05 ném 500 khi trỏ active_theme_id lỗi', async () => {
     const { service } = makeService({
       themes: [{ data: { id: themeId, generated_palette: validPalette } }],
       users: [{ error: 'fail', data: null }],
@@ -278,7 +329,7 @@ describe('BE-THM-03 CustomThemesService.activateSavedCustomTheme', () => {
     );
   });
 
-  it('UTCID17 trả 404 và không ghi gì khi palette đã lưu không hợp lệ', async () => {
+  it('UTCID06 trả 404 và không ghi gì khi palette đã lưu không hợp lệ', async () => {
     const { service, builders } = makeService({
       themes: [
         { data: { id: themeId, generated_palette: { '--background': 'red' } } },

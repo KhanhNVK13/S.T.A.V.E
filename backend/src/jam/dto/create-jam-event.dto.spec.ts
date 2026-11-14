@@ -55,7 +55,7 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
     await expect(transform(fullDto)).resolves.toMatchObject(fullDto);
   });
 
-  it('UTCID03 accepts name at exactly 120 characters boundary', async () => {
+  it('UTCID04 accepts name at exactly 120 characters boundary', async () => {
     const name120 = 'A'.repeat(120);
     await expect(
       transform({ ...baseDto, name: name120 }),
@@ -64,7 +64,7 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
     });
   });
 
-  it('UTCID04 rejects name exceeding 120 characters (121 chars)', async () => {
+  it('UTCID05 rejects name exceeding 120 characters (121 chars)', async () => {
     const name121 = 'A'.repeat(121);
     await expectValidationRejection(
       transform({ ...baseDto, name: name121 }),
@@ -72,14 +72,14 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
     );
   });
 
-  it('UTCID05 rejects empty name string', async () => {
+  it('UTCID03 rejects empty name string', async () => {
     await expectValidationRejection(
       transform({ ...baseDto, name: '' }),
       'Tên sự kiện không được để trống',
     );
   });
 
-  it('UTCID06 rejects missing name field', async () => {
+  it('rejects missing name field', async () => {
     const withoutName: Partial<typeof baseDto> = { ...baseDto };
     delete withoutName.name;
     await expectValidationRejection(
@@ -99,7 +99,7 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
 
   it('UTCID08 rejects invalid scheduledStartAt ISO format', async () => {
     await expectValidationRejection(
-      transform({ ...baseDto, scheduledStartAt: 'not-a-valid-date' }),
+      transform({ ...baseDto, scheduledStartAt: '10/11/2026' }),
       'Thời gian bắt đầu không đúng định dạng',
     );
   });
@@ -115,7 +115,7 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
 
   it('UTCID10 rejects invalid scheduledEndAt ISO format', async () => {
     await expectValidationRejection(
-      transform({ ...baseDto, scheduledEndAt: '2026/12/01 12:00:00' }),
+      transform({ ...baseDto, scheduledEndAt: 'tomorrow' }),
       'Thời gian kết thúc không đúng định dạng',
     );
   });
@@ -133,14 +133,14 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
     ).resolves.toMatchObject({ editCooldownSec: 1 });
   });
 
-  it('UTCID13 rejects editCooldownSec below minimum (0 second)', async () => {
+  it('UTCID14 rejects editCooldownSec below minimum (0 second)', async () => {
     await expectValidationRejection(
       transform({ ...baseDto, editCooldownSec: 0 }),
       'Thời gian chờ tối thiểu là 1 giây',
     );
   });
 
-  it('UTCID14 accepts editCooldownSec at upper boundary of 3600 seconds', async () => {
+  it('UTCID13 accepts editCooldownSec at upper boundary of 3600 seconds', async () => {
     await expect(
       transform({ ...baseDto, editCooldownSec: 3600 }),
     ).resolves.toMatchObject({ editCooldownSec: 3600 });
@@ -160,10 +160,24 @@ describe('BE-JAM-12 CreateJamEventDto.validate(dto)', () => {
     );
   });
 
-  it('UTCID17 rejects string editCooldownSec', async () => {
+  it('rejects string editCooldownSec', async () => {
     await expectValidationRejection(
       transform({ ...baseDto, editCooldownSec: 'abc' }),
       'Thời gian chờ phải là số nguyên',
+    );
+  });
+
+  it('UTCID06 rejects a description of 2001 characters', async () => {
+    await expectValidationRejection(
+      transform({ ...baseDto, description: 'd'.repeat(2001) }),
+      'description must be shorter than or equal to 2000 characters',
+    );
+  });
+
+  it('UTCID17 rejects confirmOverlap that is not a boolean', async () => {
+    await expectValidationRejection(
+      transform({ ...baseDto, confirmOverlap: 'yes' }),
+      'confirmOverlap must be a boolean value',
     );
   });
 });

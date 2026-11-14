@@ -65,7 +65,7 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
   ): Promise<Awaited<ReturnType<ExploreService['listPublicProjects']>>> =>
     service.listPublicProjects(query);
 
-  it('UTCID01 returns 12 per page and totalPages 3 by default, ordered created_at desc', async () => {
+  it('UTCID01 returns 20 per page and totalPages 2 by default, ordered created_at desc (SRS UC-08 step 3)', async () => {
     const { service, mock } = makeService(
       { data: rows25(), count: 25 },
       { fork: { data: [] }, tags: { data: [] } },
@@ -74,8 +74,8 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
     const result = await call(service, { sort: 'newest' });
 
     expect(result.total).toBe(25);
-    expect(result.limit).toBe(12);
-    expect(result.totalPages).toBe(3);
+    expect(result.limit).toBe(20);
+    expect(result.totalPages).toBe(2);
     expect(mock.builders.projects.order).toHaveBeenCalledWith('created_at', {
       ascending: false,
     });
@@ -159,7 +159,7 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
     expect(result.items.map((i) => i.id)).toEqual(ids);
   });
 
-  it('UTCID06 falls back to 12 per page, created_at desc, totalPages 3 when sort is undefined', async () => {
+  it('UTCID06 falls back to 20 per page, created_at desc, totalPages 2 when sort is undefined (SRS UC-08 step 3)', async () => {
     const { service, mock } = makeService(
       { data: rows25(), count: 25 },
       { fork: { data: [] }, tags: { data: [] } },
@@ -167,8 +167,8 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
 
     const result = await call(service, {});
 
-    expect(result.limit).toBe(12);
-    expect(result.totalPages).toBe(3);
+    expect(result.limit).toBe(20);
+    expect(result.totalPages).toBe(2);
     expect(mock.builders.projects.order).toHaveBeenCalledWith('created_at', {
       ascending: false,
     });
@@ -263,6 +263,25 @@ describe('BE-EXP-01 ExploreService.listPublicProjects(query)', () => {
       'active',
     );
     expect(result.items.map((i) => i.id)).toEqual(['pa']);
+  });
+
+  it('UTCID13 lists only public, non-archived and non-hidden projects (BR-11, BR-12)', async () => {
+    const { service, mock } = makeService(
+      { data: [card('pa', 'usr_active')], count: 1 },
+      { fork: { data: [] }, tags: { data: [] } },
+    );
+
+    await call(service, { sort: 'newest' });
+
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith(
+      'visibility',
+      'public',
+    );
+    expect(mock.builders.projects.is).toHaveBeenCalledWith('archived_at', null);
+    expect(mock.builders.projects.is).toHaveBeenCalledWith(
+      'moderation_hidden_at',
+      null,
+    );
   });
 });
 
@@ -624,6 +643,23 @@ describe('BE-EXP-04 ExploreService.getUserPublicProjects(id)', () => {
       'active',
     );
   });
+
+  it('UTCID06 asks only for public, non-archived and non-hidden projects of that creator (BR-11)', async () => {
+    const { service, mock } = makeService({ data: [] });
+
+    await service.getUserPublicProjects('usr_1');
+
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith('owner_id', 'usr_1');
+    expect(mock.builders.projects.eq).toHaveBeenCalledWith(
+      'visibility',
+      'public',
+    );
+    expect(mock.builders.projects.is).toHaveBeenCalledWith('archived_at', null);
+    expect(mock.builders.projects.is).toHaveBeenCalledWith(
+      'moderation_hidden_at',
+      null,
+    );
+  });
 });
 
 // ============================================================================
@@ -936,7 +972,7 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
     });
   });
 
-  it('UTCID04 keeps the stats and trending list when the featured query errors', async () => {
+  it('keeps the stats and trending list when the featured query errors', async () => {
     const { service } = makeService({
       engagement: [engagementResult(['p1', 'p2'])],
       projects: [
@@ -961,7 +997,7 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
     });
   });
 
-  it('UTCID05 keeps featured and stats with an empty trending list when the ranking view query errors', async () => {
+  it('keeps featured and stats with an empty trending list when the ranking view query errors', async () => {
     const { service } = makeService({
       engagement: [{ data: null, error: { message: 'db error' } }],
       projects: [
@@ -981,6 +1017,52 @@ describe('BE-EXP-06 ExploreService.getFeatured()', () => {
     expect(result.stats).toEqual({
       total_projects: 2,
       total_users: 3,
+      total_forks: 0,
+    });
+  });
+
+  it('UTCID04 returns the hero, empty lists and stats from the counts when both project list queries error', async () => {
+    const dbError = { data: null, error: { message: 'db error' } };
+    const { service } = makeService({
+      engagement: [dbError],
+      projects: [dbError, { data: null, count: 7 }, { data: null, count: 2 }],
+      users: [{ data: null, count: 9 }],
+      tags: [],
+    });
+
+    const result = await service.getFeatured();
+
+    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
+    expect(result.featured_projects).toEqual([]);
+    expect(result.trending_projects).toEqual([]);
+    expect(result.stats).toEqual({
+      total_projects: 7,
+      total_users: 9,
+      total_forks: 2,
+    });
+  });
+
+  it('UTCID05 returns the hero, empty lists and zero stats when every query errors', async () => {
+    const dbError = {
+      data: null,
+      count: null,
+      error: { message: 'db error' },
+    };
+    const { service } = makeService({
+      engagement: [dbError],
+      projects: [dbError, dbError, dbError],
+      users: [dbError],
+      tags: [],
+    });
+
+    const result = await service.getFeatured();
+
+    expect(result.hero.title).toBe('Sáng tác nhạc theo phong cách của bạn');
+    expect(result.featured_projects).toEqual([]);
+    expect(result.trending_projects).toEqual([]);
+    expect(result.stats).toEqual({
+      total_projects: 0,
+      total_users: 0,
       total_forks: 0,
     });
   });

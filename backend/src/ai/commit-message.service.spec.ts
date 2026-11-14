@@ -12,7 +12,7 @@ import {
 import type { DraftSnapshot, DraftTrack, DraftNote } from '@stave/shared-types';
 
 // ============================================================================
-// SHEET: BE-AI-01 (UC-70 CommitMessageService.suggest)
+// SHEET: BE-AIX-05 (UC-70 CommitMessageService.suggest)
 // ============================================================================
 
 const PROJECT = 'p-1';
@@ -123,8 +123,8 @@ function headWith(overrides: Partial<DraftSnapshot> = {}) {
   return { ...snapshot(), ...overrides };
 }
 
-describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
-  it('builds a suggestion from the server-side diff and sends only the summary (BR-80)', async () => {
+describe('BE-AIX-05 CommitMessageService.suggest', () => {
+  it('UTCID01 builds a suggestion from the server-side diff and sends only the summary', async () => {
     const { service, gemini } = buildService({
       head: headWith({
         tracks: [track('t1', 'Piano')],
@@ -164,7 +164,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(flat).not.toContain('email'); // no personal data
   });
 
-  it('includes the tempo change in the summary when meta changed', async () => {
+  it('UTCID02 includes the tempo change in the summary when meta changed', async () => {
     const { service, gemini } = buildService({
       head: headWith(),
       draft: snapshot({
@@ -181,7 +181,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(summary.tempoChange).toEqual({ from: 120, to: 128 });
   });
 
-  it('skips the AI and returns the code-generated sentence for a huge diff (1.E1)', async () => {
+  it('UTCID03 skips the AI and returns the code-generated sentence for a huge diff', async () => {
     const bigDraft = snapshot({
       notes: Array.from({ length: 301 }, (_, i) =>
         note(`n${i}`, 't1', i * 480),
@@ -196,7 +196,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(gemini).not.toHaveBeenCalled();
   });
 
-  it('skips the AI when more than 5 tracks changed (1.E1)', async () => {
+  it('UTCID04 skips the AI when more than 5 tracks changed', async () => {
     const manyTracks = snapshot({
       tracks: [
         track('t1', 'Piano'),
@@ -217,7 +217,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(gemini).not.toHaveBeenCalled();
   });
 
-  it('writes the large-update sentence in English when the UI language is English', async () => {
+  it('UTCID05 writes the large-update sentence in English when the UI language is English', async () => {
     const bigDraft = snapshot({
       notes: Array.from({ length: 301 }, (_, i) =>
         note(`n${i}`, 't1', i * 480),
@@ -232,7 +232,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(gemini).not.toHaveBeenCalled();
   });
 
-  it('asks Gemini for an English sentence when the UI language is English', async () => {
+  it('UTCID06 asks Gemini for an English sentence when the UI language is English', async () => {
     const { service, gemini } = buildService({
       head: headWith(),
       draft: headWith({ notes: [note('n1')] }),
@@ -243,7 +243,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(prompt).not.toContain('Bạn viết');
   });
 
-  it('returns null when Gemini errors, is empty, or times out (BR-79)', async () => {
+  it('UTCID07 returns null when the AI answers nothing because it failed or timed out', async () => {
     const failing = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -255,7 +255,18 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(failing.gemini).toHaveBeenCalledTimes(1);
   });
 
-  it('sanitizes model output: no quotes, one line, at most 200 chars (BR-39)', async () => {
+  it('UTCID08 returns null when the AI call rejects instead of failing the request', async () => {
+    const { service } = buildService({
+      head: headWith(),
+      draft: snapshot({ notes: [note('n1')] }),
+      gemini: jest.fn().mockRejectedValue(new Error('boom')),
+    });
+    await expect(service.suggest(PROJECT, null, USER)).resolves.toEqual({
+      suggestion: null,
+    });
+  });
+
+  it('UTCID09 sanitizes model output: no quotes, one line, at most 200 chars', async () => {
     const { service } = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -268,7 +279,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(suggestion).not.toContain('Dòng phụ');
   });
 
-  it('drops a whitespace-only model answer to null', async () => {
+  it('UTCID10 drops a whitespace-only model answer to null', async () => {
     const { service } = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -279,7 +290,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     });
   });
 
-  it('returns null for a first commit (no head to diff against)', async () => {
+  it('UTCID11 returns null for a first commit (no head to diff against)', async () => {
     const { service, gemini } = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -294,7 +305,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(gemini).not.toHaveBeenCalled();
   });
 
-  it('returns null when the draft matches the head commit', async () => {
+  it('UTCID12 returns null when the draft matches the head commit', async () => {
     const same = headWith({ notes: [note('n1')] });
     const { service, gemini } = buildService({
       head: same,
@@ -306,7 +317,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(gemini).not.toHaveBeenCalled();
   });
 
-  it('reads the other branch head from the DB when the box opens elsewhere', async () => {
+  it('UTCID13 reads the other branch head from the DB when the box opens elsewhere', async () => {
     const { service, gemini, mock } = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -319,7 +330,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(mock.builders.branches.maybeSingle).toHaveBeenCalledTimes(1);
   });
 
-  it('reports a 404 for a branch that is not in the project', async () => {
+  it('UTCID14 reports a 404 for a branch that is not in the project', async () => {
     const { service } = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -330,7 +341,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     );
   });
 
-  it('keeps the per-user rate limit: the AI is bypassed, never an error', async () => {
+  it('UTCID15 keeps the per-user rate limit: the AI is bypassed, never an error', async () => {
     const { service, gemini } = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -345,7 +356,7 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     expect(last.suggestion).toBeNull();
   });
 
-  it('enforces edit permission before anything else', async () => {
+  it('UTCID16 enforces edit permission before anything else', async () => {
     const { service, gemini } = buildService({
       head: headWith(),
       draft: snapshot({ notes: [note('n1')] }),
@@ -354,6 +365,17 @@ describe('BE-AI-01 CommitMessageService.suggest (UC-70)', () => {
     await expect(service.suggest(PROJECT, null, USER)).rejects.toThrow(
       'no edit permission',
     );
+    expect(gemini).not.toHaveBeenCalled();
+  });
+
+  it('UTCID17 returns null when the head commit snapshot cannot be found', async () => {
+    const { service, gemini } = buildService({
+      head: null,
+      draft: snapshot({ notes: [note('n1')] }),
+    });
+    await expect(service.suggest(PROJECT, null, USER)).resolves.toEqual({
+      suggestion: null,
+    });
     expect(gemini).not.toHaveBeenCalled();
   });
 });

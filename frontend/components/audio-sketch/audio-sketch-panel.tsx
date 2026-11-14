@@ -171,6 +171,7 @@ export function AudioSketchPanel({
   const [trim, setTrim] = useState({ start: 0, end: 0 });
   const [name, setName] = useState("");
   const [attaching, setAttaching] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AudioSketch | null>(null);
@@ -469,6 +470,11 @@ export function AudioSketchPanel({
           <p className="text-xs text-muted">
             {t("sk.trimHint")}
           </p>
+          {trim.end - trim.start < 1 && (
+            <p role="status" className="text-xs text-warning-foreground">
+              {t("sk.shortWarn")}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex min-w-[220px] flex-1 flex-col gap-1.5">
@@ -494,7 +500,14 @@ export function AudioSketchPanel({
                 t("sk.attach")
               )}
             </Button>
-            <Button variant="ghost" onClick={discardRecording} disabled={attaching}>
+            <Button
+              variant="ghost"
+              onClick={() => setTrim({ start: 0, end: buffer.duration })}
+              disabled={attaching || (trim.start === 0 && trim.end === buffer.duration)}
+            >
+              {t("sk.resetTrim")}
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirmDiscard(true)} disabled={attaching}>
               <Trash2 className="h-3.5 w-3.5" /> {t("sk.discard")}
             </Button>
           </div>
@@ -557,6 +570,18 @@ export function AudioSketchPanel({
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDiscard}
+        title={t("sk.discardTitle")}
+        message={t("sk.discardBody")}
+        confirmLabel={t("sk.discardConfirm")}
+        danger
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          discardRecording();
+        }}
+        onCancel={() => setConfirmDiscard(false)}
+      />
       <ConfirmDialog
         open={pendingDelete !== null}
         title={t("sk.deleteTitle")}

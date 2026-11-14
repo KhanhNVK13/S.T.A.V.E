@@ -19,4 +19,5 @@ export interface PaymentGateway {
     headers: Record<string, string>,
   ): Promise<{ orderCode: number; success: boolean } | null>;
   getPaymentStatus(orderCode: number): Promise<GatewayPaymentStatus>;
+  cancelPayment(orderCode: number, reason?: string): Promise<void>;
 }

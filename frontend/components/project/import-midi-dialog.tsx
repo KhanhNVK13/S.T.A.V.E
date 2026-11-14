@@ -8,13 +8,18 @@ import {
   listProjectBranches,
   putDraft,
 } from "../../lib/api-client";
-import { parseMidiBuffer } from "../../lib/midi-parser";
+import {
+  MAX_MIDI_IMPORT_BYTES,
+  MAX_PROJECT_TRACKS,
+  MidiImportError,
+  countDiscardedMidiEvents,
+  parseMidiBuffer,
+  type MidiDiscardReport,
+} from "../../lib/midi-parser";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { Button } from "../ui/button";
 import { Dialog, DialogActions, DialogError } from "../ui/dialog";
 import { useI18n } from "../../context/i18n-context";
-
-const MAX_BYTES = 5 * 1024 * 1024;
 
 interface FileSummary {
   fileName: string;
@@ -23,6 +28,7 @@ interface FileSummary {
   noteCount: number;
   tempo: number;
   ppq: number;
+  discarded: MidiDiscardReport;
 }
 
 export function ImportMidiDialog({
@@ -53,17 +59,13 @@ export function ImportMidiDialog({
       setFileError(t("imp.badType"));
       return;
     }
-    if (file.size > MAX_BYTES) {
+    if (file.size > MAX_MIDI_IMPORT_BYTES) {
       setFileError(t("imp.tooBig"));
       return;
     }
     try {
       const buffer = await file.arrayBuffer();
       const parsed = parseMidiBuffer(buffer);
-      if (parsed.tracks.length === 0) {
-        setFileError(t("imp.noNotes"));
-        return;
-      }
       setSummary({
         fileName: file.name,
         buffer,
@@ -71,9 +73,14 @@ export function ImportMidiDialog({
         noteCount: parsed.notes.length,
         tempo: parsed.meta.tempo,
         ppq: parsed.meta.ppq,
+        discarded: countDiscardedMidiEvents(buffer),
       });
-    } catch {
-      setFileError(t("imp.unreadable"));
+    } catch (err) {
+      setFileError(
+        err instanceof MidiImportError && err.code === "TOO_MANY_TRACKS"
+          ? t("edc.importTooManyTracks", { n: MAX_PROJECT_TRACKS })
+          : t("imp.unreadable"),
+      );
     }
   }
 
@@ -108,8 +115,25 @@ export function ImportMidiDialog({
       if (draftReplaced && previousDraft) {
         await putDraft(projectId, previousDraft).catch(() => undefined);
       }
-      setError(errorSource(err, "imp.fail"));
+      const tooMany = err instanceof MidiImportError && err.code === "TOO_MANY_TRACKS";
+      setError(
+        tooMany
+          ? errorSource(err, "edc.importTooManyTracks", { n: MAX_PROJECT_TRACKS })
+          : errorSource(err, "imp.fail"),
+      );
       setBusy(false);
+    }
+  }
+
+  const discardLines: string[] = [];
+  if (summary) {
+    const d = summary.discarded;
+    if (d.pitchBends > 0) discardLines.push(t("imp.dropBend", { n: d.pitchBends }));
+    if (d.controlChanges > 0) discardLines.push(t("imp.dropCc", { n: d.controlChanges }));
+    if (d.sysex > 0) discardLines.push(t("imp.dropSysex", { n: d.sysex }));
+    if (d.extraTempoChanges > 0) discardLines.push(t("imp.dropTempo", { n: d.extraTempoChanges }));
+    if (d.extraTimeSignatureChanges > 0) {
+      discardLines.push(t("imp.dropTimeSig", { n: d.extraTimeSignatureChanges }));
     }
   }
 
@@ -128,7 +152,7 @@ export function ImportMidiDialog({
         className="hidden"
       />
       <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={busy}>
-        <FileUp className="h-3.5 w-3.5" /> {summary ? t("imp.chooseOther") : t("imp.choose")}
+        <FileUp aria-hidden="true" className="h-3.5 w-3.5" /> {summary ? t("imp.chooseOther") : t("imp.choose")}
       </Button>
       {fileError && (
         <p role="alert" className="mt-3 text-xs text-danger">
@@ -150,6 +174,25 @@ export function ImportMidiDialog({
           <dd className="font-mono tabular-nums">{summary.ppq}</dd>
         </dl>
       )}
+      {summary && summary.noteCount === 0 && (
+        <p role="alert" className="mt-3 text-xs text-warning-foreground">
+          {t("imp.noNotes")}
+        </p>
+      )}
+      {summary && (
+        <div className="mt-3 text-xs" data-testid="discard-report">
+          <p className="font-medium text-foreground">{t("imp.discardTitle")}</p>
+          {discardLines.length === 0 ? (
+            <p className="mt-1 text-muted">{t("imp.discardNone")}</p>
+          ) : (
+            <ul className="mt-1 list-disc pl-4 text-muted">
+              {discardLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="mt-4">
         <DialogError message={renderError(error)} />
@@ -159,7 +202,7 @@ export function ImportMidiDialog({
           {t("ui.cancel")}
         </Button>
         <Button onClick={() => void handleImport()} disabled={!summary || busy}>
-          {busy ? t("imp.importing") : t("imp.submit")}
+          {busy ? t("imp.importing") : summary && summary.noteCount === 0 ? t("imp.submitAnyway") : t("imp.submit")}
         </Button>
       </DialogActions>
     </Dialog>

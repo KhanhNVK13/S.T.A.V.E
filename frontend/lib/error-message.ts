@@ -3,6 +3,8 @@ import { getLang, tNow, type Lang, type TKey, type Vars } from "./i18n";
 
 const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Choose a license before making the project public": { en: "Choose a license before making the project public.", vi: "Hãy chọn giấy phép trước khi công khai dự án." },
+  "Unverified account cannot make project public": { en: "Verify your email address before making a project public.", vi: "Hãy xác minh địa chỉ email trước khi công khai dự án." },
+  "Unverified account cannot open a pull request": { en: "Verify your email address before opening a pull request.", vi: "Hãy xác minh địa chỉ email trước khi mở pull request." },
   "Tags may only contain letters, numbers, hyphens and spaces": { en: "Tags may only contain letters, numbers, hyphens and spaces.", vi: "Thẻ chỉ gồm chữ, số, dấu gạch ngang và khoảng trắng." },
   "A project can have at most 5 tags": { en: "A project can have at most 5 tags.", vi: "Một dự án có tối đa 5 thẻ." },
   "Pick two different versions to compare": { en: "Pick two different versions to compare.", vi: "Hãy chọn hai phiên bản khác nhau để so sánh." },

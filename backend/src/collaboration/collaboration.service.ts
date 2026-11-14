@@ -23,6 +23,7 @@ import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { ProjectAccessService } from '../project-access/project-access.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DraftsService } from '../drafts/drafts.service';
 import { CollaborationGateway } from './collaboration.gateway';
 import { InviteCollaboratorDto } from './dto/invite-collaborator.dto';
 import { ListContributionsQueryDto } from './dto/list-contributions-query.dto';
@@ -73,6 +74,7 @@ export class CollaborationService {
     private readonly gateway: CollaborationGateway,
     private readonly diffService: DiffService,
     private readonly notifications: NotificationsService,
+    private readonly drafts: DraftsService,
   ) {}
 
   // ==========================================================================
@@ -351,11 +353,13 @@ export class CollaborationService {
     // immutable; comments are their own rows, never deleted here).
 
     if (row.status === 'accepted') {
-      // Their uncommitted draft is discarded by the drafts service.
-      // TODO(trưởng nhóm): call DraftsService.discardUserDraft(projectId,
-      // row.user_id) once the shared function exists — do not patch
-      // DraftsService from this module.
-      //
+      try {
+        await this.drafts.discardUserDraft(projectId, row.user_id);
+      } catch (err) {
+        CollaborationService.logger.error(
+          `Could not discard the draft of removed collaborator ${row.user_id}: ${(err as Error).message}`,
+        );
+      }
       // UC-62 5.E1: their open tabs hear about it live via
       // `collab:access_revoked` — show "your access ended", redirect to
       // /projects, and get force-disconnected from the presence room.
@@ -811,7 +815,8 @@ export class CollaborationService {
     const { data: byUsername, error: usernameError } = await this.supabase
       .from('users')
       .select('id')
-      .eq('username', trimmed)
+      .ilike('username', trimmed.replace(/[\\_%]/g, '\\$&'))
+      .limit(1)
       .maybeSingle<{ id: string }>();
     if (usernameError) {
       throw new InternalServerErrorException(

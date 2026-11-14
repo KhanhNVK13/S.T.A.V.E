@@ -55,7 +55,7 @@ export function exportMidiFile(snapshot: DraftSnapshot): Uint8Array {
         midi: n.pitch,
         ticks: n.start,
         durationTicks: n.duration,
-        velocity: Math.max(0, Math.min(1, n.velocity / 127)),
+        velocity: Math.max(1, Math.min(127, n.velocity)) / 127,
       });
     }
   }

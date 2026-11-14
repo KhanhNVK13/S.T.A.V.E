@@ -17,6 +17,7 @@ jest.mock('uuid', () => ({
 
 import { createSupabaseMock } from '../test-utils/supabase-mock';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import type { JamLockService } from '../project-access/jam-lock.service';
 import { ActiveBranchService } from '../active-branch/active-branch.service';
 import { BranchesService } from './branches.service';
 
@@ -71,6 +72,7 @@ function isAncestryRows(entry: { data?: unknown }): boolean {
 function makeService(
   tables: SupabaseMockOptions['tables'],
   rpc: SupabaseMockOptions['rpc'] = undefined,
+  jamLock?: { assertNoActiveJam: jest.Mock },
 ) {
   const commitEntries = tables?.commits ?? [];
   const ancestryRows = commitEntries
@@ -95,6 +97,7 @@ function makeService(
     mock.client,
     new ProjectAccessService(mock.client),
     new ActiveBranchService(mock.client),
+    jamLock as unknown as JamLockService | undefined,
   );
   return { service, ...mock };
 }
@@ -115,6 +118,7 @@ function baseTables(
       { data: { owner_id: userId, active_branch_id: null } },
     ],
     project_member_active_branches: [{ data: [] }],
+    pull_requests: [{ data: null, error: null }],
   };
 }
 
@@ -300,7 +304,7 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     expect(builders.branches.delete).toHaveBeenCalled();
   });
 
-  it('UTCID14 forbids a view-only collaborator', async () => {
+  it('forbids a non-member from deleting a branch', async () => {
     const { service } = makeService({
       branches: [{ data: makeBranch() }],
       projects: [{ data: { owner_id: otherUserId } }],
@@ -311,7 +315,7 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     );
   });
 
-  it('UTCID15 re-homes older commits that another branch reaches through its history', async () => {
+  it('re-homes older commits that another branch reaches through its history', async () => {
     const older = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     const head = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     const otherBranches = [{ id: otherBranchId, head_commit_id: head }];
@@ -332,7 +336,7 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     });
   });
 
-  it('UTCID16 refuses to delete a branch a collaborator has open', async () => {
+  it('UTCID15 refuses to delete a branch a collaborator has open', async () => {
     const { service, builders } = makeService({
       ...baseTables(),
       project_member_active_branches: [{ data: [{ user_id: otherUserId }] }],
@@ -344,7 +348,7 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     expect(builders.branches.delete).not.toHaveBeenCalled();
   });
 
-  it('UTCID17 reports a failed collaborator lookup', async () => {
+  it('UTCID16 reports a failed collaborator lookup', async () => {
     const { service } = makeService({
       ...baseTables(),
       project_member_active_branches: [
@@ -359,7 +363,22 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     );
   });
 
-  it('UTCID19 reads the history of every other branch with one query', async () => {
+  it('UTCID17 closes the open pull requests that use the deleted branch as source or target', async () => {
+    const { service, builders } = makeService(baseTables());
+
+    await service.deleteBranch(branchId, userId);
+
+    expect(builders.pull_requests.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'closed' }),
+    );
+    expect(builders.pull_requests.eq).toHaveBeenCalledWith('status', 'open');
+    expect(builders.pull_requests.or).toHaveBeenCalledWith(
+      `source_branch_id.eq.${branchId},target_branch_id.eq.${branchId}`,
+    );
+    expect(builders.branches.delete).toHaveBeenCalled();
+  });
+
+  it('reads the history of every other branch with one query', async () => {
     const heads = ['h1', 'h2', 'h3', 'h4', 'h5'];
     const otherBranches = heads.map((head, i) => ({
       id: `branch-${i}`,
@@ -383,7 +402,7 @@ describe('BE-BRN-06 BranchesService.deleteBranch', () => {
     });
   });
 
-  it('UTCID18 re-homes shared commits in chunks of 100 ids', async () => {
+  it('re-homes shared commits in chunks of 100 ids', async () => {
     const ids = Array.from({ length: 250 }, (_, i) => `commit-${i}`);
     const head = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     const otherBranches = [{ id: otherBranchId, head_commit_id: head }];
@@ -718,6 +737,26 @@ describe('BE-BRN-01 BranchesService.createBranch', () => {
       new ForbiddenException('You do not have edit permission on this project'),
     );
   });
+
+  it('UTCID19 refuses to create a branch while a Community Jam is running on the project', async () => {
+    const jamLock = {
+      assertNoActiveJam: jest
+        .fn()
+        .mockRejectedValue(new ConflictException('Community Jam is running')),
+    };
+    const { service, builders } = makeService(
+      successTables(),
+      undefined,
+      jamLock,
+    );
+
+    await expect(
+      service.createBranch(projectId, { name: 'feature-x' }, userId),
+    ).rejects.toThrow(ConflictException);
+
+    expect(jamLock.assertNoActiveJam).toHaveBeenCalledWith(projectId);
+    expect(builders.branches.insert).not.toHaveBeenCalled();
+  });
 });
 
 describe('BE-BRN-02 BranchesService.switchBranch', () => {
@@ -819,7 +858,10 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
 
   it('UTCID04 forbids a non-owner', async () => {
     const { service } = makeService({
-      projects: [{ data: { owner_id: otherUserId } }],
+      projects: [
+        { data: { owner_id: otherUserId } },
+        { data: { owner_id: otherUserId } },
+      ],
     });
 
     await expect(
@@ -889,7 +931,7 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
     },
   );
 
-  it('UTCID12 saves the outgoing draft only at the expected version and returns the target draft version', async () => {
+  it('UTCID13 saves the outgoing draft only at the expected version and returns the target draft version', async () => {
     const { service, builders } = makeService(switchTables());
     const result = await service.switchBranch(
       projectId,
@@ -911,7 +953,7 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
     expect(result.activeDraftVersion).toBe('2026-10-28T01:00:00Z');
   });
 
-  it('UTCID13 refuses to switch when another tab changed the outgoing draft', async () => {
+  it('UTCID14 refuses to switch when another tab changed the outgoing draft', async () => {
     const { service, builders } = makeService(
       switchTables({
         drafts: [{ data: null, error: null }],
@@ -991,7 +1033,7 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
     );
   });
 
-  it('UTCID11 rejects a current branch that belongs to another project', async () => {
+  it('rejects a current branch that belongs to another project', async () => {
     const { service, builders } = makeService({
       ...switchTables(),
       branches: [
@@ -1324,7 +1366,7 @@ describe('BE-BRN-05 BranchesService.getDeletePreview', () => {
     expect(result.unmergedCommitsCount).toBe(2);
   });
 
-  it('UTCID11 forbids a view-only collaborator', async () => {
+  it('forbids a non-member from previewing the deletion', async () => {
     const { service } = makeService({
       branches: [{ data: branch }],
       projects: [{ data: { owner_id: otherUserId } }],
@@ -1393,7 +1435,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
     expect(result.isMerged).toBe(true);
   });
 
-  it('UTCID11 does not report a branch without commits of its own as merged', async () => {
+  it('does not report a branch without commits of its own as merged', async () => {
     const d1 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     const { service } = makeService({
       branches: [
@@ -1472,7 +1514,7 @@ describe('BE-BRN-03 BranchesService.getBranchDetails', () => {
     });
   });
 
-  it('UTCID10 forbids a view-only collaborator', async () => {
+  it('forbids a signed-in user who cannot read a private project', async () => {
     const { service } = makeService({
       branches: [{ data: branch }],
       projects: [{ data: { owner_id: otherUserId } }, { data: null }],
@@ -1597,7 +1639,7 @@ describe('BE-BRN-07 BranchesService.getProjectBranches', () => {
     });
   });
 
-  it('UTCID10 forbids a view-only collaborator', async () => {
+  it('forbids a non-member of a private project', async () => {
     const { service } = makeService({
       projects: [{ data: { owner_id: otherUserId } }, { data: null }],
     });
@@ -1840,7 +1882,10 @@ describe('BE-BRN-09 BranchesService.determineStartCommit', () => {
         { data: makeBranch({ head_commit_id: commitId }) },
       ],
       commits: [{ data: [{ id: commitId }] }, { data: { snapshot: {} } }],
-      projects: [{ data: { owner_id: userId } }],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId, active_branch_id: null } },
+      ],
       drafts: [{ data: null, error: null }],
       users: [{ data: { id: userId } }],
     });
@@ -1849,22 +1894,27 @@ describe('BE-BRN-09 BranchesService.determineStartCommit', () => {
     ).resolves.toEqual(expect.objectContaining({ head_commit_id: commitId }));
   });
 
-  it('UTCID10 uses the head of the branch returned by the default lookup even when it is not flagged default', async () => {
-    const { service } = makeService({
+  it('UTCID10 starts from the head of the active feature branch when no explicit source is supplied (UC-47 step 2)', async () => {
+    const { service, builders } = makeService({
       branches: [
         { data: [{ id: sourceId }] },
         { data: null },
-        { data: { ...startBranch, is_default: false } },
+        { data: { head_commit_id: commitId } },
         { data: makeBranch({ head_commit_id: commitId }) },
       ],
       commits: [{ data: [{ id: commitId }] }, { data: { snapshot: {} } }],
-      projects: [{ data: { owner_id: userId } }],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId, active_branch_id: sourceId } },
+      ],
       drafts: [{ data: null, error: null }],
       users: [{ data: { id: userId } }],
     });
     await expect(
       service.createBranch(projectId, { name: 'feature-start' }, userId),
     ).resolves.toEqual(expect.objectContaining({ head_commit_id: commitId }));
+    expect(builders.branches.eq).toHaveBeenCalledWith('id', sourceId);
+    expect(builders.branches.eq).not.toHaveBeenCalledWith('is_default', true);
   });
 
   it('UTCID11 returns null when the default branch has no head', async () => {
@@ -1876,7 +1926,10 @@ describe('BE-BRN-09 BranchesService.determineStartCommit', () => {
         { data: makeBranch({ head_commit_id: null }) },
       ],
       commits: [{ data: [{ id: commitId }] }],
-      projects: [{ data: { owner_id: userId } }],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId, active_branch_id: null } },
+      ],
       drafts: [{ data: null, error: null }],
       users: [{ data: { id: userId } }],
     });
@@ -1894,7 +1947,10 @@ describe('BE-BRN-09 BranchesService.determineStartCommit', () => {
         { data: makeBranch({ head_commit_id: null }) },
       ],
       commits: [{ data: [{ id: commitId }] }],
-      projects: [{ data: { owner_id: userId } }],
+      projects: [
+        { data: { owner_id: userId } },
+        { data: { owner_id: userId, active_branch_id: null } },
+      ],
       drafts: [{ data: null, error: null }],
       users: [{ data: { id: userId } }],
     });
@@ -2069,7 +2125,7 @@ describe('BE-BRN-11 BranchesService.getAncestorIds', () => {
     );
   });
 
-  it('UTCID08 reads a long chain with a single database round trip', async () => {
+  it('reads a long chain with a single database round trip', async () => {
     const chain = Array.from({ length: 500 }, (_, i) =>
       node(`c${i}`, i + 1 < 500 ? `c${i + 1}` : null),
     );
@@ -2114,6 +2170,21 @@ describe('BranchesService commit graph errors', () => {
 });
 
 describe('BE-BRN-12 BranchesService.findMergeBase', () => {
+  it('UTCID07 refuses instead of guessing when a history exceeds the node limit before a common ancestor', async () => {
+    const chain = Array.from({ length: 20001 }, (_, i) =>
+      node(i === 0 ? 'b1' : `z${i}`, `z${i + 1}`),
+    );
+    const { service } = makeService(
+      {},
+      { commit_ancestry: { data: [node('a2', 'a1'), ...chain] } },
+    );
+    await expect(service.findMergeBase('a2', 'b1')).rejects.toThrow(
+      new InternalServerErrorException(
+        'Commit history is too large to analyse',
+      ),
+    );
+  });
+
   it('UTCID01 returns the nearest common ancestor', async () => {
     const { service } = makeService({
       commits: [
@@ -2155,7 +2226,7 @@ describe('BE-BRN-12 BranchesService.findMergeBase', () => {
     await expect(service.findMergeBase('a2', 'a1')).resolves.toBe('a1');
   });
 
-  it('UTCID07 uses the merged-from parent so an earlier merge is the base', async () => {
+  it('UTCID08 uses the merged-from parent so an earlier merge is the base', async () => {
     const { service } = makeService({
       commits: [
         { data: [node('M', 'm1', 'f1'), node('f2', 'f1')] },
@@ -2166,7 +2237,7 @@ describe('BE-BRN-12 BranchesService.findMergeBase', () => {
     await expect(service.findMergeBase('M', 'f2')).resolves.toBe('f1');
   });
 
-  it('UTCID08 prefers the newest of two best common ancestors', async () => {
+  it('UTCID09 prefers the newest of two best common ancestors', async () => {
     const { service } = makeService({
       commits: [
         { data: [node('x', 'c1', 'c2'), node('y', 'c1', 'c2')] },
@@ -2327,7 +2398,7 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
     );
   });
 
-  it('UTCID08 reports a branch as merged once a merge commit on default points at its head', async () => {
+  it('reports a branch as merged once a merge commit on default points at its head', async () => {
     const f1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const mergeCommit = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const m1 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -2354,85 +2425,108 @@ describe('BE-BRN-13 BranchesService.calculateDivergence', () => {
 });
 
 describe('BE-BRN-14 BranchesService.normalizeSnapshot', () => {
-  const target = makeBranch({ id: otherBranchId });
+  const uuid = '77777777-7777-4777-8777-777777777777';
 
-  async function switchWithDraft(currentDraft: Record<string, unknown>) {
-    const { service } = makeService({
-      projects: [
-        { data: { owner_id: userId } },
-        { data: { owner_id: userId } },
-        { data: null, error: null },
-      ],
-      branches: [
-        { count: 2, data: null },
-        { data: target },
-        { data: makeBranch() },
-      ],
-      drafts: [
-        { data: { updated_at: '2026-10-28T00:00:00Z' } },
-        { data: { snapshot: {} } },
-      ],
-      users: [{ data: { id: userId } }],
-    });
-    return service.switchBranch(
-      projectId,
-      {
-        currentBranchId: branchId,
-        targetBranchId: otherBranchId,
-        currentDraft: currentDraft,
-      },
-      userId,
-    );
+  function normalize(dto: Record<string, unknown>) {
+    const { service } = makeService({});
+    return (
+      service as unknown as {
+        normalizeSnapshot(d: Record<string, unknown>): {
+          schemaVersion: number;
+          meta: unknown;
+          tracks: Array<Record<string, unknown>>;
+          notes: Array<Record<string, unknown>>;
+        };
+      }
+    ).normalizeSnapshot(dto);
   }
 
-  it('UTCID01 accepts explicit snapshot fields', async () => {
-    await expect(
-      switchWithDraft({
-        schemaVersion: 2,
-        meta: { tempo: 90, timeSignature: [3, 4], ppq: 960 },
-        tracks: [],
-        notes: [],
+  it('UTCID01 copies explicit snapshot fields and reads the legacy startTime', () => {
+    const track = {
+      id: 't1',
+      name: 'Piano',
+      order: 1,
+      color: '#ff0000',
+      muted: false,
+      solo: false,
+      volume: 0.5,
+      pan: -0.5,
+      instrument: 'piano',
+    };
+    const result = normalize({
+      schemaVersion: 2,
+      meta: { tempo: 90, timeSignature: [3, 4], ppq: 960 },
+      tracks: [track],
+      notes: [
+        {
+          id: 'n1',
+          trackId: 't1',
+          pitch: 60,
+          startTime: 960,
+          duration: 240,
+          velocity: 90,
+        },
+      ],
+    });
+    expect(result.schemaVersion).toBe(2);
+    expect(result.meta).toEqual({ tempo: 90, timeSignature: [3, 4], ppq: 960 });
+    expect(result.tracks[0]).toEqual(expect.objectContaining(track));
+    expect(result.notes[0]).toEqual({
+      id: 'n1',
+      trackId: 't1',
+      pitch: 60,
+      start: 960,
+      duration: 240,
+      velocity: 90,
+    });
+  });
+
+  it('UTCID02 applies defaults to omitted fields', () => {
+    expect(normalize({})).toEqual({
+      schemaVersion: 3,
+      meta: { tempo: 120, timeSignature: [4, 4], ppq: 480 },
+      tracks: [],
+      notes: [],
+    });
+  });
+
+  it('UTCID03 maps legacy mute and solo fields', () => {
+    const result = normalize({
+      tracks: [{ name: 'x', isMuted: true, isSolo: true }],
+    });
+    expect(result.tracks[0].muted).toBe(true);
+    expect(result.tracks[0].solo).toBe(true);
+  });
+
+  it('UTCID04 creates missing track defaults', () => {
+    const result = normalize({ tracks: [{ name: 'x' }] });
+    expect(result.tracks[0]).toEqual(
+      expect.objectContaining({
+        id: uuid,
+        color: '#6366f1',
+        volume: 1,
+        pan: 0,
       }),
-    ).resolves.toBeDefined();
+    );
   });
-  it('UTCID02 applies defaults to omitted fields', async () => {
-    await expect(switchWithDraft({})).resolves.toBeDefined();
+
+  it('UTCID05 keeps a note start field', () => {
+    const result = normalize({
+      notes: [{ trackId: 't', pitch: 60, start: 480 }],
+    });
+    expect(result.notes[0].start).toBe(480);
   });
-  it('UTCID03 maps legacy mute and solo fields', async () => {
-    await expect(
-      switchWithDraft({
-        tracks: [
-          {
-            name: 'x',
-            order: 0,
-            color: '#000',
-            volume: 1,
-            pan: 0,
-            isMuted: true,
-            isSolo: true,
-          },
-        ],
-      }),
-    ).resolves.toBeDefined();
-  });
-  it('UTCID04 creates missing track defaults', async () => {
-    await expect(
-      switchWithDraft({ tracks: [{ name: 'x' }] }),
-    ).resolves.toBeDefined();
-  });
-  it('UTCID05 preserves a legacy note start field', async () => {
-    await expect(
-      switchWithDraft({
-        notes: [
-          { trackId: 't', pitch: 60, start: 480, duration: 120, velocity: 70 },
-        ],
-      }),
-    ).resolves.toBeDefined();
-  });
-  it('UTCID06 applies note defaults', async () => {
-    await expect(
-      switchWithDraft({ notes: [{ trackId: 't', pitch: 60 }] }),
-    ).resolves.toBeDefined();
+
+  it('UTCID06 applies note defaults with a positive duration', () => {
+    const result = normalize({ notes: [{ trackId: 't', pitch: 60 }] });
+    expect(result.notes[0]).toEqual({
+      id: uuid,
+      trackId: 't',
+      pitch: 60,
+      start: 0,
+      duration: 480,
+      velocity: 80,
+    });
   });
 });
 

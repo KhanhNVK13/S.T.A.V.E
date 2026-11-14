@@ -16,6 +16,7 @@ jest.mock('uuid', () => ({
 
 import { BranchesService } from '../branches/branches.service';
 import { ProjectAccessService } from '../project-access/project-access.service';
+import type { JamLockService } from '../project-access/jam-lock.service';
 import { MergeService } from './merge.service';
 import { ConflictChoice } from './dto/resolve-conflict.dto';
 import type {
@@ -70,6 +71,7 @@ function makeService(
   tables: SupabaseMockOptions['tables'] = {},
   rpc: SupabaseMockOptions['rpc'] = {},
   mergeBase: string | null = baseId,
+  jamLock?: { assertNoActiveJam: jest.Mock },
 ) {
   const mock = createSupabaseMock([], {
     tables: {
@@ -86,6 +88,7 @@ function makeService(
     mock.client,
     branchesService,
     new ProjectAccessService(mock.client),
+    jamLock as unknown as JamLockService | undefined,
   );
   return { service, branchesService, findMergeBase, ...mock };
 }
@@ -173,7 +176,49 @@ describe('BE-MRG-03 MergeService.mergeBranch', () => {
     );
   });
 
-  it('UTCID02 fast-forwards when the source head is the merge base', async () => {
+  it('UTCID02 fast-forwards when the expected target head matches and is the merge base', async () => {
+    const resultCommit = commitRow(sourceHeadId, { branch_id: sourceId });
+    const { service, builders } = makeService(
+      ownerTables(
+        [
+          branch(sourceId),
+          branch(targetId, { head_commit_id: baseId }),
+          { data: null, error: null },
+        ],
+        {
+          commits: [
+            { data: { snapshot: emptySnapshot } },
+            { data: resultCommit },
+          ],
+          drafts: [{ data: null, error: null }],
+        },
+      ),
+      {},
+      baseId,
+    );
+    const result = await service.mergeBranch(userId, {
+      sourceBranchId: sourceId,
+      targetBranchId: targetId,
+      expectedTargetHeadCommitId: baseId,
+    });
+    expect(result).toEqual({
+      hasConflicts: false,
+      commit: expect.objectContaining({ id: sourceHeadId }),
+    });
+    expect(builders.branches.update).toHaveBeenCalledWith({
+      head_commit_id: sourceHeadId,
+    });
+    expect(builders.drafts.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branch_id: targetId,
+        user_id: userId,
+        snapshot: emptySnapshot,
+      }),
+      { onConflict: 'branch_id,user_id' },
+    );
+  });
+
+  it('UTCID03 fast-forwards when the target head is the merge base', async () => {
     const resultCommit = commitRow(sourceHeadId, { branch_id: sourceId });
     const { service, builders } = makeService(
       ownerTables(
@@ -214,7 +259,7 @@ describe('BE-MRG-03 MergeService.mergeBranch', () => {
     );
   });
 
-  it('UTCID03 rejects when source head equals target head', async () => {
+  it('rejects when source head equals target head', async () => {
     const { service } = makeService(
       ownerTables([
         branch(sourceId),
@@ -364,6 +409,30 @@ describe('BE-MRG-03 MergeService.mergeBranch', () => {
     ).rejects.toThrow(
       new ForbiddenException('You do not have edit permission on this project'),
     );
+  });
+
+  it('UTCID14 refuses to merge while a Community Jam is running on the project', async () => {
+    const jamLock = {
+      assertNoActiveJam: jest
+        .fn()
+        .mockRejectedValue(new ConflictException('Community Jam is running')),
+    };
+    const { service, rpc } = makeService(
+      ownerTables([branch(sourceId), branch(targetId)]),
+      {},
+      baseId,
+      jamLock,
+    );
+
+    await expect(
+      service.mergeBranch(userId, {
+        sourceBranchId: sourceId,
+        targetBranchId: targetId,
+      }),
+    ).rejects.toThrow(ConflictException);
+
+    expect(jamLock.assertNoActiveJam).toHaveBeenCalledWith(projectId);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('UTCID12 lets an accepted edit collaborator merge a branch (BR-26)', async () => {
@@ -870,16 +939,20 @@ describe('BE-MRG-08 MergeService.mergeTracks', () => {
         [track('t', { name: 'target' })],
       ),
     ).toEqual([track('t', { name: 'source' })]));
-  it('UTCID02 currently prefers source when only target changed', () =>
+  it('UTCID02 keeps the target version when only the target changed', () =>
     expect(
       pureTracks([track('t')], [track('t')], [track('t', { name: 'target' })]),
-    ).toEqual([track('t')]));
-  it('UTCID03 keeps a source-deleted track when target is unchanged', () =>
-    expect(pureTracks([track('t')], [], [track('t')])).toEqual([track('t')]));
-  it('UTCID04 keeps a target-deleted track when source is unchanged', () =>
-    expect(pureTracks([track('t')], [track('t')], [])).toEqual([track('t')]));
-  it('UTCID05 resurrects a base track deleted on both sides', () =>
-    expect(pureTracks([track('t')], [], [])).toEqual([track('t')]));
+    ).toEqual([track('t', { name: 'target' })]));
+  it('UTCID03 removes a source-deleted track when the target is unchanged', () =>
+    expect(pureTracks([track('t')], [], [track('t')])).toEqual([]));
+  it('UTCID04 removes a target-deleted track when the source is unchanged', () =>
+    expect(pureTracks([track('t')], [track('t')], [])).toEqual([]));
+  it('UTCID05 keeps a base track deleted on both sides deleted', () =>
+    expect(pureTracks([track('t')], [], [])).toEqual([]));
+  it('keeps a track edited on one side and deleted on the other', () =>
+    expect(
+      pureTracks([track('t')], [], [track('t', { name: 'target' })]),
+    ).toEqual([track('t', { name: 'target' })]));
   it('UTCID06 keeps a track added only on target', () =>
     expect(pureTracks([], [], [track('t')])).toEqual([track('t')]));
   it('UTCID07 returns an empty list when all inputs are empty', () =>
@@ -1286,38 +1359,32 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
     );
   });
 
-  it.failing(
-    'UTCID10 rejects branches without a common ancestor (SRS 2.E1; code merges against an empty base)',
-    async () => {
-      const { service } = resolveSetup({
-        mergeBase: null,
-        snapshots: [sourceChanged, targetChanged],
-      });
-      await expect(
-        service.resolveConflictsAndMerge(userId, {
-          ...dtoBase,
-          resolutions: pickSource,
-          message: 'Resolve merge',
-        }),
-      ).rejects.toThrow(
-        new BadRequestException('Branches have no common ancestor'),
-      );
-    },
-  );
+  it('UTCID10 rejects branches without a common ancestor (SRS 2.E1)', async () => {
+    const { service } = resolveSetup({
+      mergeBase: null,
+      snapshots: [sourceChanged, targetChanged],
+    });
+    await expect(
+      service.resolveConflictsAndMerge(userId, {
+        ...dtoBase,
+        resolutions: pickSource,
+        message: 'Resolve merge',
+      }),
+    ).rejects.toThrow(
+      new BadRequestException('Branches have no common ancestor'),
+    );
+  });
 
-  it.failing(
-    'UTCID11 rejects an unresolved conflict (BR-53/BR-97; code silently picks the target)',
-    async () => {
-      const { service } = resolveSetup();
-      await expect(
-        service.resolveConflictsAndMerge(userId, {
-          ...dtoBase,
-          resolutions: [],
-          message: 'Resolve merge',
-        }),
-      ).rejects.toThrow(BadRequestException);
-    },
-  );
+  it('UTCID11 rejects an unresolved conflict (BR-53/BR-97)', async () => {
+    const { service } = resolveSetup();
+    await expect(
+      service.resolveConflictsAndMerge(userId, {
+        ...dtoBase,
+        resolutions: [],
+        message: 'Resolve merge',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
 
   it('UTCID12 propagates a commit RPC failure', async () => {
     const { service } = resolveSetup({
@@ -1341,6 +1408,23 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
     );
   });
 
+  it('UTCID15 stores the chosen resolutions on the merge commit (BR-98)', async () => {
+    const { service, rpc } = resolveSetup();
+    await service.resolveConflictsAndMerge(userId, {
+      ...dtoBase,
+      resolutions: [
+        ...pickSource,
+        { noteId: 'not-a-conflict', choice: ConflictChoice.PICK_TARGET },
+      ],
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      'create_merge_commit_atomic',
+      expect.objectContaining({
+        p_merge_resolutions: [{ noteId: 'n1', choice: 'PICK_SOURCE' }],
+      }),
+    );
+  });
+
   it('UTCID14 forbids a view-only collaborator', async () => {
     const { service } = makeService({
       branches: [{ data: branch(sourceId) }, { data: branch(targetId) }],
@@ -1354,6 +1438,30 @@ describe('BE-MRG-05 MergeService.resolveConflictsAndMerge', () => {
     ).rejects.toThrow(
       new ForbiddenException('You do not have edit permission on this project'),
     );
+  });
+
+  it('UTCID16 refuses to complete a merge while a Community Jam is running on the project', async () => {
+    const jamLock = {
+      assertNoActiveJam: jest
+        .fn()
+        .mockRejectedValue(new ConflictException('Community Jam is running')),
+    };
+    const { service, rpc } = makeService(
+      ownerTables([branch(sourceId), branch(targetId)]),
+      {},
+      baseId,
+      jamLock,
+    );
+
+    await expect(
+      service.resolveConflictsAndMerge(userId, {
+        ...dtoBase,
+        resolutions: pickSource,
+      }),
+    ).rejects.toThrow(ConflictException);
+
+    expect(jamLock.assertNoActiveJam).toHaveBeenCalledWith(projectId);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('UTCID13 lets an accepted edit collaborator merge (BR-26)', async () => {
@@ -1555,21 +1663,13 @@ describe('BE-MRG-09 MergeService.applyResolutionsWithMergedNotes', () => {
       },
     ]));
 
-  it.failing(
-    'UTCID07 rejects PICK_CUSTOM without a customNote (BR-53; code drops the note)',
-    () =>
-      expect(() =>
-        apply(
-          [modified],
-          [{ noteId: 'n', choice: ConflictChoice.PICK_CUSTOM }],
-        ),
-      ).toThrow(BadRequestException),
-  );
+  it('UTCID07 rejects PICK_CUSTOM without a customNote (BR-53)', () =>
+    expect(() =>
+      apply([modified], [{ noteId: 'n', choice: ConflictChoice.PICK_CUSTOM }]),
+    ).toThrow(BadRequestException));
 
-  it.failing(
-    'UTCID08 rejects a conflict without a resolution (BR-53/BR-97; code picks the target)',
-    () => expect(() => apply([modified], [])).toThrow(BadRequestException),
-  );
+  it('UTCID08 rejects a conflict without a resolution (BR-53/BR-97)', () =>
+    expect(() => apply([modified], [])).toThrow(BadRequestException));
 
   it('UTCID09 drops the note when the target deleted it and the target is picked', () =>
     expect(
@@ -1587,22 +1687,41 @@ describe('BE-MRG-09 MergeService.applyResolutionsWithMergedNotes', () => {
       ).notes,
     ).toEqual(pre));
 
-  it.failing(
-    'UTCID11 maps customNote.startTime to the note start (DTO field; code reads only start)',
-    () => {
-      const result = apply(
-        [modified],
-        [
-          {
-            noteId: 'n',
-            choice: ConflictChoice.PICK_CUSTOM,
-            customNote: { startTime: 555 } as unknown as Partial<DraftNote>,
-          },
-        ],
-      );
-      expect(result.notes.find((n) => n.id === 'n')?.start).toBe(555);
-    },
-  );
+  it('UTCID11 maps customNote.startTime to the note start (DTO field)', () => {
+    const result = apply(
+      [modified],
+      [
+        {
+          noteId: 'n',
+          choice: ConflictChoice.PICK_CUSTOM,
+          customNote: { startTime: 555 } as unknown as Partial<DraftNote>,
+        },
+      ],
+    );
+    expect(result.notes.find((n) => n.id === 'n')?.start).toBe(555);
+  });
+
+  it('UTCID13 keeps both versions for KEEP_BOTH, giving the source copy a new id', () => {
+    const notes = apply(
+      [modified],
+      [{ noteId: 'n', choice: ConflictChoice.KEEP_BOTH }],
+    ).notes;
+    expect(notes).toHaveLength(4);
+    expect(notes[2]).toEqual(targetNote);
+    expect(notes[3]).toEqual({ ...sourceNote, id: expect.any(String) });
+    expect(notes[3].id).not.toBe('n');
+  });
+
+  it('UTCID14 refuses KEEP_BOTH when both versions sound the same pitch at the same moment', () => {
+    const clash: Conflict = {
+      ...modified,
+      sourceNote: note('n', { velocity: 20 }),
+      targetNote: note('n', { velocity: 120 }),
+    };
+    expect(() =>
+      apply([clash], [{ noteId: 'n', choice: ConflictChoice.KEEP_BOTH }]),
+    ).toThrow(BadRequestException);
+  });
 
   it('UTCID12 takes meta from the target when the source has none', () => {
     const targetMeta = {

@@ -51,7 +51,7 @@ export const STORAGE_SAMPLE_RATE = 44100;
  * vẫn ở mức cao nhất có ý nghĩa với một nguồn micro đơn.
  */
 export async function normalizeForStorage(buffer: AudioBuffer): Promise<AudioBuffer> {
-  if (buffer.numberOfChannels === 1 && buffer.sampleRate <= STORAGE_SAMPLE_RATE) {
+  if (buffer.numberOfChannels === 1 && buffer.sampleRate === STORAGE_SAMPLE_RATE) {
     return buffer;
   }
   const frameCount = Math.max(

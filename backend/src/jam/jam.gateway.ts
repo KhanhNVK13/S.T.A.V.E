@@ -6,7 +6,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Server, Socket } from 'socket.io';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import type {
@@ -301,6 +301,18 @@ export class JamGateway {
     this.jamService.settleEndEventEnded((payload) => {
       this.broadcastJamEnded(payload.eventId, payload);
     });
+    this.jamService.settleUserRemoved(
+      (eventId, userId, socketIds, totalParticipants) => {
+        this.server?.to(`jam:${eventId}`).emit('jam:user_left', {
+          userId,
+          totalParticipants,
+        } satisfies JamUserLeftPayload);
+        const namespace = this.server as unknown as Namespace | undefined;
+        for (const socketId of socketIds) {
+          namespace?.sockets?.get(socketId)?.disconnect(true);
+        }
+      },
+    );
   }
 
   /**

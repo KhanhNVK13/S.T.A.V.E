@@ -53,6 +53,29 @@ export function currentPlanPrice(plan: CurrentPricePlan, now: Date): number {
   return plan.price_vnd;
 }
 
+export interface CurrentFeaturesPlan {
+  features: Record<string, unknown> | null;
+  previous_features?: Record<string, unknown> | null;
+  features_effective_at?: string | null;
+}
+
+export function currentPlanFeatures(
+  plan: CurrentFeaturesPlan,
+  now: Date,
+): Record<string, unknown> {
+  const effectiveAt = plan.features_effective_at
+    ? new Date(plan.features_effective_at)
+    : null;
+  if (
+    effectiveAt &&
+    effectiveAt.getTime() > now.getTime() &&
+    plan.previous_features
+  ) {
+    return plan.previous_features;
+  }
+  return plan.features ?? {};
+}
+
 /** Cộng 1 tháng theo lịch, kẹp ngày (31/01 + 1 tháng = 28 hoặc 29/02). */
 export function addOneMonth(from: Date): Date {
   const targetMonthStart = new Date(

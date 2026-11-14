@@ -1,6 +1,8 @@
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import { AccountRemovalService } from '../account-removal/account-removal.service';
+import { AccountBillingCancellation } from '../billing/account-billing-cancellation.service';
+import type { PaymentGateway } from '../billing/payment-gateway';
 import type { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
 import type { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 import {
@@ -8,6 +10,7 @@ import {
   ForbiddenException,
   HttpException,
   InternalServerErrorException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
@@ -224,7 +227,7 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
       json: () => Promise.resolve({}),
     } as unknown as Response);
 
-  it('UTCID01 resolves void and updates the password when the endpoint responds 200 OK', async () => {
+  it('resolves void and sends the new password with the bearer token on 200 OK', async () => {
     const service = makeService();
     const fetchMock = mockResponse(200);
 
@@ -247,7 +250,7 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
     );
   });
 
-  it('UTCID02 resolves void and updates the password for an 8-character password', async () => {
+  it('UTCID01 resolves void and updates the password for an 8-character password', async () => {
     const service = makeService();
     const fetchMock = mockResponse(200);
 
@@ -267,7 +270,7 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
     );
   });
 
-  it('UTCID03 throws UnauthorizedException when the endpoint responds 401 for an expired token', async () => {
+  it('UTCID02 throws UnauthorizedException when the endpoint responds 401 for an expired token', async () => {
     const service = makeService();
     mockResponse(401);
 
@@ -276,7 +279,7 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
     ).rejects.toThrow(new UnauthorizedException('Could not update password'));
   });
 
-  it('UTCID04 throws UnauthorizedException when the endpoint responds 422 for the same password', async () => {
+  it('UTCID03 throws UnauthorizedException when the endpoint responds 422 for the same password', async () => {
     const service = makeService();
     mockResponse(422);
 
@@ -285,7 +288,7 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
     ).rejects.toThrow(new UnauthorizedException('Could not update password'));
   });
 
-  it('UTCID05 throws TypeError when SUPABASE_URL is missing in config', async () => {
+  it('UTCID04 throws TypeError when SUPABASE_URL is missing in config', async () => {
     const service = makeService('SUPABASE_URL');
     const fetchMock = jest.spyOn(global, 'fetch');
 
@@ -297,12 +300,26 @@ describe('BE-AUTH-02 AuthService.selfUpdatePassword(accessToken, newPassword)', 
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('UTCID06 throws TypeError when SUPABASE_SERVICE_ROLE_KEY is missing in config', async () => {
+  it('UTCID05 throws TypeError when SUPABASE_SERVICE_ROLE_KEY is missing in config', async () => {
     const service = makeService('SUPABASE_SERVICE_ROLE_KEY');
     const fetchMock = jest.spyOn(global, 'fetch');
 
     await expect(
       callSelfUpdatePassword(service, 'valid-jwt-token', 'NewPass#2026'),
+    ).rejects.toThrow(
+      new TypeError(
+        'Configuration key "SUPABASE_SERVICE_ROLE_KEY" does not exist',
+      ),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('UTCID06 throws TypeError and sends no request when SUPABASE_SERVICE_ROLE_KEY is missing in config', async () => {
+    const service = makeService('SUPABASE_SERVICE_ROLE_KEY');
+    const fetchMock = jest.spyOn(global, 'fetch');
+
+    await expect(
+      callSelfUpdatePassword(service, 'another-valid-jwt', 'NewPass#2026'),
     ).rejects.toThrow(
       new TypeError(
         'Configuration key "SUPABASE_SERVICE_ROLE_KEY" does not exist',
@@ -458,7 +475,7 @@ describe('BE-AUTH-03 AuthService.syncProfile(user)', () => {
     await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
     await expect(promise).rejects.toThrow('Could not provision profile');
   });
-  it('UTCID07 (proposed) returns the row created by a concurrent request when the insert hits a duplicate key', async () => {
+  it('returns the row created by a concurrent request when the insert hits a duplicate key', async () => {
     const concurrentRow = { ...existingRow };
     const { client } = createSupabaseMock([
       { data: null },
@@ -522,7 +539,7 @@ describe('BE-AUTH-04 AuthService.generateUniqueUsername(email)', () => {
     );
 
     expect(result).toBe('nguyen_van');
-    expect(builder.eq).toHaveBeenCalledWith('username', 'nguyen_van');
+    expect(builder.ilike).toHaveBeenCalledWith('username', 'nguyen\\_van');
     expect(builder.maybeSingle).toHaveBeenCalledTimes(1);
   });
 
@@ -540,7 +557,10 @@ describe('BE-AUTH-04 AuthService.generateUniqueUsername(email)', () => {
 
     expect(result).toBe('nguyen_van_5500');
     expect(result).toMatch(/^nguyen_van_\d{4}$/);
-    expect(builder.eq).toHaveBeenCalledWith('username', 'nguyen_van_5500');
+    expect(builder.ilike).toHaveBeenCalledWith(
+      'username',
+      'nguyen\\_van\\_5500',
+    );
     expect(builder.maybeSingle).toHaveBeenCalledTimes(2);
   });
 
@@ -570,7 +590,7 @@ describe('BE-AUTH-04 AuthService.generateUniqueUsername(email)', () => {
     const result = await callGenerateUniqueUsername(service, '@x.com');
 
     expect(result).toBe('user');
-    expect(builder.eq).toHaveBeenCalledWith('username', 'user');
+    expect(builder.ilike).toHaveBeenCalledWith('username', 'user');
   });
 
   it('UTCID05 returns a 20-character seed for a 30-character local part', async () => {
@@ -583,7 +603,10 @@ describe('BE-AUTH-04 AuthService.generateUniqueUsername(email)', () => {
 
     expect(result).toBe('abcdefghijklmnopqrst');
     expect(result).toHaveLength(20);
-    expect(builder.eq).toHaveBeenCalledWith('username', 'abcdefghijklmnopqrst');
+    expect(builder.ilike).toHaveBeenCalledWith(
+      'username',
+      'abcdefghijklmnopqrst',
+    );
   });
 });
 
@@ -986,6 +1009,73 @@ describe('BE-AUTH-07 AuthService.revokeSession(userId, sessionId)', () => {
     await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
     await expect(promise).rejects.toThrow('Session not found');
   });
+
+  const makeNotifyingService = (
+    emailSender: { enabled: boolean; send: jest.Mock },
+    result: QueryResult = {
+      data: { id: 'ses_other', device_label: 'Chrome on Windows' },
+    },
+  ) => {
+    const { client } = createSupabaseMock([result]);
+    return new AuthService(
+      client,
+      {} as ConfigService,
+      {} as AccountRemovalService,
+      undefined,
+      emailSender,
+    );
+  };
+
+  it('UTCID07 emails the account holder that the other device session was ended', async () => {
+    const emailSender = {
+      enabled: true,
+      send: jest.fn(() => Promise.resolve()),
+    };
+    const service = makeNotifyingService(emailSender);
+
+    await expect(
+      service.revokeSession('usr_1', 'ses_other', 'user@stave.io'),
+    ).resolves.toBeUndefined();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'user@stave.io',
+        subject: expect.any(String),
+        text: expect.stringContaining('Chrome on Windows'),
+      }),
+    );
+  });
+
+  it('UTCID08 still revokes the session when the notification email fails', async () => {
+    const emailSender = {
+      enabled: true,
+      send: jest.fn(() => Promise.reject(new Error('smtp down'))),
+    };
+    const service = makeNotifyingService(emailSender);
+
+    await expect(
+      service.revokeSession('usr_1', 'ses_other', 'user@stave.io'),
+    ).resolves.toBeUndefined();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(emailSender.send).toHaveBeenCalled();
+  });
+
+  it('UTCID09 sends no email when the session is the current one (logout)', async () => {
+    const emailSender = {
+      enabled: true,
+      send: jest.fn(() => Promise.resolve()),
+    };
+    const service = makeNotifyingService(emailSender);
+
+    await expect(
+      service.revokeSession('usr_1', 'ses_current'),
+    ).resolves.toBeUndefined();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(emailSender.send).not.toHaveBeenCalled();
+  });
 });
 
 // ============================================================================
@@ -1074,14 +1164,21 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     const mock = createSupabaseMock([{ data: null, error: null }], {
       authAdmin: { signOut },
     });
+    const emailSender = {
+      enabled: true,
+      send: jest.fn(() => Promise.resolve()),
+    };
     return {
       service: new AuthService(
         mock.client,
         {} as ConfigService,
         {} as AccountRemovalService,
+        undefined,
+        emailSender,
       ),
       builder: mock.builder,
       signOut: mock.auth.admin.signOut,
+      emailSender,
     };
   };
 
@@ -1130,8 +1227,8 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     return { verifySpy, selfUpdateSpy, revokeSpy };
   };
 
-  it('UTCID01 updates the password, revokes other sessions', async () => {
-    const { service } = makeService();
+  it('UTCID01 updates the password, revokes other sessions and emails the user', async () => {
+    const { service, emailSender } = makeService();
     const { verifySpy, selfUpdateSpy, revokeSpy } = stubCollaborators(service);
 
     await expect(change(service, 'NewPass#2026')).resolves.toBeUndefined();
@@ -1139,10 +1236,13 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'OldPass#1');
     expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'NewPass#2026');
     expect(revokeSpy).toHaveBeenCalledWith('usr_1', 'token_1', 'ses_current');
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'user@stave.io' }),
+    );
   });
 
-  it('UTCID02 updates the password, revokes other sessions for an 8-char password', async () => {
-    const { service } = makeService();
+  it('UTCID02 updates the password, revokes other sessions and emails the user for an 8-char password', async () => {
+    const { service, emailSender } = makeService();
     const { verifySpy, selfUpdateSpy, revokeSpy } = stubCollaborators(service);
 
     await expect(change(service, 'abcdefgh')).resolves.toBeUndefined();
@@ -1150,10 +1250,13 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     expect(verifySpy).toHaveBeenCalledWith('user@stave.io', 'OldPass#1');
     expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'abcdefgh');
     expect(revokeSpy).toHaveBeenCalledWith('usr_1', 'token_1', 'ses_current');
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'user@stave.io' }),
+    );
   });
 
   it('UTCID03 throws UnauthorizedException when the current password is incorrect', async () => {
-    const { service } = makeService();
+    const { service, emailSender } = makeService();
     const { selfUpdateSpy, revokeSpy } = stubCollaborators(service, {
       verified: false,
     });
@@ -1164,10 +1267,11 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     await expect(promise).rejects.toThrow('Current password is incorrect');
     expect(selfUpdateSpy).not.toHaveBeenCalled();
     expect(revokeSpy).not.toHaveBeenCalled();
+    expect(emailSender.send).not.toHaveBeenCalled();
   });
 
   it('UTCID04 propagates UnauthorizedException when the password update fails', async () => {
-    const { service } = makeService();
+    const { service, emailSender } = makeService();
     const { selfUpdateSpy, revokeSpy } = stubCollaborators(service, {
       selfUpdate: () =>
         Promise.reject(new UnauthorizedException('Could not update password')),
@@ -1179,10 +1283,11 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     await expect(promise).rejects.toThrow('Could not update password');
     expect(selfUpdateSpy).toHaveBeenCalledWith('token_1', 'NewPass#2026');
     expect(revokeSpy).not.toHaveBeenCalled();
+    expect(emailSender.send).not.toHaveBeenCalled();
   });
 
   it('UTCID05 throws BadRequestException when the new password equals the current one', async () => {
-    const { service } = makeService();
+    const { service, emailSender } = makeService();
     const { selfUpdateSpy, revokeSpy } = stubCollaborators(service);
 
     const promise = change(service, 'OldPass#1');
@@ -1191,6 +1296,7 @@ describe('BE-AUTH-09 AuthService.changePassword(userId, email, currentPassword, 
     await expect(promise).rejects.toThrow(/differ/i);
     expect(selfUpdateSpy).not.toHaveBeenCalled();
     expect(revokeSpy).not.toHaveBeenCalled();
+    expect(emailSender.send).not.toHaveBeenCalled();
   });
 });
 
@@ -1204,6 +1310,9 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
       users?: QueryResult[];
       projects?: QueryResult[];
       deleteUser?: QueryResult;
+      transactions?: QueryResult[];
+      subscriptions?: QueryResult[];
+      gateway?: { cancelPayment: jest.Mock };
     } = {},
   ) => {
     const mock = createSupabaseMock([], {
@@ -1211,6 +1320,14 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
         sessions: opts.sessions ?? [{ data: null, error: null }],
         users: opts.users ?? [{ data: null, error: null }],
         projects: opts.projects ?? [{ data: null, error: null }],
+        ...(opts.gateway
+          ? {
+              transactions: opts.transactions ?? [{ data: [], error: null }],
+              subscriptions: opts.subscriptions ?? [
+                { data: null, error: null },
+              ],
+            }
+          : {}),
       },
       storage: {
         'custom-sounds': { remove: [{ data: null, error: null }] },
@@ -1233,6 +1350,12 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
         removeAllFilesOf: jest.fn(() => Promise.resolve()),
         collectGarbage: jest.fn(() => Promise.resolve()),
       } as unknown as CustomSoundsService,
+      opts.gateway
+        ? new AccountBillingCancellation(
+            mock.client,
+            opts.gateway as unknown as PaymentGateway,
+          )
+        : undefined,
     );
     return {
       service: new AuthService(mock.client, {} as ConfigService, removal),
@@ -1252,6 +1375,15 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
 
   const del = (service: AuthService, password: string) =>
     service.deleteAccount('usr_1', 'user@stave.io', password);
+
+  const tokenWithAmr = (amr: unknown) =>
+    `h.${Buffer.from(JSON.stringify({ amr })).toString('base64url')}.s`;
+
+  const googleDel = (service: AuthService, accessToken: string) =>
+    service.deleteAccount('usr_1', 'user@stave.io', '', {
+      user: { app_metadata: { providers: ['google'] } },
+      accessToken,
+    });
 
   it('UTCID01 revokes sessions and deletes the user, projects and sound files when the password is correct', async () => {
     const { service, mock } = makeService();
@@ -1323,5 +1455,79 @@ describe('BE-AUTH-10 AuthService.deleteAccount(userId, email, password)', () => 
     expect(mock.auth.admin.updateUserById).toHaveBeenCalledWith('usr_1', {
       ban_duration: expect.any(String),
     });
+  });
+
+  it('UTCID06 cancels the pending order at the gateway and the active subscription before deleting', async () => {
+    const gateway = { cancelPayment: jest.fn().mockResolvedValue(undefined) };
+    const { service, mock } = makeService({
+      gateway,
+      transactions: [
+        { data: [{ id: 't1', order_code: 123456 }], error: null },
+        { data: null, error: null },
+      ],
+    });
+    stubVerify(service, true);
+
+    await expect(del(service, 'Correct#123')).resolves.toBeUndefined();
+
+    expect(gateway.cancelPayment).toHaveBeenCalledWith(
+      123456,
+      expect.any(String),
+    );
+    expect(mock.builders.subscriptions.update).toHaveBeenCalledWith({
+      status: 'canceled',
+      pending_plan_id: null,
+    });
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+  });
+
+  it('UTCID07 halts the deletion with nothing removed when the payment gateway is unreachable', async () => {
+    const gateway = {
+      cancelPayment: jest.fn().mockRejectedValue(new Error('gateway down')),
+    };
+    const { service, mock } = makeService({
+      gateway,
+      transactions: [{ data: [{ id: 't1', order_code: 123456 }], error: null }],
+    });
+    stubVerify(service, true);
+
+    const promise = del(service, 'Correct#123');
+
+    await expect(promise).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(mock.builders.subscriptions.update).not.toHaveBeenCalled();
+    expect(mock.builders.sessions.update).not.toHaveBeenCalled();
+    expect(mock.builders.users.delete).not.toHaveBeenCalled();
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('UTCID08 deletes a Google-only account after a fresh Google sign-in without asking for a password', async () => {
+    const { service, mock } = makeService();
+    const verifySpy = stubVerify(service, false);
+    const token = tokenWithAmr([
+      { method: 'oauth', timestamp: Math.floor(Date.now() / 1000) - 30 },
+    ]);
+
+    await expect(googleDel(service, token)).resolves.toBeUndefined();
+
+    expect(verifySpy).not.toHaveBeenCalled();
+    expect(mock.builders.users.delete).toHaveBeenCalled();
+    expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith('usr_1');
+  });
+
+  it('UTCID09 refuses a Google-only account whose Google sign-in is stale or missing', async () => {
+    const { service, mock } = makeService();
+    stubVerify(service, true);
+    const stale = tokenWithAmr([
+      { method: 'oauth', timestamp: Math.floor(Date.now() / 1000) - 3600 },
+    ]);
+
+    await expect(googleDel(service, stale)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(googleDel(service, 'not-a-jwt')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(mock.builders.users.delete).not.toHaveBeenCalled();
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,7 @@ import {
   listStorageFolder,
   removeStorageFiles,
 } from '../common/utils/storage-cleanup.util';
+import { readMp3Info } from './mp3-info';
 import { readWavInfo } from './wav-info';
 
 export const CUSTOM_SOUNDS_BUCKET = 'custom-sounds';
@@ -27,7 +28,6 @@ export const CUSTOM_SOUNDS_BUCKET = 'custom-sounds';
 const PLAYBACK_URL_TTL_SEC = 60 * 60;
 const DEFAULT_QUOTA_BYTES = 50 * 1024 * 1024;
 const QUOTA_SETTING_KEY = 'custom_sound_quota_bytes';
-const DURATION_TOLERANCE_SEC = 0.05;
 const UNIQUE_VIOLATION = '23505';
 
 export interface CustomSoundRow {
@@ -265,11 +265,11 @@ export class CustomSoundsService {
     if (file.length > MAX_SOUND_SIZE_BYTES) {
       return reject('Âm thanh tối đa 10MB');
     }
-    const info = readWavInfo(file);
+    const info = readWavInfo(file) ?? readMp3Info(file);
     if (!info || info.durationSec <= 0) {
-      return reject('File tải lên không phải âm thanh WAV hợp lệ');
+      return reject('File tải lên không phải âm thanh WAV hoặc MP3 hợp lệ');
     }
-    if (info.durationSec > MAX_SOUND_DURATION_SEC + DURATION_TOLERANCE_SEC) {
+    if (info.durationSec > MAX_SOUND_DURATION_SEC) {
       return reject('Âm thanh tối đa 30 giây');
     }
 

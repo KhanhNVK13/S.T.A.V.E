@@ -64,7 +64,7 @@ function rpcArgs(mock: { rpc: jest.Mock }, call = 0): Record<string, unknown> {
   return mock.rpc.mock.calls[call][1] as Record<string, unknown>;
 }
 
-describe('ActivityLogService.record', () => {
+describe('BE-ACT-01 ActivityLogService.record', () => {
   let warn: jest.SpyInstance;
 
   beforeEach(() => {
@@ -75,7 +75,7 @@ describe('ActivityLogService.record', () => {
     warn.mockRestore();
   });
 
-  it('không ném và có ghi log khi DB trả lỗi', async () => {
+  it('UTCID02 không ném và có ghi log khi DB trả lỗi', async () => {
     const mock = createSupabaseMock([], {
       tables: {
         activity_log: [{ data: null, error: { message: 'boom' } }],
@@ -90,7 +90,7 @@ describe('ActivityLogService.record', () => {
     expect(String(warn.mock.calls[0][0])).toContain('boom');
   });
 
-  it('không ném và có ghi log khi lời gọi DB bị ném lỗi', async () => {
+  it('UTCID03 không ném và có ghi log khi lời gọi DB bị ném lỗi', async () => {
     const mock = createSupabaseMock([], { tables: { activity_log: [] } });
     const service = new ActivityLogService(mock.client);
 
@@ -100,7 +100,25 @@ describe('ActivityLogService.record', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it('không ghi IP đầy đủ vào log', async () => {
+  it('UTCID05 chỉ tên người dùng và hành động: các trường còn lại lưu null', async () => {
+    const mock = createSupabaseMock([], {
+      tables: { activity_log: [{ data: null, error: null }] },
+    });
+    const service = new ActivityLogService(mock.client);
+
+    await service.record({ userId: USER_ID, action: 'auth.sign_in' });
+
+    expect(mock.builders.activity_log.insert).toHaveBeenCalledWith({
+      user_id: USER_ID,
+      action: 'auth.sign_in',
+      target_type: null,
+      target_id: null,
+      target_name: null,
+      ip_address: null,
+    });
+  });
+
+  it('UTCID04 không ghi IP đầy đủ vào log', async () => {
     const mock = createSupabaseMock([], {
       tables: {
         activity_log: [{ data: null, error: { message: 'boom' } }],
@@ -117,7 +135,7 @@ describe('ActivityLogService.record', () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain('203.0.113.45');
   });
 
-  it('lưu IP đầy đủ ở DB và cắt tên đối tượng quá dài', async () => {
+  it('UTCID01 lưu IP đầy đủ ở DB và cắt tên đối tượng quá dài', async () => {
     const mock = createSupabaseMock([], {
       tables: { activity_log: [{ data: null, error: null }] },
     });
@@ -141,8 +159,8 @@ describe('ActivityLogService.record', () => {
   });
 });
 
-describe('ActivityLogService.list', () => {
-  it('chỉ trả đúng tập khoá whitelist, không lộ target_id, ip_address, user_id', async () => {
+describe('BE-ACT-02 ActivityLogService.list', () => {
+  it('UTCID01 chỉ trả đúng tập khoá whitelist, không lộ target_id, ip_address, user_id', async () => {
     const { service } = makeService({
       rows: [
         row({
@@ -177,7 +195,7 @@ describe('ActivityLogService.list', () => {
     expect(serialized).not.toContain('target_id');
   });
 
-  it('ipMasked luôn đã che và locationApprox luôn null', async () => {
+  it('UTCID02 ipMasked luôn đã che và locationApprox luôn null', async () => {
     const { service } = makeService({
       rows: [
         row({ id: rowId(1), ip_address: '203.0.113.45' }),
@@ -205,7 +223,19 @@ describe('ActivityLogService.list', () => {
     expect(items.every((item) => item.locationApprox === null)).toBe(true);
   });
 
-  it('không gọi dịch vụ mạng nào để tra vị trí', async () => {
+  it('UTCID18 truyền khoảng thời gian from/to sang RPC theo giờ UTC', async () => {
+    const mock = makeService({ rows: [] });
+
+    await mock.service.list(USER_ID, {
+      from: '2026-10-01T00:00:00.000Z',
+      to: '2026-10-31T23:59:59.000Z',
+    });
+
+    expect(rpcArgs(mock).p_from).toBe('2026-10-01T00:00:00.000Z');
+    expect(rpcArgs(mock).p_to).toBe('2026-10-31T23:59:59.000Z');
+  });
+
+  it('UTCID17 không gọi dịch vụ mạng nào để tra vị trí', async () => {
     const fetchSpy = jest
       .spyOn(globalThis, 'fetch')
       .mockRejectedValue(new Error('network must not be used'));
@@ -217,7 +247,7 @@ describe('ActivityLogService.list', () => {
     fetchSpy.mockRestore();
   });
 
-  it('lấy limit+1 dòng, không trả dòng thừa và đặt nextCursor từ dòng cuối của trang', async () => {
+  it('UTCID03 lấy limit+1 dòng, không trả dòng thừa và đặt nextCursor từ dòng cuối của trang', async () => {
     const rows = [1, 2, 3].map((n) =>
       row({
         id: rowId(n),
@@ -237,7 +267,7 @@ describe('ActivityLogService.list', () => {
     });
   });
 
-  it('trang cuối có nextCursor là null', async () => {
+  it('UTCID04 trang cuối có nextCursor là null', async () => {
     const rows = [1, 2].map((n) => row({ id: rowId(n) }));
     const { service } = makeService({ rows });
 
@@ -247,7 +277,7 @@ describe('ActivityLogService.list', () => {
     expect(page.nextCursor).toBeNull();
   });
 
-  it('danh sách rỗng trả items rỗng và nextCursor null', async () => {
+  it('UTCID05 danh sách rỗng trả items rỗng và nextCursor null', async () => {
     const { service } = makeService({ rows: [] });
 
     await expect(service.list(USER_ID, {})).resolves.toEqual({
@@ -256,7 +286,7 @@ describe('ActivityLogService.list', () => {
     });
   });
 
-  it('truyền con trỏ (created_at, id) nguyên vẹn sang RPC để dòng cùng thời điểm không trùng hay sót', async () => {
+  it('UTCID06 truyền con trỏ (created_at, id) nguyên vẹn sang RPC để dòng cùng thời điểm không trùng hay sót', async () => {
     const sameTime = '2026-11-01T10:00:00.500000+00:00';
     const first = makeService({
       rows: [
@@ -310,7 +340,7 @@ describe('ActivityLogService.list', () => {
     expect(rpcArgs(mock).p_cursor_id).toBeNull();
   });
 
-  it('type=signin chỉ lọc tiền tố auth.', async () => {
+  it('UTCID07 type=signin chỉ lọc tiền tố auth.', async () => {
     const mock = makeService({ rows: [] });
 
     await mock.service.list(USER_ID, { type: 'signin' });
@@ -318,7 +348,7 @@ describe('ActivityLogService.list', () => {
     expect(rpcArgs(mock).p_prefixes).toEqual(['auth.']);
   });
 
-  it('không có type thì không lọc tiền tố', async () => {
+  it('UTCID08 không có type thì không lọc tiền tố', async () => {
     const mock = makeService({ rows: [] });
 
     await mock.service.list(USER_ID, {});
@@ -326,7 +356,7 @@ describe('ActivityLogService.list', () => {
     expect(rpcArgs(mock).p_prefixes).toBeNull();
   });
 
-  it('type lạ trả 400 và không gọi DB', async () => {
+  it('UTCID09 type lạ trả 400 và không gọi DB', async () => {
     const mock = makeService({ rows: [] });
 
     await expect(
@@ -335,7 +365,7 @@ describe('ActivityLogService.list', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('con trỏ rác trả 400 và không gọi DB', async () => {
+  it('UTCID10 con trỏ rác trả 400 và không gọi DB', async () => {
     const mock = makeService({ rows: [] });
 
     await expect(
@@ -352,7 +382,7 @@ describe('ActivityLogService.list', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('limit ngoài khoảng trả 400', async () => {
+  it('UTCID11 limit ngoài khoảng trả 400', async () => {
     const mock = makeService({ rows: [] });
 
     await expect(
@@ -360,7 +390,7 @@ describe('ActivityLogService.list', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('sự kiện trỏ dự án đã xoá có targetDeleted true và vẫn giữ tên đã lưu', async () => {
+  it('UTCID12 sự kiện trỏ dự án đã xoá có targetDeleted true và vẫn giữ tên đã lưu', async () => {
     const { service } = makeService({
       rows: [
         row({
@@ -422,7 +452,7 @@ describe('ActivityLogService.list', () => {
     expect([...ids].sort()).toEqual([PROJECT_A, PROJECT_B].sort());
   });
 
-  it('sự kiện không trỏ dự án thì không tra bảng dự án và targetDeleted là false', async () => {
+  it('UTCID13 sự kiện không trỏ dự án thì không tra bảng dự án và targetDeleted là false', async () => {
     const mock = makeService({ rows: [row()] });
 
     const { items } = await mock.service.list(USER_ID, {});
@@ -431,7 +461,7 @@ describe('ActivityLogService.list', () => {
     expect(mock.builders.projects.in).not.toHaveBeenCalled();
   });
 
-  it('không kết luận dự án đã xoá khi không tra được bảng dự án', async () => {
+  it('UTCID14 không kết luận dự án đã xoá khi không tra được bảng dự án', async () => {
     const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     const { service } = makeService({
       rows: [row({ target_type: 'project', target_id: PROJECT_A })],
@@ -444,7 +474,7 @@ describe('ActivityLogService.list', () => {
     warn.mockRestore();
   });
 
-  it('người dùng không tồn tại trả 404 và không gọi RPC', async () => {
+  it('UTCID15 người dùng không tồn tại trả 404 và không gọi RPC', async () => {
     const mock = makeService({ user: { data: null, error: null } });
 
     await expect(mock.service.list(USER_ID, {})).rejects.toBeInstanceOf(
@@ -453,7 +483,7 @@ describe('ActivityLogService.list', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
-  it('lỗi RPC trả 500 với thông điệp chung và có ghi log', async () => {
+  it('UTCID16 lỗi RPC trả 500 với thông điệp chung và có ghi log', async () => {
     const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const { service } = makeService({
       rpcResult: { data: null, error: { message: 'rpc down' } },

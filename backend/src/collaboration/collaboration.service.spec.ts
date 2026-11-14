@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { DiffService } from '../commits/diff.service';
@@ -220,14 +221,36 @@ function makeService(
   access = fakeProjectAccess(),
   gateway = fakeGateway(),
   notifications = fakeNotifications(),
+  drafts = fakeDrafts(),
+  wrapClient: (client: any) => any = (client) => client,
 ) {
   return new CollaborationService(
-    mockSupabase(rows),
+    wrapClient(mockSupabase(rows)),
     access as never,
     gateway as never,
     new DiffService(),
     notifications as never,
+    drafts as never,
   );
+}
+
+function fakeDrafts() {
+  return { discardUserDraft: jest.fn().mockResolvedValue(undefined) };
+}
+
+function failingWrite(op: 'update' | 'delete') {
+  return (client: any) => ({
+    from: (table: string) => {
+      const q = client.from(table);
+      if (table === 'project_collaborators') {
+        q[op] = () => ({
+          eq: () =>
+            Promise.resolve({ data: null, error: { message: 'db down' } }),
+        });
+      }
+      return q;
+    },
+  });
 }
 
 function fakeNotifications() {
@@ -389,6 +412,45 @@ describe('BE-COL-01 CollaborationService — UC-60 inviteCollaborator', () => {
     const item = await service.inviteCollaborator('p-1', dto, OWNER);
     expect(item.userId).toBe(OTHER);
   });
+
+  it('UTCID07 rejects inviting a person who is already an accepted collaborator with 409', async () => {
+    const rows: Record<string, Row[]> = {
+      users,
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: collabRows(),
+    };
+    const service = makeService(rows);
+    const dto: InviteCollaboratorDto = {
+      identifier: 'viewer',
+      permissionLevel: 'edit',
+    };
+    await expect(service.inviteCollaborator('p-1', dto, OWNER)).rejects.toThrow(
+      new ConflictException('This person is already a collaborator'),
+    );
+    expect(rows.project_collaborators).toHaveLength(1);
+  });
+
+  it('UTCID08 refuses a caller who is not the owner and creates no invitation', async () => {
+    const rows: Record<string, Row[]> = {
+      users,
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: [],
+    };
+    const access = fakeProjectAccess({
+      assertOwner: jest
+        .fn()
+        .mockRejectedValue(new ForbiddenException('Only the owner')),
+    });
+    const service = makeService(rows, access);
+    const dto: InviteCollaboratorDto = {
+      identifier: 'viewer',
+      permissionLevel: 'edit',
+    };
+    await expect(
+      service.inviteCollaborator('p-1', dto, VIEWER),
+    ).rejects.toThrow(ForbiddenException);
+    expect(rows.project_collaborators).toHaveLength(0);
+  });
 });
 
 describe('BE-COL-02 CollaborationService — UC-60 list + accept/decline', () => {
@@ -505,6 +567,94 @@ describe('BE-COL-03 CollaborationService — UC-61 patchCollaborator', () => {
       service.patchCollaborator('p-1', 'nope', dto, OWNER),
     ).rejects.toThrow(NotFoundException);
   });
+
+  it('UTCID03 changes the level a pending invitation will grant', async () => {
+    const rows: Record<string, Row[]> = {
+      users: [{ id: PENDING, username: 'pend', display_name: 'P' }],
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: [
+        {
+          id: 'col-p',
+          project_id: 'p-1',
+          user_id: PENDING,
+          permission_level: 'view',
+          invited_by: OWNER,
+          created_at: '2026-10-25T00:00:00Z',
+          status: 'pending',
+          responded_at: null,
+        },
+      ],
+    };
+    const notifications = fakeNotifications();
+    const service = makeService(
+      rows,
+      fakeProjectAccess(),
+      fakeGateway(),
+      notifications,
+    );
+    const item = await service.patchCollaborator(
+      'p-1',
+      'col-p',
+      { permissionLevel: 'edit' },
+      OWNER,
+    );
+    expect(item.permissionLevel).toBe('edit');
+    expect(item.status).toBe('pending');
+    expect(rows.project_collaborators[0].permission_level).toBe('edit');
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('UTCID04 refuses a caller who is not the owner and keeps the previous level', async () => {
+    const rows: Record<string, Row[]> = {
+      users: [{ id: VIEWER, username: 'viewer', display_name: 'V' }],
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: collabRows(),
+    };
+    const access = fakeProjectAccess({
+      assertOwner: jest
+        .fn()
+        .mockRejectedValue(new ForbiddenException('Only the owner')),
+    });
+    const service = makeService(rows, access);
+    await expect(
+      service.patchCollaborator(
+        'p-1',
+        'col-1',
+        { permissionLevel: 'edit' },
+        VIEWER,
+      ),
+    ).rejects.toThrow(ForbiddenException);
+    expect(rows.project_collaborators[0].permission_level).toBe('view');
+  });
+
+  it('UTCID05 reports a server error and keeps the previous level without notifying', async () => {
+    const rows: Record<string, Row[]> = {
+      users: [{ id: VIEWER, username: 'viewer', display_name: 'V' }],
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: collabRows(),
+    };
+    const gateway = fakeGateway();
+    const notifications = fakeNotifications();
+    const service = makeService(
+      rows,
+      fakeProjectAccess(),
+      gateway,
+      notifications,
+      fakeDrafts(),
+      failingWrite('update'),
+    );
+    await expect(
+      service.patchCollaborator(
+        'p-1',
+        'col-1',
+        { permissionLevel: 'edit' },
+        OWNER,
+      ),
+    ).rejects.toThrow(InternalServerErrorException);
+    expect(rows.project_collaborators[0].permission_level).toBe('view');
+    expect(gateway.emitPermissionChanged).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
 });
 
 describe('BE-COL-04 CollaborationService — UC-62 removeCollaborator', () => {
@@ -562,6 +712,103 @@ describe('BE-COL-04 CollaborationService — UC-62 removeCollaborator', () => {
     const service = makeService(rows);
     await service.removeCollaborator('p-1', 'col-p', OWNER);
     expect(rows.project_collaborators).toHaveLength(0);
+  });
+
+  it('UTCID04 discards the draft of an accepted collaborator and keeps the commits they authored', async () => {
+    const rows: Record<string, Row[]> = {
+      users: [{ id: VIEWER, username: 'viewer', display_name: 'V' }],
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: collabRows(),
+      commits: [{ id: 'c-1', project_id: 'p-1', author_id: VIEWER }],
+    };
+    const drafts = fakeDrafts();
+    const gateway = fakeGateway();
+    const service = makeService(
+      rows,
+      fakeProjectAccess(),
+      gateway,
+      fakeNotifications(),
+      drafts,
+    );
+    await service.removeCollaborator('p-1', 'col-1', OWNER);
+    expect(drafts.discardUserDraft).toHaveBeenCalledWith('p-1', VIEWER);
+    expect(gateway.revokeUserAccess).toHaveBeenCalledWith(
+      'p-1',
+      VIEWER,
+      'col-1',
+    );
+    expect(rows.commits).toHaveLength(1);
+  });
+
+  it('UTCID05 does not discard any draft when a pending invitation is withdrawn', async () => {
+    const rows: Record<string, Row[]> = {
+      users: [{ id: PENDING, username: 'p', display_name: 'P' }],
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: [
+        {
+          id: 'col-p',
+          project_id: 'p-1',
+          user_id: PENDING,
+          permission_level: 'view',
+          invited_by: OWNER,
+          created_at: '2026-10-25T00:00:00Z',
+          status: 'pending',
+          responded_at: null,
+        },
+      ],
+    };
+    const drafts = fakeDrafts();
+    const service = makeService(
+      rows,
+      fakeProjectAccess(),
+      fakeGateway(),
+      fakeNotifications(),
+      drafts,
+    );
+    await service.removeCollaborator('p-1', 'col-p', OWNER);
+    expect(drafts.discardUserDraft).not.toHaveBeenCalled();
+  });
+
+  it('UTCID06 reports a server error and leaves the collaborator in place', async () => {
+    const rows: Record<string, Row[]> = {
+      users: [{ id: VIEWER, username: 'viewer', display_name: 'V' }],
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: collabRows(),
+    };
+    const drafts = fakeDrafts();
+    const gateway = fakeGateway();
+    const service = makeService(
+      rows,
+      fakeProjectAccess(),
+      gateway,
+      fakeNotifications(),
+      drafts,
+      failingWrite('delete'),
+    );
+    await expect(
+      service.removeCollaborator('p-1', 'col-1', OWNER),
+    ).rejects.toThrow(InternalServerErrorException);
+    expect(rows.project_collaborators).toHaveLength(1);
+    expect(drafts.discardUserDraft).not.toHaveBeenCalled();
+    expect(gateway.revokeUserAccess).not.toHaveBeenCalled();
+  });
+
+  it('UTCID07 refuses a caller who is not the owner and removes nothing', async () => {
+    const rows: Record<string, Row[]> = {
+      users: [{ id: VIEWER, username: 'viewer', display_name: 'V' }],
+      projects: [{ id: 'p-1', owner_id: OWNER, name: 'P' }],
+      project_collaborators: collabRows(),
+    };
+    const service = makeService(
+      rows,
+      fakeProjectAccess({
+        assertOwner: jest.fn().mockRejectedValue(new ForbiddenException()),
+      }),
+    );
+    await expect(
+      service.removeCollaborator('p-1', 'col-1', VIEWER),
+    ).rejects.toThrow(ForbiddenException);
+    expect(rows.project_collaborators).toHaveLength(1);
   });
 });
 

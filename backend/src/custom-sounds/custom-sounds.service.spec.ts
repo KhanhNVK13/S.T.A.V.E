@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -54,6 +55,22 @@ function makeWav(seconds: number, sampleRate = 44100, channels = 1): Buffer {
   buf.writeUInt16LE(16, 34); // bitsPerSample
   buf.write('data', 36, 'ascii');
   buf.writeUInt32LE(dataBytes, 40);
+  return buf;
+}
+
+function makeMp3(seconds: number): Buffer {
+  const frameLength = 417;
+  const frames = Math.ceil((seconds * 44100) / 1152);
+  const buf = Buffer.alloc(10 + frames * frameLength);
+  buf.write('ID3', 0, 'ascii');
+  buf[3] = 3;
+  for (let i = 0; i < frames; i++) {
+    const at = 10 + i * frameLength;
+    buf[at] = 0xff;
+    buf[at + 1] = 0xfb;
+    buf[at + 2] = 0x90;
+    buf[at + 3] = 0x00;
+  }
   return buf;
 }
 
@@ -767,8 +784,8 @@ describe('BE-SND CustomSoundsService', () => {
       expect(res.durationSec).toBe(30);
     });
 
-    it('UTCID04 rejects a sound longer than 30s plus the 0.05s header-rounding tolerance', async () => {
-      const wav = makeWav(30.06);
+    it('UTCID04 rejects a valid WAV of 30.05 seconds', async () => {
+      const wav = makeWav(30.05);
       const row = makeCustomSound({ id: soundId, duration_sec: 30 });
       const { service } = makeService([], {
         storage: {
@@ -918,38 +935,34 @@ describe('BE-SND CustomSoundsService', () => {
       expect(mock.storage.from).toHaveBeenCalledWith(CUSTOM_SOUNDS_BUCKET);
     });
 
-    it.failing(
-      'UTCID10 accepts valid MP3 sound (code currently only supports WAV)',
-      async () => {
-        const mp3 = Buffer.alloc(100);
-        mp3.write('ID3', 0, 'ascii');
-        const row = makeCustomSound({ id: soundId, duration_sec: 2 });
+    it('UTCID10 accepts valid MP3 sound', async () => {
+      const mp3 = makeMp3(2);
+      const row = makeCustomSound({ id: soundId, duration_sec: 2 });
 
-        const { service } = makeService([], {
-          storage: {
-            [CUSTOM_SOUNDS_BUCKET]: {
-              download: [{ data: makeBlob(mp3) }],
-              remove: [{ data: null }],
-              createSignedUrl: [{ data: { signedUrl: 'https://cdn/mp3.mp3' } }],
-            },
+      const { service } = makeService([], {
+        storage: {
+          [CUSTOM_SOUNDS_BUCKET]: {
+            download: [{ data: makeBlob(mp3) }],
+            remove: [{ data: null }],
+            createSignedUrl: [{ data: { signedUrl: 'https://cdn/mp3.mp3' } }],
           },
-          rpc: {
-            custom_sound_usage_bytes: [{ data: 0 }],
-          },
-          tables: {
-            platform_settings: [{ data: { value: 52428800 } }],
-            custom_sounds: [{ data: row }],
-          },
-        });
+        },
+        rpc: {
+          custom_sound_usage_bytes: [{ data: 0 }],
+        },
+        tables: {
+          platform_settings: [{ data: { value: 52428800 } }],
+          custom_sounds: [{ data: row }],
+        },
+      });
 
-        const res = await service.confirmUpload(ownerId, {
-          soundId,
-          name: 'Kick 01',
-          source: 'uploaded',
-        });
-        expect(res.id).toBe(soundId);
-      },
-    );
+      const res = await service.confirmUpload(ownerId, {
+        soundId,
+        name: 'Kick 01',
+        source: 'uploaded',
+      });
+      expect(res.id).toBe(soundId);
+    });
 
     it('UTCID11 removes file and rejects when file is not audio (PNG bytes)', async () => {
       const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -969,7 +982,9 @@ describe('BE-SND CustomSoundsService', () => {
           source: 'uploaded',
         }),
       ).rejects.toThrow(
-        new BadRequestException('File tải lên không phải âm thanh WAV hợp lệ'),
+        new BadRequestException(
+          'File tải lên không phải âm thanh WAV hoặc MP3 hợp lệ',
+        ),
       );
     });
 
@@ -991,7 +1006,9 @@ describe('BE-SND CustomSoundsService', () => {
           source: 'uploaded',
         }),
       ).rejects.toThrow(
-        new BadRequestException('File tải lên không phải âm thanh WAV hợp lệ'),
+        new BadRequestException(
+          'File tải lên không phải âm thanh WAV hoặc MP3 hợp lệ',
+        ),
       );
     });
 
@@ -1072,9 +1089,12 @@ describe('BE-SND CustomSoundsService', () => {
       ).rejects.toThrow(new ConflictException('Âm thanh này đã được lưu'));
     });
 
-    it('UTCID16 throws InternalServerErrorException on DB insert error', async () => {
+    it('UTCID16 throws InternalServerErrorException, logs the failure and removes the file on DB insert error', async () => {
       const wav = makeWav(2);
-      const { service } = makeService([], {
+      const logSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const { service, mock } = makeService([], {
         storage: {
           [CUSTOM_SOUNDS_BUCKET]: {
             download: [{ data: makeBlob(wav) }],
@@ -1102,6 +1122,9 @@ describe('BE-SND CustomSoundsService', () => {
       ).rejects.toThrow(
         new InternalServerErrorException('Could not save custom sound'),
       );
+      expect(logSpy).toHaveBeenCalledWith('Insert custom sound failed: fatal');
+      expect(mock.storage.from).toHaveBeenCalledTimes(2);
+      logSpy.mockRestore();
     });
   });
 
@@ -1254,7 +1277,7 @@ describe('BE-SND CustomSoundsService', () => {
       });
     });
 
-    it('UTCID04 lists public projects of other owners and counts the private ones', async () => {
+    it('UTCID08 lists public projects of other owners and counts the private ones', async () => {
       const { service } = makeService([], {
         tables: {
           custom_sounds: [{ data: { id: soundId } }],

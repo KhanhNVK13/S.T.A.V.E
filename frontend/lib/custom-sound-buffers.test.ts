@@ -371,19 +371,19 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
   });
 
   describe('FE-LIB-09 collectSoundIds', () => {
-    it('FE-LIB-09 UTCID05 (N): collects ids mapped on several pitches of one track', () => {
+    it('collects ids mapped on several pitches of one track', () => {
       expect(collectSoundIds(tracks({ '36': 'kick', '38': 'snare', '42': 'hat' }))).toEqual(['hat', 'kick', 'snare']);
     });
 
-    it('FE-LIB-09 UTCID06 (B): empty soundMap object → empty array', () => {
+    it('empty soundMap object → empty array', () => {
       expect(collectSoundIds(tracks({}))).toEqual([]);
     });
 
-    it('FE-LIB-09 UTCID07 (B): one id mapped on many pitches → returned once', () => {
+    it('one id mapped on many pitches → returned once', () => {
       expect(collectSoundIds(tracks({ '36': 'x', '37': 'x', '38': 'x' }, { '60': 'x' }))).toEqual(['x']);
     });
 
-    it('FE-LIB-09 UTCID08 (A): input snapshot is not mutated', () => {
+    it('input snapshot is not mutated', () => {
       const s = tracks({ '36': 'b', '37': 'a' }, undefined);
       const before = JSON.stringify(s);
       collectSoundIds(s);
@@ -392,14 +392,14 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
   });
 
   describe('FE-LIB-10 loadCustomSoundBuffers', () => {
-    it('FE-LIB-10 UTCID09 (N): several playable sounds → all decoded into the map', async () => {
+    it('several playable sounds → all decoded into the map', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => okResponse());
       const map = await loadCustomSoundBuffers([sound('h-10-09-a'), sound('h-10-09-b'), sound('h-10-09-c')]);
       expect([...map.keys()].sort()).toEqual(['h-10-09-a', 'h-10-09-b', 'h-10-09-c']);
       expect(fetchSpy).toHaveBeenCalledTimes(3);
     });
 
-    it('FE-LIB-10 UTCID10 (A): two concurrent loads of the same id share ONE in-flight fetch', async () => {
+    it('two concurrent loads of the same id share ONE in-flight fetch', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => okResponse());
       const [m1, m2] = await Promise.all([
         loadCustomSoundBuffers([sound('h-10-10')]),
@@ -409,7 +409,7 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
       expect(m1.get('h-10-10')).toBe(m2.get('h-10-10'));
     });
 
-    it('FE-LIB-10 UTCID11 (A): after a failed load the cache is cleared, so the next call retries and succeeds', async () => {
+    it('after a failed load the cache is cleared, so the next call retries and succeeds', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       const fetchSpy = vi
         .spyOn(global, 'fetch')
@@ -421,7 +421,7 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
       expect(retry.get('h-10-11')).toBe(mockAudioBuffer);
     });
 
-    it('FE-LIB-10 UTCID12 (A): network error (fetch rejects) → warning logged, resolves with empty map', async () => {
+    it('network error (fetch rejects) → warning logged, resolves with empty map', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
       const map = await loadCustomSoundBuffers([sound('h-10-12')]);
@@ -429,14 +429,14 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
       expect(warn).toHaveBeenCalledWith('Failed to load custom sound h-10-12:', expect.any(TypeError));
     });
 
-    it('FE-LIB-10 UTCID13 (B): accepts any Iterable (Set / Map.values()) as input', async () => {
+    it('accepts any Iterable (Set / Map.values()) as input', async () => {
       vi.spyOn(global, 'fetch').mockImplementation(async () => okResponse());
       const source = new Map([['k', sound('h-10-13')]]);
       const map = await loadCustomSoundBuffers(source.values());
       expect(map.has('h-10-13')).toBe(true);
     });
 
-    it('FE-LIB-10 UTCID14 (B): playable=true but empty-string playbackUrl → skipped, no fetch', async () => {
+    it('playable=true but empty-string playbackUrl → skipped, no fetch', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch');
       const map = await loadCustomSoundBuffers([sound('h-10-14', { playbackUrl: '' })]);
       expect(map.size).toBe(0);
@@ -445,14 +445,14 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
   });
 
   describe('FE-LIB-11 resolveAndLoadCustomSounds', () => {
-    it('FE-LIB-11 UTCID05 (N): calls the API once with projectId and the sorted, de-duplicated ids', async () => {
+    it('calls the API once with projectId and the sorted, de-duplicated ids', async () => {
       const resolveSpy = vi.spyOn(apiClient, 'resolveProjectCustomSounds').mockResolvedValue([]);
       await resolveAndLoadCustomSounds('project-9', tracks({ '36': 'zz', '38': 'aa' }, { '40': 'zz' }));
       expect(resolveSpy).toHaveBeenCalledTimes(1);
       expect(resolveSpy).toHaveBeenCalledWith('project-9', ['aa', 'zz']);
     });
 
-    it('FE-LIB-11 UTCID06 (N): mix of playable and missing sounds → only playable ones in the map', async () => {
+    it('mix of playable and missing sounds → only playable ones in the map', async () => {
       vi.spyOn(apiClient, 'resolveProjectCustomSounds').mockResolvedValue([
         sound('h-11-06-ok'),
         sound('h-11-06-missing', { playable: false, playbackUrl: null, reason: 'missing' }),
@@ -462,7 +462,7 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
       expect([...map.keys()]).toEqual(['h-11-06-ok']);
     });
 
-    it('FE-LIB-11 UTCID07 (A): API returns an empty list → empty map, no fetch', async () => {
+    it('API returns an empty list → empty map, no fetch', async () => {
       vi.spyOn(apiClient, 'resolveProjectCustomSounds').mockResolvedValue([]);
       const fetchSpy = vi.spyOn(global, 'fetch');
       const map = await resolveAndLoadCustomSounds('p', tracks({ '36': 'gone' }));
@@ -470,7 +470,7 @@ describe('FE-LIB custom-sound-buffers (bổ sung Haidnde180202)', () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it('FE-LIB-11 UTCID08 (A): resolved sound whose file fails to decode → resolves with empty map (no throw)', async () => {
+    it('resolved sound whose file fails to decode → resolves with empty map (no throw)', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       decodeShouldFail = true;
       vi.spyOn(apiClient, 'resolveProjectCustomSounds').mockResolvedValue([sound('h-11-08')]);

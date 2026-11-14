@@ -39,7 +39,10 @@ export function tallyChoices(choices: ConflictChoices): { ours: number; theirs: 
   let theirs = 0;
   for (const c of Object.values(choices)) {
     if (c === "PICK_SOURCE") theirs += 1;
-    else ours += 1;
+    else if (c === "KEEP_BOTH") {
+      ours += 1;
+      theirs += 1;
+    } else ours += 1;
   }
   return { ours, theirs };
 }

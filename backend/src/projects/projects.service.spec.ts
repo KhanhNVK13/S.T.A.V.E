@@ -8,7 +8,11 @@ import {
   createSupabaseMock,
   type SupabaseMockOptions,
 } from '../test-utils/supabase-mock';
-import { ProjectsService, DEFAULT_BRANCH_NAME } from './projects.service';
+import {
+  ProjectsService,
+  DEFAULT_BRANCH_NAME,
+  INITIAL_COMMIT_MESSAGE,
+} from './projects.service';
 import type { CustomSoundsService } from '../custom-sounds/custom-sounds.service';
 import type { ProjectAccessService } from '../project-access/project-access.service';
 import type { ActiveBranchService } from '../active-branch/active-branch.service';
@@ -66,7 +70,16 @@ function makeService(
     purgeProjectFiles?: jest.Mock;
   } = {},
 ) {
-  const mock = createSupabaseMock(results, options);
+  const mock = createSupabaseMock(results, {
+    ...options,
+    authAdmin: {
+      getUserById: {
+        data: { user: { email_confirmed_at: '2026-01-01T00:00:00Z' } },
+        error: null,
+      },
+      ...options.authAdmin,
+    },
+  });
   const collectGarbage =
     customSoundsMock.collectGarbage ?? jest.fn().mockResolvedValue(undefined);
   const customSounds = {
@@ -100,13 +113,22 @@ function makeService(
   };
 }
 
+const initialCommit = {
+  rpc: {
+    create_commit_atomic: { data: { id: 'commit-1' }, error: null },
+  },
+};
+
 describe('BE-PRJ-06 ProjectsService.create(ownerId, dto)', () => {
   it('UTCID01 creates a project and default main branch', async () => {
     const project = makeProject();
-    const { service, builder } = makeService([
-      { data: project }, // projects.insert
-      { data: null }, // branches.insert
-    ]);
+    const { service, builder, rpc } = makeService(
+      [
+        { data: project }, // projects.insert
+        { data: { id: branchId } }, // branches.insert
+      ],
+      initialCommit,
+    );
 
     const result = await service.create(ownerId, {
       name: 'Song A',
@@ -131,14 +153,24 @@ describe('BE-PRJ-06 ProjectsService.create(ownerId, dto)', () => {
         created_by: ownerId,
       }),
     );
+    expect(rpc).toHaveBeenCalledWith(
+      'create_commit_atomic',
+      expect.objectContaining({
+        p_branch_id: branchId,
+        p_author_id: ownerId,
+        p_message: INITIAL_COMMIT_MESSAGE,
+        p_parent_commit_id: null,
+        p_snapshot: expect.objectContaining({ tracks: [], notes: [] }),
+      }),
+    );
   });
 
   it('UTCID02 sets null for omitted optional fields', async () => {
     const project = makeProject({ description: null, genre: null });
-    const { service, builder } = makeService([
-      { data: project },
-      { data: null },
-    ]);
+    const { service, builder } = makeService(
+      [{ data: project }, { data: { id: branchId } }],
+      initialCommit,
+    );
 
     const result = await service.create(ownerId, { name: 'Song A' });
 
@@ -154,10 +186,10 @@ describe('BE-PRJ-06 ProjectsService.create(ownerId, dto)', () => {
 
   it('UTCID03 accepts a project name already used by another project (BR-16)', async () => {
     const project = makeProject();
-    const { service } = makeService([
-      { data: project },
-      { data: makeBranch() },
-    ]);
+    const { service } = makeService(
+      [{ data: project }, { data: { id: branchId } }],
+      initialCommit,
+    );
     await expect(service.create(ownerId, { name: 'Song A' })).resolves.toEqual(
       project,
     );
@@ -194,19 +226,101 @@ describe('BE-PRJ-06 ProjectsService.create(ownerId, dto)', () => {
     expect(builder.delete).toHaveBeenCalled();
     expect(builder.eq).toHaveBeenCalledWith('id', projectId);
   });
+
+  it('UTCID07 rolls back project when the initial commit fails (SRS UC-18 7.E1)', async () => {
+    const project = makeProject();
+    const { service, builder } = makeService(
+      [
+        { data: project },
+        { data: { id: branchId } },
+        { data: null, error: null },
+      ],
+      {
+        rpc: {
+          create_commit_atomic: {
+            data: null,
+            error: { message: 'rpc failed' },
+          },
+        },
+      },
+    );
+    await expect(service.create(ownerId, { name: 'Song A' })).rejects.toThrow(
+      'Project creation rolled back: initial commit could not be created',
+    );
+    expect(builder.delete).toHaveBeenCalled();
+    expect(builder.eq).toHaveBeenCalledWith('id', projectId);
+  });
+
+  it('UTCID08 creates a public project with its license when the email is verified', async () => {
+    const project = makeProject({ visibility: 'public', license: 'CC-BY' });
+    const { service, builder } = makeService(
+      [{ data: project }, { data: { id: branchId } }],
+      initialCommit,
+    );
+
+    const result = await service.create(ownerId, {
+      name: 'Song A',
+      visibility: 'public',
+      license: 'CC-BY',
+    });
+
+    expect(result).toEqual(project);
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: 'public', license: 'CC-BY' }),
+    );
+  });
+
+  it('UTCID09 keeps the project private and reports it when the email is not verified (SRS UC-18 6.E2)', async () => {
+    const project = makeProject();
+    const { service, builder } = makeService(
+      [{ data: project }, { data: { id: branchId } }],
+      {
+        ...initialCommit,
+        authAdmin: {
+          getUserById: {
+            data: { user: { email_confirmed_at: null } },
+            error: null,
+          },
+        },
+      },
+    );
+
+    const result = await service.create(ownerId, {
+      name: 'Song A',
+      visibility: 'public',
+      license: 'CC-BY',
+    });
+
+    expect(result).toEqual({ ...project, visibilityKeptPrivate: true });
+    const projectInsert = builder.insert.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(projectInsert).not.toHaveProperty('visibility');
+    expect(projectInsert).not.toHaveProperty('license');
+  });
+
+  it('UTCID10 rejects a public project without a license when the email is verified', async () => {
+    const { service, builder } = makeService([]);
+
+    await expect(
+      service.create(ownerId, { name: 'Song A', visibility: 'public' }),
+    ).rejects.toThrow(BadRequestException);
+    expect(builder.insert).not.toHaveBeenCalled();
+  });
 });
 
 describe('BE-PRJ-07 ProjectsService.listMine(ownerId)', () => {
-  it('UTCID01 returns multiple projects ordered by created_at desc', async () => {
-    const p1 = makeProject({ id: 'p1', created_at: '2026-10-22T00:00:00Z' });
-    const p2 = makeProject({ id: 'p2', created_at: '2026-10-21T00:00:00Z' });
+  it('UTCID01 returns multiple projects ordered by updated_at desc', async () => {
+    const p1 = makeProject({ id: 'p1', updated_at: '2026-10-22T00:00:00Z' });
+    const p2 = makeProject({ id: 'p2', updated_at: '2026-10-21T00:00:00Z' });
     const { service, builder } = makeService([{ data: [p1, p2] }]);
 
     const result = await service.listMine(ownerId);
 
     expect(result).toEqual([p1, p2]);
     expect(builder.eq).toHaveBeenCalledWith('owner_id', ownerId);
-    expect(builder.order).toHaveBeenCalledWith('created_at', {
+    expect(builder.order).toHaveBeenCalledWith('updated_at', {
       ascending: false,
     });
   });
@@ -322,7 +436,7 @@ describe('BE-PRJ-09 ProjectsService.getDefaultBranchForOwner(projectId, ownerId)
   });
 });
 
-describe('BE-PRJ-10 ProjectsService.getActiveBranchForUser(projectId, userId)', () => {
+describe('BE-PRJ-10 ProjectsService.getActiveBranchForOwner(projectId, ownerId) - implemented as getActiveBranchForUser', () => {
   it('UTCID01 falls back to default branch when there is no active branch', async () => {
     const defaultBranch = makeBranch();
     const { service, access } = makeService([{ data: defaultBranch }]);
@@ -400,7 +514,7 @@ describe('BE-PRJ-10 ProjectsService.getActiveBranchForUser(projectId, userId)', 
     ).rejects.toThrow(new NotFoundException('Default branch not found'));
   });
 
-  it('UTCID07 skips the access check when the caller already verified access', async () => {
+  it('skips the access check when the caller already verified access', async () => {
     const { service, access } = makeService([{ data: makeBranch() }]);
 
     await service.getActiveBranchForUser(projectId, ownerId, {
@@ -515,6 +629,15 @@ describe('BE-PRJ-11 ProjectsService.updateOwned(projectId, ownerId, dto)', () =>
       service.updateOwned(projectId, ownerId, { name: 'Song B' }),
     ).rejects.toThrow(ConflictException);
   });
+
+  it('UTCID09 changes only the license when the dto carries just a license', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ visibility: 'public', license: 'CC-BY' }) },
+      { data: makeProject({ visibility: 'public', license: 'CC-BY-NC' }) },
+    ]);
+    await service.updateOwned(projectId, ownerId, { license: 'CC-BY-NC' });
+    expect(builder.update).toHaveBeenCalledWith({ license: 'CC-BY-NC' });
+  });
 });
 
 describe('BE-PRJ-12 ProjectsService.archiveOwned / unarchiveOwned / setVisibility', () => {
@@ -524,6 +647,7 @@ describe('BE-PRJ-12 ProjectsService.archiveOwned / unarchiveOwned / setVisibilit
     const { service, builder } = makeService([
       { data: project },
       { data: archived },
+      { data: null, error: null },
     ]);
 
     const result = await service.archiveOwned(projectId, ownerId);
@@ -629,24 +753,112 @@ describe('BE-PRJ-12 ProjectsService.archiveOwned / unarchiveOwned / setVisibilit
     );
   });
 
-  it.failing(
-    'UTCID09 rejects setting public on unverified account (SRS BR-03; code lacks check)',
-    async () => {
-      const project = makeProject();
-      const { service } = makeService([{ data: project }, { data: project }]);
-      await expect(
-        service.setVisibility(projectId, ownerId, 'public'),
-      ).rejects.toThrow('Unverified account cannot make project public');
-    },
-  );
+  it('UTCID09 rejects setting public on unverified account (SRS BR-03)', async () => {
+    const project = makeProject();
+    const { service, builder } = makeService(
+      [{ data: project }, { data: project }],
+      {
+        authAdmin: {
+          getUserById: {
+            data: { user: { email_confirmed_at: null } },
+            error: null,
+          },
+        },
+      },
+    );
+    await expect(
+      service.setVisibility(projectId, ownerId, 'public'),
+    ).rejects.toThrow('Unverified account cannot make project public');
+    expect(builder.update).not.toHaveBeenCalled();
+  });
 
   it('UTCID10 rejects visibility change on archived project (SRS UC-23 1.E1)', async () => {
     const archived = makeProject({ archived_at: '2026-10-26T00:00:00Z' });
     const { service, builder } = makeService([{ data: archived }]);
     await expect(
-      service.setVisibility(projectId, ownerId, 'public'),
+      service.setVisibility(projectId, ownerId, 'private'),
     ).rejects.toThrow(ConflictException);
     expect(builder.update).not.toHaveBeenCalled();
+  });
+
+  it('UTCID11 refuses to make the project public without any license', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ license: null }) },
+    ]);
+    await expect(
+      service.setVisibility(projectId, ownerId, 'public'),
+    ).rejects.toThrow(BadRequestException);
+    expect(builder.update).not.toHaveBeenCalled();
+  });
+
+  it('UTCID12 makes the project public with the license already stored', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ license: 'CC-BY-SA' }) },
+      { data: makeProject({ visibility: 'public', license: 'CC-BY-SA' }) },
+    ]);
+    await service.setVisibility(projectId, ownerId, 'public');
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: 'public', license: 'CC-BY-SA' }),
+    );
+  });
+
+  it('UTCID13 a license chosen in the request wins over the stored one', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ license: 'CC-BY-SA' }) },
+      { data: makeProject({ visibility: 'public', license: 'CC-BY-NC' }) },
+    ]);
+    await service.setVisibility(projectId, ownerId, 'public', 'CC-BY-NC');
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ license: 'CC-BY-NC' }),
+    );
+  });
+
+  it('UTCID14 going private never asks for or touches the license', async () => {
+    const { service, builder } = makeService([
+      { data: makeProject({ visibility: 'public', license: 'CC-BY' }) },
+      { data: makeProject({ visibility: 'private', license: 'CC-BY' }) },
+    ]);
+    await service.setVisibility(projectId, ownerId, 'private');
+    const patch = builder.update.mock.calls[0][0] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('license');
+  });
+
+  it('UTCID15 closes the open pull requests that target the archived project', async () => {
+    const project = makeProject();
+    const archived = makeProject({ archived_at: '2026-10-26T00:00:00Z' });
+    const { service, builders } = makeService([], {
+      tables: {
+        projects: [{ data: project }, { data: archived }],
+        pull_requests: [{ data: null, error: null }],
+      },
+    });
+
+    await expect(service.archiveOwned(projectId, ownerId)).resolves.toEqual(
+      archived,
+    );
+    expect(builders.pull_requests.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'closed' }),
+    );
+    expect(builders.pull_requests.eq).toHaveBeenCalledWith(
+      'target_project_id',
+      projectId,
+    );
+    expect(builders.pull_requests.eq).toHaveBeenCalledWith('status', 'open');
+  });
+
+  it('UTCID16 still archives the project when the open pull requests cannot be closed', async () => {
+    const project = makeProject();
+    const archived = makeProject({ archived_at: '2026-10-26T00:00:00Z' });
+    const { service } = makeService([], {
+      tables: {
+        projects: [{ data: project }, { data: archived }],
+        pull_requests: [{ data: null, error: { message: 'db' } }],
+      },
+    });
+
+    await expect(service.archiveOwned(projectId, ownerId)).resolves.toEqual(
+      archived,
+    );
   });
 });
 
@@ -707,59 +919,6 @@ describe('BE-PRJ-13 ProjectsService.deleteOwned(projectId, ownerId)', () => {
       new InternalServerErrorException('Could not delete project'),
     );
     expect(collectGarbage).not.toHaveBeenCalled();
-  });
-});
-
-describe('BE-PRJ-LIC license when publishing', () => {
-  it('UTCID01 refuses to publish without any license', async () => {
-    const { service, builder } = makeService([
-      { data: makeProject({ license: null }) },
-    ]);
-    await expect(
-      service.setVisibility(projectId, ownerId, 'public'),
-    ).rejects.toThrow(BadRequestException);
-    expect(builder.update).not.toHaveBeenCalled();
-  });
-
-  it('UTCID02 publishes with the license already stored', async () => {
-    const { service, builder } = makeService([
-      { data: makeProject({ license: 'CC-BY-SA' }) },
-      { data: makeProject({ visibility: 'public', license: 'CC-BY-SA' }) },
-    ]);
-    await service.setVisibility(projectId, ownerId, 'public');
-    expect(builder.update).toHaveBeenCalledWith(
-      expect.objectContaining({ visibility: 'public', license: 'CC-BY-SA' }),
-    );
-  });
-
-  it('UTCID03 a license chosen in the request wins over the stored one', async () => {
-    const { service, builder } = makeService([
-      { data: makeProject({ license: 'CC-BY-SA' }) },
-      { data: makeProject({ visibility: 'public', license: 'CC-BY-NC' }) },
-    ]);
-    await service.setVisibility(projectId, ownerId, 'public', 'CC-BY-NC');
-    expect(builder.update).toHaveBeenCalledWith(
-      expect.objectContaining({ license: 'CC-BY-NC' }),
-    );
-  });
-
-  it('UTCID04 going private never asks for or touches the license', async () => {
-    const { service, builder } = makeService([
-      { data: makeProject({ visibility: 'public', license: 'CC-BY' }) },
-      { data: makeProject({ visibility: 'private', license: 'CC-BY' }) },
-    ]);
-    await service.setVisibility(projectId, ownerId, 'private');
-    const patch = builder.update.mock.calls[0][0] as Record<string, unknown>;
-    expect(patch).not.toHaveProperty('license');
-  });
-
-  it('UTCID05 updateOwned can change the license', async () => {
-    const { service, builder } = makeService([
-      { data: makeProject({ visibility: 'public', license: 'CC-BY' }) },
-      { data: makeProject({ visibility: 'public', license: 'CC-BY-NC' }) },
-    ]);
-    await service.updateOwned(projectId, ownerId, { license: 'CC-BY-NC' });
-    expect(builder.update).toHaveBeenCalledWith({ license: 'CC-BY-NC' });
   });
 });
 

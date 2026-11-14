@@ -57,7 +57,7 @@ function makeService(
   return { service: new AdminBillingService(mock.client), mock };
 }
 
-describe('BE-ADM-01 admin transactions query DTO', () => {
+describe('admin transactions query DTO', () => {
   it('thừa nhận bộ lọc hợp lệ và áp giá trị mặc định', async () => {
     const dto = plainToInstance(AdminTransactionsQueryDto, {
       from: '2026-11-01T00:00:00Z',
@@ -110,8 +110,8 @@ describe('BE-ADM-01 admin transactions query DTO', () => {
   });
 });
 
-describe('BE-ADM-02 list admin transactions', () => {
-  it('trả items + nextCursor + summary, kèm snapshot khi tài khoản đã xoá', async () => {
+describe('BE-ABL-01 AdminBillingService.listTransactions', () => {
+  it('UTCID01 trả items + nextCursor + summary, kèm snapshot khi tài khoản đã xoá', async () => {
     const { service, mock } = makeService(
       {
         transactions: [
@@ -167,7 +167,7 @@ describe('BE-ADM-02 list admin transactions', () => {
     });
   });
 
-  it('khi tài khoản xoá thì giữ snapshot payer và account = null', async () => {
+  it('UTCID02 khi tài khoản xoá thì giữ snapshot payer và account = null', async () => {
     const { service } = makeService(
       {
         transactions: [
@@ -203,7 +203,7 @@ describe('BE-ADM-02 list admin transactions', () => {
     expect(page.items[0].providerRef).toBe('payos-ref-123');
   });
 
-  it('cursor không giải mã được → 400', async () => {
+  it('UTCID03 cursor không giải mã được → 400', async () => {
     const { service } = makeService(
       { transactions: [ok([])] },
       {
@@ -224,7 +224,7 @@ describe('BE-ADM-02 list admin transactions', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('từ sớm hơn hoặc bằng đến → 400', async () => {
+  it('UTCID04 từ sớm hơn hoặc bằng đến → 400', async () => {
     const { service } = makeService(
       { transactions: [ok([])] },
       {
@@ -248,7 +248,105 @@ describe('BE-ADM-02 list admin transactions', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('lỗi RPC → 500, không nuốt lỗi', async () => {
+  it('UTCID06 lọc giao dịch thất bại theo gói: truyền bộ lọc vào truy vấn và vào bảng tổng', async () => {
+    const { service, mock } = makeService(
+      { transactions: [ok([row({ status: 'failed' })])] },
+      {
+        admin_billing_summary: ok([
+          {
+            total_charge_amount: 0,
+            total_refund_amount: 0,
+            success_count: 0,
+            failed_count: 1,
+          },
+        ]),
+      },
+    );
+
+    await service.listTransactions(
+      plainToInstance(AdminTransactionsQueryDto, {
+        outcome: 'failed',
+        planId,
+        from: '2026-11-01T00:00:00Z',
+        to: '2026-11-30T00:00:00Z',
+      }),
+    );
+
+    expect(mock.builders.transactions.eq).toHaveBeenCalledWith(
+      'status',
+      'failed',
+    );
+    expect(mock.builders.transactions.eq).toHaveBeenCalledWith(
+      'plan_id',
+      planId,
+    );
+    expect(mock.builders.transactions.gte).toHaveBeenCalledWith(
+      'created_at',
+      '2026-11-01T00:00:00Z',
+    );
+    expect(mock.builders.transactions.lt).toHaveBeenCalledWith(
+      'created_at',
+      '2026-11-30T00:00:00Z',
+    );
+    expect(mock.rpc).toHaveBeenCalledWith('admin_billing_summary', {
+      p_from: '2026-11-01T00:00:00Z',
+      p_to: '2026-11-30T00:00:00Z',
+      p_outcome: 'failed',
+      p_plan_id: planId,
+    });
+  });
+
+  it('UTCID07 khoảng thời gian không có giao dịch trả danh sách rỗng và tổng bằng 0', async () => {
+    const { service } = makeService(
+      { transactions: [ok([])] },
+      { admin_billing_summary: ok([]) },
+    );
+
+    const page = await service.listTransactions(
+      plainToInstance(AdminTransactionsQueryDto, {}),
+    );
+
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toBeNull();
+    expect(page.summary).toEqual({
+      totalChargeAmount: 0,
+      totalRefundAmount: 0,
+      successCount: 0,
+      failedCount: 0,
+    });
+  });
+
+  it('UTCID08 còn nhiều hơn limit dòng thì cắt đúng limit và cấp nextCursor', async () => {
+    const { service } = makeService(
+      {
+        transactions: [
+          ok([row(), row({ id: retryId }), row({ id: 'extra-row' })]),
+        ],
+      },
+      { admin_billing_summary: ok([]) },
+    );
+
+    const page = await service.listTransactions(
+      plainToInstance(AdminTransactionsQueryDto, { limit: '2' }),
+    );
+
+    expect(page.items).toHaveLength(2);
+    expect(page.nextCursor).not.toBeNull();
+  });
+
+  it('UTCID09 lỗi đọc danh sách giao dịch → 500, không trả tổng sai', async () => {
+    const { service } = makeService(
+      { transactions: [fail()] },
+      { admin_billing_summary: ok([]) },
+    );
+    await expect(
+      service.listTransactions(plainToInstance(AdminTransactionsQueryDto, {})),
+    ).rejects.toThrow(
+      new InternalServerErrorException('Could not read transactions'),
+    );
+  });
+
+  it('UTCID05 lỗi RPC → 500, không nuốt lỗi', async () => {
     const { service } = makeService(
       { transactions: [ok([row()])] },
       {
@@ -261,8 +359,8 @@ describe('BE-ADM-02 list admin transactions', () => {
   });
 });
 
-describe('BE-ADM-03 admin transaction detail', () => {
-  it('trả giao dịch + giao dịch liên kết + sự cố', async () => {
+describe('BE-ABL-02 AdminBillingService.getTransaction', () => {
+  it('UTCID01 trả giao dịch + giao dịch liên kết + sự cố', async () => {
     const { service } = makeService({
       transactions: [
         ok(row()),
@@ -292,10 +390,27 @@ describe('BE-ADM-03 admin transaction detail', () => {
     expect(detail.issues[0].status).toBe('open');
   });
 
-  it('giao dịch không tồn tại → 404', async () => {
+  it('UTCID02 giao dịch không tồn tại → 404', async () => {
     const { service } = makeService({ transactions: [ok(null)] });
     await expect(service.getTransaction(txId)).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+
+  it('UTCID03 lỗi đọc giao dịch → 500', async () => {
+    const { service } = makeService({ transactions: [fail()] });
+    await expect(service.getTransaction(txId)).rejects.toThrow(
+      new InternalServerErrorException('Could not read transaction'),
+    );
+  });
+
+  it('UTCID04 lỗi đọc giao dịch liên kết hoặc sự cố → 500', async () => {
+    const { service } = makeService({
+      transactions: [ok(row()), fail()],
+      payment_issues: [ok([])],
+    });
+    await expect(service.getTransaction(txId)).rejects.toThrow(
+      new InternalServerErrorException('Could not read transaction details'),
     );
   });
 });

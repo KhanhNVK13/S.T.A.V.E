@@ -74,6 +74,8 @@ function makeService(options: {
   /** Kết quả của `commit_ancestry` cho mỗi lần gọi. */
   ancestry?: Array<Array<{ id: string; parent_commit_id: string | null }>>;
   ancestryError?: boolean;
+  rateLimiter?: AiRateLimiter;
+  otherProjectId?: string;
 }) {
   const mock = createSupabaseMock([], {
     tables: {
@@ -88,7 +90,7 @@ function makeService(options: {
         {
           data: {
             id: targetBranchId,
-            project_id: projectId,
+            project_id: options.otherProjectId ?? projectId,
             head_commit_id: targetHeadId,
           },
         },
@@ -142,7 +144,7 @@ function makeService(options: {
     diffService,
     mergeService,
     gemini,
-    new AiRateLimiter(),
+    options.rateLimiter ?? new AiRateLimiter(),
   );
 
   return {
@@ -155,7 +157,7 @@ function makeService(options: {
   };
 }
 
-describe('BE-AIR-01 MergeRiskService.assess', () => {
+describe('BE-AIX-03 MergeRiskService.assess(userId, sourceBranchId, targetBranchId, lang)', () => {
   it('UTCID01 returns 400 when the branches have no common ancestor', async () => {
     const { service } = makeService({ mergeBase: null });
 
@@ -417,5 +419,93 @@ describe('BE-AIR-01 MergeRiskService.assess', () => {
 
     expect(result.metrics.sourceCommits).toBe(1);
     expect(result.metrics.targetCommits).toBe(1);
+  });
+
+  const medium = () => {
+    const source = snapshot([note('n1'), note('n2'), note('n3'), note('n4')]);
+    return {
+      base: EMPTY,
+      source,
+      target: EMPTY,
+      commitSnapshots: [EMPTY, source, EMPTY],
+      conflictsCount: 2,
+      ancestry: [[], [], []] as Array<
+        Array<{ id: string; parent_commit_id: string | null }>
+      >,
+    };
+  };
+
+  it('UTCID14 skips the AI and returns explanation null when the AI rate limit is reached', async () => {
+    const rateLimiter = new AiRateLimiter();
+    jest.spyOn(rateLimiter, 'tryConsume').mockReturnValue(false);
+    const { service, generateText } = makeService({
+      ...medium(),
+      rateLimiter,
+    });
+
+    const result = await service.assess(userId, sourceBranchId, targetBranchId);
+
+    expect(result.level).toBe('medium');
+    expect(result.explanation).toBeNull();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('UTCID15 sends only the measured counts to the AI', async () => {
+    const { service, generateText } = makeService(medium());
+
+    await service.assess(userId, sourceBranchId, targetBranchId);
+
+    const prompt = generateText.mock.calls[0][0] as string;
+    expect(prompt).toContain('"conflictsCount":2');
+    expect(prompt).toContain('"sourceChanged":4');
+    expect(prompt).not.toContain('n1');
+    expect(prompt).not.toContain(userId);
+  });
+
+  it('UTCID16 returns 400 when the two branches belong to different projects', async () => {
+    const { service } = makeService({
+      otherProjectId: '99999999-9999-4999-8999-999999999999',
+    });
+
+    await expect(
+      service.assess(userId, sourceBranchId, targetBranchId),
+    ).rejects.toThrow('Branches cannot be compared');
+  });
+
+  it('UTCID17 returns the AI explanation collapsed to one line and cut to 400 characters', async () => {
+    const generateText = jest
+      .fn()
+      .mockResolvedValue(`Hai nhánh\n\n cùng sửa  nốt ${'x'.repeat(500)}`);
+    const { service } = makeService({ ...medium(), generateText });
+
+    const result = await service.assess(userId, sourceBranchId, targetBranchId);
+
+    expect(result.explanation).not.toContain('\n');
+    expect(result.explanation).toHaveLength(400);
+    expect(result.explanation?.startsWith('Hai nhánh cùng sửa nốt')).toBe(true);
+  });
+
+  it('UTCID18 fails with a 500 when a branch row cannot be read', async () => {
+    const mock = createSupabaseMock([], {
+      tables: {
+        branches: [
+          { data: null, error: { message: 'db down' } },
+          { data: null, error: { message: 'db down' } },
+        ],
+      },
+    });
+    const service = new MergeRiskService(
+      mock.client,
+      { findMergeBase: jest.fn() } as unknown as BranchesService,
+      { assertCanEdit: jest.fn() } as unknown as ProjectAccessService,
+      new DiffService(),
+      { previewMerge: jest.fn() } as unknown as MergeService,
+      { generateText: jest.fn() } as unknown as GeminiClient,
+      new AiRateLimiter(),
+    );
+
+    await expect(
+      service.assess(userId, sourceBranchId, targetBranchId),
+    ).rejects.toThrow('Could not assess merge risk');
   });
 });

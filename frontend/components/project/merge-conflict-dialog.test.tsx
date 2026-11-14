@@ -62,3 +62,44 @@ describe("MergeConflictDialog diff colours", () => {
     expect(options).not.toMatch(/text-(success|danger|warning)\b/);
   });
 });
+
+describe("MergeConflictDialog keep both", () => {
+  it("offers a third option only where both sides still have the note", () => {
+    renderDialog();
+    const fieldsets = [...document.querySelectorAll("fieldset")];
+    expect(fieldsets[0].querySelectorAll('input[type="radio"]')).toHaveLength(3);
+    expect(fieldsets[1].querySelectorAll('input[type="radio"]')).toHaveLength(2);
+  });
+
+  it("disables keep both when both notes sit on the same pitch at the same moment", () => {
+    const same: MergeConflictResult = {
+      hasConflicts: true,
+      conflictsCount: 1,
+      conflictsByBar: {
+        "1": [
+          {
+            noteId: "33333333-cccc",
+            type: "MODIFIED_DIFFERENTLY",
+            baseNote: note(60),
+            sourceNote: { ...note(60), velocity: 50 },
+            targetNote: { ...note(60), velocity: 100 },
+          },
+        ],
+      },
+    };
+    render(
+      <MergeConflictDialog
+        result={same}
+        sourceName="feature"
+        targetName="main"
+        submitting={false}
+        onCancel={vi.fn()}
+        onResolve={vi.fn()}
+      />,
+    );
+    const radios = [...document.querySelectorAll('fieldset input[type="radio"]')] as HTMLInputElement[];
+    expect(radios).toHaveLength(3);
+    expect(radios[2].disabled).toBe(true);
+    expect(radios[0].disabled).toBe(false);
+  });
+});

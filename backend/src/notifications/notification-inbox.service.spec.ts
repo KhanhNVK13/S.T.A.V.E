@@ -157,6 +157,15 @@ describe('BE-NTF-04 NotificationInboxService.list', () => {
       service.list(userId, { filter: 'all', limit: 30 }),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
+
+  it('UTCID08 returns an empty page without a cursor when the user has no notifications', async () => {
+    const { service } = makeService({
+      notifications: [{ data: [] }],
+    });
+    const result = await service.list(userId, { filter: 'all', limit: 30 });
+    expect(result.items).toEqual([]);
+    expect(result.nextCursor).toBeNull();
+  });
 });
 
 describe('BE-NTF-05 NotificationInboxService.unreadCount', () => {
@@ -165,6 +174,15 @@ describe('BE-NTF-05 NotificationInboxService.unreadCount', () => {
       notifications: [{ data: null, count: 4 }],
     });
     await expect(service.unreadCount(userId)).resolves.toEqual({ count: 4 });
+  });
+
+  it('UTCID02 reports a database failure instead of a zero count', async () => {
+    const { service } = makeService({
+      notifications: [{ data: null, error: { message: 'x' } }],
+    });
+    await expect(service.unreadCount(userId)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
   });
 });
 
@@ -250,6 +268,15 @@ describe('BE-NTF-07 NotificationInboxService.readAll', () => {
     await expect(service.readAll(userId)).resolves.toEqual({ ok: true });
     expect(builders.notifications.eq).toHaveBeenCalledWith('user_id', userId);
     expect(builders.notifications.is).toHaveBeenCalledWith('read_at', null);
+  });
+
+  it('UTCID02 reports a database failure', async () => {
+    const { service } = makeService({
+      notifications: [{ data: null, error: { message: 'x' } }],
+    });
+    await expect(service.readAll(userId)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
   });
 });
 

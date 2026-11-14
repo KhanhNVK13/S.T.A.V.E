@@ -7,7 +7,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 import {
   MAX_SKETCH_DURATION_SEC,
@@ -21,7 +20,6 @@ export class AttachSketchDto {
   sketchId!: string;
 
   @IsString()
-  @MinLength(1)
   @MaxLength(100)
   name!: string;
 

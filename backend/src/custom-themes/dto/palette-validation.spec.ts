@@ -28,7 +28,7 @@ function withKey(key: string): Record<string, string> {
   return palette;
 }
 
-describe('BE-THM-03 validatePalettePayload', () => {
+describe('BE-THM-04 validatePalettePayload', () => {
   it('UTCID01 chấp nhận palette hợp lệ', () => {
     expect(validatePalettePayload({ palette: validPalette })).toEqual({
       ok: true,
@@ -76,7 +76,7 @@ describe('BE-THM-03 validatePalettePayload', () => {
   });
 });
 
-describe('BE-THM-04 chống CSS injection', () => {
+describe('BE-THM-04 validatePalettePayload (chống CSS injection)', () => {
   it('UTCID08 từ chối chuỗi kết thúc bằng `; } body { ...`', () => {
     const attack = 'oklch(1 0 0); } body{ display:none';
     expect(validatePalettePayload({ palette: withValue(attack) }).ok).toBe(
@@ -125,7 +125,7 @@ describe('BE-THM-04 chống CSS injection', () => {
   });
 });
 
-describe('BE-THM-05 khoảng giá trị OKLCH', () => {
+describe('BE-THM-04 validatePalettePayload (khoảng giá trị OKLCH)', () => {
   it('UTCID14 từ chối L > 1', () => {
     expect(
       validatePalettePayload({ palette: withValue('oklch(1.5 0.1 200)') }).ok,
@@ -178,8 +178,8 @@ describe('BE-THM-05 khoảng giá trị OKLCH', () => {
   });
 });
 
-describe('BE-THM-06 PaletteValidationPipe', () => {
-  it('UTCID19 ném BadRequestException với payload độc hại', () => {
+describe('BE-THM-05 PaletteValidationPipe.transform', () => {
+  it('UTCID01 ném BadRequestException với payload độc hại', () => {
     const pipe = new PaletteValidationPipe();
     expect(() =>
       pipe.transform({
@@ -188,15 +188,15 @@ describe('BE-THM-06 PaletteValidationPipe', () => {
     ).toThrow(BadRequestException);
   });
 
-  it('UTCID20 trả nguyên payload khi hợp lệ', () => {
+  it('UTCID02 trả nguyên payload khi hợp lệ', () => {
     const pipe = new PaletteValidationPipe();
     const payload = { palette: validPalette };
     expect(pipe.transform(payload)).toBe(payload);
   });
 });
 
-describe('BE-THM-07 hợp đồng PALETTE_KEYS', () => {
-  it('UTCID21 có đúng 10 khoá và không có khoá trạng thái', () => {
+describe('hợp đồng PALETTE_KEYS', () => {
+  it('có đúng 10 khoá và không có khoá trạng thái', () => {
     expect(PALETTE_KEYS).toHaveLength(10);
     for (const key of PALETTE_KEYS) {
       expect(key.startsWith('--accent')).toBe(false);

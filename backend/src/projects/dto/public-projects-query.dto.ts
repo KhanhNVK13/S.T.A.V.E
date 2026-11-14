@@ -41,7 +41,7 @@ export class PublicProjectsQueryDto {
   @IsInt()
   @Min(1)
   @Max(50)
-  limit?: number = 12;
+  limit?: number = 20;
 
   @IsOptional()
   @IsString()

@@ -89,6 +89,8 @@ export interface CreateProjectPayload {
   name: string;
   description?: string | null;
   genre?: string | null;
+  visibility?: "public" | "private";
+  license?: "CC-BY" | "CC-BY-SA" | "CC-BY-NC";
 }
 
 export async function listProjects(): Promise<unknown[]> {
@@ -477,7 +479,7 @@ export interface MergeSuccessResult {
   commit: CommitRow;
 }
 
-export type ConflictChoice = "PICK_SOURCE" | "PICK_TARGET" | "PICK_CUSTOM";
+export type ConflictChoice = "PICK_SOURCE" | "PICK_TARGET" | "PICK_CUSTOM" | "KEEP_BOTH";
 
 /**
  * POST /branches/merge — UC-51.

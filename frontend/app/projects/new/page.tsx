@@ -13,6 +13,9 @@ import { Button } from "../../../components/ui/button";
 import { Field, INPUT_CLASS } from "../../../components/ui/form";
 import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { setFlashToast } from "../../../lib/flash-toast";
+import { DEFAULT_LICENSE, type ProjectLicense } from "../../../lib/license";
+import { buildCreateProjectPayload, createdToastKey, type NewProjectVisibility } from "../../../lib/new-project";
+import { NewProjectVisibilityField } from "../../../components/project/new-project-visibility";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../lib/validation";
 
 const NAME_MAX = 100;
@@ -23,6 +26,8 @@ export default function NewProjectPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [genre, setGenre] = useState("");
+  const [visibility, setVisibility] = useState<NewProjectVisibility>("private");
+  const [license, setLicense] = useState<ProjectLicense>(DEFAULT_LICENSE);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ErrorSource | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -43,12 +48,10 @@ export default function NewProjectPage() {
     setError(null);
 
     try {
-      const created = (await createProject({
-        name: name.trim(),
-        description: description.trim() || null,
-        genre: genre.trim() || null,
-      })) as { id?: string } | null;
-      setFlashToast(t("new.created"));
+      const created = (await createProject(
+        buildCreateProjectPayload({ name, description, genre, visibility, license }),
+      )) as { id?: string; visibilityKeptPrivate?: boolean } | null;
+      setFlashToast(t(createdToastKey(created)));
       router.push(created?.id ? `/projects/${created.id}/edit` : "/projects");
     } catch (err) {
       setError(errorSource(err, "new.fail"));
@@ -116,6 +119,14 @@ export default function NewProjectPage() {
                 placeholder={t("new.genrePlaceholder")}
               />
             </Field>
+
+            <NewProjectVisibilityField
+              visibility={visibility}
+              license={license}
+              onVisibilityChange={setVisibility}
+              onLicenseChange={setLicense}
+              disabled={submitting}
+            />
 
             <div className="flex gap-3">
               <Button type="submit" disabled={submitting}>

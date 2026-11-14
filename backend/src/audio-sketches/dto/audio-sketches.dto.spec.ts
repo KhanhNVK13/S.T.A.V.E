@@ -67,18 +67,15 @@ describe('BE-SKT-01 AttachSketchDto.validate(dto)', () => {
     );
   });
 
-  it.failing(
-    'UTCID05 accepts empty name with default date-time name (SRS UC-55 1.1; code requires @MinLength(1))',
-    async () => {
-      const errors = await validateAttach({
-        sketchId: validUuidV4,
-        name: '',
-        durationSec: 45.5,
-        sizeBytes: 2097152,
-      });
-      expect(errors).toHaveLength(0);
-    },
-  );
+  it('UTCID05 accepts empty name with default date-time name (SRS UC-55 1.1)', async () => {
+    const errors = await validateAttach({
+      sketchId: validUuidV4,
+      name: '',
+      durationSec: 45.5,
+      sizeBytes: 2097152,
+    });
+    expect(errors).toHaveLength(0);
+  });
 
   it('UTCID06 rejects a 101-character sketch name', async () => {
     const errors = await validateAttach({

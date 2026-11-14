@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ProjectAccessService } from './project-access.service';
+import { JamLockService } from './jam-lock.service';
+import { BranchMovedNotifier } from './branch-moved-notifier';
 
 /**
  * No controller: `ProjectAccessService` is a shared service that other
@@ -7,7 +9,7 @@ import { ProjectAccessService } from './project-access.service';
  * — no endpoint of its own.
  */
 @Module({
-  providers: [ProjectAccessService],
-  exports: [ProjectAccessService],
+  providers: [ProjectAccessService, JamLockService, BranchMovedNotifier],
+  exports: [ProjectAccessService, JamLockService, BranchMovedNotifier],
 })
 export class ProjectAccessModule {}
