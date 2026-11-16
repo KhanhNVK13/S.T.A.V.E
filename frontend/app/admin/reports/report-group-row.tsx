@@ -11,6 +11,7 @@ import { getReportDetails } from "../../../lib/admin-reports-api";
 import { useI18n } from "../../../context/i18n-context";
 import { RemoveDialog } from "./remove-dialog";
 import { RestoreDialog } from "./restore-dialog";
+import { DismissDialog } from "./dismiss-dialog";
 
 export const REPORT_COLS = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_64px_136px_auto]";
 
@@ -32,12 +33,14 @@ export function ReportGroupRow({
   onView,
   onRemoved,
   onRestored,
+  onDismissed,
 }: {
   group: ReportGroup;
   status: ReportStatusFilter;
   onView: (projectId: string) => void;
   onRemoved: () => void;
   onRestored: () => void;
+  onDismissed: () => void;
 }) {
   const { t, locale } = useI18n();
   const projectId = group.projectExists ? group.projectId : null;
@@ -45,6 +48,7 @@ export function ReportGroupRow({
   const [details, setDetails] = useState<DetailsState>({ kind: "idle" });
   const [removeOpen, setRemoveOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [dismissOpen, setDismissOpen] = useState(false);
   const mounted = useRef(true);
   const panelId = useId();
 
@@ -158,6 +162,17 @@ export function ReportGroupRow({
       {restoreOpen && projectId !== null && (
         <RestoreDialog projectId={projectId} onClose={() => setRestoreOpen(false)} onRestored={onRestored} />
       )}
+      {dismissOpen && projectId !== null && details.kind === "ready" && details.items.some((item) => item.status === "pending") && (
+        <DismissDialog
+          projectId={projectId}
+          reports={details.items.filter((item) => item.status === "pending")}
+          onClose={() => setDismissOpen(false)}
+          onDismissed={() => {
+            setDismissOpen(false);
+            onDismissed();
+          }}
+        />
+      )}
 
       {projectId !== null && expanded && (
         <div id={panelId} className="border-b border-border bg-surface-subtle/40 px-3.5 py-3 last:border-b-0">
@@ -179,10 +194,18 @@ export function ReportGroupRow({
             </div>
           )}
           {details.kind === "ready" && (
-            <ul className="flex flex-col gap-3">
-              {details.items.map((item) => (
-                <li key={item.id} className="flex flex-col gap-1.5">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <>
+              {status === "open" && details.items.some((item) => item.status === "pending") && (
+                <div className="mb-3 flex justify-end">
+                  <Button variant="secondary" onClick={() => setDismissOpen(true)}>
+                    {t("rpt.dismiss")}
+                  </Button>
+                </div>
+              )}
+              <ul className="flex flex-col gap-3">
+                {details.items.map((item) => (
+                  <li key={item.id} className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                     <Badge variant="neutral">{t(REPORT_REASON_LABEL_KEYS[item.reason])}</Badge>
                     {item.resolution && (
                       <Badge variant={item.resolution === "upheld" ? "danger" : "neutral"}>
@@ -203,9 +226,10 @@ export function ReportGroupRow({
                   ) : (
                     <p className="text-xs text-muted">{t("rpt.noDetails")}</p>
                   )}
-                </li>
-              ))}
-            </ul>
+                    </li>
+                  ))}
+                </ul>
+            </>
           )}
         </div>
       )}

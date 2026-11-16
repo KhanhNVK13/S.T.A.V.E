@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
@@ -37,9 +39,13 @@ function build({ rpc, tables = {}, retentionDays = 30 }: Setup = {}) {
   const platformSettings = {
     get: getSetting,
   } as unknown as PlatformSettingsService;
+  const notifications = {
+    notify: jest.fn().mockResolvedValue(undefined),
+  };
   return {
     mock,
-    service: new AdminReportsService(mock.client, platformSettings),
+    notifications,
+    service: new AdminReportsService(mock.client, notifications as never, platformSettings),
     getSetting,
   };
 }
@@ -791,4 +797,48 @@ describe('AdminReportsService.getPreview', () => {
       );
     },
   );
+});
+
+describe('AdminReportsService.dismissReports', () => {
+  const R1 = '11111111-1111-4111-8111-111111111111';
+  const R2 = '22222222-2222-4222-8222-222222222222';
+  const ADMIN = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+  it('đóng đúng report, ghi audit và thông báo reporter', async () => {
+    const { service, mock, notifications } = build({
+      tables: {
+        reports: [
+          ok([{ id: R1, reporter_id: REPORTER }, { id: R2, reporter_id: null }]),
+          ok(null),
+        ],
+        projects: [ok({ name: 'Song A' })],
+        admin_audit_log: [ok(null)],
+      },
+    });
+    await expect(service.dismissReports(ADMIN, P1, { reportIds: [R1, R2], reason: 'Not actionable' })).resolves.toEqual({ dismissed: 2 });
+    expect(mock.builders.reports.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'resolved', resolution: 'dismissed', resolution_note: 'Not actionable', resolved_by: ADMIN }));
+    expect(notifications.notify).toHaveBeenCalledWith(REPORTER, 'report.reviewed', { projectName: 'Song A' });
+    expect(mock.builders.admin_audit_log.insert).toHaveBeenCalledWith(expect.objectContaining({ action: 'report.dismiss', target_type: 'project', target_id: P1, reason: 'Not actionable' }));
+  });
+
+  it('trả 409 khi có report pending mới', async () => {
+    const { service } = build({ tables: { reports: [ok([{ id: R1, reporter_id: REPORTER }, { id: R2, reporter_id: null }])] } });
+    await expect(service.dismissReports(ADMIN, P1, { reportIds: [R1], reason: 'Duplicate' })).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('trả 400 nếu thiếu lý do hoặc reportIds', async () => {
+    const { service } = build();
+    await expect(service.dismissReports(ADMIN, P1, { reportIds: [], reason: '   ' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('update lỗi -> 500 và không gửi notification', async () => {
+    const { service, notifications } = build({
+      tables: {
+        reports: [{ data: [{ id: R1, reporter_id: REPORTER }], error: null }, { data: null, error: { message: 'write failed' } }],
+        projects: [ok({ name: 'Song A' })],
+      },
+    });
+    await expect(service.dismissReports(ADMIN, P1, { reportIds: [R1], reason: 'Duplicate' })).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
 });

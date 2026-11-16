@@ -1,5 +1,6 @@
 import type {
   AdminReportListResponse,
+  DismissReportsResponse,
   RemovalImpact,
   RemoveProjectResult,
   ReportDetail,
@@ -27,6 +28,20 @@ export function getReportDetails(projectId: string, status: ReportStatusFilter):
 
 export function getReportPreview(projectId: string): Promise<ReportPreview> {
   return apiFetch<ReportPreview>(`/admin/reports/${encodeURIComponent(projectId)}/preview`);
+}
+
+export function dismissReports(
+  projectId: string,
+  reportIds: string[],
+  reason: string,
+): Promise<DismissReportsResponse> {
+  return apiFetch<DismissReportsResponse>(
+    `/admin/reports/${encodeURIComponent(projectId)}/dismiss`,
+    {
+      method: "POST",
+      body: JSON.stringify({ reportIds, reason }),
+    },
+  );
 }
 
 export function getRemovalImpact(projectId: string): Promise<RemovalImpact> {

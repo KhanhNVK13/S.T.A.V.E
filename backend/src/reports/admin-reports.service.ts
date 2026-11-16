@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -9,6 +11,8 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AdminReportListResponse,
+  DismissReportsConflict,
+  DismissReportsResponse,
   ReportDetail,
   ReportGroup,
   ReportPreview,
@@ -16,7 +20,9 @@ import type {
   ReportStatusFilter,
 } from '@stave/shared-types';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import type { DismissReportsDto } from './dto/dismiss-reports.dto';
 import {
   mapStatusFilter,
   summarizeSnapshot,
@@ -82,6 +88,7 @@ export class AdminReportsService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    private readonly notifications: NotificationsService,
     private readonly platformSettings: PlatformSettingsService,
   ) {}
 
@@ -207,6 +214,93 @@ export class AdminReportsService {
     }));
   }
 
+  async dismissReports(
+    adminId: string,
+    projectId: string,
+    dto: DismissReportsDto,
+  ): Promise<DismissReportsResponse> {
+    const reason = dto.reason.trim();
+    if (!reason) throw new BadRequestException('A reason is required');
+
+    const requestedIds = [...new Set(dto.reportIds)];
+    if (requestedIds.length === 0) {
+      throw new BadRequestException('At least one report is required');
+    }
+
+    const { data: pendingRows, error: pendingError } = await this.supabase
+      .from('reports')
+      .select('id, reporter_id')
+      .eq('project_id', projectId)
+      .eq('status', 'pending')
+      .returns<{ id: string; reporter_id: string | null }[]>();
+    if (pendingError) {
+      this.logger.error(`Could not read pending reports: ${pendingError.message}`);
+      throw new InternalServerErrorException('Could not dismiss reports');
+    }
+
+    const pendingIds = new Set((pendingRows ?? []).map((row) => row.id));
+    // 5.E1: pending reports missing from the submitted list are NEW reports —
+    // surface them so the UI re-reviews instead of dismissing stale rows.
+    const newIds = (pendingRows ?? [])
+      .map((row) => row.id)
+      .filter((id) => !requestedIds.includes(id));
+    if (newIds.length > 0) {
+      const body: DismissReportsConflict = {
+        message: 'New reports were received; review the list again',
+        reportIds: newIds,
+      };
+      throw new ConflictException(body);
+    }
+    if (requestedIds.some((id) => !pendingIds.has(id))) {
+      throw new ConflictException('Some selected reports are no longer open');
+    }
+
+    const { data: project, error: projectError } = await this.supabase
+      .from('projects')
+      .select('name')
+      .eq('id', projectId)
+      .maybeSingle<{ name: string }>();
+    if (projectError) {
+      this.logger.error(`Could not read reported project: ${projectError.message}`);
+      throw new InternalServerErrorException('Could not dismiss reports');
+    }
+    if (!project) throw new NotFoundException('Project not found');
+
+    // 5.E2: the report update is the source of truth. If it fails, every row
+    // stays pending and we surface 500 before recording the outcome.
+    const resolvedAt = new Date().toISOString();
+    const { error: updateError } = await this.supabase
+      .from('reports')
+      .update({
+        status: 'resolved',
+        resolution: 'dismissed',
+        resolution_note: reason,
+        resolved_by: adminId,
+        resolved_at: resolvedAt,
+      })
+      .eq('project_id', projectId)
+      .eq('status', 'pending')
+      .in('id', requestedIds);
+    if (updateError) {
+      this.logger.error(`Could not dismiss reports: ${updateError.message}`);
+      throw new InternalServerErrorException('Could not dismiss reporters');
+    }
+
+    // Best-effort follow-up (matches the moderation-removal convention): the
+    // reports are already closed, so a notification/audit hiccup must not
+    // undo the mutation or masquerade it as a failure.
+    for (const row of pendingRows ?? []) {
+      if (requestedIds.includes(row.id) && row.reporter_id) {
+        await this.notifications.notify(row.reporter_id, 'report.reviewed', {
+          projectName: project.name,
+        });
+      }
+    }
+    await this.writeDismissAudit(adminId, projectId, reason);
+
+    return { dismissed: requestedIds.length };
+  }
+
   async getPreview(projectId: string): Promise<ReportPreview> {
     const { data: project, error: projectError } = await this.supabase
       .from('projects')
@@ -303,6 +397,27 @@ export class AdminReportsService {
   ): Promise<number> {
     const rows = await this.callGroups(filter, 1, 0);
     return rows.length > 0 ? Number(rows[0].total_groups) : 0;
+  }
+
+  private async writeDismissAudit(
+    adminId: string,
+    projectId: string,
+    reason: string,
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase.from('admin_audit_log').insert({
+        admin_id: adminId,
+        action: 'report.dismiss',
+        target_type: 'project',
+        target_id: projectId,
+        reason,
+      });
+      if (error) {
+        this.logger.error(`Could not write dismiss audit: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error(`Could not write dismiss audit: ${String(err)}`);
+    }
   }
 
   private async loadProjects(

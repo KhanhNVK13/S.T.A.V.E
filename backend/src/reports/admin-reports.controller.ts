@@ -1,22 +1,29 @@
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
+  Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import type {
   AdminReportListResponse,
+  DismissReportsResponse,
   ReportDetail,
   ReportPreview,
 } from '@stave/shared-types';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { AdminReportsService } from './admin-reports.service';
 import { ListReportsQueryDto } from './dto/list-reports-query.dto';
 import { ReportStatusQueryDto } from './dto/report-status-query.dto';
+import { DismissReportsDto } from './dto/dismiss-reports.dto';
 
 @UseGuards(JwtAuthGuard, SessionAuthGuard, AdminGuard)
 @Controller('admin/reports')
@@ -41,6 +48,16 @@ export class AdminReportsController {
       projectId,
       query.status ?? 'open',
     );
+  }
+
+  @Post(':projectId/dismiss')
+  @HttpCode(200)
+  dismiss(
+    @Req() req: AuthenticatedRequest,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Body() dto: DismissReportsDto,
+  ): Promise<DismissReportsResponse> {
+    return this.adminReportsService.dismissReports(req.user.id, projectId, dto);
   }
 
   @Get(':projectId/preview')

@@ -38,7 +38,7 @@ export default function AdminReportsPage() {
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
   const [viewing, setViewing] = useState<string | null>(null);
-  const [toast, setToast] = useState<"removed" | "restored" | null>(null);
+  const [toast, setToast] = useState<"removed" | "restored" | "dismissed" | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
   const { data, loading, error } = useApiResource(
@@ -57,6 +57,11 @@ export default function AdminReportsPage() {
 
   function handleRestored() {
     setToast("restored");
+    setReload((n) => n + 1);
+  }
+
+  function handleDismissed() {
+    setToast("dismissed");
     setReload((n) => n + 1);
   }
 
@@ -107,6 +112,7 @@ export default function AdminReportsPage() {
                   onView={setViewing}
                   onRemoved={handleRemoved}
                   onRestored={handleRestored}
+                  onDismissed={handleDismissed}
                 />
               ))}
             </RowList>
@@ -128,7 +134,15 @@ export default function AdminReportsPage() {
 
       {toast !== null && (
         <Toast
-          message={t(toast === "removed" ? "rmv.removedToast" : "rmv.restoredToast")}
+          message={
+            t(
+              toast === "removed"
+                ? "rmv.removedToast"
+                : toast === "restored"
+                  ? "rmv.restoredToast"
+                  : "rpt.dismissToast",
+            )
+          }
           variant="success"
           onDismiss={dismissToast}
         />

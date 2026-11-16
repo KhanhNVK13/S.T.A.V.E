@@ -547,6 +547,20 @@ export interface CreateReportResponse {
   id: string;
 }
 
+// Dismissing open reports (UC-103).
+/** Cap for the admin's dismiss reason, mirrored into `reports.resolution_note`. */
+export const REPORT_DISMISS_REASON_MAX_LENGTH = 500;
+
+export interface DismissReportsResponse {
+  dismissed: number;
+}
+
+/** 409 body: pending reports that appeared after the admin opened the list. */
+export interface DismissReportsConflict {
+  message: string;
+  reportIds: string[];
+}
+
 // Removing a violating project (UC-102).
 export const REMOVAL_REASON_MIN_LENGTH = 10;
 export const REMOVAL_REASON_MAX_LENGTH = 1000;
