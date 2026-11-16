@@ -9,6 +9,7 @@ import {
   declineInvitation,
   listMyInvitations,
 } from "../../lib/api-collab";
+import { ApiError } from "../../lib/api-client";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatRelativeTime } from "../../lib/format-date";
 import { useApiResource } from "../../lib/use-api-resource";
@@ -54,7 +55,11 @@ function InvitationsContent() {
       );
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setActionError(errorSource(err, "inv.acceptFail"));
+      if (err instanceof ApiError && err.status === 404) {
+        setAttempt((n) => n + 1);
+      } else {
+        setActionError(errorSource(err, "inv.acceptFail"));
+      }
     } finally {
       setActingId(null);
     }
@@ -70,7 +75,12 @@ function InvitationsContent() {
       setToastMessage(t("inv.declined"));
       setAttempt((n) => n + 1);
     } catch (err: unknown) {
-      setActionError(errorSource(err, "inv.declineFail"));
+      if (err instanceof ApiError && err.status === 404) {
+        setDeclineTarget(null);
+        setAttempt((n) => n + 1);
+      } else {
+        setActionError(errorSource(err, "inv.declineFail"));
+      }
     } finally {
       setActingId(null);
     }

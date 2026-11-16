@@ -194,6 +194,20 @@ describe('BE-PAC-02 ProjectAccessService assertions', () => {
     );
   });
 
+  it('AUTH-104 refuses the request when the collaborator permission cannot be evaluated', async () => {
+    const state: Record<string, TableState> = {
+      projects: { rows: [projectRow] },
+      project_collaborators: { rows: [], error: { message: 'db down' } },
+    };
+    const service = new ProjectAccessService(mockSupabaseClient(state));
+    await expect(service.assertCanView('p-1', 'collab-edit')).rejects.toThrow(
+      InternalServerErrorException,
+    );
+    await expect(service.assertCanEdit('p-1', 'collab-edit')).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
   it('UTCID05 propagates a DB error as InternalServerErrorException', async () => {
     const state: Record<string, TableState> = {
       projects: { rows: [projectRow], error: { message: 'db down' } },

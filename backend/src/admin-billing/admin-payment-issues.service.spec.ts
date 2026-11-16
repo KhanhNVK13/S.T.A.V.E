@@ -392,6 +392,21 @@ describe('BE-ABL-09 AdminPaymentIssuesService.resolveIssue', () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 
+  it('ADM-PAY-030 keeps the issue open when the gateway cannot verify the payment', async () => {
+    const { service, mock } = makeService('payos', new Error('timeout'), {
+      payment_issues: [ok(issueRow())],
+      transactions: [ok([txRow()])],
+    });
+    await expect(
+      service.resolveIssue(ADMIN_ID, ISSUE_ID, {
+        remedy: 'extend',
+        note: 'đền bù',
+        days: 7,
+      }),
+    ).rejects.toThrow(ConflictException);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+
   it('UTCID03 extend khi cổng unavailable → 409, sự cố giữ nguyên, không gọi RPC', async () => {
     const { service, mock } = makeService('payos', new Error('timeout'), {
       payment_issues: [ok(issueRow())],

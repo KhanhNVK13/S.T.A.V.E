@@ -220,6 +220,7 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
 
 const AUTH_CODES = [
   "invalid_credentials",
+  "login_locked",
   "identity_already_exists",
   "manual_linking_disabled",
   "single_identity_not_deletable",

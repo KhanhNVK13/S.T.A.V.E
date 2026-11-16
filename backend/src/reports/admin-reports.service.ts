@@ -151,7 +151,7 @@ export class AdminReportsService {
   }
 
   async getDetails(
-    projectId: string,
+    projectId: string | null,
     status: ReportStatusFilter,
   ): Promise<ReportDetail[]> {
     const filter = mapStatusFilter(status);
@@ -161,8 +161,11 @@ export class AdminReportsService {
       .select(
         'id, reason, details, created_at, status, resolution, reporter_id',
       )
-      .eq('project_id', projectId)
       .eq('status', filter.status);
+    query =
+      projectId === null
+        ? query.is('project_id', null)
+        : query.eq('project_id', projectId);
     if (filter.resolution) {
       query = query.eq('resolution', filter.resolution);
     }

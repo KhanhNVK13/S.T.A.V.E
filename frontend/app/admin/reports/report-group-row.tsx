@@ -130,6 +130,14 @@ export function ReportGroupRow({
           <time dateTime={group.latestAt}>{formatWhen(group.latestAt, locale)}</time>
         </RowTime>
 
+        {projectId === null && status === "open" && (
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <Button variant="secondary" onClick={() => onDismiss(group)}>
+              {t("rpt.dismissBtn")}
+            </Button>
+          </div>
+        )}
+
         {projectId !== null && (
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
             <Button variant="ghost" onClick={toggle} aria-expanded={expanded} aria-controls={panelId}>

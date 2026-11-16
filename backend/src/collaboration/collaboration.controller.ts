@@ -68,21 +68,23 @@ export class CollaborationController {
   /** POST /users/me/collaboration-invitations/:id/accept */
   @Post('users/me/collaboration-invitations/:id/accept')
   @HttpCode(HttpStatus.OK)
-  acceptInvitation(
+  async acceptInvitation(
     @CurrentUser() userId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.collaborationService.acceptInvitation(id, userId);
+    await this.collaborationService.acceptInvitation(id, userId);
+    return { ok: true };
   }
 
   /** POST /users/me/collaboration-invitations/:id/decline */
   @Post('users/me/collaboration-invitations/:id/decline')
   @HttpCode(HttpStatus.OK)
-  declineInvitation(
+  async declineInvitation(
     @CurrentUser() userId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.collaborationService.declineInvitation(id, userId);
+    await this.collaborationService.declineInvitation(id, userId);
+    return { ok: true };
   }
 
   // ==========================================================================

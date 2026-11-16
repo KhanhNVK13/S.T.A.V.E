@@ -462,6 +462,18 @@ describe('BE-AIX-03 MergeRiskService.assess(userId, sourceBranchId, targetBranch
     expect(prompt).not.toContain(userId);
   });
 
+  it('AI-013 sends only merge measurements and metadata to the AI service (BR-80)', async () => {
+    const { service, generateText } = makeService(medium());
+
+    await service.assess(userId, sourceBranchId, targetBranchId);
+
+    const prompt = generateText.mock.calls[0][0] as string;
+    expect(prompt).toContain('"conflictsCount"');
+    expect(prompt).not.toContain('"pitch"');
+    expect(prompt).not.toContain('"snapshot"');
+    expect(prompt).not.toContain(userId);
+  });
+
   it('UTCID16 returns 400 when the two branches belong to different projects', async () => {
     const { service } = makeService({
       otherProjectId: '99999999-9999-4999-8999-999999999999',

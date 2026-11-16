@@ -72,18 +72,48 @@ export async function listMyInvitations(): Promise<CollaborationInvitation[]> {
   return apiFetch<CollaborationInvitation[]>("/users/me/collaboration-invitations");
 }
 
+export const INVITATIONS_CHANGED_EVENT = "stave:invitations-changed";
+
+function announceInvitationsChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(INVITATIONS_CHANGED_EVENT));
+}
+
+async function postInvitationAction(invitationId: string, action: "accept" | "decline"): Promise<void> {
+  try {
+    await apiFetch<unknown>(`/users/me/collaboration-invitations/${invitationId}/${action}`, {
+      method: "POST",
+    });
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err;
+  }
+  announceInvitationsChanged();
+}
+
 /** POST /users/me/collaboration-invitations/:id/accept — chấp nhận, được cấp quyền. */
 export async function acceptInvitation(invitationId: string): Promise<void> {
-  await apiFetch<void>(`/users/me/collaboration-invitations/${invitationId}/accept`, {
-    method: "POST",
-  });
+  await postInvitationAction(invitationId, "accept");
 }
 
 /** POST /users/me/collaboration-invitations/:id/decline — từ chối, xoá lời mời. */
 export async function declineInvitation(invitationId: string): Promise<void> {
-  await apiFetch<void>(`/users/me/collaboration-invitations/${invitationId}/decline`, {
-    method: "POST",
-  });
+  await postInvitationAction(invitationId, "decline");
+}
+
+export interface SharedProject {
+  id: string;
+  name: string;
+  description: string | null;
+  genre: string | null;
+  visibility: "public" | "private";
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  viewer_access: "edit" | "view";
+}
+
+/** GET /projects/shared — dự án của người khác mà tôi đã chấp nhận lời mời. */
+export async function listSharedProjects(): Promise<SharedProject[]> {
+  return apiFetch<SharedProject[]>("/projects/shared");
 }
 
 // ── UC-65: đóng góp của cộng tác viên (read-only, BR-72) ────────────────

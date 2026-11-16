@@ -22,6 +22,28 @@ import { ActiveBranchService } from '../active-branch/active-branch.service';
 import { AudioSketchesService } from '../audio-sketches/audio-sketches.service';
 import { buildDefaultDraftSnapshot } from '../drafts/default-snapshot';
 
+export type ViewerAccess = 'owner' | 'edit' | 'view';
+
+function toCollaboratorView(project: ProjectRow): ProjectRow {
+  return {
+    id: project.id,
+    owner_id: project.owner_id,
+    name: project.name,
+    description: project.description,
+    visibility: project.visibility,
+    license: project.license,
+    forked_from_project_id: project.forked_from_project_id,
+    archived_at: project.archived_at,
+    created_at: project.created_at,
+    updated_at: project.updated_at,
+    play_count: project.play_count,
+    genre: project.genre,
+    moderation_hidden_at: null,
+    moderation_hidden_reason: null,
+    active_branch_id: null,
+  };
+}
+
 export const DEFAULT_BRANCH_NAME = 'main';
 export const INITIAL_COMMIT_MESSAGE = 'Initial commit';
 
@@ -157,6 +179,61 @@ export class ProjectsService {
       throw new NotFoundException('Project not found');
     }
     return data;
+  }
+
+  async getForViewer(
+    projectId: string,
+    userId: string,
+  ): Promise<ProjectRow & { viewer_access: ViewerAccess }> {
+    const { data: owned, error: ownedError } = await this.supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .eq('owner_id', userId)
+      .maybeSingle<ProjectRow>();
+    if (ownedError) {
+      throw new InternalServerErrorException('Could not load project');
+    }
+    if (owned) return { ...owned, viewer_access: 'owner' };
+
+    const level = await this.access.getAccess(projectId, userId);
+    if (level !== 'edit' && level !== 'view') {
+      throw new NotFoundException('Project not found');
+    }
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .maybeSingle<ProjectRow>();
+    if (error || !data) {
+      throw new NotFoundException('Project not found');
+    }
+    return { ...toCollaboratorView(data), viewer_access: level };
+  }
+
+  async listShared(
+    userId: string,
+  ): Promise<(ProjectRow & { viewer_access: 'edit' | 'view' })[]> {
+    const { data, error } = await this.supabase
+      .from('project_collaborators')
+      .select('permission_level, project:projects!inner(*)')
+      .eq('user_id', userId)
+      .eq('status', 'accepted')
+      .is('project.moderation_hidden_at', null);
+
+    if (error) {
+      throw new InternalServerErrorException('Could not list shared projects');
+    }
+    const rows = (data ?? []) as unknown as {
+      permission_level: 'edit' | 'view';
+      project: ProjectRow;
+    }[];
+    return rows
+      .map((row) => ({
+        ...toCollaboratorView(row.project),
+        viewer_access: row.permission_level,
+      }))
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   }
 
   /** Branch mặc định của project, chỉ nếu ownerId sở hữu project. */
@@ -347,13 +424,13 @@ export class ProjectsService {
   }
 
   /** UC-23: đổi visibility project — chỉ owner. */
-  setVisibility(
+  async setVisibility(
     projectId: string,
     ownerId: string,
     visibility: 'public' | 'private',
     license?: ProjectLicense,
   ): Promise<ProjectRow> {
-    return this.updateOwnedProject(
+    const updated = await this.updateOwnedProject(
       projectId,
       ownerId,
       (project) => {
@@ -375,6 +452,16 @@ export class ProjectsService {
             : undefined,
       },
     );
+    if (visibility === 'public') {
+      void this.activityLog?.record({
+        userId: ownerId,
+        action: 'project.published',
+        targetType: 'project',
+        targetId: projectId,
+        targetName: updated.name,
+      });
+    }
+    return updated;
   }
 
   private async isEmailVerified(userId: string): Promise<boolean> {
@@ -427,7 +514,7 @@ export class ProjectsService {
   }
 
   async deleteOwned(projectId: string, ownerId: string): Promise<void> {
-    await this.getOwned(projectId, ownerId);
+    const owned = await this.getOwned(projectId, ownerId);
 
     const { error } = await this.supabase
       .from('projects')
@@ -439,6 +526,13 @@ export class ProjectsService {
       throw new InternalServerErrorException('Could not delete project');
     }
 
+    void this.activityLog?.record({
+      userId: ownerId,
+      action: 'project.deleted',
+      targetType: 'project',
+      targetId: projectId,
+      targetName: owned.name,
+    });
     await this.audioSketches.purgeProjectFiles([projectId]);
     await this.customSounds.collectGarbage();
   }

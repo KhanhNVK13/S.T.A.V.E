@@ -53,17 +53,22 @@ export class UserApi {
 
   static async for(user: E2eUser): Promise<UserApi> {
     const env = requireTestEnv();
-    const res = await fetch(
-      `${env.SUPABASE_URL}/auth/v1/token?grant_type=password`,
-      {
-        method: "POST",
-        headers: {
-          apikey: env.SUPABASE_ANON_KEY,
-          "Content-Type": "application/json",
+    let res: Response;
+    for (let attempt = 0; ; attempt += 1) {
+      res = await fetch(
+        `${env.SUPABASE_URL}/auth/v1/token?grant_type=password`,
+        {
+          method: "POST",
+          headers: {
+            apikey: env.SUPABASE_ANON_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: user.email, password: user.password }),
         },
-        body: JSON.stringify({ email: user.email, password: user.password }),
-      },
-    );
+      );
+      if (res.status !== 429 || attempt >= 8) break;
+      await new Promise((resolve) => setTimeout(resolve, 5_000 * (attempt + 1)));
+    }
     if (!res.ok) throw new Error(`API sign-in failed (${res.status})`);
     const token = ((await res.json()) as { access_token: string }).access_token;
     const api = new UserApi(token, "");

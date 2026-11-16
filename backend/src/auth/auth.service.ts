@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -36,6 +38,17 @@ export interface SessionRow {
 }
 
 const REAUTH_WINDOW_SECONDS = 5 * 60;
+export const LOGIN_MAX_ATTEMPTS = 5;
+export const LOGIN_LOCK_MINUTES = 15;
+
+export interface PasswordGrant {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  expires_at?: number;
+  token_type?: string;
+  user?: unknown;
+}
 
 let warnedMissingAnonKey = false;
 
@@ -115,6 +128,134 @@ export class AuthService {
     if (!res.ok) {
       throw new UnauthorizedException('Could not update password');
     }
+  }
+
+  /**
+   * UC-04 / BR-07: password login with a lockout. Five consecutive failed
+   * attempts lock the email for 15 minutes; a successful login clears the
+   * counter. The password is checked with a stateless call to the token
+   * endpoint (never signInWithPassword on the shared client).
+   */
+  async login(email: string, password: string): Promise<PasswordGrant> {
+    const key = email.trim().toLowerCase();
+    const { data: attempt, error: readError } = await this.supabase
+      .from('login_attempts')
+      .select('failed_count, locked_until')
+      .eq('email', key)
+      .maybeSingle<{ failed_count: number; locked_until: string | null }>();
+    if (readError) {
+      throw new InternalServerErrorException('Could not check the sign-in');
+    }
+    const now = Date.now();
+    if (
+      attempt?.locked_until &&
+      new Date(attempt.locked_until).getTime() > now
+    ) {
+      throw this.lockedException(attempt.locked_until, now);
+    }
+
+    const url = this.config.getOrThrow<string>('SUPABASE_URL');
+    let res: Response;
+    try {
+      res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          apikey: this.authApiKey(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: key, password }),
+      });
+    } catch {
+      throw new HttpException(
+        {
+          message: 'Sign-in service is unavailable',
+          code: 'login_unavailable',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    if (res.ok) {
+      if (attempt) {
+        const { error } = await this.supabase
+          .from('login_attempts')
+          .delete()
+          .eq('email', key);
+        if (error) {
+          this.logger.warn(`Could not clear login attempts: ${error.message}`);
+        }
+      }
+      return (await res.json()) as PasswordGrant;
+    }
+
+    const body = (await res.json().catch(() => ({}))) as {
+      error_code?: string;
+      msg?: string;
+    };
+    if (res.status >= 500) {
+      throw new HttpException(
+        {
+          message: 'Sign-in service is unavailable',
+          code: 'login_unavailable',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (body.error_code !== 'invalid_credentials') {
+      throw new HttpException(
+        {
+          message: body.msg ?? 'Sign-in failed',
+          code: body.error_code ?? 'login_failed',
+        },
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const { data, error: recordError } = await this.supabase.rpc(
+      'record_failed_login',
+      {
+        p_email: key,
+        p_max_attempts: LOGIN_MAX_ATTEMPTS,
+        p_lock_minutes: LOGIN_LOCK_MINUTES,
+      },
+    );
+    const recorded = data as Array<{
+      o_failed_count: number;
+      o_locked_until: string | null;
+    }> | null;
+    if (recordError || !recorded?.[0]) {
+      throw new InternalServerErrorException('Could not record the sign-in');
+    }
+    const outcome = recorded[0];
+    if (outcome.o_locked_until) {
+      throw this.lockedException(outcome.o_locked_until, Date.now());
+    }
+    throw new HttpException(
+      {
+        message: 'Invalid login credentials',
+        code: 'invalid_credentials',
+        remainingAttempts: Math.max(
+          LOGIN_MAX_ATTEMPTS - outcome.o_failed_count,
+          0,
+        ),
+      },
+      HttpStatus.UNAUTHORIZED,
+    );
+  }
+
+  private lockedException(lockedUntil: string, now: number): HttpException {
+    const retryAfterSec = Math.max(
+      Math.ceil((new Date(lockedUntil).getTime() - now) / 1000),
+      1,
+    );
+    return new HttpException(
+      {
+        message: 'Too many failed sign-in attempts',
+        code: 'login_locked',
+        retryAfterSec,
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   /** UC-01..05 follow-up: upsert public.users after a Supabase Auth session exists. Idempotent. */

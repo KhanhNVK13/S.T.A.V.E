@@ -65,6 +65,30 @@ export async function apiFetch<T>(
   return (await res.json()) as T;
 }
 
+export interface PasswordLoginGrant {
+  access_token: string;
+  refresh_token: string;
+}
+
+export async function loginWithPassword(
+  email: string,
+  password: string,
+): Promise<PasswordLoginGrant> {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as {
+      message?: string;
+      code?: string;
+    };
+    throw new ApiError(res.status, body.message ?? `Request failed (${res.status})`, body);
+  }
+  return (await res.json()) as PasswordLoginGrant;
+}
+
 export async function revokeBusinessSession(
   sessionId: string,
   accessToken: string,

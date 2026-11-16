@@ -27,10 +27,23 @@ export default defineConfig({
         },
       ],
     },
+    actionTimeout: 20_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: /admin-settings-global/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "global-settings",
+      testMatch: /admin-settings-global/,
+      dependencies: ["chromium"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
   webServer: [
     {
       command: "npm run start",
@@ -38,7 +51,12 @@ export default defineConfig({
       url: `http://localhost:${BACKEND_PORT}`,
       reuseExistingServer: false,
       timeout: 180_000,
-      env: { ...env.backend, PORT: String(BACKEND_PORT) },
+      env: {
+        ...env.backend,
+        PORT: String(BACKEND_PORT),
+        PAYMENT_PROVIDER: "fake",
+        LOGIN_THROTTLE_LIMIT: "100000",
+      },
     },
     {
       command: `npm run dev -- --port ${FRONTEND_PORT}`,

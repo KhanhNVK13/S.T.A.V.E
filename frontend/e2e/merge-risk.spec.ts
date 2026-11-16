@@ -102,7 +102,7 @@ test.describe("UC-71 merge risk warning", () => {
     await cleanupE2eUsers();
   });
 
-  test("MRK-01 warns about HIGH risk when the two branches conflict on the same notes", async ({
+  test("AI-008 warns about HIGH risk when the two branches conflict on the same notes", async ({
     page,
   }) => {
     const { projectId } = await conflictingBranches(page);
@@ -121,7 +121,7 @@ test.describe("UC-71 merge risk warning", () => {
     ).toBeEnabled();
   });
 
-  test("MRK-02 shows LOW risk without a fake warning when the branches do not overlap", async ({
+  test("AI-009 shows LOW risk without a fake warning when the branches do not overlap", async ({
     page,
   }) => {
     const { projectId } = await disjointBranches(page);
@@ -135,7 +135,7 @@ test.describe("UC-71 merge risk warning", () => {
     await expect(panel).not.toContainText(/cảnh báo|nguy hiểm|rủi ro cao/i);
   });
 
-  test("MRK-03 cancelling the dialog changes neither branch", async ({ page }) => {
+  test("AI-010 cancelling the dialog changes neither branch", async ({ page }) => {
     const { api, projectId, branchId } = await disjointBranches(page);
     const mainBefore = await api.head((await api.branches(projectId)).find((b) => b.is_default)!.id);
     const branchBefore = await api.head(branchId);

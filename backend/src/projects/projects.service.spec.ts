@@ -67,6 +67,7 @@ function makeService(
   deps: {
     activeBranchId?: string | null;
     assertCanView?: jest.Mock;
+    getAccess?: jest.Mock;
     purgeProjectFiles?: jest.Mock;
   } = {},
 ) {
@@ -87,6 +88,7 @@ function makeService(
   } as unknown as CustomSoundsService;
   const access = {
     assertCanView: deps.assertCanView ?? jest.fn().mockResolvedValue(undefined),
+    getAccess: deps.getAccess ?? jest.fn().mockResolvedValue(null),
   };
   const activeBranch = {
     getActiveBranchId: jest.fn().mockResolvedValue(deps.activeBranchId ?? null),
@@ -386,6 +388,121 @@ describe('BE-PRJ-08 ProjectsService.getOwned(projectId, ownerId)', () => {
 
     await expect(service.getOwned(projectId, ownerId)).rejects.toThrow(
       new NotFoundException('Project not found'),
+    );
+  });
+});
+
+describe('BE-PRJ-08A ProjectsService.getForViewer(projectId, userId)', () => {
+  it('UTCID01 returns the project with viewer_access owner for the owner', async () => {
+    const project = makeProject({ active_branch_id: branchId });
+    const { service, access } = makeService([{ data: project }]);
+
+    const result = await service.getForViewer(projectId, ownerId);
+
+    expect(result).toEqual({ ...project, viewer_access: 'owner' });
+    expect(access.getAccess).not.toHaveBeenCalled();
+  });
+
+  it('UTCID02 returns the project to an accepted edit collaborator, hiding owner-only fields', async () => {
+    const project = makeProject({
+      active_branch_id: branchId,
+      moderation_hidden_reason: 'note',
+    });
+    const { service, access } = makeService(
+      [{ data: null }, { data: project }],
+      {},
+      {},
+      { getAccess: jest.fn().mockResolvedValue('edit') },
+    );
+
+    const result = await service.getForViewer(projectId, otherOwnerId);
+
+    expect(access.getAccess).toHaveBeenCalledWith(projectId, otherOwnerId);
+    expect(result.viewer_access).toBe('edit');
+    expect(result.active_branch_id).toBeNull();
+    expect(result.moderation_hidden_reason).toBeNull();
+    expect(result.name).toBe(project.name);
+  });
+
+  it('UTCID03 returns viewer_access view for a view collaborator', async () => {
+    const { service } = makeService(
+      [{ data: null }, { data: makeProject() }],
+      {},
+      {},
+      { getAccess: jest.fn().mockResolvedValue('view') },
+    );
+
+    const result = await service.getForViewer(projectId, otherOwnerId);
+    expect(result.viewer_access).toBe('view');
+  });
+
+  it('UTCID04 throws 404 for a user without access (pending collaborator or outsider)', async () => {
+    const { service } = makeService(
+      [{ data: null }],
+      {},
+      {},
+      { getAccess: jest.fn().mockResolvedValue(null) },
+    );
+
+    await expect(service.getForViewer(projectId, otherOwnerId)).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+  });
+
+  it('UTCID05 throws 404 when the project row cannot be read', async () => {
+    const { service } = makeService(
+      [{ data: null }, { data: null }],
+      {},
+      {},
+      { getAccess: jest.fn().mockResolvedValue('edit') },
+    );
+
+    await expect(service.getForViewer(projectId, otherOwnerId)).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+  });
+});
+
+describe('BE-PRJ-08B ProjectsService.listShared(userId)', () => {
+  it('UTCID01 returns accepted shared projects newest first with the collaborator level', async () => {
+    const older = makeProject({
+      id: 'a',
+      updated_at: '2026-10-01T00:00:00.000Z',
+    });
+    const newer = makeProject({
+      id: 'b',
+      updated_at: '2026-11-01T00:00:00.000Z',
+      active_branch_id: branchId,
+    });
+    const { service } = makeService([
+      {
+        data: [
+          { permission_level: 'view', project: older },
+          { permission_level: 'edit', project: newer },
+        ],
+      },
+    ]);
+
+    const result = await service.listShared(otherOwnerId);
+
+    expect(result.map((p) => [p.id, p.viewer_access])).toEqual([
+      ['b', 'edit'],
+      ['a', 'view'],
+    ]);
+    expect(result[0].active_branch_id).toBeNull();
+  });
+
+  it('UTCID02 returns an empty list when the user has no shared project', async () => {
+    const { service } = makeService([{ data: [] }]);
+    await expect(service.listShared(otherOwnerId)).resolves.toEqual([]);
+  });
+
+  it('UTCID03 throws 500 when the query fails', async () => {
+    const { service } = makeService([
+      { data: null, error: { code: '42P01', message: 'boom' } },
+    ]);
+    await expect(service.listShared(otherOwnerId)).rejects.toThrow(
+      InternalServerErrorException,
     );
   });
 });

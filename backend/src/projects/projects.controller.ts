@@ -36,9 +36,14 @@ export class ProjectsController {
     return this.projectsService.listMine(req.user.id);
   }
 
+  @Get('shared')
+  listShared(@Req() req: AuthenticatedRequest) {
+    return this.projectsService.listShared(req.user.id);
+  }
+
   @Get(':id')
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.projectsService.getOwned(id, req.user.id);
+    return this.projectsService.getForViewer(id, req.user.id);
   }
 
   /** UC-19: cập nhật thông tin project. */

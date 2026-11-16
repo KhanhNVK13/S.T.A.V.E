@@ -147,6 +147,18 @@ describe('BE-FRK-01 ForksService.fork', () => {
     );
   });
 
+  it('DISC-032 leaves no partial fork when the copy fails partway', async () => {
+    const { service, notify, rpc } = makeService(baseTables(), {
+      fork_project: { data: null, error: { code: 'XX000', message: 'boom' } },
+    });
+    await expect(service.fork(projectId, userId)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('fork_project', expect.anything());
+    expect(notify).not.toHaveBeenCalled();
+  });
+
   it('UTCID07 reports a failure of the copy and sends no notification', async () => {
     const { service, notify } = makeService(baseTables(), {
       fork_project: { data: null, error: { code: 'XX000', message: 'boom' } },
