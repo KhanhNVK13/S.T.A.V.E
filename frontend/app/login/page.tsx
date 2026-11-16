@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase-browser";
+import { ApiError, loginWithPassword } from "../../lib/api-client";
 import { authErrorSource, rawErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { takeAuthNotice } from "../../lib/auth-notice";
 import { safeRedirectPath } from "../../lib/safe-redirect";
@@ -45,10 +46,18 @@ export default function LoginPage() {
     setUnconfirmed(false);
     setResendState("idle");
     setSubmitting(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    let signInError: { code?: string; message?: string } | null = null;
+    try {
+      const grant = await loginWithPassword(email, password);
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: grant.access_token,
+        refresh_token: grant.refresh_token,
+      });
+      signInError = sessionError;
+    } catch (err) {
+      const body = err instanceof ApiError ? (err.body as { code?: string } | undefined) : undefined;
+      signInError = { code: body?.code, message: err instanceof Error ? err.message : undefined };
+    }
     setSubmitting(false);
     if (signInError) {
       setError(authErrorSource(signInError));

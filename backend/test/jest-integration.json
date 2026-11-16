@@ -6,7 +6,8 @@
   "setupFiles": ["<rootDir>/support/load-test-env.ts"],
   "testTimeout": 60000,
   "moduleNameMapper": {
-    "^uuid$": "<rootDir>/support/uuid-shim.ts"
+    "^uuid$": "<rootDir>/support/uuid-shim.ts",
+    "^(\\.{1,2}/.*)\\.js$": "$1"
   },
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"

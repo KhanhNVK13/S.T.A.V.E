@@ -496,7 +496,7 @@ export type * from "./collaboration";
 export type * from "./comments";
 // Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
 export type * from "./jam";
-export * from "./billing";
+export * from "./billing.ts";
 
 export const ACTIVITY_TYPES = [
   "signin",
@@ -865,6 +865,6 @@ export {
   THEME_PRESET_KEYS,
   THEME_PRESET_PALETTES,
   getPresetPalette,
-} from "./theme";
+} from "./theme.ts";
 
 export type * from "./notifications";

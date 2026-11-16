@@ -16,6 +16,7 @@ interface Project {
   id: string;
   name: string;
   archived_at: string | null;
+  viewer_access?: "owner" | "edit" | "view";
 }
 
 export default function EditProjectPage() {
@@ -70,6 +71,16 @@ export default function EditProjectPage() {
         ) : !project ? (
           <div className="flex h-full items-center justify-center px-4">
             <SkyLoading label={t("ed.page.loading")} />
+          </div>
+        ) : project.viewer_access === "view" ? (
+          <div className="flex h-full items-center justify-center px-4">
+            <div className="flex max-w-md flex-col items-center gap-3 rounded-card border border-border bg-surface p-6 text-center text-sm text-muted">
+              <Lock className="h-5 w-5" />
+              <p>{t("ed.page.viewOnly", { name: project.name })}</p>
+              <Link href={`/projects/${projectId}`} className="font-semibold text-accent hover:underline">
+                {t("ed.page.backToProject")}
+              </Link>
+            </div>
           </div>
         ) : project.archived_at ? (
           <div className="flex h-full items-center justify-center px-4">

@@ -46,6 +46,21 @@ export class AdminReportsController {
     });
   }
 
+  @Get('orphaned')
+  orphanedDetails(
+    @Query() query: ReportStatusQueryDto,
+  ): Promise<ReportDetail[]> {
+    return this.adminReportsService.getDetails(null, query.status ?? 'open');
+  }
+
+  @Post('orphaned/dismiss')
+  dismissOrphaned(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: DismissReportsDto,
+  ): Promise<DismissReportsResponse> {
+    return this.moderationService.dismissOrphaned(req.user.id, dto);
+  }
+
   @Get(':projectId')
   details(
     @Param('projectId', ParseUUIDPipe) projectId: string,

@@ -43,9 +43,11 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
-/** Hình dạng trả về của `GET /projects/:id` (chỉ chủ dự án gọi được). */
+/** Hình dạng trả về của `GET /projects/:id` (chủ dự án và cộng tác viên đã chấp nhận). */
 interface OwnedProject {
   id: string;
+  owner_id: string;
+  viewer_access: "owner" | "edit" | "view";
   name: string;
   description: string | null;
   genre: string | null;
@@ -72,7 +74,9 @@ interface OverviewData {
   forkCount: number | null;
   tags: string[];
   owner: PublicProject["owner"] | null;
+  ownerId: string | null;
   isOwner: boolean;
+  viewerAccess: "owner" | "edit" | "view" | null;
 }
 
 const PENDING_FORK_KEY = "stave_pending_fork";
@@ -122,11 +126,12 @@ function ProjectOverview({ id }: { id: string }) {
           forkCount: pub.fork_count,
           tags: pub.tags,
           owner: pub.owner,
+          ownerId: pub.owner.id,
           isOwner: !!user && user.id === pub.owner.id,
+          viewerAccess: null,
         });
       } catch (pubErr) {
         // Dự án riêng tư không có ở API công khai — thử API của chủ dự án.
-        // `GET /projects/:id` là `getOwned()`: gọi được nghĩa là đúng chủ.
         if (!user) {
           if (!cancelled) {
             setError(
@@ -140,6 +145,7 @@ function ProjectOverview({ id }: { id: string }) {
         try {
           const owned = (await getProject(id)) as OwnedProject;
           if (cancelled) return;
+          const ownedByMe = owned.viewer_access === "owner";
           setData({
             id: owned.id,
             name: owned.name,
@@ -152,15 +158,18 @@ function ProjectOverview({ id }: { id: string }) {
             playCount: owned.play_count,
             forkCount: null,
             tags: [],
-            owner: profile
-              ? {
-                  id: profile.id,
-                  username: profile.username,
-                  display_name: profile.display_name,
-                  avatar_url: profile.avatar_url,
-                }
-              : null,
-            isOwner: true,
+            owner:
+              ownedByMe && profile
+                ? {
+                    id: profile.id,
+                    username: profile.username,
+                    display_name: profile.display_name,
+                    avatar_url: profile.avatar_url,
+                  }
+                : null,
+            ownerId: owned.owner_id,
+            isOwner: ownedByMe,
+            viewerAccess: owned.viewer_access,
           });
         } catch (ownErr) {
           if (!cancelled) {
@@ -205,8 +214,10 @@ function ProjectOverview({ id }: { id: string }) {
     () => (collabInfo && collabInfo.projectId === id ? collabInfo.items.filter((c) => c.status === "accepted") : []),
     [collabInfo, id],
   );
-  const isCollaborator = !!user && accepted.some((c) => c.userId === user.id);
-  const collaborators = accepted.filter((c) => c.userId !== data?.owner?.id);
+  const myCollab = user ? accepted.find((c) => c.userId === user.id && c.userId !== data?.ownerId) : undefined;
+  const isCollaborator = !!myCollab;
+  const collaborators = accepted.filter((c) => c.userId !== data?.ownerId);
+  const ownerFromList = accepted.find((c) => c.userId === data?.ownerId)?.user;
 
   function switchTab(next: TabId) {
     const params = new URLSearchParams(searchParams.toString());
@@ -284,10 +295,22 @@ function ProjectOverview({ id }: { id: string }) {
     );
   }
 
-  const ownerName = data.owner?.display_name ?? data.owner?.username ?? t("project.user");
+  const owner =
+    data.owner ??
+    (ownerFromList && data.ownerId
+      ? {
+          id: data.ownerId,
+          username: ownerFromList.username,
+          display_name: ownerFromList.displayName,
+          avatar_url: ownerFromList.avatarUrl,
+        }
+      : null);
+  const ownerName = owner?.display_name ?? owner?.username ?? t("project.user");
 
+  const canEditHere =
+    data.isOwner || data.viewerAccess === "edit" || myCollab?.permissionLevel === "edit";
   const canViewHistory = data.isOwner || isCollaborator || (!!user && data.visibility === "public");
-  const readOnly = !data.isOwner;
+  const readOnly = !canEditHere;
   const canViewPublicHistory = !user && data.visibility === "public";
   const license = asLicense(data.license);
 
@@ -330,8 +353,8 @@ function ProjectOverview({ id }: { id: string }) {
                 {t("ui.home")}
               </Link>
               <span className="text-muted">/</span>
-              {data.owner ? (
-                <Link href={`/creator/${data.owner.id}`} className="hover:underline">
+              {owner ? (
+                <Link href={`/creator/${owner.id}`} className="hover:underline">
                   {ownerName}
                 </Link>
               ) : (
@@ -346,6 +369,11 @@ function ProjectOverview({ id }: { id: string }) {
                 {data.visibility === "public" ? t("project.public") : t("project.private")}
               </Badge>
               {data.archivedAt && <Badge variant="warning">{t("project.archived")}</Badge>}
+              {myCollab && (
+                <Badge variant={myCollab.permissionLevel === "edit" ? "success" : "neutral"}>
+                  {myCollab.permissionLevel === "edit" ? t("project.accessEdit") : t("project.accessView")}
+                </Badge>
+              )}
               {data.genre && <Badge variant="neutral">{data.genre}</Badge>}
               {license && data.visibility === "public" && <Badge variant="neutral">{t(LICENSE_NAME_KEYS[license])}</Badge>}
               <span>{t("project.updated", { when: formatRelativeTime(data.updatedAt) })}</span>
@@ -397,6 +425,13 @@ function ProjectOverview({ id }: { id: string }) {
                 </Link>
               </>
             )}
+            {!data.isOwner && canEditHere && !data.archivedAt && (
+              <Link href={`/projects/${data.id}/edit`}>
+                <Button>
+                  <Piano className="h-3.5 w-3.5" /> {t("project.openEditor")}
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -434,7 +469,7 @@ function ProjectOverview({ id }: { id: string }) {
                 <ProjectHistory
                   key={`history-${refreshKey}`}
                   projectId={data.id}
-                  canEdit={data.isOwner && !data.archivedAt}
+                  canEdit={canEditHere && !data.archivedAt}
                   canOpenHistory={canViewHistory}
                 />
               )}
@@ -462,16 +497,16 @@ function ProjectOverview({ id }: { id: string }) {
             </div>
 
             <aside className="flex flex-col gap-4">
-              {data.owner && (
+              {owner && (
                 <div className="rounded-card border border-border bg-surface p-4">
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
                     {t("project.author")}
                   </h3>
-                  <Link href={`/creator/${data.owner.id}`} className="flex items-center gap-3 hover:text-accent">
-                    <Avatar id={data.owner.id} label={ownerName} imageUrl={data.owner.avatar_url} />
+                  <Link href={`/creator/${owner.id}`} className="flex items-center gap-3 hover:text-accent">
+                    <Avatar id={owner.id} label={ownerName} imageUrl={owner.avatar_url} />
                     <div className="min-w-0">
                       <p className="truncate text-[13px] font-semibold">{ownerName}</p>
-                      <p className="truncate font-mono text-xs text-muted">@{data.owner.username ?? "unknown"}</p>
+                      <p className="truncate font-mono text-xs text-muted">@{owner.username ?? "unknown"}</p>
                     </div>
                   </Link>
                 </div>

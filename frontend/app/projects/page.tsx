@@ -21,6 +21,7 @@ import { Button, buttonClass } from '../../components/ui/button';
 import { Tabs } from '../../components/ui/tabs';
 import { ProjectThumb } from '../../components/ui/project-thumb';
 import { SkyEmpty, SkyLoading } from '../../components/project/sky-state';
+import { SharedProjects } from '../../components/project/shared-projects';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { Toast } from '../../components/ui/toast';
 import { INPUT_CLASS } from '../../components/ui/form';
@@ -547,6 +548,8 @@ function ProjectsContent() {
           )}
         </>
       )}
+
+      <SharedProjects />
     </div>
   );
 }

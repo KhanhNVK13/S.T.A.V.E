@@ -162,10 +162,10 @@ export default function AdminReportsPage() {
         />
       )}
 
-      {dismissing?.projectId && (
+      {dismissing && (
         <DismissReportsDialog
-          projectId={dismissing.projectId}
-          projectName={dismissing.projectName ?? ""}
+          projectId={dismissing.projectId ?? "orphaned"}
+          projectName={dismissing.projectName ?? t("rpt.orphanTitle")}
           onClose={() => setDismissing(null)}
           onDismissed={() => finish(t("rpt.dismissDone"))}
         />

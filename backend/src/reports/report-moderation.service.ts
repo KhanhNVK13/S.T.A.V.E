@@ -232,6 +232,51 @@ export class ReportModerationService {
     return { dismissed: (row.o_pending_ids ?? []).length };
   }
 
+  async dismissOrphaned(
+    adminId: string,
+    dto: DismissReportsDto,
+  ): Promise<DismissReportsResponse> {
+    const { data, error } = await this.supabase
+      .from('reports')
+      .update({
+        status: 'resolved',
+        resolution: 'dismissed',
+        resolution_note: dto.reason,
+        resolved_by: adminId,
+        resolved_at: new Date().toISOString(),
+      })
+      .is('project_id', null)
+      .eq('status', 'pending')
+      .in('id', dto.reportIds)
+      .select('id');
+    if (error) {
+      this.logger.error(`Could not dismiss orphaned reports: ${error.message}`);
+      throw new InternalServerErrorException('Could not dismiss reports');
+    }
+    const closed = (data ?? []).length;
+    if (closed === 0) {
+      throw new ConflictException({
+        message: 'The open reports changed',
+        code: 'REPORTS_CHANGED',
+        pendingReportIds: [],
+      });
+    }
+    const { error: auditError } = await this.supabase
+      .from('admin_audit_log')
+      .insert({
+        admin_id: adminId,
+        action: 'report.dismiss_orphaned',
+        target_type: 'report',
+        reason: dto.reason,
+      });
+    if (auditError) {
+      this.logger.error(
+        `Could not write the audit entry: ${auditError.message}`,
+      );
+    }
+    return { dismissed: closed };
+  }
+
   async restoreProject(
     adminId: string,
     projectId: string,

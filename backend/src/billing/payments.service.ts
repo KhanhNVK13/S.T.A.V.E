@@ -9,6 +9,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
@@ -18,6 +19,7 @@ import type {
   PaymentOrder,
   PaymentOrderStatus,
 } from '@stave/shared-types';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { PLAN_COLUMNS, type PlanRow } from './effective-plan';
@@ -119,6 +121,7 @@ export class PaymentsService {
     private readonly frontendUrl: string,
     private readonly subscriptions: SubscriptionsService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly activityLog?: ActivityLogService,
   ) {}
 
   async createCheckout(
@@ -233,6 +236,15 @@ export class PaymentsService {
         orderCode,
       },
     );
+    if (result.status === 'success' && result.activated) {
+      void this.activityLog?.record({
+        userId: result.userId,
+        action: 'subscription.started',
+        targetType: 'subscription',
+        targetId: result.subscriptionId ?? undefined,
+        targetName: result.planName ?? undefined,
+      });
+    }
     return result;
   }
 

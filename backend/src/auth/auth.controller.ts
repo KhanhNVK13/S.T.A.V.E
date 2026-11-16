@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Req,
@@ -18,10 +19,24 @@ import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { RegisterSessionDto } from './dto/register-session.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({
+    default: {
+      limit: () => Number(process.env.LOGIN_THROTTLE_LIMIT ?? 30),
+      ttl: 10 * 60_000,
+    },
+  })
+  @HttpCode(200)
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto.email, dto.password);
+  }
 
   @UseGuards(JwtAuthGuard)
   @Post('sync-profile')

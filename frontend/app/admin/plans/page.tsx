@@ -37,7 +37,8 @@ const EMPTY_FEATURES: FeatureValues = Object.fromEntries(
 
 /** Ngày sớm nhất được đổi giá — admin phải báo trước tối thiểu NOTICE_DAYS ngày. */
 function earliestPriceChange(): Date {
-  return new Date(Date.now() + NOTICE_DAYS * 24 * 60 * 60 * 1000);
+  const minute = 60 * 1000;
+  return new Date(Math.ceil((Date.now() + NOTICE_DAYS * 24 * 60 * 60 * 1000) / minute) * minute);
 }
 
 function toDateTimeLocal(date: Date): string {

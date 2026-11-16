@@ -1,4 +1,4 @@
-import { AlertTriangle, Bell, BellRing, Compass, Flag, FolderOpen, House, LayoutDashboard, Music4, Package, Receipt, Shield, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Bell, BellRing, Compass, Flag, FolderOpen, House, LayoutDashboard, MailPlus, Music4, Package, Receipt, Shield, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
 import type { TKey } from "../../lib/i18n";
 
 export interface ShellNavItem {
@@ -23,6 +23,7 @@ export function usesPublicShell(pathname: string): boolean {
 export const APP_NAV: ShellNavItem[] = [
   { id: "home", href: "/", label: "nav.home", icon: House },
   { id: "projects", href: "/projects", label: "nav.projects", icon: FolderOpen },
+  { id: "invitations", href: "/invitations", label: "nav.invitations", icon: MailPlus },
   { id: "explore", href: "/explore", label: "nav.explore", icon: Compass },
   { id: "rankings", href: "/rankings", label: "nav.rankings", icon: Trophy },
   { id: "notifications", href: "/notifications", label: "nav.notifications", icon: Bell },

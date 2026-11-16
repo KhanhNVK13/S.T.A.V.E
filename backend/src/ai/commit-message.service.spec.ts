@@ -164,6 +164,26 @@ describe('BE-AIX-05 CommitMessageService.suggest', () => {
     expect(flat).not.toContain('email'); // no personal data
   });
 
+  it('AI-007 sends only the change summary and metadata to the AI service (BR-80)', async () => {
+    const { service, gemini } = buildService({
+      head: headWith({ tracks: [track('t1', 'Piano')], notes: [note('n1')] }),
+      draft: headWith({
+        tracks: [track('t1', 'Piano')],
+        notes: [note('n1'), note('n2', 't1', 3840)],
+      }),
+    });
+
+    await service.suggest(PROJECT, null, USER);
+
+    const [prompt] = gemini.mock.calls[0];
+    const flat = JSON.stringify(prompt);
+    expect(flat).toContain('notesAdded');
+    expect(flat).not.toContain('"pitch"');
+    expect(flat).not.toContain('"velocity"');
+    expect(flat).not.toContain(USER);
+    expect(flat).not.toContain('email');
+  });
+
   it('UTCID02 includes the tempo change in the summary when meta changed', async () => {
     const { service, gemini } = buildService({
       head: headWith(),

@@ -214,6 +214,7 @@ export default function ProjectSettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<ErrorSource | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [notOwner, setNotOwner] = useState(false);
   const [visibilitySuccess, setVisibilitySuccess] = useState<string | null>(null);
   const [settingVisibility, setSettingVisibility] = useState(false);
   const [pendingVisibility, setPendingVisibility] = useState<ProjectVisibility | null>(null);
@@ -226,8 +227,12 @@ export default function ProjectSettingsPage() {
     void (async () => {
       setLoading(true);
       try {
-        const data = (await getProject(projectId)) as Project;
-        setProject(data);
+        const data = (await getProject(projectId)) as Project & { viewer_access?: string };
+        if (data.viewer_access && data.viewer_access !== "owner") {
+          setNotOwner(true);
+        } else {
+          setProject(data);
+        }
       } catch (err) {
         setError(errorSource(err, "pset.loadFail"));
       } finally {
@@ -340,6 +345,18 @@ export default function ProjectSettingsPage() {
         />
 
         {loading && <SkyLoading label={t("pset.loading")} />}
+
+        {notOwner && !loading && (
+          <div
+            role="alert"
+            className="mb-4 rounded-card border border-border bg-surface p-4 text-sm text-muted"
+          >
+            {t("settings.ownerOnly")}{" "}
+            <Link href={`/projects/${projectId}`} className="font-semibold text-accent hover:underline">
+              {t("ed.page.backToProject")}
+            </Link>
+          </div>
+        )}
 
         {error && !loading && (
           <div

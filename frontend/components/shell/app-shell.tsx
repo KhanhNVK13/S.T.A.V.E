@@ -6,6 +6,8 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import { LogOut, Menu, Plus, Search, Settings, X } from "lucide-react";
 import { useAuth } from "../../context/auth-context";
 import { useT } from "../../context/i18n-context";
+import type { TKey } from "../../lib/i18n";
+import { usePendingInvitationCount } from "../../lib/use-pending-invitation-count";
 import { isDialogOpen, useDialog } from "../../lib/use-dialog";
 import { LanguageSwitch } from "../language-switch";
 import { useUnreadNotificationCount } from "../notification-bell";
@@ -50,7 +52,17 @@ function rowClass(active: boolean) {
   }`;
 }
 
-function NavLink({ item, pathname, count }: { item: ShellNavItem; pathname: string; count?: number }) {
+function NavLink({
+  item,
+  pathname,
+  count,
+  countLabel = "nav.notificationsUnread",
+}: {
+  item: ShellNavItem;
+  pathname: string;
+  count?: number;
+  countLabel?: TKey;
+}) {
   const t = useT();
   const active = isActivePath(pathname, item.href);
   const Icon = item.icon;
@@ -59,7 +71,7 @@ function NavLink({ item, pathname, count }: { item: ShellNavItem; pathname: stri
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      aria-label={showCount ? t("nav.notificationsUnread", { n: count }) : undefined}
+      aria-label={showCount ? t(countLabel, { n: count }) : undefined}
       className={rowClass(active)}
     >
       <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 ${active ? "text-accent" : ""}`} />
@@ -89,6 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [findOpen, setFindOpen] = useState(false);
   const sessionReady = useSessionReady();
   const unread = useUnreadNotificationCount(sessionReady);
+  const pendingInvitations = usePendingInvitationCount(sessionReady);
   const recent = useRecentProjects(sessionReady);
   const { requestSignOut, signOutDialog } = useSignOut();
 
@@ -191,7 +204,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.id}
                 item={item}
                 pathname={pathname}
-                count={item.id === "notifications" ? unread : undefined}
+                count={
+                  item.id === "notifications" ? unread : item.id === "invitations" ? pendingInvitations : undefined
+                }
+                countLabel={item.id === "invitations" ? "nav.invitationsPending" : undefined}
               />
             ))}
           </nav>
