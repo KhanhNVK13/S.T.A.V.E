@@ -105,7 +105,7 @@ test.describe("UC-94..95 Jam Admin Configuration & End Flow", () => {
     ).toBeVisible();
 
     // 2. Verify Tên sự kiện is disabled and dimmed with locked badge
-    const nameInput = dialog.locator('input[placeholder="Nhập tên sự kiện Jam..."]');
+    const nameInput = dialog.locator('input[placeholder="Nhập tên sự kiện Jam…"]');
     await expect(nameInput).toBeDisabled();
     await expect(nameInput).toHaveClass(/opacity-60/);
     await expect(nameInput).toHaveClass(/cursor-not-allowed/);

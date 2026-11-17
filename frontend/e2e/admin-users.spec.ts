@@ -237,7 +237,10 @@ test.describe("Admin - User Management", () => {
     const buttons = rowOf(page, a.username).getByRole("button");
     const names = await buttons.allInnerTexts();
     expect(names.join(" ")).not.toMatch(/mở|phát|xuất|open|play|export/i);
-    expect(await rowOf(page, a.username).getByRole("link").count()).toBe(0);
+    const hrefs = await rowOf(page, a.username)
+      .getByRole("link")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+    expect(hrefs.filter((href) => href.startsWith("/projects"))).toEqual([]);
 
     await page.goto(`/projects/${project.id}/edit`);
     await expect(

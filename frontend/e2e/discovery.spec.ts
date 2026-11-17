@@ -54,7 +54,9 @@ async function listedPlays(name: string): Promise<number> {
 }
 
 function titleLinks(page: Page) {
-  return page.locator('main a[href^="/projects/"]');
+  return page.locator(
+    'section[aria-labelledby="explore-all"] a[href^="/projects/"], main:not(:has(section[aria-labelledby="explore-all"])) a[href^="/projects/"]',
+  );
 }
 
 async function titles(page: Page) {
@@ -89,7 +91,7 @@ test.describe("Community and discovery", () => {
       "Other Pop",
       "Other Rock",
     ]);
-    await page.getByLabel("Lọc theo thể loại").selectOption("Jazz");
+    await page.getByRole("button", { name: "Jazz", exact: true }).click();
     await expect(titleLinks(page)).toHaveCount(2);
     await page.locator('input[name="q"]').fill("Public");
     await expect(titleLinks(page)).toHaveCount(1);
@@ -212,13 +214,13 @@ test.describe("Community and discovery", () => {
     await waitForList(page);
     await page.locator('input[name="q"]').fill("zzqx_no_match_123");
     await expect(page).toHaveURL(/search=zzqx_no_match_123/);
-    await page.getByLabel("Lọc theo thể loại").selectOption("Jazz");
+    await page.getByRole("button", { name: "Jazz", exact: true }).click();
     await expect(page.getByText("Không tìm thấy dự án nào.")).toBeVisible();
     await expect(page.getByRole("button", { name: /xoá bộ lọc/i })).toBeVisible();
     await expect(page.locator('input[name="q"]')).toHaveValue(
       "zzqx_no_match_123",
     );
-    await expect(page.getByLabel("Lọc theo thể loại")).toHaveValue("Jazz");
+    await expect(page.getByRole("button", { name: "Jazz", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByText(/không thể tải|có lỗi/i)).toHaveCount(0);
   });
 

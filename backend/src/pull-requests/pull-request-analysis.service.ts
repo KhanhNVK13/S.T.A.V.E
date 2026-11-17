@@ -11,6 +11,11 @@ import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import { BranchesService } from '../branches/branches.service';
 import { DiffService, type SnapshotDiff } from '../commits/diff.service';
 import { MergeService } from '../merge/merge.service';
+import {
+  assessMergeRisk,
+  touchedNoteIds,
+  type MergeRiskLevel,
+} from '../ai/merge-risk';
 
 const MAX_CHAIN = 2000;
 
@@ -37,6 +42,18 @@ export interface PullRequestCommit {
   createdAt: string;
 }
 
+export interface PullRequestRisk {
+  level: MergeRiskLevel;
+  metrics: {
+    sourceChanged: number;
+    targetChanged: number;
+    overlap: number;
+    conflictsCount: number;
+    sourceCommits: number;
+    targetCommits: number;
+  };
+}
+
 export interface PullRequestAnalysis {
   sourceBranch: BranchInfo;
   targetBranch: BranchInfo;
@@ -45,6 +62,7 @@ export interface PullRequestAnalysis {
   summary: SnapshotDiff;
   targetChanges: SnapshotDiff;
   conflictsCount: number;
+  risk: PullRequestRisk;
   conflictsByBar: ReturnType<MergeService['previewMerge']>['conflictsByBar'];
   baseSnapshot: DraftSnapshot | null;
   sourceSnapshot: DraftSnapshot | null;
@@ -126,14 +144,36 @@ export class PullRequestAnalysisService {
 
     const conflicts = this.merge.previewMerge(base, source, target);
 
+    const sourceDiff = this.diff.compareSnapshots(base, source);
+    const targetDiff = this.diff.compareSnapshots(base, target);
+    const sourceTouched = touchedNoteIds(base, source);
+    const targetTouched = touchedNoteIds(base, target);
+    let overlap = 0;
+    for (const id of sourceTouched) if (targetTouched.has(id)) overlap += 1;
+    const baseAncestors = new Set(
+      await this.branches.getAncestorIds(baseCommitId),
+    );
+    const targetCommits = [...targetAncestors].filter(
+      (id) => !baseAncestors.has(id),
+    ).length;
+    const riskMetrics = {
+      sourceChanged: sourceDiff.summary.notes.totalChanges,
+      targetChanged: targetDiff.summary.notes.totalChanges,
+      overlap,
+      conflictsCount: conflicts.conflictsCount,
+      sourceCommits: newCommits.length,
+      targetCommits,
+    };
+
     return {
       sourceBranch,
       targetBranch,
       baseCommitId,
       newCommits,
-      summary: this.diff.compareSnapshots(base, source),
-      targetChanges: this.diff.compareSnapshots(base, target),
+      summary: sourceDiff,
+      targetChanges: targetDiff,
       conflictsCount: conflicts.conflictsCount,
+      risk: { level: assessMergeRisk(riskMetrics), metrics: riskMetrics },
       conflictsByBar: conflicts.conflictsByBar,
       baseSnapshot,
       sourceSnapshot,

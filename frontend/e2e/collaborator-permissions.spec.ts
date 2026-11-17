@@ -127,8 +127,7 @@ test.describe("Collaborator permissions", () => {
     await expect(page.getByText(/quyền xem/i).first()).toBeVisible();
   });
 
-  test("Blocked by DFID123, BRN-010 a view-only collaborator cannot create a branch", async ({ page }) => {
-    test.fail(true, DFID123);
+  test("BRN-010 a view-only collaborator cannot create a branch", async ({ page }) => {
     const { a, b, id } = await shared("view");
     expect(await status(b.api.createBranch(id, "sneaky"))).toBe(403);
     expect(await a.api.branchNames(id)).toEqual(["main"]);
@@ -138,8 +137,7 @@ test.describe("Collaborator permissions", () => {
     await expect(page.getByRole("heading", { name: "Test Song" })).toBeVisible();
   });
 
-  test("Blocked by DFID123, BRN-032 a view-only collaborator is not offered merge", async ({ page }) => {
-    test.fail(true, DFID123);
+  test("BRN-032 a view-only collaborator is not offered merge", async ({ page }) => {
     const { a, b, id, branchId } = await shared("view");
     const alt = await a.api.createBranch(id, "alt-chorus");
     await a.api.commitOnBranch(id, branchId, alt.id, [...NOTES, { id: "a1", start: 8 * BAR, trackId: "track-2" }], "Alt notes");
@@ -152,8 +150,7 @@ test.describe("Collaborator permissions", () => {
     await expect(page.getByRole("button", { name: /hợp nhất vào main/i })).toHaveCount(0);
   });
 
-  test("Blocked by DFID123, BRN-041 a view-only collaborator cannot delete a branch", async ({ page }) => {
-    test.fail(true, DFID123);
+  test("BRN-041 a view-only collaborator cannot delete a branch", async ({ page }) => {
     const { a, b, id } = await shared("view");
     const experiment = await a.api.createBranch(id, "experiment");
     expect(await status(b.api.call("DELETE", `/branches/${experiment.id}`))).toBe(403);
@@ -181,8 +178,7 @@ test.describe("Collaborator permissions", () => {
     ["PRJ-028", "a collaborator cannot delete the project", (b: Person, id: string) => b.api.call("DELETE", `/projects/${id}`)],
     ["PRJ-039", "a collaborator cannot change visibility", (b: Person, id: string) => b.api.setVisibility(id, "public")],
   ] as const) {
-    test(`Blocked by DFID123, ${caseId} ${title}`, async ({ page }) => {
-      test.fail(true, `${DFID123}; the project is also missing from the collaborator's dashboard`);
+    test(`${caseId} ${title}`, async ({ page }) => {
       const { a, b, id } = await shared("edit");
       expect(await status(call(b, id))).toBeGreaterThanOrEqual(400);
       const project = (await a.api.call("GET", `/projects/${id}`)) as { name: string; visibility: string; archived_at: string | null };

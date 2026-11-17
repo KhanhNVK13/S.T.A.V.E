@@ -251,6 +251,28 @@ export function AudioSketchPanel({
     };
   }, [recorder.blob]);
 
+  // Cầu nối cho kiểm thử tự động: nạp một bản ghi giả có độ dài tuỳ ý vào bước cắt.
+  // Chỉ bật khi build có NEXT_PUBLIC_E2E_HOOKS=1 (dùng trong Playwright), không có ở bản thật.
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_E2E_HOOKS !== "1") return;
+    const target = window as unknown as { __staveLoadRecording?: (seconds: number) => void };
+    target.__staveLoadRecording = (seconds: number) => {
+      const rate = 8000;
+      const context = new AudioContext();
+      const loaded = context.createBuffer(1, Math.round(seconds * rate), rate);
+      const data = loaded.getChannelData(0);
+      for (let i = 0; i < data.length; i += 1) data[i] = Math.sin(i / 20) * 0.4;
+      void context.close();
+      setBuffer(loaded);
+      setPeaks(computeWaveformPeaks(loaded, PEAK_COUNT));
+      setTrim({ start: 0, end: loaded.duration });
+      setName("Test recording");
+    };
+    return () => {
+      delete target.__staveLoadRecording;
+    };
+  }, []);
+
   function discardRecording() {
     audioRef.current?.pause();
     setPlayingId(null);

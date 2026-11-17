@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ImageUp, Loader2 } from "lucide-react";
 import { useI18n } from "../../context/i18n-context";
-import { applyCustomPalette, resolveAppliedPalette, useTheme } from "../../context/theme-context";
+import { useTheme } from "../../context/theme-context";
 import { saveMyCustomTheme } from "../../lib/api-billing";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { loadImagePixels } from "../../lib/load-image-pixels";
@@ -27,7 +27,7 @@ interface ThemeFromImageProps {
 
 export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: ThemeFromImageProps) {
   const { t } = useI18n();
-  const { theme, loading: themeLoading, refresh } = useTheme();
+  const { theme, loading: themeLoading, refresh, previewKey, setPreviewKey, setPreviewPalette } = useTheme();
   const [palette, setPalette] = useState<Palette | null>(null);
   const [error, setError] = useState<ErrorSource | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,19 +39,17 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
   // API lần nữa, vì lỗi mạng không được báo nhầm thành "gói miễn phí".
   const hasPaidAccess = theme?.hasPaidAccess ?? false;
 
-  // Chưa bấm "Áp dụng và lưu" mà rời trang -> gỡ toàn bộ biến CSS tạm.
-  // Dùng ref chứ không dùng state: chỉ cần biết lúc unmount có đang xem trước
-  // hay không, và phải KHÔNG gỡ khi theme đã lưu (ThemeProvider sẽ tự áp).
-  const unsavedRef = useRef(false);
-  const themeRef = useRef(theme);
+  // Rời trang khi chưa lưu thì bỏ xem trước; ThemeProvider tự áp lại theme đã lưu.
   useEffect(() => {
-    themeRef.current = theme;
-  }, [theme]);
+    return () => setPreviewPalette(null);
+  }, [setPreviewPalette]);
+
   useEffect(() => {
-    return () => {
-      if (unsavedRef.current) applyCustomPalette(resolveAppliedPalette(themeRef.current));
-    };
-  }, []);
+    if (previewKey === null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- chọn preset thì bỏ palette trích từ ảnh chưa lưu
+    setPalette(null);
+    setPreviewPalette(null);
+  }, [previewKey, setPreviewPalette]);
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -69,9 +67,9 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
       try {
         const pixels: Rgb[] = await loadImagePixels(file);
         const next = extractPalette(pixels);
+        setPreviewKey(null);
         setPalette(next);
-        unsavedRef.current = true;
-        applyCustomPalette(next);
+        setPreviewPalette(next);
       } catch (err) {
         if (err instanceof ThemeFromImageError && err.code === "not_enough_color") {
           setError(errorSource(null, "themeImage.notEnoughColor"));
@@ -82,7 +80,7 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
         setBusy(false);
       }
     },
-    [],
+    [setPreviewKey, setPreviewPalette],
   );
 
   async function handleSave() {
@@ -91,12 +89,13 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
     setError(null);
     try {
       await saveMyCustomTheme(palette);
-      unsavedRef.current = false;
       await refresh();
+      setPreviewPalette(null);
     } catch (err) {
       // Lỗi lưu: bỏ xem trước rồi nạp lại theme ĐÃ LƯU để DOM khớp với DB
       // (không gỡ hết biến — làm vậy sẽ mất theme custom đang lưu).
       setPalette(null);
+      setPreviewPalette(null);
       await refresh();
       setError(errorSource(err, "themeImage.saveFail"));
     } finally {
@@ -107,6 +106,7 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
   function handleDiscard() {
     // Bỏ xem trước, đưa DOM về theme đang lưu (ThemeProvider tự áp lại).
     setPalette(null);
+    setPreviewPalette(null);
     void refresh();
     setError(null);
   }

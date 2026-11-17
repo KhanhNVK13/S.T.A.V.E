@@ -442,8 +442,10 @@ test.describe("Editing tools", () => {
       await openEditor(page, id);
       await selectBar2Pattern(page);
       await page.keyboard.press("Control+C");
+      await page.getByRole("link", { name: /về dự án|quay lại dự án/i }).click();
       await page.getByRole("link", { name: "Dự án của tôi" }).click();
-      await page.locator(`a[href="/projects/${second.id}/edit"]`).click();
+      await page.getByText("Second Song").first().click();
+      await page.getByRole("link", { name: "Mở trình soạn nhạc" }).click();
       await page.getByRole("button", { name: /^File$/ }).waitFor();
       await page.waitForLoadState("networkidle");
       await seekTo(page, 2 * BAR);

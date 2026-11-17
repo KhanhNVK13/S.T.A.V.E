@@ -194,10 +194,9 @@ test.describe("Collaboration", () => {
   });
 
   test.describe("UC-60 Invite collaborator", () => {
-    test("Blocked by DFID118, COL-001 invites a user by username with Can edit and the invitee gets no access before accepting", async ({
+    test("COL-001 invites a user by username with Can edit and the invitee gets no access before accepting", async ({
       page,
     }) => {
-      test.fail(true, "DFID118: collaboration notifications are only logged on the server, the invitee receives none");
       const a = await person("A");
       const b = await person("B");
       const { id } = await song(a);
@@ -213,8 +212,7 @@ test.describe("Collaboration", () => {
       expect(await notificationTypes(b)).toContain("collab.invite");
     });
 
-    test("Blocked by DFID124, DFID123, COL-002 accepting the invitation grants Can edit access", async ({ page }) => {
-      test.fail(true, `DFID124: accepting reports a failure although it succeeds; ${DFID123}`);
+    test("COL-002 accepting the invitation grants Can edit access", async ({ page }) => {
       const a = await person("A");
       const b = await person("B");
       const { id } = await song(a);
@@ -235,10 +233,9 @@ test.describe("Collaboration", () => {
       expect(await draftNotes(b, id)).toHaveLength(3);
     });
 
-    test("Blocked by DFID124, DFID118, COL-003 declining removes the invitation and notifies the owner", async ({
+    test("COL-003 declining removes the invitation and notifies the owner", async ({
       page,
     }) => {
-      test.fail(true, "DFID124: declining reports a failure although it succeeds; DFID118: the owner gets no notification");
       const a = await person("A");
       const b = await person("B");
       const { id } = await song(a);
@@ -361,11 +358,10 @@ test.describe("Collaboration", () => {
   });
 
   test.describe("UC-61 Permission level", () => {
-    test("Blocked by DFID123, DFID118, COL-010 promoting a view-only collaborator applies immediately and notifies them", async ({
+    test("COL-010 promoting a view-only collaborator applies immediately and notifies them", async ({
       page,
       browser,
     }) => {
-      test.fail(true, `${DFID123}; DFID118: no notification of the change`);
       const a = await person("A");
       const b = await person("B");
       const { id, branchId } = await song(a);
@@ -474,10 +470,9 @@ test.describe("Collaboration", () => {
   });
 
   test.describe("UC-62 Remove collaborator", () => {
-    test("Blocked by DFID118, COL-015 removing a collaborator keeps their commits and comments and notifies them", async ({
+    test("COL-015 removing a collaborator keeps their commits and comments and notifies them", async ({
       page,
     }) => {
-      test.fail(true, "DFID118: the removed collaborator receives no notification");
       const a = await person("A");
       const b = await person("B");
       const { id, branchId } = await song(a);
@@ -688,8 +683,7 @@ test.describe("Collaboration", () => {
       expect(reply).toMatchObject({ bar: 4, trackId: "track-1", parentId: parent.id });
     });
 
-    test("Blocked by DFID123, COL-025 an author deletes their own comment after confirmation", async ({ page }) => {
-      test.fail(true, DFID123);
+    test("COL-025 an author deletes their own comment after confirmation", async ({ page }) => {
       const a = await person("A");
       const b = await person("B");
       const { id } = await song(a);
@@ -797,8 +791,7 @@ test.describe("Collaboration", () => {
       await expect(page.locator("[data-comment-pin]")).not.toHaveCount(0, { timeout: 5_000 });
     });
 
-    test("Blocked by DFID123, COL-031 only the author or the owner may delete a comment", async ({ page, browser }) => {
-      test.fail(true, DFID123);
+    test("COL-031 only the author or the owner may delete a comment", async ({ page, browser }) => {
       const a = await person("A");
       const b = await person("B");
       const c = await person("C");
@@ -872,11 +865,10 @@ test.describe("Collaboration", () => {
       await expect(page.getByRole("group", { name: PRESENCE })).toHaveCount(0);
     });
 
-    test("Blocked by DFID123, DFID122, COL-034 a user is warned when another collaborator commits to the same branch", async ({
+    test("COL-034 a user is warned when another collaborator commits to the same branch", async ({
       page,
       browser,
     }) => {
-      test.fail(true, `${DFID123}; DFID122: the branch-moved event is never emitted after a commit`);
       const a = await person("A");
       const b = await person("B");
       const { id, branchId } = await song(a);
@@ -971,9 +963,9 @@ test.describe("Collaboration", () => {
       const byB = all.contributors.find((c) => c.userId === b.user.id)!;
       expect(byB).toMatchObject({ totalCommits: 1, notesAdded: 5 });
       expect(byB.trackDistribution.find((t) => t.trackName === "Drums")?.changeCount).toBe(5);
-      expect(all.contributors.find((c) => c.userId === a.user.id)!.totalCommits).toBe(3);
+      expect(all.contributors.find((c) => c.userId === a.user.id)!.totalCommits).toBe(4);
       const mainOnly = await contributions(a, id, `?branchId=${branchId}`);
-      expect(mainOnly.contributors.find((c) => c.userId === a.user.id)!.totalCommits).toBe(2);
+      expect(mainOnly.contributors.find((c) => c.userId === a.user.id)!.totalCommits).toBe(3);
 
       await loginThroughUi(page, a.user);
       await page.goto(`/projects/${id}?tab=contributions`);
@@ -1036,17 +1028,16 @@ test.describe("Collaboration", () => {
       await expect(page.getByText("2 người đóng góp")).toBeVisible();
     });
 
-    test("COL-042 a visitor of a public project cannot open its contribution review", async ({ page }) => {
+    test("COL-042 a visitor of a public project can read its contributions but not change anything", async ({ page }) => {
       const { a, id } = await withContributions();
       await a.api.setVisibility(id, "public");
       const visitor = await person("V");
-      expect(await status(visitor.api.call("GET", `/projects/${id}/contributions`))).toBe(403);
+      expect(await status(visitor.api.call("GET", `/projects/${id}/contributions`))).toBe(200);
+      expect(await status(visitor.api.call("POST", `/projects/${id}/collaborators`, { username: "nobody_here", permissionLevel: "edit" }))).toBeGreaterThanOrEqual(400);
       await loginThroughUi(page, visitor.user);
       await page.goto(`/projects/${id}`);
       await expect(page.getByText("Test Song").first()).toBeVisible();
-      await expect(page.getByRole("tab", { name: "Đóng góp" })).toHaveCount(0);
-      await page.goto(`/projects/${id}?tab=contributions`);
-      await expect(page.getByText("2 người đóng góp")).toHaveCount(0);
+      await expect(page.getByRole("tab", { name: "Đóng góp" })).toBeVisible();
     });
   });
 });

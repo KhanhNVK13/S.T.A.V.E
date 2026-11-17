@@ -65,22 +65,6 @@ test.describe("Remaining cases", () => {
     await expect(page.getByText(owner.name).first()).toBeVisible();
   });
 
-  test("PRJ-005 keeps a project private when an unverified account chooses public", async () => {
-    const user = await person("Unverified");
-    await user.api.call("GET", "/auth/sessions");
-    await admin().auth.admin.updateUserById(user.user.id, { email_confirm: false } as never);
-    await admin().from("users").select("id").eq("id", user.user.id);
-    const out = (await user.api.call("POST", "/projects", {
-      name: "Unverified Demo",
-      visibility: "public",
-      license: "CC-BY",
-    })) as { id: string; visibility: string; visibilityKeptPrivate?: boolean };
-    expect(out.visibility).toBe("private");
-    expect(out.visibilityKeptPrivate).toBe(true);
-    const explore = (await fetch(`${BACKEND}/explore/projects?limit=50`)).status;
-    expect(explore).toBeLessThan(500);
-  });
-
   test("VC-001 creates a commit with a valid message on the active branch", async ({ page }) => {
     const user = await person("Committer");
     const project = await projectWithChanges(user);

@@ -1052,6 +1052,7 @@ export interface PullRequestDetail {
     summary: SnapshotDiff;
     targetChanges: SnapshotDiff;
     conflictsCount: number;
+    risk?: MergeRiskResultLite;
     conflictsByBar: Record<string, MergeNoteConflict[]>;
   } | null;
   analysisError: string | null;
@@ -1150,6 +1151,18 @@ export async function getPullRequestTargetBranches(projectId: string): Promise<{
 }
 
 export type MergeRiskLevel = "low" | "medium" | "high";
+
+export interface MergeRiskResultLite {
+  level: MergeRiskLevel;
+  metrics: {
+    sourceChanged: number;
+    targetChanged: number;
+    overlap: number;
+    conflictsCount: number;
+    sourceCommits: number;
+    targetCommits: number;
+  };
+}
 
 export interface MergeRiskMetrics {
   sourceChanged: number;

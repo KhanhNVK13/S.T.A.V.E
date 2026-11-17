@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { admin } from "./support/auth-links";
 import { UserApi } from "./support/api";
 import {
   cleanupE2eUsers,
@@ -17,6 +18,12 @@ async function setup(page: Page, withCommit = true) {
   if (withCommit) {
     await api.putDraft(project.id, [{ id: "n1" }]);
     await api.commit(project.branchId, "Change chorus");
+  } else {
+    const db = admin();
+    await db.from("branches").update({ head_commit_id: null }).eq("project_id", project.id);
+    const { data: rows } = await db.from("branches").select("id").eq("project_id", project.id);
+    const ids = (rows ?? []).map((row) => row.id as string);
+    await db.from("commits").delete().in("branch_id", ids);
   }
   await loginThroughUi(page, user);
   return { user, api, ...project };

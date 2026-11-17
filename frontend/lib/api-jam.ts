@@ -2,6 +2,7 @@ import { apiFetch } from "./api-client";
 import type {
   AvailableJamProjectDto,
   ConfigureJamEventDto,
+  CreateJamEventInput,
   JamEndEventResponse,
   JamEvent,
   JamEventListItem,
@@ -94,6 +95,17 @@ export async function adminConfigureJamEvent(
   return apiFetch<JamEvent>(`/admin/jam/events/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+}
+
+/**
+ * POST /admin/jam — tạo sự kiện Community Jam. 409 `JAM_OVERLAP_CONFLICT`
+ * khi trùng khung giờ; gửi lại kèm `confirmOverlap: true` sau khi admin xác nhận.
+ */
+export async function adminCreateJamEvent(input: CreateJamEventInput): Promise<JamEvent> {
+  return apiFetch<JamEvent>("/admin/jam", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
 }
 

@@ -120,7 +120,11 @@ function SessionsContent() {
                   {session.isCurrent && <Badge variant="success">{t("ses.current")}</Badge>}
                 </div>
               </div>
-              <span className="truncate font-mono text-xs text-muted">{session.ip_address ?? "?"}</span>
+              {session.ip_address ? (
+                <span className="truncate font-mono text-xs text-muted">{session.ip_address}</span>
+              ) : (
+                <span aria-hidden="true" />
+              )}
               <RowTime>{new Date(session.last_active_at).toLocaleString(appLocale())}</RowTime>
               <div className="md:flex md:justify-end">
                 {session.isCurrent ? (

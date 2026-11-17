@@ -19,7 +19,7 @@ import {
 import type { NotificationFilter, NotificationItem } from "../../lib/api-client";
 import { notificationText } from "../../lib/notification-text";
 import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
-import { formatRelativeTime } from "../../lib/format-date";
+import { APP_LOCALE, formatRelativeTime } from "../../lib/format-date";
 import { tNow, type TKey } from "../../lib/i18n";
 import { useI18n } from "../../context/i18n-context";
 
@@ -34,6 +34,10 @@ const EMPTY_TEXT: Record<NotificationFilter, { title: TKey; description: TKey }>
   unread: { title: "nt.emptyUnreadTitle", description: "nt.emptyUnreadBody" },
   mentions: { title: "nt.emptyMentionsTitle", description: "nt.emptyMentionsBody" },
 };
+
+function dayStart(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
 
 function NotificationsView() {
   const { t } = useI18n();
@@ -121,11 +125,25 @@ function NotificationsView() {
   }
 
   const hasUnread = items.some((entry) => !entry.read_at);
-  const allGroups: Array<{ key: string; label: TKey; items: NotificationItem[] }> = [
-    { key: "unread", label: "notificationsPage.groupUnread", items: items.filter((entry) => !entry.read_at) },
-    { key: "read", label: "notificationsPage.groupRead", items: items.filter((entry) => entry.read_at) },
-  ];
-  const groups = allGroups.filter((group) => group.items.length > 0);
+  const groups: Array<{ key: string; label: string; items: NotificationItem[] }> = [];
+  const today = dayStart(new Date());
+  for (const entry of items) {
+    const day = dayStart(new Date(entry.created_at));
+    const key = String(day.getTime());
+    let group = groups.find((candidate) => candidate.key === key);
+    if (!group) {
+      const diffDays = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+      const label =
+        diffDays === 0
+          ? t("notificationsPage.dayToday")
+          : diffDays === 1
+            ? t("notificationsPage.dayYesterday")
+            : day.toLocaleDateString(APP_LOCALE, { day: "2-digit", month: "long", year: "numeric" });
+      group = { key, label, items: [] };
+      groups.push(group);
+    }
+    group.items.push(entry);
+  }
 
   return (
     <div className="mx-auto min-h-full max-w-3xl px-5 py-8">
@@ -176,7 +194,7 @@ function NotificationsView() {
                   id={`nt-group-${group.key}`}
                   className="mb-2 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-muted"
                 >
-                  {t(group.label)}
+                  {group.label}
                   <span className="font-mono tabular-nums">{group.items.length}</span>
                   <span aria-hidden="true" className="h-px flex-1 bg-border" />
                 </h2>

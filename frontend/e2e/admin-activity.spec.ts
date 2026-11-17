@@ -87,7 +87,9 @@ test.describe("Admin user activity log", () => {
     const boss = await person("Boss", "admin");
     const subject = await person("Subject");
     await loginThroughUi(page, boss.user);
-    await page.route("**/admin/users/*/activity*", (route) =>
+    await page.route(
+      (url) => url.port === "3101" && /\/admin\/users\/[^/]+\/activity/.test(url.pathname),
+      (route) =>
       route.fulfill({ status: 500, contentType: "application/json", body: "{}" }),
     );
     await page.goto(`/admin/users/${subject.user.id}/activity`);
@@ -116,19 +118,26 @@ test.describe("Admin user activity log", () => {
     await publicProject(subject, "Public Song");
     await subject.api.createProject("Private One");
     await loginThroughUi(page, boss.user);
-    await page.route(`**/admin/users/${subject.user.id}`, (route) =>
-      route.request().method() === "DELETE"
-        ? route.fulfill({ status: 500, contentType: "application/json", body: "{}" })
-        : route.continue(),
+    await page.route(
+      (url) => url.port === "3101" && url.pathname === `/admin/users/${subject.user.id}`,
+      (route) =>
+        route.request().method() === "DELETE"
+          ? route.fulfill({ status: 500, contentType: "application/json", body: "{}" })
+          : route.continue(),
     );
     await page.goto("/admin/users");
     await page.locator('input[name="q"]').fill(subject.username);
-    await page.getByText(`@${subject.username}`).first().click();
-    await page.getByRole("button", { name: /Xoá tài khoản|Gỡ tài khoản/ }).first().click();
-    const dialog = page.locator('[role="dialog"], [role="alertdialog"]');
+    await page.getByRole("button", { name: /^Tìm$/ }).click();
+    await page
+      .getByText(`@${subject.username}`, { exact: true })
+      .first()
+      .locator("xpath=ancestor::div[contains(@class,'min-h-')][1]")
+      .getByRole("button", { name: /xoá/i })
+      .click();
+    const dialog = page.getByRole("dialog").or(page.getByRole("alertdialog")).first();
     await dialog.locator("textarea").fill("Policy violation confirmed by review");
-    await dialog.locator("input").last().fill(subject.username);
-    await dialog.getByRole("button", { name: /Xoá|Gỡ/ }).last().click();
+    await dialog.locator("input").fill(subject.username);
+    await dialog.getByRole("button", { name: /xác nhận/i }).click();
     await expect(dialog.getByRole("alert")).toBeVisible();
     const { data: user } = await admin().from("users").select("status").eq("id", subject.user.id).single();
     expect(user?.status).toBe("active");

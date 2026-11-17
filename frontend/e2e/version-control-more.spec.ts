@@ -71,7 +71,7 @@ async function openEditor(page: Page, projectId: string, head?: string) {
   ).toBeVisible();
   if (head) await expect(page.getByText(head).first()).toBeVisible();
   else
-    await expect(page.getByText(/chưa có phiên bản nào/i)).toBeVisible();
+    await expect(page.getByText("Bản nháp hiện tại").first()).toBeVisible();
 }
 
 async function drawNote(page: Page, bar: number, y = 330) {
@@ -251,13 +251,13 @@ test.describe("Version control, further cases", () => {
       const { api, branchId } = await baseAndEdit(page);
       await compare(page, 0, 1);
       const dialog = page.getByRole("dialog");
-      await expect(dialog.getByText("+2 nốt thêm")).toBeVisible();
-      await expect(dialog.getByText("−1 nốt xoá")).toBeVisible();
-      await expect(dialog.getByText("~1 nốt sửa")).toBeVisible();
+      await expect(dialog.locator("dt", { hasText: "Nốt được thêm" }).locator("xpath=following-sibling::dd[1]")).toHaveText("+2");
+      await expect(dialog.locator("dt", { hasText: "Nốt bị xoá" }).locator("xpath=following-sibling::dd[1]")).toHaveText("−1");
+      await expect(dialog.locator("dt", { hasText: "Nốt được đổi" }).locator("xpath=following-sibling::dd[1]")).toHaveText("~1");
       await expect(dialog.getByText(/Màu: #6366f1 → #ef4444/)).toBeVisible();
       await dialog.getByLabel("Lọc theo track").selectOption({ label: "Track 2" });
-      await expect(dialog.getByText("Ô nhịp 2")).toBeVisible();
-      await expect(dialog.getByText("Ô nhịp 1")).toHaveCount(0);
+      await expect(dialog.getByText("Ô nhịp 2").first()).toBeVisible();
+      await expect(dialog.getByText("Ô nhịp 1").first()).toHaveCount(0);
       await page.keyboard.press("Escape");
       expect((await api.history(branchId)).map((c) => c.message)).toEqual([
         "Edit",
@@ -290,7 +290,7 @@ test.describe("Version control, further cases", () => {
         .click();
       const dialog = page.getByRole("dialog", { name: /so sánh phiên bản/i });
       await expect(dialog).toBeVisible();
-      await expect(dialog.getByText(/nốt thêm/)).toBeVisible();
+      await expect(dialog.getByText("Nốt được thêm")).toBeVisible();
     });
 
     test("VC-030 swaps added and removed counts when the direction is switched", async ({
@@ -300,9 +300,9 @@ test.describe("Version control, further cases", () => {
       await compare(page, 0, 1);
       const dialog = page.getByRole("dialog");
       await dialog.getByRole("button", { name: /đảo chiều/i }).click();
-      await expect(dialog.getByText("+1 nốt thêm")).toBeVisible();
-      await expect(dialog.getByText("−2 nốt xoá")).toBeVisible();
-      await expect(dialog.getByText("~1 nốt sửa")).toBeVisible();
+      await expect(dialog.locator("dt", { hasText: "Nốt được thêm" }).locator("xpath=following-sibling::dd[1]")).toHaveText("+1");
+      await expect(dialog.locator("dt", { hasText: "Nốt bị xoá" }).locator("xpath=following-sibling::dd[1]")).toHaveText("−2");
+      await expect(dialog.locator("dt", { hasText: "Nốt được đổi" }).locator("xpath=following-sibling::dd[1]")).toHaveText("~1");
     });
 
     test("VC-031 reports that nothing changed for two identical versions", async ({
@@ -315,7 +315,7 @@ test.describe("Version control, further cases", () => {
       await expect(
         page.getByRole("dialog").getByText(/giống hệt nhau/i),
       ).toBeVisible();
-      await expect(page.getByRole("dialog").getByText(/nốt thêm/)).toHaveCount(0);
+      await expect(page.getByRole("dialog").getByText("Nốt được thêm")).toHaveCount(0);
     });
 
     test("VC-032 reports a track present in one version as a whole track", async ({
@@ -343,7 +343,7 @@ test.describe("Version control, further cases", () => {
       await expect(dialog.getByText("Thêm track")).toBeVisible();
       await expect(dialog.getByText("Strings").first()).toBeVisible();
       await expect(dialog.getByText(/8 nốt/)).toBeVisible();
-      await expect(dialog.getByText("+0 nốt thêm")).toBeVisible();
+      await expect(dialog.locator("dt", { hasText: "Nốt được thêm" }).locator("xpath=following-sibling::dd[1]")).toHaveText("+0");
     });
 
     test("VC-033 names the version that could not be read and shows no partial comparison", async ({
@@ -363,7 +363,7 @@ test.describe("Version control, further cases", () => {
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByText(/không đọc được phiên bản gốc/i)).toBeVisible();
       await expect(dialog.getByText(base.id.slice(0, 7)).first()).toBeVisible();
-      await expect(dialog.getByText(/nốt thêm/)).toHaveCount(0);
+      await expect(dialog.getByText("Nốt được thêm")).toHaveCount(0);
       expect((await api.history(branchId)).map((c) => c.id)).toEqual(
         history.map((c) => c.id),
       );
@@ -406,11 +406,11 @@ test.describe("Version control, further cases", () => {
       await openCommits(page, id, "Edit two notes");
       await compare(page, 0, 1);
       const dialog = page.getByRole("dialog");
-      await expect(dialog.getByText("~2 nốt sửa")).toBeVisible();
-      await expect(dialog.getByText("+0 nốt thêm")).toBeVisible();
-      await expect(dialog.getByText("−0 nốt xoá")).toBeVisible();
-      await expect(dialog.getByText("Ô nhịp 1")).toBeVisible();
-      await expect(dialog.getByText("Ô nhịp 2")).toBeVisible();
+      await expect(dialog.locator("dt", { hasText: "Nốt được đổi" }).locator("xpath=following-sibling::dd[1]")).toHaveText("~2");
+      await expect(dialog.locator("dt", { hasText: "Nốt được thêm" }).locator("xpath=following-sibling::dd[1]")).toHaveText("+0");
+      await expect(dialog.locator("dt", { hasText: "Nốt bị xoá" }).locator("xpath=following-sibling::dd[1]")).toHaveText("−0");
+      await expect(dialog.getByText("Ô nhịp 1").first()).toBeVisible();
+      await expect(dialog.getByText("Ô nhịp 2").first()).toBeVisible();
     });
   });
 

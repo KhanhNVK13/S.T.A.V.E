@@ -449,6 +449,48 @@ describe('BE-BIL-10 PaymentsService.completeOrder', () => {
     );
   });
 
+  it('SUB-011 records a successful payment, leaves the plan inactive and flags it for the administrator when activation fails', async () => {
+    const activityLog = { record: jest.fn().mockResolvedValue(undefined) };
+    const mock = createSupabaseMock([], {
+      rpc: {
+        billing_complete_order: rpcRow({
+          activated: false,
+          subscription_id: null,
+          activation_error: 'HTTP 500 during activation',
+          issue_created: true,
+        }),
+      },
+    });
+    const notifications = { notify: jest.fn().mockResolvedValue(undefined) };
+    const subscriptions = {
+      getEffective: jest.fn().mockResolvedValue(effective(false)),
+    };
+    const service = new PaymentsService(
+      mock.client,
+      fakeGateway(),
+      FRONTEND,
+      subscriptions as unknown as SubscriptionsService,
+      notifications as unknown as NotificationsService,
+      activityLog as never,
+    );
+
+    const result = await service.completeOrder(orderCode, true);
+
+    expect(result).toMatchObject({
+      status: 'success',
+      activated: false,
+      subscriptionId: null,
+      issueCreated: true,
+    });
+    expect(notifications.notify).toHaveBeenCalledWith(
+      userId,
+      'billing.payment_success',
+      expect.objectContaining({ orderCode }),
+    );
+    expect(activityLog.record).not.toHaveBeenCalled();
+    expect((await subscriptions.getEffective()).hasPaidAccess).toBe(false);
+  });
+
   it('UTCID06 accepts an unknown order without notifying anyone', async () => {
     const { service, notifications } = makeService({
       rpc: {

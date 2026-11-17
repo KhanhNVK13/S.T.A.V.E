@@ -8,9 +8,15 @@ import { ThemePresets } from "./theme-presets";
 const refresh = vi.fn().mockResolvedValue(undefined);
 let currentTheme: EffectiveTheme | null = null;
 
-vi.mock("../../context/theme-context", () => ({
-  useTheme: () => ({ theme: currentTheme, loading: false, refresh }),
-}));
+vi.mock("../../context/theme-context", async () => {
+  const react = await import("react");
+  return {
+    useTheme: () => {
+      const [previewKey, setPreviewKey] = react.useState<string | null>(null);
+      return { theme: currentTheme, loading: false, refresh, previewKey, setPreviewKey };
+    },
+  };
+});
 
 vi.mock("../../lib/api-billing", () => ({
   setMyPresetTheme: vi.fn(),
@@ -22,6 +28,7 @@ function theme(over: Partial<EffectiveTheme>): EffectiveTheme {
 }
 
 const REUSE = "Dùng lại theme từ ảnh đã lưu";
+const SAVE = "Lưu theme";
 
 beforeEach(() => {
   setLang("vi");
@@ -34,9 +41,12 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("ThemePresets", () => {
-  it("TPC-01: free users can pick a preset; it saves and reloads the theme", async () => {
+  it("TPC-01: free users can pick a preset; it previews first, then saves and reloads the theme", async () => {
     render(<ThemePresets />);
     fireEvent.click(screen.getByTestId("theme-preset-moss"));
+    expect(billing.setMyPresetTheme).not.toHaveBeenCalled();
+    expect(screen.getByText("Đang xem trước — chưa lưu vào tài khoản.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: SAVE }));
     await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalledWith("moss"));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
@@ -63,6 +73,7 @@ describe("ThemePresets", () => {
     currentTheme = theme({ type: "preset", presetKey: "claret" });
     render(<ThemePresets />);
     fireEvent.click(screen.getByTestId("theme-preset-space"));
+    fireEvent.click(screen.getByRole("button", { name: SAVE }));
     await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalledWith("space"));
   });
 
@@ -70,6 +81,7 @@ describe("ThemePresets", () => {
     currentTheme = theme({ type: "custom", palette: {}, hasPaidAccess: true, hasSavedCustom: true });
     render(<ThemePresets />);
     fireEvent.click(screen.getByTestId("theme-preset-moss"));
+    fireEvent.click(screen.getByRole("button", { name: SAVE }));
     expect(billing.setMyPresetTheme).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole("button", { name: "Dùng giao diện này" }));
     await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalledWith("moss"));
@@ -79,8 +91,9 @@ describe("ThemePresets", () => {
     vi.mocked(billing.setMyPresetTheme).mockRejectedValue(new Error("nope"));
     render(<ThemePresets />);
     fireEvent.click(screen.getByTestId("theme-preset-claret"));
+    fireEvent.click(screen.getByRole("button", { name: SAVE }));
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("Không lưu được giao diện màu");
+    expect(alert.textContent).toContain("Không lưu được theme");
   });
 
   it("TPC-07: paid users with a saved image theme can switch back to it", async () => {
@@ -96,6 +109,7 @@ describe("ThemePresets", () => {
     render(<ThemePresets />);
     expect(screen.getByTestId("theme-preset-space").getAttribute("aria-checked")).toBe("false");
     fireEvent.click(screen.getByTestId("theme-preset-space"));
+    fireEvent.click(screen.getByRole("button", { name: SAVE }));
     await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalledWith("space"));
   });
 
@@ -103,6 +117,7 @@ describe("ThemePresets", () => {
     currentTheme = theme({ type: "custom", palette: {}, hasPaidAccess: false, hasSavedCustom: true });
     render(<ThemePresets />);
     fireEvent.click(screen.getByTestId("theme-preset-moss"));
+    fireEvent.click(screen.getByRole("button", { name: SAVE }));
     await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalledWith("moss"));
   });
 
@@ -125,7 +140,7 @@ describe("ThemePresets", () => {
     expect(tabbable[0]).toBe(screen.getByTestId("theme-preset-tide"));
   });
 
-  it("TPC-12: arrow keys move focus and choose the next preset, with wrap-around", async () => {
+  it("TPC-12: arrow keys move focus and preview the next preset, with wrap-around", async () => {
     currentTheme = theme({ type: "preset", presetKey: "tide" });
     render(<ThemePresets />);
     const radios = screen.getAllByRole("radio");
@@ -134,7 +149,8 @@ describe("ThemePresets", () => {
     fireEvent.keyDown(tide, { key: "ArrowRight" });
     const expected = radios[(radios.indexOf(tide) + 1) % radios.length];
     expect(document.activeElement).toBe(expected);
-    await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalledTimes(1));
+    expect(expected.getAttribute("aria-checked")).toBe("true");
+    expect(billing.setMyPresetTheme).not.toHaveBeenCalled();
   });
 
   it("TPC-13: Home and End jump to the first and last preset", async () => {
@@ -142,7 +158,8 @@ describe("ThemePresets", () => {
     const radios = screen.getAllByRole("radio");
     fireEvent.keyDown(radios[0], { key: "End" });
     expect(document.activeElement).toBe(radios[radios.length - 1]);
-    await waitFor(() => expect(billing.setMyPresetTheme).toHaveBeenCalled());
+    expect(radios[radios.length - 1].getAttribute("aria-checked")).toBe("true");
+    expect(billing.setMyPresetTheme).not.toHaveBeenCalled();
     fireEvent.keyDown(radios[1], { key: "Home" });
     expect(document.activeElement).toBe(radios[0]);
   });

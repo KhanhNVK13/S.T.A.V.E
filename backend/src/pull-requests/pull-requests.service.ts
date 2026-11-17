@@ -609,6 +609,7 @@ export class PullRequestsService {
       summary: result.summary,
       targetChanges: result.targetChanges,
       conflictsCount: result.conflictsCount,
+      risk: result.risk,
       conflictsByBar: result.conflictsByBar,
       snapshots: {
         base: result.baseSnapshot,

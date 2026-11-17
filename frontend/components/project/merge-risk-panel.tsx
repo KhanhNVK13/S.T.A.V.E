@@ -64,7 +64,18 @@ export function MergeRiskPanel({
     );
   }
 
-  const { level, metrics, explanation } = state.result;
+  return <MergeRiskView result={state.result} />;
+}
+
+/** Hiển thị kết quả đã có sẵn (trang pull request nhận số liệu cùng phản hồi chi tiết). */
+export function MergeRiskView({
+  result,
+}: {
+  result: { level: MergeRiskLevel; metrics: MergeRiskResult["metrics"]; explanation?: string | null };
+}) {
+  const { t } = useI18n();
+  const { level, metrics } = result;
+  const explanation = "explanation" in result ? result.explanation : null;
 
   return (
     <div
