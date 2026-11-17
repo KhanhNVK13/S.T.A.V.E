@@ -17,6 +17,7 @@ import { DEFAULT_LICENSE, type ProjectLicense } from "../../../lib/license";
 import { buildCreateProjectPayload, createdToastKey, type NewProjectVisibility } from "../../../lib/new-project";
 import { NewProjectVisibilityField } from "../../../components/project/new-project-visibility";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../lib/validation";
+import { GENRES } from "../../../lib/genres";
 
 const NAME_MAX = 100;
 
@@ -108,16 +109,19 @@ export default function NewProjectPage() {
             </Field>
 
             <Field label={t("new.genre")}>
-              <input
+              <select
                 name="genre"
-                autoComplete="off"
-                type="text"
                 value={genre}
                 onChange={(e) => setGenre(e.target.value)}
-                maxLength={60}
                 className={`${INPUT_CLASS} h-[37px]`}
-                placeholder={t("new.genrePlaceholder")}
-              />
+              >
+                <option value="">{t("new.selectGenre")}</option>
+                {GENRES.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <NewProjectVisibilityField

@@ -27,6 +27,7 @@ import { Toast } from '../../components/ui/toast';
 import { INPUT_CLASS } from '../../components/ui/form';
 import { RowList, RowHeader, RowItem, RowTitle, RowTime } from '../../components/ui/row-list';
 import { apiErrorMessage, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
+import { GENRES } from "../../lib/genres";
 
 interface Project {
   id: string;
@@ -249,13 +250,6 @@ function ProjectsContent() {
     router.push(`/projects?${params.toString()}`);
   }
 
-  // Collect unique genres
-  const allGenres = useMemo(() => {
-    const genres = new Set<string>();
-    projects.forEach((p) => { if (p.genre) genres.add(p.genre); });
-    return Array.from(genres).sort();
-  }, [projects]);
-
   // Filter + sort
   const filteredProjects = useMemo(() => {
     let result = [...projects];
@@ -377,24 +371,22 @@ function ProjectsContent() {
           />
         </div>
 
-        {allGenres.length > 0 && (
-          <select
-            value={genre}
-            onChange={(e) => {
-              setGenre(e.target.value);
-              updateUrl({ page: null });
-            }}
-            aria-label={t('projects.filterGenre')}
-            className={`${INPUT_CLASS} h-[34px]`}
-          >
-            <option value="">{t('projects.allGenres')}</option>
-            {allGenres.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          value={genre}
+          onChange={(e) => {
+            setGenre(e.target.value);
+            updateUrl({ page: null });
+          }}
+          aria-label={t('projects.filterGenre')}
+          className={`${INPUT_CLASS} h-[34px]`}
+        >
+          <option value="">{t('projects.allGenres')}</option>
+          {GENRES.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
 
         <select
           value={sort}

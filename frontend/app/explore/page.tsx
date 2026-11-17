@@ -27,9 +27,8 @@ import { ProjectRows, ProjectRowsSkeleton } from '../../components/explore/proje
 import { FeaturedCards } from '../../components/explore/featured-cards';
 import { useI18n } from '../../context/i18n-context';
 import { tNow } from '../../lib/i18n';
+import { GENRES } from '../../lib/genres';
 import { useSpaceScene, useSpaceScroll } from '../../components/space/use-space-scene';
-
-const GENRES = ['Jazz', 'Rock', 'Pop', 'Lo-Fi', 'Electronic', 'Classical', 'Hip-Hop'] as const;
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'ex.sortNewest' },

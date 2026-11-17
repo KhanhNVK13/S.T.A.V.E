@@ -30,28 +30,28 @@ async function validateUpdate(value: Record<string, unknown>) {
 describe('BE-PRJ-01 CreateProjectDto.validate(dto)', () => {
   it('UTCID01 accepts a standard valid project name and genre', async () => {
     await expect(
-      validateCreate({ name: 'Song A', genre: 'Lo-fi' }),
+      validateCreate({ name: 'Song A', genre: 'Lo-Fi' }),
     ).resolves.toHaveLength(0);
   });
 
-  it('UTCID02 accepts boundary values: 1 char name, 2000 char desc, 60 char genre', async () => {
+  it('UTCID02 accepts boundary values: 1 char name, 2000 char desc, a valid genre', async () => {
     await expect(
       validateCreate({
         name: 'a',
         description: 'b'.repeat(2000),
-        genre: 'c'.repeat(60),
+        genre: 'World / Traditional',
       }),
     ).resolves.toHaveLength(0);
   });
 
   it('UTCID03 accepts a 100-character name', async () => {
     await expect(
-      validateCreate({ name: 'a'.repeat(100), genre: 'Lo-fi' }),
+      validateCreate({ name: 'a'.repeat(100), genre: 'Lo-Fi' }),
     ).resolves.toHaveLength(0);
   });
 
   it('UTCID04 rejects an empty project name', async () => {
-    const errors = await validateCreate({ name: '', genre: 'Lo-fi' });
+    const errors = await validateCreate({ name: '', genre: 'Lo-Fi' });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
       expect.objectContaining({
@@ -63,7 +63,7 @@ describe('BE-PRJ-01 CreateProjectDto.validate(dto)', () => {
   it('UTCID05 rejects a 101-character name (SRS BR-16: max 100 chars; code uses @MaxLength(120))', async () => {
     const errors = await validateCreate({
       name: 'a'.repeat(101),
-      genre: 'Lo-fi',
+      genre: 'Lo-Fi',
     });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
@@ -76,7 +76,7 @@ describe('BE-PRJ-01 CreateProjectDto.validate(dto)', () => {
   it('UTCID06 rejects a 120-character name (SRS BR-16: max 100 chars; code uses @MaxLength(120))', async () => {
     const errors = await validateCreate({
       name: 'a'.repeat(120),
-      genre: 'Lo-fi',
+      genre: 'Lo-Fi',
     });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
@@ -89,7 +89,7 @@ describe('BE-PRJ-01 CreateProjectDto.validate(dto)', () => {
   it('UTCID07 rejects a non-string project name', async () => {
     const errors = await validateCreate({
       name: 123,
-      genre: 'Lo-fi',
+      genre: 'Lo-Fi',
     });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
@@ -103,7 +103,7 @@ describe('BE-PRJ-01 CreateProjectDto.validate(dto)', () => {
     const errors = await validateCreate({
       name: 'Song A',
       description: 'b'.repeat(2001),
-      genre: 'Lo-fi',
+      genre: 'Lo-Fi',
     });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
@@ -114,15 +114,17 @@ describe('BE-PRJ-01 CreateProjectDto.validate(dto)', () => {
     );
   });
 
-  it('UTCID09 rejects a 61-character genre', async () => {
+  it('UTCID09 rejects a genre outside the fixed genre list', async () => {
     const errors = await validateCreate({
       name: 'Song A',
-      genre: 'c'.repeat(61),
+      genre: 'Gypsy Jazz Fusion',
     });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
       expect.objectContaining({
-        maxLength: 'genre must be shorter than or equal to 60 characters',
+        isIn: expect.stringContaining(
+          'genre must be one of the following values',
+        ),
       }),
     );
   });
@@ -340,7 +342,7 @@ describe('BE-PRJ-05 UpdateProjectDto.validate(dto)', () => {
       validateUpdate({
         name: 'Song B',
         description: 'b'.repeat(2000),
-        genre: 'c'.repeat(60),
+        genre: 'World / Traditional',
       }),
     ).resolves.toHaveLength(0);
   });
@@ -396,12 +398,14 @@ describe('BE-PRJ-05 UpdateProjectDto.validate(dto)', () => {
     );
   });
 
-  it('UTCID09 rejects a 61-character genre', async () => {
+  it('UTCID09 rejects a genre outside the fixed genre list', async () => {
     const errors = await validateUpdate({ genre: 'c'.repeat(61) });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
       expect.objectContaining({
-        maxLength: 'genre must be shorter than or equal to 60 characters',
+        isIn: expect.stringContaining(
+          'genre must be one of the following values',
+        ),
       }),
     );
   });
@@ -411,7 +415,9 @@ describe('BE-PRJ-05 UpdateProjectDto.validate(dto)', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
       expect.objectContaining({
-        isString: 'genre must be a string',
+        isIn: expect.stringContaining(
+          'genre must be one of the following values',
+        ),
       }),
     );
   });

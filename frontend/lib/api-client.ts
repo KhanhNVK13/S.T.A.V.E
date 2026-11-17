@@ -105,7 +105,7 @@ export async function revokeBusinessSession(
 export interface UpdateProjectPayload {
   name?: string;
   description?: string;
-  genre?: string;
+  genre?: string | null;
   license?: "CC-BY" | "CC-BY-SA" | "CC-BY-NC";
 }
 
