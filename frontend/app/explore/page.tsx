@@ -63,7 +63,7 @@ function ExploreContent() {
     () =>
       listPublicProjects({
         page,
-        limit: 20,
+        limit: 9,
         sort,
         genre: genre || undefined,
         search: search || undefined,
