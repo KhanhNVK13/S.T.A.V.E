@@ -49,7 +49,7 @@ const SORT_OPTIONS: { value: SortOption; label: TKey }[] = [
   { value: 'name_desc', label: 'projects.sortNameDesc' },
 ];
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 5;
 
 type Tab = 'all' | 'active' | 'archived';
 
@@ -398,7 +398,10 @@ function ProjectsContent() {
 
         <select
           value={sort}
-          onChange={(e) => setSort(e.target.value as SortOption)}
+          onChange={(e) => {
+            setSort(e.target.value as SortOption);
+            updateUrl({ page: null }); // reset to page 1 on sort change
+          }}
           aria-label={t('projects.sort')}
           className={`${INPUT_CLASS} h-[34px]`}
         >
