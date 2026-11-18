@@ -26,6 +26,7 @@ import { ConfirmDialog } from "../../../../components/ui/confirm-dialog";
 import { errorSource, renderError, type ErrorSource } from "../../../../lib/error-message";
 import { useI18n } from "../../../../context/i18n-context";
 import {validateRequired, validateMaxLength, focusFirstInvalid } from "../../../../lib/validation";
+import { GENRES, isGenre } from "../../../../lib/genres";
 import { SkyLoading } from "../../../../components/project/sky-state";
 import { LicensePicker } from "../../../../components/project/license-picker";
 import { LicenseCard, TagsCard } from "../../../../components/project/publishing-settings";
@@ -81,7 +82,10 @@ function ProjectInfoCard({
     setSaveError(null);
     setSaved(false);
     try {
-      await updateProject(project.id, { name: name.trim(), description, genre });
+      let genreToSave: string | null | undefined;
+      if (genre === "") genreToSave = null;
+      else if (isGenre(genre)) genreToSave = genre;
+      await updateProject(project.id, { name: name.trim(), description, genre: genreToSave });
       onSaved({ name: name.trim(), description: description || null, genre: genre || null });
       setSaved(true);
     } catch (err) {
@@ -132,11 +136,8 @@ function ProjectInfoCard({
           />
         </Field>
         <Field label={t("new.genre")}>
-          <input
+          <select
             name="genre"
-            autoComplete="off"
-            type="text"
-            maxLength={60}
             value={genre}
             onChange={(e) => {
               setGenre(e.target.value);
@@ -144,8 +145,17 @@ function ProjectInfoCard({
             }}
             disabled={isArchived}
             className={INPUT_CLASS}
-            placeholder={t("pset.genrePlaceholder")}
-          />
+          >
+            <option value="">{t("new.selectGenre")}</option>
+            {!isGenre(genre) && genre !== "" && (
+              <option value={genre}>{genre}</option>
+            )}
+            {GENRES.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
         </Field>
         <dl className="grid grid-cols-3 gap-y-2 text-sm">
           <dt className="text-muted">{t("pset.status")}</dt>

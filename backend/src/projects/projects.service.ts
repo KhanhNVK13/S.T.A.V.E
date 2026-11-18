@@ -309,7 +309,7 @@ export class ProjectsService {
     const updates: Partial<{
       name: string;
       description: string;
-      genre: string;
+      genre: string | null;
       license: ProjectLicense;
     }> = {};
 
