@@ -282,9 +282,9 @@ test.describe("Branch management, further cases", () => {
       .getByLabel("Chọn nhánh để xem lịch sử")
       .selectOption({ label: "alt-chorus" });
     await expect(page.getByText("Bridge idea")).toBeVisible();
-    await expect(page.locator('input[type="checkbox"]')).toHaveCount(4);
+    await expect(page.locator('input[type="checkbox"]')).toHaveCount(5);
     await expect(page.getByText("Riêng nhánh")).toHaveCount(2);
-    await expect(page.getByText("Kế thừa")).toHaveCount(2);
+    await expect(page.getByText("Kế thừa")).toHaveCount(3);
     await expect(page.getByText("Change chorus")).toHaveCount(0);
   });
 

@@ -7,6 +7,8 @@ const API_MESSAGES: Record<string, Record<Lang, string>> = {
   "Unverified account cannot open a pull request": { en: "Verify your email address before opening a pull request.", vi: "Hãy xác minh địa chỉ email trước khi mở pull request." },
   "Tags may only contain letters, numbers, hyphens and spaces": { en: "Tags may only contain letters, numbers, hyphens and spaces.", vi: "Thẻ chỉ gồm chữ, số, dấu gạch ngang và khoảng trắng." },
   "A project can have at most 5 tags": { en: "A project can have at most 5 tags.", vi: "Một dự án có tối đa 5 thẻ." },
+  "Starting project cannot be copied": { en: "The starting project cannot be copied. Choose another project or start from an empty one.", vi: "Không sao chép được dự án khởi đầu. Hãy chọn dự án khác hoặc bắt đầu từ dự án trống." },
+  "End time must be after start time": { en: "The end time must be after the start time.", vi: "Thời gian kết thúc phải sau thời gian bắt đầu." },
   "Pick two different versions to compare": { en: "Pick two different versions to compare.", vi: "Hãy chọn hai phiên bản khác nhau để so sánh." },
   "Project not found": { en: "Project not found. It may have been deleted, or you may not have permission to view it.", vi: "Không tìm thấy dự án. Có thể dự án đã bị xoá hoặc bạn không có quyền xem." },
   "Branch not found": { en: "Branch not found. It may have just been deleted — reload the page.", vi: "Không tìm thấy nhánh. Có thể nhánh vừa bị xoá — hãy tải lại trang." },

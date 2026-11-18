@@ -1,6 +1,6 @@
 import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
-import { loadE2eEnv } from "./e2e/support/env";
+import { isLocalTarget, loadE2eEnv } from "./e2e/support/env";
 
 const env = loadE2eEnv();
 
@@ -34,12 +34,12 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /admin-settings-global/,
+      testIgnore: /admin-settings-global|jam-admin-create/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "global-settings",
-      testMatch: /admin-settings-global/,
+      testMatch: /admin-settings-global|jam-admin-create/,
       dependencies: ["chromium"],
       use: { ...devices["Desktop Chrome"] },
     },
@@ -56,6 +56,15 @@ export default defineConfig({
         PORT: String(BACKEND_PORT),
         PAYMENT_PROVIDER: "fake",
         LOGIN_THROTTLE_LIMIT: "100000",
+        ...(isLocalTarget
+          ? {
+              SMTP_HOST: "127.0.0.1",
+              SMTP_PORT: "54325",
+              SMTP_USER: "stave",
+              SMTP_PASS: "stave",
+              SMTP_FROM: "STAVE <no-reply@stave-test.invalid>",
+            }
+          : {}),
       },
     },
     {
@@ -67,6 +76,7 @@ export default defineConfig({
       env: {
         ...env.frontend,
         NEXT_PUBLIC_API_URL: `http://localhost:${BACKEND_PORT}`,
+        NEXT_PUBLIC_E2E_HOOKS: "1",
       },
     },
   ],

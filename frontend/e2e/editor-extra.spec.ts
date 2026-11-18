@@ -140,8 +140,33 @@ test.describe("Editor extra", () => {
     await expect(page.getByRole("button", { name: "Tạm dừng (Space)" })).toBeEnabled();
   });
 
-  test("Blocked by DFID151, EDT-085 Export selected range only renders just the loop or selection", async ({ page }) => {
-    test.fail(true, "DFID151: the export dialog has no selected-range option");
+  test("EDT-077 a zero-length loop range is ignored and the previous range is kept", async ({ page }) => {
+    const { user, api } = await owner();
+    const project = await song(api, Array.from({ length: 8 }, (_, i) => ({ id: `n${i}`, pitch: 60, start: i * BAR })));
+    await loginThroughUi(page, user);
+    await openEditor(page, project.id);
+    await page.getByRole("button", { name: /^Loop/ }).click();
+    const roll = page.locator("[data-loop-range]").first();
+    const g = await scrollGrid(page, { tick: 0 });
+    const ruler = g.top + 17;
+    const x = (tick: number) => g.left + 72 + tick * g.pxPerTick - g.scrollLeft;
+    await page.mouse.move(x(0) + 1, ruler);
+    await page.mouse.down();
+    await page.mouse.move(x(2 * BAR), ruler, { steps: 10 });
+    await page.mouse.up();
+    await expect(roll).toHaveAttribute("data-loop-range", /^\d+-\d+$/);
+    const before = (await roll.getAttribute("data-loop-range"))!;
+    const [start, end] = before.split("-").map(Number);
+    expect(start).toBeLessThanOrEqual(PPQ / 2);
+    expect(Math.abs(end - 2 * BAR)).toBeLessThanOrEqual(PPQ / 2);
+    await page.mouse.move(x(3 * BAR), ruler);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    expect(await roll.getAttribute("data-loop-range")).toBe(before);
+  });
+
+  test("EDT-085 Export selected range only renders just the loop or selection", async ({ page }) => {
     const { user, api } = await owner();
     const project = await song(api, Array.from({ length: 8 }, (_, i) => ({ id: `n${i}`, pitch: 60, start: i * BAR })));
     await loginThroughUi(page, user);
@@ -193,8 +218,7 @@ test.describe("Editor extra", () => {
     expect(downloads).toBe(0);
   });
 
-  test("Blocked by DFID155, EDT-101 double-clicking the pan control returns the track to centre", async ({ page }) => {
-    test.fail(true, "DFID155: double-clicking the pan control does nothing");
+  test("EDT-101 double-clicking the pan control returns the track to centre", async ({ page }) => {
     const { user, api } = await owner();
     const project = await api.createProject("Test Song");
     const snapshot = snapshotOf([{ id: "n1" }], TRACKS);
@@ -209,8 +233,7 @@ test.describe("Editor extra", () => {
     expect(((await api.call("GET", `/projects/${project.id}/draft`)) as { tracks: Array<{ pan: number }> }).tracks[0].pan).toBe(0);
   });
 
-  test("Blocked by DFID159, EDT-105 exports a bundle with the MIDI file, the mapped sound and the mapping file", async ({ page }) => {
-    test.fail(true, "DFID159: the bundle's JSON lists the custom sound but not the track and pitch it is mapped to");
+  test("EDT-105 exports a bundle with the MIDI file, the mapped sound and the mapping file", async ({ page }) => {
     const { user, api } = await owner();
     const kick = await seedSound(api, "kick_01");
     const project = await song(api, [{ id: "n1", pitch: 60, start: 0 }, { id: "k1", pitch: 36, start: 0, trackId: "track-2" }], { "36": kick });

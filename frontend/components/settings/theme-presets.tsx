@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import {
   THEME_PRESET_KEYS,
@@ -42,17 +42,22 @@ function swatchOf(key: ThemePresetKey) {
 
 export function ThemePresets() {
   const { t } = useI18n();
-  const { theme, loading, refresh } = useTheme();
+  const { theme, loading, refresh, previewKey, setPreviewKey } = useTheme();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [pending, setPending] = useState<ThemePresetKey | null>(null);
   const [error, setError] = useState<ErrorSource | null>(null);
+  const [saved, setSaved] = useState(false);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => () => setPreviewKey(null), [setPreviewKey]);
 
   const usingCustom = theme?.type === "custom";
   const customApplied = usingCustom && theme.hasPaidAccess;
   const selected: ThemePresetKey | null = !theme || usingCustom
     ? null
     : THEME_PRESET_KEYS.find((key) => key === theme.presetKey) ?? "space";
+  const draft = THEME_PRESET_KEYS.find((key) => key === previewKey) ?? null;
+  const shown: ThemePresetKey | null = draft ?? selected;
   const canReuseSaved = !!theme?.hasSavedCustom && theme.hasPaidAccess && theme.type !== "custom";
 
   async function choose(key: ThemePresetKey) {
@@ -61,8 +66,11 @@ export function ThemePresets() {
     try {
       await setMyPresetTheme(key);
       await refresh();
+      setPreviewKey(null);
       setPending(null);
+      setSaved(true);
     } catch (err) {
+      setPreviewKey(null);
       setError(errorSource(err, "tp.saveFail"));
     } finally {
       setBusyKey(null);
@@ -82,7 +90,7 @@ export function ThemePresets() {
     }
   }
 
-  const tabStopIndex = Math.max(0, selected ? THEME_PRESET_KEYS.indexOf(selected) : 0);
+  const tabStopIndex = Math.max(0, shown ? THEME_PRESET_KEYS.indexOf(shown) : 0);
   const radioBusy = loading || busyKey !== null;
 
   function onRadioKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -94,9 +102,16 @@ export function ThemePresets() {
   }
 
   function onPick(key: ThemePresetKey) {
-    if (key === selected || busyKey || loading) return;
-    if (customApplied) setPending(key);
-    else void choose(key);
+    if (busyKey || loading) return;
+    setError(null);
+    setSaved(false);
+    setPreviewKey(key === selected ? null : key);
+  }
+
+  function onSave() {
+    if (!draft || busyKey) return;
+    if (customApplied) setPending(draft);
+    else void choose(draft);
   }
 
   return (
@@ -107,7 +122,7 @@ export function ThemePresets() {
       <div role="radiogroup" aria-label={t("tp.title")} className="flex flex-wrap gap-3">
         {THEME_PRESET_KEYS.map((key, index) => {
           const swatch = swatchOf(key);
-          const active = key === selected;
+          const active = key === shown;
           return (
             <button
               key={key}
@@ -142,10 +157,32 @@ export function ThemePresets() {
                 )}
                 {t(PRESET_LABELS[key])}
               </span>
+              {key === selected && <span className="text-xs text-muted">{t("tp.current")}</span>}
             </button>
           );
         })}
       </div>
+
+      {draft && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="status" className="text-xs text-muted">
+            {t("tp.previewing")}
+          </p>
+          <Button type="button" onClick={onSave} disabled={busyKey !== null}>
+            {busyKey !== null && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
+            {t("tp.save")}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => setPreviewKey(null)} disabled={busyKey !== null}>
+            {t("tp.cancel")}
+          </Button>
+        </div>
+      )}
+
+      {saved && !draft && (
+        <p role="status" className="text-xs text-success-foreground">
+          {t("tp.saved")}
+        </p>
+      )}
 
       {canReuseSaved && (
         <Button type="button" variant="secondary" onClick={() => void reuseSaved()} disabled={busyKey !== null}>

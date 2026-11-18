@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { loadE2eEnv } from "./env";
 
 export interface MockUserOptions {
   id?: string;
@@ -24,9 +25,11 @@ export async function mockUserSession(
     role: options.role ?? "user",
   };
 
-  await page.addInitScript((u) => {
+  const projectRef = new URL(loadE2eEnv().frontend.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
+
+  await page.addInitScript(({ u, ref }) => {
     window.localStorage.setItem("stave_session_id", "mock-session-id");
-    const supabaseKey = "sb-gwbiwweeznbuqfgawywv-auth-token";
+    const supabaseKey = `sb-${ref}-auth-token`;
     window.localStorage.setItem(
       supabaseKey,
       JSON.stringify({
@@ -54,7 +57,7 @@ export async function mockUserSession(
         },
       }),
     );
-  }, user);
+  }, { u: user, ref: projectRef });
 
   await page.route("**/users/me", async (route) => {
     await route.fulfill({

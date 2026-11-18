@@ -36,7 +36,7 @@ import { formatAuthorName } from "../../lib/format-name";
 import { useI18n } from "../../context/i18n-context";
 
 /** Chọn | commit | tác giả | mã | thời điểm | thao tác. */
-const COLS = "md:grid-cols-[20px_minmax(0,1fr)_150px_88px_96px_auto]";
+const COLS = "md:grid-cols-[20px_minmax(220px,1fr)_130px_72px_96px_minmax(0,auto)]";
 
 const PAGE_SIZE = 20;
 

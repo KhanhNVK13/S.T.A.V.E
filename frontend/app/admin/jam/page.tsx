@@ -20,6 +20,7 @@ import type {
   JamEventStatus,
 } from "@stave/shared-types";
 import { AdminJamConfigDialog } from "../../../components/admin/admin-jam-config-dialog";
+import { AdminJamCreateDialog } from "../../../components/admin/admin-jam-create-dialog";
 import { EndJamConfirmModal } from "../../../components/admin/jam/end-jam-confirm-modal";
 import { PageHeader } from "../../../components/ui/page-header";
 import { RowList, RowHeader, RowItem } from "../../../components/ui/row-list";
@@ -125,6 +126,7 @@ function AdminJamManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ErrorSource | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [configuring, setConfiguring] = useState<JamEvent | null>(null);
   const [cancelling, setCancelling] = useState<JamEvent | null>(null);
   const [ending, setEnding] = useState<JamEvent | null>(null);
@@ -212,6 +214,11 @@ function AdminJamManager() {
 
   return (
     <div>
+      <div className="mb-3 flex justify-end">
+        <Button type="button" onClick={() => setCreating(true)}>
+          {t("aj.newEvent")}
+        </Button>
+      </div>
       <Tabs
         tabs={STATUS_TABS.map((st) => ({ id: st.key || "all", label: t(st.label) }))}
         active={tab || "all"}
@@ -327,6 +334,16 @@ function AdminJamManager() {
         </RowList>
       </div>
 
+      {creating && (
+        <AdminJamCreateDialog
+          projects={projects}
+          onClose={() => setCreating(false)}
+          onCreated={(message) => {
+            setToast(message);
+            void load(tab);
+          }}
+        />
+      )}
       {configuring && (
         <AdminJamConfigDialog
           event={configuring}

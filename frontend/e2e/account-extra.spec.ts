@@ -139,8 +139,7 @@ test.describe("Account and profile", () => {
     await cleanupE2eUsers();
   });
 
-  test("Blocked by DFID163, AUTH-050 ending another device's session starts the remote log out and keeps this browser signed in", async ({ page, browser }) => {
-    test.fail(true, "DFID163: the other session is ended at once, without a confirmation naming the device");
+  test("AUTH-050 ending another device's session starts the remote log out and keeps this browser signed in", async ({ page, browser }) => {
     const user = await profiled();
     const other = await (await browser.newContext()).newPage();
     await loginThroughUi(other, user);
@@ -169,7 +168,7 @@ test.describe("Account and profile", () => {
     await expect(page.locator('input[name="displayName"]')).toHaveValue("Alice Tester");
     await expect(page.locator('input[name="username"]')).toHaveValue(username);
     await expect(page.locator('textarea[name="bio"]')).toHaveValue("Composer of test songs.");
-    await expect(page.getByRole("banner")).toContainText("Alice Tester");
+    await expect(page.getByRole("group", { name: /Đang đăng nhập/ })).toContainText("Alice Tester");
     expect((await storedAvatarSize(user.id))?.bytes.length).toBeGreaterThan(0);
     await page.goto(`/creator/${user.id}`);
     await expect(page.getByText("Alice Tester").first()).toBeVisible();
@@ -271,7 +270,7 @@ test.describe("Account and profile", () => {
     const user = await profiled();
     await loginThroughUi(page, user);
     await page.goto("/profile");
-    await page.getByRole("button", { name: /bảo mật/i }).click();
+    await page.getByRole("tab", { name: /bảo mật/i }).click();
     await page.getByRole("button", { name: /^đổi mật khẩu$/i }).click();
     await page.locator('input[name="current-password"]').fill(user.password);
     await page.locator('input[name="new-password"]').fill("NewPassw0rd!");
@@ -294,7 +293,7 @@ test.describe("Account and profile", () => {
     await api.commit(project.branchId, "Two");
     await loginThroughUi(page, user);
     await page.goto("/profile");
-    await page.getByRole("button", { name: /bảo mật/i }).click();
+    await page.getByRole("tab", { name: /bảo mật/i }).click();
     await page.getByRole("button", { name: /^xoá tài khoản$/i }).click();
     await expect(page.getByRole("button", { name: "Xác nhận xoá vĩnh viễn" })).toBeVisible();
     await page.locator("main").getByRole("button", { name: /^huỷ$/i }).click();

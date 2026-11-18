@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RequireAuth } from "../../components/require-auth";
 import { PageHeader } from "../../components/ui/page-header";
 import { Tabs } from "../../components/ui/tabs";
@@ -20,15 +20,19 @@ function PullRequestsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ErrorSource | null>(null);
 
+  const latest = useRef(0);
+
   const load = useCallback(async () => {
+    const mine = ++latest.current;
     setLoading(true);
     setError(null);
     try {
-      setItems(await listPullRequests({ view, status }));
+      const result = await listPullRequests({ view, status });
+      if (mine === latest.current) setItems(result);
     } catch (err) {
-      setError(errorSource(err, "pr.loadFail"));
+      if (mine === latest.current) setError(errorSource(err, "pr.loadFail"));
     } finally {
-      setLoading(false);
+      if (mine === latest.current) setLoading(false);
     }
   }, [view, status]);
 

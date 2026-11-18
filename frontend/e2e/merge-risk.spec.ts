@@ -135,6 +135,40 @@ test.describe("UC-71 merge risk warning", () => {
     await expect(panel).not.toContainText(/cảnh báo|nguy hiểm|rủi ro cao/i);
   });
 
+  test("BRN-025 the merge risk is reported and does not block the merge", async ({ page }) => {
+    const api = await loggedIn(page);
+    const { project, branch } = await projectWithBranch(api);
+    await api.putDraft(project.id, [{ id: "c1", pitch: 62, start: 3840 }, BASE[1]]);
+    await api.commit(project.branchId, "Later change on main");
+    await api.commitOnBranch(
+      project.id,
+      project.branchId,
+      branch.id,
+      [
+        ...BASE,
+        { id: "t1", pitch: 70, start: 8 * 1920 },
+        { id: "t2", pitch: 72, start: 8 * 1920 + 480 },
+        { id: "t3", pitch: 74, start: 9 * 1920 },
+        { id: "t4", pitch: 75, start: 9 * 1920 + 480 },
+      ],
+      "Alt bars 9 to 10",
+    );
+    await openMergeDialog(page, project.id);
+    const panel = page.getByTestId("merge-risk-panel");
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveAttribute("data-level", /low|medium|high/);
+    await expect(panel).toContainText(/chồng chéo/i);
+    const merge = page.getByRole("alertdialog").getByRole("button", { name: /^hợp nhất$/i });
+    await expect(merge).toBeEnabled();
+    const mainId = (await api.branches(project.id)).find((b) => b.is_default)!.id;
+    const before = await api.head(mainId);
+    await merge.click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect.poll(async () => (await api.head(mainId)).id).not.toBe(before.id);
+    const snapshot = await api.commitSnapshot((await api.head(mainId)).id);
+    expect(snapshot.notes.map((n) => n.id)).toEqual(expect.arrayContaining(["t1", "t2", "t3", "t4", "c1"]));
+  });
+
   test("AI-010 cancelling the dialog changes neither branch", async ({ page }) => {
     const { api, projectId, branchId } = await disjointBranches(page);
     const mainBefore = await api.head((await api.branches(projectId)).find((b) => b.is_default)!.id);

@@ -48,7 +48,11 @@ describe('Version Control API (integration)', () => {
     const response = await asUser(app, user)
       .get(`/commits?branch_id=${branchId}`)
       .expect(200);
-    return response.body as HistoryBody;
+    const body = response.body as HistoryBody;
+    const items = body.items.filter(
+      (item) => item.message !== 'Initial commit',
+    );
+    return { items, total: body.total - (body.items.length - items.length) };
   }
 
   async function tagsOf(commitId: string) {

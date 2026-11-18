@@ -118,6 +118,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   }, []);
   // UC-37: Playback state
   const [loopOn, setLoopOn] = useState(false);
+  const [loopRange, setLoopRange] = useState<{ start: number; end: number } | null>(null);
   // UC-36: Metronome — click track played alongside notes during playback.
   const [metronomeOn, setMetronomeOn] = useState(false);
   // UC-37: Playback speed — a preview-only multiplier on scheduling time,
@@ -1362,6 +1363,13 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   function handlePlay() {
     if (isPlaying) return;
+    if (loopOn && loopRange && loopRange.end > loopRange.start) {
+      loopRegionRef.current = { start: loopRange.start, end: loopRange.end };
+      loopAnchorRef.current = loopRange.start;
+      setPlayheadTick(loopRange.start);
+      void startPlayback(loopRange.start);
+      return;
+    }
     const picked = loopOn
       ? snapshot.notes.filter((n) => selectedNoteIds.has(n.id))
       : [];
@@ -1395,6 +1403,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
   }
 
   function handleToggleLoop() {
+    if (loopOn) setLoopRange(null);
     setLoopOn((prev) => !prev);
   }
 
@@ -1526,6 +1535,8 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
         isPlaying={isPlaying}
         isPaused={isPaused}
         loopOn={loopOn}
+        loopRange={loopRange}
+        onLoopRangeChange={setLoopRange}
         onPlay={handlePlay}
         onPause={handlePause}
         onStop={handleStop}

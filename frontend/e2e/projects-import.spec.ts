@@ -296,12 +296,12 @@ test.describe("Projects and MIDI import", () => {
     let dialog = await openImport(page, big.id);
     await chooseFile(page, "sample_5MB.mid", buildMidi({ tracks: 1, notesPerTrack: 8, ppq: 480, padTo: 5 * 1024 * 1024 }));
     await dialog.getByRole("button", { name: "Nhập và commit" }).click();
-    await expect(page.getByText(/thành commit đầu tiên của dự án/)).toBeVisible();
+    await expect(page.getByText(/Đã nhập .*(thành commit đầu tiên của dự án|và ghi thành một commit mới)/)).toBeVisible();
     expect((await api.draft(big.id)).notes).toHaveLength(8);
     dialog = await openImport(page, small.id);
     await chooseFile(page, "small.midi", buildMidi({ tracks: 1, notesPerTrack: 10, ppq: 480 }));
     await dialog.getByRole("button", { name: "Nhập và commit" }).click();
-    await expect(page.getByText(/thành commit đầu tiên của dự án/)).toBeVisible();
+    await expect(page.getByText(/Đã nhập .*(thành commit đầu tiên của dự án|và ghi thành một commit mới)/)).toBeVisible();
     expect((await api.draft(small.id)).notes).toHaveLength(10);
     expect(await api.history(small.branchId)).toHaveLength(1);
   });

@@ -222,7 +222,7 @@ test.describe("Authentication and account", () => {
       await createE2eProfile(user);
       await loginThroughUi(page, user);
       await page.goto("/profile");
-      await page.getByRole("button", { name: /bảo mật/i }).click();
+      await page.getByRole("tab", { name: /bảo mật/i }).click();
       await expect(
         page.getByRole("button", { name: /đổi mật khẩu/i }),
       ).toBeVisible();
@@ -235,11 +235,9 @@ test.describe("Authentication and account", () => {
       await createE2eProfile(user);
       await loginThroughUi(page, user);
       await page.goto("/profile");
-      await page.getByRole("button", { name: /cá nhân hoá/i }).click();
-      for (const preset of ["unleashed", "moss", "claret"]) {
-        await expect(
-          page.getByRole("button", { name: new RegExp(preset, "i") }),
-        ).toBeVisible();
+      await page.getByRole("tab", { name: /cá nhân hoá/i }).click();
+      for (const preset of ["Hổ phách", "Rêu", "Rượu vang"]) {
+        await expect(page.getByRole("radio", { name: preset })).toBeVisible();
       }
     });
 

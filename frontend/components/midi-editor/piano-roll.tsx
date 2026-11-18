@@ -167,6 +167,10 @@ interface PianoRollProps {
   /** Bình luận ghim: huy hiệu ở thước ô nhịp và chấm trên nốt có bình luận. */
   commentPins?: CommentPins;
   onCommentPinClick?: (target: { bar: number | null; noteId?: string }) => void;
+  /** Vòng lặp bật: kéo trên thước ô nhịp để đặt phạm vi lặp; bấm không kéo thì bỏ qua. */
+  loopEnabled?: boolean;
+  loopRange?: { start: number; end: number } | null;
+  onLoopRangeChange?: (range: { start: number; end: number }) => void;
 }
 
 export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
@@ -191,6 +195,9 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       onScrollXChange,
       commentPins = EMPTY_PINS,
       onCommentPinClick,
+      loopEnabled = false,
+      loopRange = null,
+      onLoopRangeChange,
     },
     ref,
   ) {
@@ -215,6 +222,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
     // line itself to scrub — kept separate from `dragRef` (which is about
     // note editing) since seeking has no note/pitch/duration to track.
     const isSeekDraggingRef = useRef(false);
+    const loopDragRef = useRef<{ start: number; end: number } | null>(null);
     const pitchRejectNotedRef = useRef(false);
     // UC-68 read-only: a pointer press on a note arms a drag-warning — the
     // user moves > 4px (a deliberate drag on the frozen grid) or double-
@@ -369,6 +377,13 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         bar++;
       }
 
+      if (loopRange && loopEnabled) {
+        const x1 = KEY_WIDTH + loopRange.start * pxPerTick - scrollX;
+        const x2 = KEY_WIDTH + loopRange.end * pxPerTick - scrollX;
+        ctx.fillStyle = pal.playingGlow;
+        ctx.fillRect(Math.max(KEY_WIDTH, x1), 0, Math.max(0, x2 - Math.max(KEY_WIDTH, x1)), HEADER_H);
+      }
+
       // ── Comment pins on the ruler ────────────────────────────
       for (const pin of visibleBarPins(commentPins.bars, firstTick, lastTick)) {
         const px = KEY_WIDTH + pin.tick * pxPerTick - scrollX + 2;
@@ -511,7 +526,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
         ctx.lineTo(phX, H);
         ctx.stroke();
       }
-      }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, selectedNoteIds, isPlaying, pal, ROW_H, KEY_WIDTH, HEADER_H, commentPins]);
+      }, [notes, tracks, scrollX, scrollY, pxPerTick, gridStep, ppq, playheadTick, snapToGrid, selectedNoteIds, isPlaying, pal, ROW_H, KEY_WIDTH, HEADER_H, commentPins, loopRange, loopEnabled]);
 
     // Re-draw whenever state changes
     useEffect(() => {
@@ -617,7 +632,9 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       if (cy < HEADER_H || nearPlayhead) {
         isSeekDraggingRef.current = true;
         const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
-        onSeek(Math.max(0, Math.round(snapToGrid(tick))));
+        const snapped = Math.max(0, Math.round(snapToGrid(tick)));
+        if (loopEnabled && cy < HEADER_H) loopDragRef.current = { start: snapped, end: snapped };
+        onSeek(snapped);
         return;
       }
 
@@ -742,7 +759,9 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
       if (isSeekDraggingRef.current) {
         const tick = Math.max(0, (cx - KEY_WIDTH + scrollX) / pxPerTick);
-        onSeek(Math.max(0, Math.round(snapToGrid(tick))));
+        const snapped = Math.max(0, Math.round(snapToGrid(tick)));
+        if (loopDragRef.current) loopDragRef.current.end = snapped;
+        onSeek(snapped);
         return;
       }
 
@@ -827,6 +846,14 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
 
     function handleMouseUp() {
       isSeekDraggingRef.current = false;
+      const loopDrag = loopDragRef.current;
+      loopDragRef.current = null;
+      if (loopDrag && loopDrag.start !== loopDrag.end) {
+        onLoopRangeChange?.({
+          start: Math.min(loopDrag.start, loopDrag.end),
+          end: Math.max(loopDrag.start, loopDrag.end),
+        });
+      }
       readOnlyArmedRef.current = false;
       readOnlyDownPosRef.current = null;
       const drag = dragRef.current;
@@ -919,6 +946,7 @@ export const PianoRoll = forwardRef<PianoRollHandle, PianoRollProps>(
       <div
         ref={containerRef}
         onScroll={handleScroll}
+        data-loop-range={loopRange && loopEnabled ? `${loopRange.start}-${loopRange.end}` : ""}
         style={{ ...styles.container, background: pal.containerBg }}
       >
         {/* Virtual scroll area */}

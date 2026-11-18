@@ -31,6 +31,40 @@ export const MEDIUM_RISK_OVERLAP_THRESHOLD = 3;
  */
 export const MEDIUM_RISK_COMMIT_THRESHOLD = 10;
 
+function stable(note: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.entries(note).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
+}
+
+/** Id các nốt bị thêm / xoá / sửa giữa `base` và `side` (theo id nốt). */
+export function touchedNoteIds(
+  base: { notes: Array<{ id: string }> },
+  side: { notes: Array<{ id: string }> },
+): Set<string> {
+  const touched = new Set<string>();
+  const baseNotes = new Map(
+    (base.notes as Array<Record<string, unknown>>).map((n) => [
+      n.id as string,
+      n,
+    ]),
+  );
+  const sideNotes = new Map(
+    (side.notes as Array<Record<string, unknown>>).map((n) => [
+      n.id as string,
+      n,
+    ]),
+  );
+  for (const [id, note] of sideNotes) {
+    const before = baseNotes.get(id);
+    if (!before || stable(before) !== stable(note)) touched.add(id);
+  }
+  for (const id of baseNotes.keys()) {
+    if (!sideNotes.has(id)) touched.add(id);
+  }
+  return touched;
+}
+
 /** Đầu vào của hàm đánh giá — tất cả đều là số đếm, không có nội dung nốt. */
 export interface MergeRiskInput {
   /** Tổng nốt thêm + xoá + sửa ở nhánh nguồn so với điểm gốc chung. */

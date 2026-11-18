@@ -84,10 +84,6 @@ async function purgeUser(userId: string, withAuth = true): Promise<void> {
       .from("custom-sounds")
       .remove(soundFiles.map((file) => `${userId}/${file.name}`));
   }
-  await expectOk(
-    "admin_audit_log",
-    admin.from("admin_audit_log").delete().eq("admin_id", userId),
-  );
   await expectOk("users", admin.from("users").delete().eq("id", userId));
   if (withAuth) {
     await expectOk("auth user", admin.auth.admin.deleteUser(userId));
@@ -196,7 +192,8 @@ export async function countCommitsOfProject(
   const { count } = await adminClient()
     .from("commits")
     .select("id", { count: "exact", head: true })
-    .in("branch_id", ids);
+    .in("branch_id", ids)
+    .neq("message", "Initial commit");
   return count ?? 0;
 }
 

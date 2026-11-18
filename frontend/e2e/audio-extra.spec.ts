@@ -160,8 +160,67 @@ test.describe("Audio extra", () => {
     });
   }
 
-  test("Blocked by DFID157, AUD-023 several files uploaded at once are processed independently", async ({ page }) => {
-    test.fail(true, "DFID157: the sound file input accepts a single file only");
+  async function loadRecording(page: Page, seconds: number) {
+    await page.waitForFunction(() => typeof (window as unknown as { __staveLoadRecording?: unknown }).__staveLoadRecording === "function");
+    await page.evaluate((value) => (window as unknown as { __staveLoadRecording: (n: number) => void }).__staveLoadRecording(value), seconds);
+  }
+
+  test("AUD-010 Reset trim returns both handles to the ends of the full recording", async ({ page }) => {
+    const a = await person();
+    const project = await a.api.createProject("Test Song");
+    await loginThroughUi(page, a.user);
+    await openEditor(page, project.id);
+    const dialog = await openSketches(page);
+    await loadRecording(page, 60);
+    const start = dialog.getByRole("button", { name: "Điểm bắt đầu" });
+    const end = dialog.getByRole("button", { name: "Điểm kết thúc" });
+    const track = await start.locator("xpath=..").boundingBox();
+    expect(track).not.toBeNull();
+    const at = (seconds: number) => track!.x + (track!.width * seconds) / 60;
+    const mid = track!.y + track!.height / 2;
+    const startBox = (await start.boundingBox())!;
+    await page.mouse.move(startBox.x + startBox.width / 2, mid);
+    await page.mouse.down();
+    await page.mouse.move(at(5), mid, { steps: 10 });
+    await page.mouse.up();
+    const endBox = (await end.boundingBox())!;
+    await page.mouse.move(endBox.x + 1, mid);
+    await page.mouse.down();
+    await page.mouse.move(at(45), mid, { steps: 10 });
+    await page.mouse.up();
+    await expect(dialog.getByText(/Giữ lại 00:[34]\d \/ 01:00/)).toBeVisible();
+    await dialog.getByRole("button", { name: "Đặt lại vùng cắt" }).click();
+    await expect(dialog.getByText("Giữ lại 01:00 / 01:00")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Đặt lại vùng cắt" })).toBeDisabled();
+    const left = (await start.boundingBox())!;
+    const right = (await end.boundingBox())!;
+    expect(Math.abs(left.x + left.width / 2 - track!.x)).toBeLessThan(6);
+    expect(Math.abs(right.x + right.width / 2 - (track!.x + track!.width))).toBeLessThan(6);
+  });
+
+  test("AUD-018 attachment is refused when the recording is over 20 MB", async ({ page }) => {
+    test.setTimeout(200_000);
+    const a = await person();
+    const project = await a.api.createProject("Test Song");
+    await loginThroughUi(page, a.user);
+    await openEditor(page, project.id);
+    const dialog = await openSketches(page);
+    await loadRecording(page, 250);
+    await dialog.locator('input[name="sketchName"]').fill("Too big");
+    const uploads: string[] = [];
+    page.on("request", (req) => {
+      if (/storage|audio-sketches/.test(req.url()) && req.method() !== "GET") uploads.push(req.url());
+    });
+    await expect(async () => {
+      await dialog.getByRole("button", { name: "Đính kèm vào dự án" }).click();
+      await expect(dialog.getByText(/vượt giới hạn 20MB/)).toBeVisible({ timeout: 45_000 });
+    }).toPass({ timeout: 150_000 });
+    await expect(dialog.getByRole("button", { name: "Đính kèm vào dự án" })).toBeVisible();
+    expect(uploads).toEqual([]);
+    expect(await sketches(a.api, project.id)).toHaveLength(0);
+  });
+
+  test("AUD-023 several files uploaded at once are processed independently", async ({ page }) => {
     const a = await person();
     const project = await a.api.createProject("Test Song");
     await loginThroughUi(page, a.user);

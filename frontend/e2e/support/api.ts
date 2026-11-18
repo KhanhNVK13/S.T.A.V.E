@@ -188,6 +188,7 @@ export class UserApi {
   async setVisibility(projectId: string, visibility: string): Promise<void> {
     await this.call("PATCH", `/projects/${projectId}/visibility`, {
       visibility,
+      ...(visibility === "public" ? { license: "CC-BY" } : {}),
     });
   }
 
@@ -275,6 +276,6 @@ export class UserApi {
     const body = (await this.call("GET", `/commits?branch_id=${branchId}`)) as {
       items: Array<{ id: string; message: string }>;
     };
-    return body.items;
+    return body.items.filter((item) => item.message !== "Initial commit");
   }
 }

@@ -167,6 +167,8 @@ interface EditorRedesignProps {
   isPlaying: boolean;
   isPaused: boolean;
   loopOn: boolean;
+  loopRange: { start: number; end: number } | null;
+  onLoopRangeChange: (range: { start: number; end: number }) => void;
   onPlay: () => void;
   onPause: () => void;
   onStop: () => void;
@@ -219,7 +221,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     trackLimitWarning,
     onQuantize, onImportMidi, onCopy, onCut, snapEnabled, onSnapToggle, onExportMidiSelection, onPaste, onSelectAll, hasSelection, hasClipboard,
     onUndo, onRedo, canUndo, canRedo,
-    isPlaying, isPaused, loopOn, onPlay, onPause, onStop, onToggleLoop, onSeek,
+    isPlaying, isPaused, loopOn, loopRange, onLoopRangeChange, onPlay, onPause, onStop, onToggleLoop, onSeek,
     saveStatus, draftConflict, saveRetryInSec, lastSavedAt, onRetrySave, onFlushDraft, onReadSnapshot, onSnapshotRestored, onReadDraftVersion, onDraftStale, onResyncDraftVersion, draftReloadNonce,
     masterVolume, onMasterVolumeChange,
     customSounds, onSetSoundMapping, onCustomSoundsChanged,
@@ -1113,6 +1115,9 @@ export function EditorRedesign(props: EditorRedesignProps) {
             onSelectedNotesChange={onSelectedNotesChange}
             isPlaying={isPlaying}
             onSeek={onSeek}
+            loopEnabled={loopOn}
+            loopRange={loopRange}
+            onLoopRangeChange={onLoopRangeChange}
             onNotify={onNotify}
             onScrollXChange={setRollScrollX}
             commentPins={commentPins}

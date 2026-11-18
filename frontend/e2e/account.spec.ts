@@ -33,7 +33,7 @@ async function openProfile(page: Page, user: E2eUser) {
 async function openSecurity(page: Page, user: E2eUser) {
   await loginThroughUi(page, user);
   await page.goto("/profile");
-  await page.getByRole("button", { name: /bảo mật/i }).click();
+  await page.getByRole("tab", { name: /bảo mật/i }).click();
 }
 
 async function submitPasswordChange(page: Page, current: string, next: string) {

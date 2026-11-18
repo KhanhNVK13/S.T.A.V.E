@@ -9,6 +9,7 @@ import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Tabs, TabPanel } from "../../../components/ui/tabs";
 import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
+import { MergeRiskView } from "../../../components/project/merge-risk-panel";
 import { INPUT_CLASS } from "../../../components/ui/form";
 import { Toast } from "../../../components/ui/toast";
 import { MergeConflictDialog } from "../../../components/project/merge-conflict-dialog";
@@ -414,6 +415,7 @@ function PullRequestView({ id }: { id: string }) {
           <>
             {tx("prd.mergeBody", { n: analysis?.newCommits.length ?? 0, target: <strong>{targetLabel}</strong> })}
             {hasConflicts && t("prd.mergeConflictsNote")}
+            {analysis?.risk && <MergeRiskView result={analysis.risk} />}
           </>
         }
         confirmLabel={t("blist.mergeConfirm")}

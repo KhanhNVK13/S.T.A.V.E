@@ -43,6 +43,12 @@ export function resolveAppliedPalette(
 }
 
 interface ThemeContextValue {
+  /** Preset đang xem trước nhưng chưa lưu (UC-78); null = không xem trước. */
+  previewKey: string | null;
+  setPreviewKey: (key: string | null) => void;
+  /** Palette trích từ ảnh đang xem trước, chưa lưu. */
+  previewPalette: Record<string, string> | null;
+  setPreviewPalette: (palette: Record<string, string> | null) => void;
   /** Theme lưu trong DB (BR-89: trả về cả khi hết quyền). */
   theme: EffectiveTheme | null;
   loading: boolean;
@@ -57,6 +63,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const sessionReady = useSessionReady();
   const [theme, setTheme] = useState<EffectiveTheme | null>(null);
   const [loading, setLoading] = useState(true);
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const [previewPalette, setPreviewPalette] = useState<Record<string, string> | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -80,11 +88,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Áp theme custom đã lưu (nếu đủ điều kiện) hoặc khôi phục preset mặc định.
   const shownTheme = user ? theme : null;
   useEffect(() => {
-    applyCustomPalette(resolveAppliedPalette(shownTheme));
-  }, [shownTheme]);
+    applyCustomPalette(
+      previewKey ? getPresetPalette(previewKey) : (previewPalette ?? resolveAppliedPalette(shownTheme)),
+    );
+  }, [shownTheme, previewKey, previewPalette]);
 
   return (
-    <ThemeContext.Provider value={{ theme: shownTheme, loading, refresh }}>
+    <ThemeContext.Provider value={{ theme: shownTheme, loading, refresh, previewKey, setPreviewKey, previewPalette, setPreviewPalette }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -94,7 +104,7 @@ export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
     // Ngưỡng tối thiểu cho component mount ngoài provider (khung test/preview).
-    return { theme: null, loading: true, refresh: async () => undefined };
+    return { theme: null, loading: true, refresh: async () => undefined, previewKey: null, setPreviewKey: () => undefined, previewPalette: null, setPreviewPalette: () => undefined };
   }
   return ctx;
 }

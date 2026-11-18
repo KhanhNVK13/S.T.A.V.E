@@ -137,6 +137,7 @@ async function openNewPrDialog(page: Page, forkId: string) {
 
 async function openDetail(page: Page, id: string) {
   await page.goto(`/pull-requests/${id}`);
+  await page.getByRole("tab", { name: /^Thảo luận/ }).click();
   await expect(page.getByRole("heading", { level: 2, name: /^Thảo luận/ })).toBeVisible();
 }
 
@@ -188,15 +189,13 @@ test.describe("Pull requests", () => {
       return dialog;
     }
 
-    test("Blocked by DFID125, BRN-043 Keep both includes both notes when they do not clash", async ({ page }) => {
-      test.fail(true, "DFID125: the conflict screen offers only keep ours or take theirs, there is no Keep both choice");
+    test("BRN-043 Keep both includes both notes when they do not clash", async ({ page }) => {
       const { id } = await branchConflict(page);
       const dialog = await startMerge(page, id);
       await expect(dialog.getByRole("radio", { name: /giữ cả hai|keep both/i }).first()).toBeVisible({ timeout: 5_000 });
     });
 
-    test("Blocked by DFID125, BRN-046 Keep both is refused when the notes share pitch and moment", async ({ page }) => {
-      test.fail(true, "DFID125: there is no Keep both choice to refuse");
+    test("BRN-046 Keep both is refused when the notes share pitch and moment", async ({ page }) => {
       const { id } = await branchConflict(page);
       const dialog = await startMerge(page, id);
       await expect(dialog.getByRole("radio", { name: /giữ cả hai|keep both/i }).first()).toBeVisible({ timeout: 5_000 });
@@ -224,7 +223,7 @@ test.describe("Pull requests", () => {
       expect((await a.api.head(mainId)).id).toBe(mainBefore.id);
       expect((await a.api.head(altId)).id).toBe(altBefore.id);
       const again = await startMerge(page, id);
-      await expect(again).toContainText("2 xung đột");
+      await expect(again).toContainText(/Xung đột\s*2/);
     });
   });
 
@@ -421,7 +420,7 @@ test.describe("Pull requests", () => {
       await c.api.createProject("C Song");
       await loginThroughUi(page, c.user);
       await page.goto("/pull-requests");
-      await expect(page.getByText("Chưa có pull request nào.")).toBeVisible();
+      await expect(page.getByText("Không có pull request đang mở")).toBeVisible();
       await expect(page.getByText(/Pull request là đề xuất/)).toBeVisible();
       await page.getByRole("tab", { name: "Tôi đã tạo" }).click();
       await expect(page.getByText(/Pull request là đề xuất/)).toBeVisible();
@@ -654,6 +653,25 @@ test.describe("Pull requests", () => {
       expect(await notificationTypes(s.a)).toContain("pr.merged");
     });
 
+    test("PR-032 the merge risk is reported for a pull request merge and does not block it", async ({ page }) => {
+      const s = await forked();
+      await s.b.api.putDraft(s.publicId, [{ id: "c1", pitch: 62, start: 2 * BAR }, BASE[1]], TRACKS);
+      await s.b.api.commit(s.publicMain, "Later change on the original");
+      const pr = await openPr(s);
+      await loginThroughUi(page, s.b.user);
+      await openDetail(page, pr.id);
+      await page.getByRole("button", { name: "Duyệt và hợp nhất" }).click();
+      const confirm = page.getByRole("alertdialog", { name: "Hợp nhất pull request?" });
+      const panel = confirm.getByTestId("merge-risk-panel");
+      await expect(panel).toBeVisible();
+      await expect(panel).toHaveAttribute("data-level", /low|medium|high/);
+      await expect(panel).toContainText(/chồng chéo/i);
+      await expect(confirm.getByRole("button", { name: "Hợp nhất", exact: true })).toBeEnabled();
+      await confirm.getByRole("button", { name: "Hợp nhất", exact: true }).click();
+      await expect(page.getByText("Đã hợp nhất pull request.")).toBeVisible();
+      expect((await prDetail(s.b, pr.id)).pullRequest.status).toBe("merged");
+    });
+
     test("PR-031 conflicts are resolved before the pull request merge completes", async ({ page }) => {
       const s = await conflicting();
       const pr = await openPr(s, "Change bar 3");
@@ -770,6 +788,7 @@ test.describe("Pull requests", () => {
       await page.getByRole("tab", { name: "Đã đóng" }).click();
       await page.getByText("Add harmony to chorus").click();
       await expect(page.getByText("Adds a harmony line on track 2.")).toBeVisible();
+      await page.getByRole("tab", { name: /^Thảo luận/ }).click();
       await expect(page.getByText("Does not fit the arrangement.")).toBeVisible();
       expect((await s.b.api.head(s.publicMain)).id).toBe(publicHead.id);
       expect((await s.a.api.head(s.forkMain)).id).toBe(forkHead.id);

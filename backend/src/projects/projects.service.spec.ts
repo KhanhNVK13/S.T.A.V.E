@@ -272,6 +272,32 @@ describe('BE-PRJ-06 ProjectsService.create(ownerId, dto)', () => {
     );
   });
 
+  it('PRJ-005 creates a private project with a notice when an unverified account chooses public', async () => {
+    const project = makeProject();
+    const { service, builder } = makeService(
+      [{ data: project }, { data: { id: branchId } }],
+      {
+        ...initialCommit,
+        authAdmin: {
+          getUserById: {
+            data: { user: { email_confirmed_at: null } },
+            error: null,
+          },
+        },
+      },
+    );
+
+    const result = await service.create(ownerId, {
+      name: 'Unverified Demo',
+      visibility: 'public',
+      license: 'CC-BY',
+    });
+
+    expect(result.visibilityKeptPrivate).toBe(true);
+    const inserted = builder.insert.mock.calls[0][0] as Record<string, unknown>;
+    expect(inserted.visibility).not.toBe('public');
+  });
+
   it('UTCID09 keeps the project private and reports it when the email is not verified (SRS UC-18 6.E2)', async () => {
     const project = makeProject();
     const { service, builder } = makeService(

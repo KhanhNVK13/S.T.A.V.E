@@ -119,10 +119,6 @@ async function purgeUser(userId: string): Promise<void> {
       admin.from('projects').delete().in('id', projectIds),
     );
   }
-  await expectOk(
-    'admin_audit_log',
-    admin.from('admin_audit_log').delete().eq('admin_id', userId),
-  );
   await expectOk('users', admin.from('users').delete().eq('id', userId));
   await expectOk('auth user', admin.auth.admin.deleteUser(userId));
 }

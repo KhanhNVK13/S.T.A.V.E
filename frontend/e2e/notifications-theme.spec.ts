@@ -1,6 +1,7 @@
 import { expect as baseExpect, test, type Page } from "@playwright/test";
 import { UserApi } from "./support/api";
 import { admin } from "./support/auth-links";
+import { mailsTo, waitForMails } from "./support/mailbox";
 import {
   cleanupE2eUsers,
   createE2eProfile,
@@ -34,13 +35,13 @@ function list(page: Page) {
 }
 
 async function theme(page: Page) {
-  return page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+  return page.evaluate(() => document.documentElement.style.getPropertyValue("--background"));
 }
 
 async function openPersonalization(page: Page) {
   await page.goto("/profile");
-  await page.getByRole("button", { name: "Cá nhân hoá" }).click();
-  await expect(page.getByRole("button", { name: "Lưu theme" })).toBeVisible();
+  await page.getByRole("tab", { name: "Cá nhân hoá" }).click();
+  await expect(page.getByRole("radiogroup", { name: "Giao diện màu" })).toBeVisible();
 }
 
 async function storedTheme(user: E2eUser) {
@@ -60,10 +61,10 @@ test.describe("Notifications and personalization", () => {
   test("NOT-001 lists notifications newest first by day and opening one marks it read", async ({ page }) => {
     const { user, api } = await member();
     const project = await api.createProject("Test Song");
-    const yesterday = new Date(Date.now() - 26 * 3_600_000);
-    await seedNotification(user.id, "fork.created", { projectId: project.id, actorName: "User C" }, { at: yesterday });
-    await seedNotification(user.id, "fork.created", { projectId: project.id, actorName: "User D" }, { at: new Date(Date.now() - 60_000) });
-    await seedNotification(user.id, "comment.new", { projectId: project.id, commentId: "c1", actorName: "User B" });
+    const yesterday = new Date(new Date().setHours(0, 0, 0, 0) - 3_600_000);
+    await seedNotification(user.id, "fork.created", { projectId: project.id, projectName: "Test Song", forkerName: "User C" }, { at: yesterday });
+    await seedNotification(user.id, "fork.created", { projectId: project.id, projectName: "Test Song", forkerName: "User D" }, { at: new Date(Date.now() - 60_000) });
+    await seedNotification(user.id, "comment.new", { projectId: project.id, commentId: "c1", projectName: "Test Song", authorName: "User B" });
     await loginThroughUi(page, user);
     await page.getByRole("link", { name: "Thông báo" }).first().click();
     await expect(page).toHaveURL(/\/notifications/);
@@ -131,6 +132,40 @@ test.describe("Notifications and personalization", () => {
     await expect(page).toHaveURL(/\/notifications/);
   });
 
+  test("NOT-008 turning off the email channel of comment notifications keeps the in-app notification only", async ({ page }) => {
+    test.skip(process.env.E2E_TARGET !== "local", "needs the local mailbox (E2E_TARGET=local)");
+    const a = await member();
+    const b = await member();
+    const project = await a.api.createProject("Test Song");
+    await a.api.putDraft(project.id, [{ id: "n1" }]);
+    await a.api.commit(project.branchId, "Verse idea");
+    await a.api.call("POST", `/projects/${project.id}/collaborators`, { identifier: `u_${b.user.id.slice(0, 8)}`, permissionLevel: "edit" });
+    const invites = (await b.api.call("GET", "/users/me/collaboration-invitations")) as Array<{ id: string }>;
+    await b.api.call("POST", `/users/me/collaboration-invitations/${invites[0].id}/accept`);
+    await a.api.call("PUT", "/notifications/preferences", { type: "comment.new", channel: "email", enabled: true });
+    await b.api.call("POST", `/projects/${project.id}/comments`, { body: "First comment" });
+    await waitForMails(a.user.email, 1);
+    const before = (await mailsTo(a.user.email)).length;
+
+    await loginThroughUi(page, a.user);
+    await page.goto("/notifications/settings");
+    const email = page.getByRole("switch", { name: "Bình luận mới: nhận qua email" });
+    await expect(email).toBeChecked();
+    await email.click();
+    await expect(email).not.toBeChecked();
+    await page.reload();
+    await expect(page.getByRole("switch", { name: "Bình luận mới: nhận qua email" })).not.toBeChecked();
+    await expect(page.getByRole("switch", { name: "Bình luận mới: nhận trong ứng dụng" })).toBeChecked();
+
+    const inAppBefore = ((await admin().from("notifications").select("id").eq("user_id", a.user.id).eq("type", "comment.new")).data ?? []).length;
+    await b.api.call("POST", `/projects/${project.id}/comments`, { body: "Second comment" });
+    await expect
+      .poll(async () => ((await admin().from("notifications").select("id").eq("user_id", a.user.id).eq("type", "comment.new")).data ?? []).length)
+      .toBe(inAppBefore + 1);
+    await page.waitForTimeout(4_000);
+    expect((await mailsTo(a.user.email)).length).toBe(before);
+  });
+
   test("Blocked by DFID145, NOT-009 security notifications are still delivered when optional types are off", async ({ page }) => {
     test.fail(true, "DFID145: changing the password creates no security notification");
     const { user, api } = await member();
@@ -148,7 +183,7 @@ test.describe("Notifications and personalization", () => {
     const prefs = (await api.call("GET", "/notifications/preferences")) as unknown;
     expect(JSON.stringify(prefs)).toContain("false");
     await page.goto("/profile");
-    await page.getByRole("button", { name: /bảo mật/i }).click();
+    await page.getByRole("tab", { name: /bảo mật/i }).click();
     await page.getByRole("button", { name: /^đổi mật khẩu$/i }).click();
     await page.locator('input[name="current-password"]').fill(user.password);
     await page.locator('input[name="new-password"]').fill("NewPassw0rd!");
@@ -195,24 +230,24 @@ test.describe("Notifications and personalization", () => {
     await expect(page.getByRole("switch", { name: /được fork: nhận trong ứng dụng/ }).first()).toBeChecked();
   });
 
-  test("Blocked by DFID165, DFID146, SUB-032 a free user selects and saves a preset theme", async ({ page, browser }) => {
-    test.fail(true, "DFID165: after saving, the page switches back to the default theme; DFID146: no confirmation");
+  test("SUB-032 a free user selects and saves a preset theme", async ({ page, browser }) => {
     const { user } = await member();
     await loginThroughUi(page, user);
     await openPersonalization(page);
     await expect(page.getByText("Đang dùng")).toBeVisible();
-    await page.getByRole("button", { name: /Moss Circuit/ }).click();
-    await expect.poll(() => theme(page)).toBe("moss");
+    await page.getByRole("radio", { name: "Rêu" }).click();
+    await expect.poll(() => theme(page)).not.toBe("");
+    const moss = await theme(page);
     await page.getByRole("button", { name: "Lưu theme" }).click();
+    await expect(page.getByText("Đã lưu giao diện màu.")).toBeVisible();
     await expect(page.getByText("Đang xem trước — chưa lưu vào tài khoản.")).toHaveCount(0);
     await page.waitForTimeout(3_000);
-    expect(await theme(page)).toBe("moss");
+    expect(await theme(page)).toBe(moss);
     await expect.poll(() => storedTheme(user)).toBe("moss");
     const other = await (await browser.newContext()).newPage();
     await loginThroughUi(other, user);
-    await expect.poll(() => theme(other)).toBe("moss");
+    await expect.poll(() => theme(other)).toBe(moss);
     await other.context().close();
-    await expect(page.getByRole("status").or(page.getByRole("alert")).filter({ hasText: /đã lưu|thành công/i })).toBeVisible({ timeout: 5_000 });
   });
 
   test("SUB-033 previewing several themes stores nothing", async ({ page, browser }) => {
@@ -220,25 +255,29 @@ test.describe("Notifications and personalization", () => {
     await loginThroughUi(page, user);
     await openPersonalization(page);
     const before = await storedTheme(user);
-    await page.getByRole("button", { name: /Moss Circuit/ }).click();
-    await expect.poll(() => theme(page)).toBe("moss");
-    await page.getByRole("button", { name: /Claret Studio/ }).click();
-    await expect.poll(() => theme(page)).toBe("claret");
+    const base = await theme(page);
+    await page.getByRole("radio", { name: "Rêu" }).click();
+    await expect.poll(() => theme(page)).not.toBe(base);
+    const moss = await theme(page);
+    await page.getByRole("radio", { name: "Rượu vang" }).click();
+    await expect.poll(() => theme(page)).not.toBe(moss);
+    const claret = await theme(page);
     await expect(page.getByText("Đang xem trước — chưa lưu vào tài khoản.")).toBeVisible();
     expect(await storedTheme(user)).toBe(before);
     const other = await (await browser.newContext()).newPage();
     await loginThroughUi(other, user);
-    expect(await theme(other)).not.toBe("claret");
+    expect(await theme(other)).not.toBe(claret);
     await other.context().close();
   });
 
   test("SUB-034 leaving without saving restores the stored theme", async ({ page }) => {
     const { user } = await member();
     await loginThroughUi(page, user);
+    await expect(page.getByRole("link", { name: "Dự án của tôi" })).toBeVisible();
     const stored = await theme(page);
     await openPersonalization(page);
-    await page.getByRole("button", { name: /Moss Circuit/ }).click();
-    await expect.poll(() => theme(page)).toBe("moss");
+    await page.getByRole("radio", { name: "Rêu" }).click();
+    await expect.poll(() => theme(page)).not.toBe(stored);
     await page.getByRole("link", { name: "Dự án của tôi" }).click();
     await expect.poll(() => theme(page)).toBe(stored);
   });
@@ -246,12 +285,13 @@ test.describe("Notifications and personalization", () => {
   test("SUB-035 a server error on saving restores the previous theme", async ({ page }) => {
     const { user } = await member();
     await loginThroughUi(page, user);
+    await expect(page.getByRole("link", { name: "Dự án của tôi" })).toBeVisible();
     const stored = await theme(page);
     await page.route((url) => url.href.includes(API) && /theme/.test(url.pathname), (route) =>
       route.request().method() === "GET" ? route.continue() : route.fulfill({ status: 500, body: "{}" }),
     );
     await openPersonalization(page);
-    await page.getByRole("button", { name: /Moss Circuit/ }).click();
+    await page.getByRole("radio", { name: "Rêu" }).click();
     await page.getByRole("button", { name: "Lưu theme" }).click();
     await expect(page.getByText("Không lưu được theme. Giao diện đã được trả về lựa chọn cũ.")).toBeVisible();
     await expect.poll(() => theme(page)).toBe(stored);

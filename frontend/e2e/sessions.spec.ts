@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { admin } from "./support/auth-links";
 import {
   cleanupE2eUsers,
   createE2eProfile,
@@ -31,7 +32,7 @@ test.describe("Sessions", () => {
     await loginThroughUi(page, user);
     await page.goto("/profile/sessions");
     await expect(page.getByText("Thiết bị này")).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "Đăng xuất" })).toHaveCount(
+    await expect(page.locator("main").getByRole("button", { name: "Đăng xuất", exact: true })).toHaveCount(
       1,
     );
     await expect(page.getByText(/hoạt động gần nhất/i)).toHaveCount(2);
@@ -72,6 +73,28 @@ test.describe("Sessions", () => {
     await expect(page.getByText("Thiết bị này")).toHaveCount(0);
   });
 
+  test("AUTH-091 a session without a known location shows device and time only", async ({ page, browser }) => {
+    const user = await newUser();
+    const second = await browser.newContext();
+    await loginThroughUi(await second.newPage(), user);
+    await loginThroughUi(page, user);
+    const { data: rows } = await admin().from("sessions").select("id, ip_address").eq("user_id", user.id);
+    expect(rows).toHaveLength(2);
+    await page.goto("/profile/sessions");
+    await expect(page.getByText("Thiết bị này").first()).toBeVisible();
+    const other = page.locator("main").getByRole("button", { name: "Đăng xuất", exact: true }).locator("xpath=ancestor::div[contains(@class,'min-h-')][1]");
+    const before = (await other.innerText()).replace(/\s+/g, " ");
+    await admin().from("sessions").update({ ip_address: null }).eq("user_id", user.id);
+    await page.reload();
+    const entry = page.locator("main").getByRole("button", { name: "Đăng xuất", exact: true }).locator("xpath=ancestor::div[contains(@class,'min-h-')][1]");
+    const text = (await entry.innerText()).replace(/\s+/g, " ");
+    expect(before.length).toBeGreaterThan(0);
+    expect(text).not.toContain("?");
+    expect(text).not.toMatch(/(?:\d{1,3}\.){3}\d{1,3}|::1|vị trí|location/i);
+    expect(text).toMatch(/\d{1,2}[:.]\d{2}/);
+    await second.close();
+  });
+
   test("AUTH-095 offers no log out action for the current session and points to the normal sign out", async ({
     page,
   }) => {
@@ -83,7 +106,7 @@ test.describe("Sessions", () => {
     await loginThroughUi(page, user);
     await page.goto("/profile/sessions");
     await expect(page.getByText("Thiết bị này")).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "Đăng xuất" })).toHaveCount(
+    await expect(page.locator("main").getByRole("button", { name: "Đăng xuất", exact: true })).toHaveCount(
       0,
     );
     await expect(page.getByText(/đăng xuất bình thường|menu/i)).toBeVisible();
@@ -104,9 +127,9 @@ test.describe("Sessions", () => {
         : route.continue(),
     );
     await page.goto("/profile/sessions");
-    await page.getByRole("button", { name: "Đăng xuất" }).click();
+    await page.locator("main").getByRole("button", { name: "Đăng xuất", exact: true }).click();
     await expect(page.locator('p[role="alert"]')).toBeVisible();
-    await expect(page.getByRole("button", { name: "Đăng xuất" })).toHaveCount(
+    await expect(page.locator("main").getByRole("button", { name: "Đăng xuất", exact: true })).toHaveCount(
       1,
     );
     await otherPage.goto("/profile");
