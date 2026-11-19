@@ -377,6 +377,15 @@ describe('BE-PRJ-07 ProjectsService.listMine(ownerId)', () => {
       new InternalServerErrorException('Could not list projects'),
     );
   });
+
+  it('UC-102: lọc dự án bị admin gỡ khỏi danh sách của chủ', async () => {
+    const p1 = makeProject({ id: 'p1', created_at: '2026-10-22T00:00:00Z' });
+    const { service, builder } = makeService([{ data: [p1] }]);
+
+    await service.listMine(ownerId);
+
+    expect(builder.is).toHaveBeenCalledWith('moderation_hidden_at', null);
+  });
 });
 
 describe('BE-PRJ-08 ProjectsService.getOwned(projectId, ownerId)', () => {

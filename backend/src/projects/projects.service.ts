@@ -152,13 +152,21 @@ export class ProjectsService {
       : project;
   }
 
-  /** UC-22 (core): list project của user hiện tại. */
+  /**
+   * UC-22 (core): list project của user hiện tại. UC-102: không hiện dự án
+   * bị admin gỡ (moderation_hidden_at), kể cả tab "Tất cả" / "Đang hoạt động".
+   */
   async listMine(ownerId: string): Promise<ProjectRow[]> {
     const { data, error } = await this.supabase
       .from('projects')
       .select('*')
       .eq('owner_id', ownerId)
+<<<<<<< Updated upstream
       .order('updated_at', { ascending: false });
+=======
+      .is('moderation_hidden_at', null)
+      .order('created_at', { ascending: false });
+>>>>>>> Stashed changes
 
     if (error) {
       throw new InternalServerErrorException('Could not list projects');
