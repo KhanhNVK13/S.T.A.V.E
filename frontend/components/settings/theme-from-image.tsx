@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ImageUp, Loader2 } from "lucide-react";
+import { ImageUp, Loader2, Sparkles } from "lucide-react";
 import { useI18n } from "../../context/i18n-context";
 import { useTheme } from "../../context/theme-context";
 import { saveMyCustomTheme } from "../../lib/api-billing";
@@ -122,15 +121,17 @@ export function ThemeFromImage({ returnTo = "/profile?tab=personalisation" }: Th
       <p className="text-xs text-muted">{t("themeImage.lead")}</p>
 
       {hasPaidAccess === false && (
-        <p className="text-xs text-warning-foreground">
-          {t("themeImage.paidOnly")}{" "}
-          <Link
-            href={`/plans?feature=theme_from_image&returnTo=${encodeURIComponent(returnTo)}`}
-            className="font-semibold text-accent underline underline-offset-2"
-          >
-            {t("themeImage.upgradeLink")}
-          </Link>
-        </p>
+        <Button
+          type="button"
+          className="w-full"
+          onClick={() => {
+            window.location.assign(
+              `/plans?feature=theme_from_image&returnTo=${encodeURIComponent(returnTo)}`,
+            );
+          }}
+        >
+          <Sparkles aria-hidden="true" className="h-3.5 w-3.5" /> {t("themeImage.upgradeBtn")}
+        </Button>
       )}
 
       <div

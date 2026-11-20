@@ -66,6 +66,15 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
   const [plans, subscription] = data ?? [null, null];
   const highlightedPlanId = feature ? plans?.find((plan) => plan.features[feature] === true)?.id ?? null : null;
 
+  // Gói "khuyến nghị" = gói trả phí (non-default), đang mở bán, chưa phải gói
+  // hiện tại, có sortOrder thấp nhất. Hiện ở STAVE+ (49k) giữa Free/STAVE+/PRO.
+  const recommendedPlanId = (() => {
+    if (!plans) return null;
+    const candidates = plans.filter((p) => !p.isDefault && p.isActive && !p.isCurrent);
+    if (candidates.length === 0) return null;
+    return candidates.reduce((min, p) => (p.sortOrder < min.sortOrder ? p : min), candidates[0]).id;
+  })();
+
   useEffect(() => {
     if (!highlightedPlanId) return;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -289,6 +298,7 @@ export function PlansView({ feature, canceled, returnTo }: PlansViewProps) {
                   subscription={subscription}
                   feature={feature}
                   highlighted={plan.id === highlightedPlanId}
+                  recommended={plan.id === recommendedPlanId}
                   handlers={handlers}
                 />
               </li>
@@ -394,12 +404,14 @@ function PlanCard({
   subscription,
   feature,
   highlighted,
+  recommended,
   handlers,
 }: {
   plan: PlanListItem;
   subscription: EffectiveSubscription;
   feature: PlanFeatureKey | null;
   highlighted: boolean;
+  recommended: boolean;
   handlers: PlanCardHandlers;
 }) {
   const { t } = useI18n();
@@ -418,11 +430,18 @@ function PlanCard({
   return (
     <Card
       id={planAnchor(plan.id)}
-      className={`flex h-full scroll-mt-20 flex-col p-5 ${highlighted ? "border-accent ring-1 ring-accent" : ""}`}
+      className={`flex h-full scroll-mt-20 flex-col p-5 ${
+        highlighted || recommended ? "border-accent ring-1 ring-accent" : ""
+      }`}
     >
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold">{plan.name}</h2>
         {plan.isCurrent && <Badge variant="success">{t("bill.plans.current")}</Badge>}
+        {recommended && (
+          <Badge variant="success">
+            <Sparkles aria-hidden="true" className="h-3 w-3" /> {t("bill.plans.recommended")}
+          </Badge>
+        )}
         {highlighted && (
           <Badge variant="info">
             <Sparkles aria-hidden="true" className="h-3 w-3" /> {t("bill.plans.hasFeature")}
@@ -470,8 +489,12 @@ function PlanCard({
 
       <div className="mt-auto flex flex-wrap gap-2 pt-5">
         {!onPaidPlan && !plan.isCurrent && !plan.isDefault && (
-          <Button disabled={busy} onClick={() => handlers.onSubscribe(plan)}>
-            {t("bill.plans.upgradeBtn", { plan: plan.name })}
+          <Button
+            disabled={busy}
+            onClick={() => handlers.onSubscribe(plan)}
+            className={recommended ? "w-full" : ""}
+          >
+            <Sparkles aria-hidden="true" className="h-3.5 w-3.5" /> {t("bill.plans.upgradeBtn", { plan: plan.name })}
           </Button>
         )}
         {onPaidPlan && !plan.isCurrent && (
