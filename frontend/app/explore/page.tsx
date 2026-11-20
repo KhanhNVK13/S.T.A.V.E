@@ -32,7 +32,10 @@ import { useSpaceScene, useSpaceScroll } from '../../components/space/use-space-
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'ex.sortNewest' },
-  { value: 'most_played', label: 'ex.sortPopular' },
+  { value: 'recently_updated', label: 'ex.sortRecentlyUpdated' },
+  { value: 'popular', label: 'ex.sortPopular' },
+  { value: 'most_played', label: 'ex.sortMostPlayed' },
+  { value: 'most_forked', label: 'ex.sortMostForked' },
 ] as const;
 
 const CHIP_BASE =
@@ -50,7 +53,12 @@ function ExploreContent() {
   const searchParams = useSearchParams();
 
   const page = parseInt(searchParams.get('page') ?? '1', 10);
-  const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'most_played';
+  const sort = (searchParams.get('sort') ?? 'newest') as
+    | 'newest'
+    | 'recently_updated'
+    | 'popular'
+    | 'most_played'
+    | 'most_forked';
   const genre = searchParams.get('genre') ?? '';
   const search = searchParams.get('search') ?? '';
   const tag = searchParams.get('tag') ?? '';
@@ -80,7 +88,26 @@ function ExploreContent() {
     tNow('explorePage.featuredFail'),
   );
   const showFeatured = !filtered && page === 1;
-  const featuredProjects = showFeatured ? (featured?.featured_projects ?? []) : [];
+  const needNewestFallback =
+    showFeatured &&
+    featured !== null &&
+    featured.trending_projects.length === 0 &&
+    sort !== 'newest';
+  const { data: newestFallback } = useApiResource<PublicProjectsResponse>(
+    () =>
+      needNewestFallback
+        ? listPublicProjects({ page: 1, limit: 6, sort: 'newest' })
+        : Promise.resolve({ items: [], total: 0, page: 1, totalPages: 0, limit: 6 }),
+    [needNewestFallback],
+  );
+  const fallbackNewest =
+    sort === 'newest' ? (data?.items ?? []).slice(0, 6) : (newestFallback?.items ?? []);
+  const featuredProjects =
+    showFeatured && featured
+      ? featured.trending_projects.length > 0
+        ? featured.trending_projects
+        : fallbackNewest
+      : [];
 
   function updateParams(newParams: Record<string, string | null>) {
     const params = new URLSearchParams(window.location.search);
