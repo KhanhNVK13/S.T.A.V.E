@@ -82,6 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    const fallbackTimer = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 5000);
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
@@ -89,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(newSession);
 
         if (event === "SIGNED_OUT") {
+          clearTimeout(fallbackTimer);
           clearStoredSessionId();
           setProfile(null);
           setLoading(false);
@@ -109,10 +113,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.error(err);
               }
             } finally {
+              clearTimeout(fallbackTimer);
               if (active) setLoading(false);
             }
           })();
         } else {
+          clearTimeout(fallbackTimer);
           setLoading(false);
         }
       },
@@ -120,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false;
+      clearTimeout(fallbackTimer);
       listener.subscription.unsubscribe();
     };
   }, [refreshProfile]);

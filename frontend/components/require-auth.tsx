@@ -1,19 +1,31 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useT } from "../context/i18n-context";
 import { useAuth } from "../context/auth-context";
+import { withNextParam } from "../lib/safe-redirect";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const t = useT();
   const { user, loading } = useAuth();
   const router = useRouter();
+  const wasAuthenticatedRef = useRef(false);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/login");
+    if (user) {
+      wasAuthenticatedRef.current = true;
+      return;
+    }
+    if (!loading) {
+      if (wasAuthenticatedRef.current) {
+        router.replace("/login");
+        return;
+      }
+      const current =
+        typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : "";
+      router.replace(withNextParam("/login", current));
     }
   }, [loading, user, router]);
 
