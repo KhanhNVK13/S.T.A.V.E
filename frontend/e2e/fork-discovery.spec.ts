@@ -93,7 +93,6 @@ test.describe("Fork and discovery", () => {
   });
 
   test("Blocked by DFID132, DISC-021 rankings default to this week and switch between periods", async ({ page }) => {
-    test.fail(true, "DFID132: rankings have no period selection (this week, this month, all time)");
     const b = await person("B");
     const pub = await publicSong(b, 1);
     await fetch(`${BACKEND}/explore/projects/${pub.id}`);
@@ -105,7 +104,6 @@ test.describe("Fork and discovery", () => {
   });
 
   test("Blocked by DFID132, DISC-022 an empty period suggests choosing a longer period", async ({ page }) => {
-    test.fail(true, "DFID132: rankings have no period selection, so there is no empty period state");
     await page.goto("/rankings");
     await expect(page.getByText(/khoảng thời gian dài hơn|longer period/i)).toBeVisible();
   });

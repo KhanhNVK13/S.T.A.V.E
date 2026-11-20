@@ -202,6 +202,13 @@ export const NOTIFICATION_TYPES: NotificationTypeDefinition[] = [
     'Sự cố thanh toán của bạn đã được xử lý: {{summary}}',
   ),
   define(
+    'security.password_changed',
+    SECURITY_BILLING,
+    [],
+    'Mật khẩu đã được đổi',
+    'Mật khẩu tài khoản STAVE của bạn vừa được đổi và các thiết bị khác đã bị đăng xuất. Nếu không phải bạn, hãy đặt lại mật khẩu ngay.',
+  ),
+  define(
     'security.google_connected',
     SECURITY_BILLING,
     ['email'],

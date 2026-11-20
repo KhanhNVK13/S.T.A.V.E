@@ -38,7 +38,7 @@ describe("FE-LIB-51 avatar-upload validateAvatarFile(file)", () => {
 
   it("UTCID06 (B): one byte above the source limit → a message about the size", () => {
     expect(validateAvatarFile(fileOf("image/png", AVATAR_MAX_SOURCE_BYTES + 1))).toBe(
-      "Ảnh lớn hơn 10 MB nên không dùng được. Hãy chọn ảnh nhỏ hơn.",
+      "Ảnh lớn hơn 2 MB nên không dùng được. Chỉ nhận JPG, PNG hoặc WebP tối đa 2 MB.",
     );
   });
 });

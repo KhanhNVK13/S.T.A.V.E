@@ -308,11 +308,7 @@ test.describe("Track editing", () => {
       await expect(nameButton(page, "Bass")).toBeVisible();
     });
 
-    test("EDT-039 the only track of a project cannot be removed", async ({ page }) => {
-      test.fail(
-        true,
-        "DFID097: the last track can be removed after the usual confirmation; there is no refusal and no offer to delete its notes instead",
-      );
+    test("EDT-039 the only track of a project can be removed, leaving a project with no track", async ({ page }) => {
       const { api, id } = await seed(
         page,
         [{ id: "track-1", name: "Solo" }],
@@ -320,15 +316,10 @@ test.describe("Track editing", () => {
       );
       await openEditor(page, id);
       await trackCard(page, "Solo").getByTitle("Xoá track").click();
-      await expect
-        .soft(page.getByText(/ít nhất (một|1) track/i).first())
-        .toBeVisible(quick);
       const dialog = confirmDialog(page);
-      if (await dialog.isVisible()) {
-        await dialog.getByRole("button", { name: "Xoá track" }).click();
-      }
-      await page.waitForTimeout(3_500);
-      expect((await readDraft(api, id)).tracks).toHaveLength(1);
+      await expect(dialog).toBeVisible(quick);
+      await dialog.getByRole("button", { name: "Xoá track" }).click();
+      await expect.poll(async () => (await readDraft(api, id)).tracks.length, { timeout: 15_000 }).toBe(0);
     });
 
     test("EDT-040 an empty track is removed at once without confirmation", async ({

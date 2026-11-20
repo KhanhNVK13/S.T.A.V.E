@@ -261,10 +261,6 @@ test.describe("MIDI import and export", () => {
   test("EDT-093 reports a failure while writing the file and downloads nothing", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID078: when writing the file throws, the export fails silently and the editor shows no message",
-    );
     const { id } = await seedProject(page, { twoTracks: true });
     await page.addInitScript(() => {
       URL.createObjectURL = () => {

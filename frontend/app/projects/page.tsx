@@ -192,6 +192,7 @@ function ProjectsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [undoArchiveId, setUndoArchiveId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ErrorSource | null>(null);
@@ -224,6 +225,7 @@ function ProjectsContent() {
 
   async function handleArchive(id: string) {
     await archiveProject(id);
+    setUndoArchiveId(id);
     setProjects((prev) =>
       prev.map((p) =>
         p.id === id ? { ...p, archived_at: new Date().toISOString() } : p,
@@ -340,6 +342,20 @@ function ProjectsContent() {
 
   return (
     <div className="mx-auto max-w-page px-5 py-9 sm:px-8 lg:px-10">
+      {undoArchiveId && (
+        <Toast
+          message={t('projects.archivedNotice')}
+          variant="success"
+          duration={10000}
+          actionLabel={t('projects.undo')}
+          onAction={() => {
+            const id = undoArchiveId;
+            setUndoArchiveId(null);
+            void handleUnarchive(id);
+          }}
+          onDismiss={() => setUndoArchiveId(null)}
+        />
+      )}
       <PageHeader
         breadcrumbs={[{ label: t('projects.crumb') }]}
         title={t('projects.title')}

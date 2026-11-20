@@ -331,6 +331,9 @@ export class JamService {
 
       if (room.isDirty) {
         const result = await this.flushRoom(room);
+        if (result === 'ok' && room.status !== 'active') {
+          await this.commitFrozenResult(room);
+        }
         if (result === 'failed') {
           room.consecutiveFlushFailures += 1;
           if (room.consecutiveFlushFailures >= JAM_MAX_FLUSH_FAILURES) {
@@ -1165,6 +1168,12 @@ export class JamService {
           status: row.status,
           started_at: row.started_at,
           ended_at: row.ended_at,
+          ...(row.status === 'ended' && !row.no_result && row.jam_project_id
+            ? {
+                resulting_project_id:
+                  row.resulting_project_id ?? row.jam_project_id,
+              }
+            : {}),
         })
         .eq('id', row.id);
       if (error) {
@@ -2010,6 +2019,8 @@ export class JamService {
       );
     }
 
+    await this.commitFrozenResult(room);
+
     const nowIso = new Date().toISOString();
     const totalNotes = room.snapshot.notes.length;
 
@@ -2022,6 +2033,7 @@ export class JamService {
         status: 'ended',
         ended_at: nowIso,
         updated_at: nowIso,
+        ...(totalNotes > 0 ? { resulting_project_id: row.jam_project_id } : {}),
         // duc.md 3.E1 — nobody contributed anything: mark it, so the UC-68
         // result view reports "không có đóng góp" explicitly.
         ...(totalNotes === 0 ? { no_result: true } : {}),
@@ -2060,6 +2072,7 @@ export class JamService {
     row.ended_at = nowIso;
     row.updated_at = nowIso;
     if (totalNotes === 0) row.no_result = true;
+    else row.resulting_project_id = row.jam_project_id;
     void this.announce(row, 'jam.ended');
 
     // Realtime: `jam:ended` (spec) + `jam:event_ended` (existing client
@@ -2371,6 +2384,37 @@ export class JamService {
    *                  sweep retries; the caller counts consecutive failures
    *                  and raises `jam:storage_warning` past the threshold.
    */
+  private async commitFrozenResult(room: JamRoomState): Promise<void> {
+    if (!room.projectId || !room.ownerId) return;
+    if (room.snapshot.notes.length === 0) return;
+    try {
+      const { data: branch } = await this.supabase
+        .from('branches')
+        .select('id, head_commit_id')
+        .eq('project_id', room.projectId)
+        .eq('is_default', true)
+        .maybeSingle<{ id: string; head_commit_id: string | null }>();
+      if (!branch || branch.head_commit_id) return;
+      const { error } = await this.supabase.rpc('create_commit_atomic', {
+        p_branch_id: branch.id,
+        p_author_id: room.ownerId,
+        p_message: 'Community Jam result',
+        p_snapshot: room.snapshot,
+        p_parent_commit_id: null,
+        p_merged_from_branch_id: null,
+      });
+      if (error) {
+        JamService.logger.warn(
+          `Could not commit the frozen result of jam ${room.jamId}: ${error.message}`,
+        );
+      }
+    } catch (err) {
+      JamService.logger.warn(
+        `Could not commit the frozen result of jam ${room.jamId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
   private async flushRoom(
     room: JamRoomState,
   ): Promise<'ok' | 'skipped' | 'failed'> {

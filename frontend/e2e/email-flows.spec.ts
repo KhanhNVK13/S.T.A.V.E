@@ -58,10 +58,6 @@ test.describe("Email flows with a local mailbox", () => {
     page,
     browser,
   }) => {
-    test.fail(
-      true,
-      "DFID054: after registering nobody is signed in; the page only asks to check the inbox, so the guest is not signed in as the case expects",
-    );
     const email = e2eEmail("reg01");
     await registerThroughUi(page, email, "Passw0rd!");
     await expect(page.getByText("Kiểm tra email")).toBeVisible();
@@ -97,10 +93,6 @@ test.describe("Email flows with a local mailbox", () => {
   test("AUTH-008 still creates the account and offers a resend when the verification email cannot be sent", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID060: when the mail service is down registration fails with a generic error and no account is created, so there is nothing to resend",
-    );
     const mailContainer = LOCAL_DB_CONTAINER.replace("supabase_db_", "supabase_inbucket_");
     const email = e2eEmail("down");
     execFileSync("docker", ["stop", mailContainer]);
@@ -139,10 +131,6 @@ test.describe("Email flows with a local mailbox", () => {
   test("AUTH-009 accepts a password of exactly 8 characters and creates a pending account", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID054: after registering nobody is signed in; the page only asks to check the inbox, so the guest is not signed in as the case expects",
-    );
     const email = e2eEmail("reg02");
     await registerThroughUi(page, email, "Abcd123!");
     await expect(page.getByText("Kiểm tra email")).toBeVisible();

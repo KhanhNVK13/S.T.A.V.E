@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshProfile = useCallback(async () => {
+  const refreshProfile = useCallback(async (dropRevoked = false) => {
     if (!getStoredSessionId()) {
       setProfile(null);
       return;
@@ -71,8 +71,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const me = await apiFetch<Profile>("/users/me");
       setProfile(me);
-    } catch {
+    } catch (err) {
       setProfile(null);
+      if (dropRevoked && err instanceof ApiError && err.status === 401) {
+        clearStoredSessionId();
+        await supabase.auth.signOut({ scope: "local" });
+      }
     }
   }, []);
 
@@ -95,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           void (async () => {
             try {
               await ensureBusinessSession();
-              await refreshProfile();
+              await refreshProfile(event === "INITIAL_SESSION");
             } catch (err) {
               if (err instanceof ApiError && err.status === 403) {
                 setAuthNotice(accountInactiveNotice());

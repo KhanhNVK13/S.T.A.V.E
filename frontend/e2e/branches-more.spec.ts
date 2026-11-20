@@ -124,10 +124,6 @@ test.describe("Branch management, further cases", () => {
   test("BRN-002 creates a branch from an earlier commit chosen as the starting point", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID027: the create form has only a name; the starting point cannot be chosen and the branch always starts at the latest commit",
-    );
     const { api, id } = await build(page, null);
     await openTab(page, id, "branches");
     await page.getByRole("button", { name: /^tạo nhánh$/i }).click();
@@ -325,14 +321,11 @@ test.describe("Branch management, further cases", () => {
   test("BRN-029 reports that a branch with nothing new has nothing to merge", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID037: for a branch with nothing new the Merge button is only disabled; no message says there is nothing to merge",
-    );
     const { api, id, mainId } = await mergedBranch(page);
     const before = await api.history(mainId);
     await openTab(page, id, "branches");
     await expect(page.getByText("Đã hợp nhất")).toBeVisible();
+    await page.getByRole("button", { name: /hợp nhất vào main/i }).click({ force: true });
     await expect(page.getByText(/không có gì để hợp nhất/i)).toBeVisible();
     expect(await api.history(mainId)).toEqual(before);
   });

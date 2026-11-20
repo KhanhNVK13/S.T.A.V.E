@@ -27,17 +27,13 @@ test.describe("Email link expiry and email failure", () => {
   test("AUTH-017 rejects a verification link older than 24 hours and offers a new verification email", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID058: the expired verification link page only offers a new password reset link; it offers no way to send a new verification email",
-    );
     const pending = await pendingWithLink("old");
     ageLink(pending.email, "confirmation_sent_at", 25 * 60);
     await page.goto(await resolveLink(pending.link, "/auth/callback"));
-    await expect(page.getByText("Không đăng nhập được")).toBeVisible();
+    await expect(page.getByText("Liên kết không còn dùng được")).toBeVisible();
     await expect(page.getByText(/hết hạn/i).first()).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /gửi lại.*xác nhận|xác nhận.*gửi lại/i }),
+      page.getByRole("button", { name: /gửi email xác nhận/i }),
     ).toBeVisible({ timeout: 5_000 });
     expect((await authUser(pending.id)).email_confirmed_at).toBeFalsy();
   });
@@ -45,10 +41,6 @@ test.describe("Email link expiry and email failure", () => {
   test("AUTH-020 accepts a verification link that is 23 hours 59 minutes old", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID059: a verification link stops working after 1 hour (the Supabase default), not after 24 hours",
-    );
     const pending = await pendingWithLink("edge");
     ageLink(pending.email, "confirmation_sent_at", 23 * 60 + 59);
     await page.goto(await resolveLink(pending.link, "/auth/callback"));

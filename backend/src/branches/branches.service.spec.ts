@@ -885,7 +885,10 @@ describe('BE-BRN-02 BranchesService.switchBranch', () => {
   ])('%s rejects a project with at most one branch', async (_id, count) => {
     const { service } = makeService({
       projects: [{ data: { owner_id: userId } }],
-      branches: [{ count, data: null }],
+      branches: [
+        { count, data: null },
+        { data: { id: otherBranchId, project_id: projectId } },
+      ],
     });
 
     await expect(

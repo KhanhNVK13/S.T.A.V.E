@@ -185,6 +185,15 @@ export function JamSession({ event }: { event: JamEvent }) {
       {/* 12.E1 — the background flush has been failing; the in-RAM snapshot
           is still live but not yet saved to the DB. The banner clears itself
           the moment a flush succeeds again (the server re-broadcasts a 0). */}
+      {socket.endChange && (
+        <div
+          role="status"
+          className="rounded-card border border-accent/30 bg-accent-muted px-4 py-2.5 text-sm text-accent"
+        >
+          {t("jam.endChanged", { time: formatDateTime(socket.endChange.newEndAt) })}
+        </div>
+      )}
+
       {socket.storageWarning && (
         <div
           role="alert"

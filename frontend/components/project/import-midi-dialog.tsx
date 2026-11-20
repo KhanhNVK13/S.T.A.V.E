@@ -154,6 +154,11 @@ export function ImportMidiDialog({
       <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={busy}>
         <FileUp aria-hidden="true" className="h-3.5 w-3.5" /> {summary ? t("imp.chooseOther") : t("imp.choose")}
       </Button>
+      {summary && (
+        <Button variant="ghost" onClick={() => setSummary(null)} disabled={busy} className="ml-2">
+          {t("imp.removeFile")}
+        </Button>
+      )}
       {fileError && (
         <p role="alert" className="mt-3 text-xs text-danger">
           {fileError}

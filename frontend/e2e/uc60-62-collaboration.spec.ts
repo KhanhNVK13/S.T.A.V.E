@@ -27,6 +27,7 @@ test.describe("UC-60..62 Collaboration in Editor", () => {
           created_at: "2026-10-31T00:00:00.000Z",
           updated_at: "2026-10-31T00:00:00.000Z",
           play_count: 0,
+          viewer_access: "owner",
         }),
       });
     });

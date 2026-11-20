@@ -11,6 +11,8 @@ import {
 
 type Channel = 'in_app' | 'email';
 
+const IN_APP_ONLY_TYPES = new Set(['security.password_changed']);
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -37,6 +39,7 @@ export class NotificationsService {
       const inApp = mandatory || !(await this.isMuted(userId, type, 'in_app'));
       const byEmail =
         this.email.enabled &&
+        !IN_APP_ONLY_TYPES.has(type) &&
         (mandatory || (await this.isEmailOptedIn(userId, type)));
       if (!inApp && !byEmail) return;
 

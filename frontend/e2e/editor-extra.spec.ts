@@ -128,13 +128,18 @@ test.describe("Editor extra", () => {
   });
 
   test("Blocked by DFID154, EDT-083 with every track muted the playhead runs and an all-muted indication is shown", async ({ page }) => {
-    test.fail(true, "DFID154: no indication is shown during playback when every track is muted");
+    test.fail(true, "DFID154: no indication is shown during playback when every track is muted (under investigation)");
     const { user, api } = await owner();
     const project = await song(api, [{ id: "n1", pitch: 60, start: 0 }, { id: "n2", pitch: 40, start: 0, trackId: "track-2" }]);
     await loginThroughUi(page, user);
     await openEditor(page, project.id);
     const mutes = page.getByRole("button", { name: /Tắt tiếng track/ });
-    for (let i = 0; i < (await mutes.count()); i += 1) await mutes.nth(i).click();
+    const muteCount = await mutes.count();
+    for (let i = 0; i < muteCount; i += 1) {
+      await mutes.first().click();
+      await page.waitForTimeout(300);
+    }
+    await expect(page.getByRole("button", { name: /Bật tiếng track/ })).toHaveCount(muteCount);
     await page.getByRole("button", { name: "Phát (Space)" }).click();
     await expect(page.getByText(/mọi track.*tắt tiếng|tất cả track.*tắt tiếng/i).first()).toBeVisible({ timeout: 5_000 });
     await expect(page.getByRole("button", { name: "Tạm dừng (Space)" })).toBeEnabled();
@@ -176,7 +181,6 @@ test.describe("Editor extra", () => {
   });
 
   test("Blocked by DFID151, EDT-087 choosing MIDI in the Export dialog switches to the MIDI export", async ({ page }) => {
-    test.fail(true, "DFID151: the export dialog offers no MIDI format; MIDI export is a separate menu item");
     const { user, api } = await owner();
     const project = await song(api, [{ id: "n1", pitch: 60, start: 0 }]);
     await loginThroughUi(page, user);
@@ -187,7 +191,6 @@ test.describe("Editor extra", () => {
   });
 
   test("Blocked by DFID152, EDT-090 closing the dialog during rendering cancels the export", async ({ page }) => {
-    test.fail(true, "DFID152: Cancel is disabled while rendering, the export cannot be cancelled");
     const { user, api } = await owner();
     const project = await song(api, Array.from({ length: 400 }, (_, i) => ({ id: `n${i}`, pitch: 48 + (i % 24), start: i * PPQ })));
     await loginThroughUi(page, user);
@@ -204,7 +207,6 @@ test.describe("Editor extra", () => {
   });
 
   test("Blocked by DFID153, EDT-092 a MIDI export of a project with custom sounds warns first", async ({ page }) => {
-    test.fail(true, "DFID153: the MIDI export downloads at once without the custom-sound warning");
     const { user, api } = await owner();
     const kick = await seedSound(api, "kick_01");
     const project = await song(api, [{ id: "n1", pitch: 60, start: 0 }, { id: "k1", pitch: 36, start: 0, trackId: "track-2" }], { "36": kick });
@@ -263,7 +265,6 @@ test.describe("Editor extra", () => {
   });
 
   test("Blocked by DFID159, EDT-106 a project without custom sounds exports a bundle with an empty mapping", async ({ page }) => {
-    test.fail(true, "DFID159: no notice that there was nothing extra to bundle");
     const { user, api } = await owner();
     const project = await song(api, [{ id: "n1", pitch: 60, start: 0 }]);
     await loginThroughUi(page, user);
@@ -327,7 +328,6 @@ test.describe("Editor extra", () => {
   });
 
   test("Blocked by DFID164, BRN-014 switching to a branch deleted elsewhere refreshes the list and keeps main", async ({ page }) => {
-    test.fail(true, "DFID164: the branch chip keeps the deleted branch and picking it says only that the project has one branch");
     const { user, api } = await owner();
     const project = await song(api, [{ id: "n1", pitch: 60, start: 0 }]);
     const alt = await api.createBranch(project.id, "alt-chorus");

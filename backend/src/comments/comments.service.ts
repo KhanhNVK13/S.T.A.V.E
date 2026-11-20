@@ -18,7 +18,7 @@ import type { CreateCommentDto } from './dto/create-comment.dto';
 interface CommentRow {
   id: string;
   project_id: string;
-  author_id: string;
+  author_id: string | null;
   body: string;
   track_id: string | null;
   bar: number | null;
@@ -92,7 +92,9 @@ export class CommentsService {
       return row;
     });
     const noteIds = await this.currentNoteIds(projectId);
-    const userMap = await this.getAuthorNames(comments.map((c) => c.author_id));
+    const userMap = await this.getAuthorNames(
+      comments.map((c) => c.author_id ?? ''),
+    );
 
     return comments.map((row) => ({
       id: row.id,
@@ -102,8 +104,8 @@ export class CommentsService {
       bar: row.bar,
       noteId: row.note_id,
       parentId: row.parent_id,
-      author: userMap.get(row.author_id) ?? {
-        id: row.author_id,
+      author: userMap.get(row.author_id ?? '') ?? {
+        id: row.author_id ?? '',
         username: null,
         displayName: null,
         avatarUrl: null,
@@ -214,7 +216,7 @@ export class CommentsService {
       created = inserted;
     }
 
-    const userMap = await this.getAuthorNames([created.author_id]);
+    const userMap = await this.getAuthorNames([created.author_id ?? '']);
     const item: CommentItem = {
       id: created.id,
       projectId: created.project_id,
@@ -223,8 +225,8 @@ export class CommentsService {
       bar: created.bar,
       noteId: created.note_id,
       parentId: created.parent_id,
-      author: userMap.get(created.author_id) ?? {
-        id: created.author_id,
+      author: userMap.get(created.author_id ?? '') ?? {
+        id: created.author_id ?? '',
         username: null,
         displayName: null,
         avatarUrl: null,

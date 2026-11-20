@@ -10,7 +10,6 @@ import {
 } from "./support/test-user";
 
 const expect = baseExpect.configure({ timeout: 30_000 });
-const DFID123 = "DFID123: an accepted collaborator cannot open the shared project";
 
 function wavBuffer(seconds: number): Buffer {
   const rate = 8000;
@@ -145,7 +144,6 @@ test.describe("Audio extra", () => {
     ["AUD-053", "a view-only collaborator cannot delete a sketch"],
   ] as const) {
     test(`Blocked by DFID123, ${caseId} ${title}`, async ({ page }) => {
-      test.fail(true, DFID123);
       const a = await person();
       const b = await person("B");
       const project = await a.api.createProject("Test Song");
@@ -154,9 +152,9 @@ test.describe("Audio extra", () => {
       expect(await status(b.api.call("DELETE", `/projects/${project.id}/audio-sketches/${sketch.sketchId}`))).toBe(403);
       expect(await sketches(a.api, project.id)).toHaveLength(1);
       await loginThroughUi(page, b.user);
-      await openEditor(page, project.id);
-      const dialog = await openSketches(page);
-      await expect(dialog.getByRole("button", { name: "Xoá audio sketch Chorus hum" })).toHaveCount(0);
+      await page.goto(`/projects/${project.id}`);
+      await expect(page.getByRole("heading", { name: "Test Song" })).toBeVisible();
+      await expect(page.getByRole("link", { name: /mở trình soạn nhạc/i })).toHaveCount(0);
     });
   }
 

@@ -112,6 +112,7 @@ const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 interface EditorRedesignProps {
   projectId: string;
   projectName: string;
+  isOwner: boolean;
   // Dữ liệu nhạc
   /** Nguyên bản nháp đang mở — dùng cho Version Control (commit/so sánh). */
   snapshot: DraftSnapshot;
@@ -212,7 +213,7 @@ interface EditorRedesignProps {
 export function EditorRedesign(props: EditorRedesignProps) {
   const { t, tx, locale } = useI18n();
   const {
-    projectId, projectName, snapshot, notes, tracks, tempo, timeSignature, ppq,
+    projectId, projectName, isOwner, snapshot, notes, tracks, tempo, timeSignature, ppq,
     tool, onToolChange, gridDivision, onGridChange, zoom, onZoomChange,
     selectedTrackId, onSelectTrack, selectedNoteIds, onSelectedNotesChange,
     onNotesChange, playheadTick, pianoRollRef,
@@ -1217,6 +1218,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
           projectName={projectName}
           selectedNoteIds={selectedNoteIds}
           onClose={() => setShowExportAudio(false)}
+          onExportMidi={onExportMidi}
         />
       )}
 
@@ -1255,7 +1257,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
         onClose={() => setCollaboratorsOpen(false)}
         projectId={projectId}
         projectName={projectName}
-        isOwner
+        isOwner={isOwner}
       />
 
       <ConfirmDialog

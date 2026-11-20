@@ -167,10 +167,6 @@ test.describe("Editing tools", () => {
     test("EDT-044 keeps the previous instrument when its samples cannot be loaded", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID099: choosing an instrument never loads or checks its samples; the instrument is switched at once and no error is shown when its sample files return 404",
-      );
       const { api, id } = await seed(page, [{ id: "n1", pitch: 60, start: 0 }]);
       const sampleRequests: string[] = [];
       await page.route("**/instruments/flute/**", (route) => {
@@ -181,11 +177,10 @@ test.describe("Editing tools", () => {
       await trackCard(page, "Lead").getByTitle("Acoustic Grand Piano").click();
       await page.getByPlaceholder("Tìm nhạc cụ…").fill("Flute");
       await page.getByRole("button", { name: "Flute", exact: true }).click();
+      await expect(page.getByText(/không tải được|tải.*thất bại|không thể tải/i).first()).toBeVisible({
+        timeout: 15_000,
+      });
       await page.waitForTimeout(3_500);
-
-      await expect
-        .soft(page.getByText(/không tải được|tải.*thất bại|không thể tải/i).first())
-        .toBeVisible(quick);
       expect((await readDraft(api, id)).tracks[0].instrument).toBe("Acoustic Grand Piano");
     });
   });
@@ -194,15 +189,14 @@ test.describe("Editing tools", () => {
     test("EDT-046 quantizes the notes of the track and keeps identity, pitch and velocity", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID100: quantize moves the notes silently; there is no message saying how many notes were moved",
-      );
       const { api, id, branchId } = await seed(page, OFF_GRID);
       const before = (await readDraft(api, id)).notes;
       await openEditor(page, id);
       await toolbarButton(page, "1/16").click();
       await (await editItem(page, "Quantize")).click();
+      await expect(
+        page.getByText(/^(?=.{0,120}$).*((di chuyển|quantize|căn).*4 (note|nốt)|4 (note|nốt).*(di chuyển|quantize|căn))/i).first(),
+      ).toBeVisible(quick);
 
       await expect
         .poll(async () => starts((await readDraft(api, id)).notes), saved)
@@ -213,9 +207,6 @@ test.describe("Editing tools", () => {
       );
       expect(await api.history(branchId)).toHaveLength(0);
       await expect(toolbarButton(page, "Hoàn tác")).toBeEnabled();
-      await expect(
-        page.getByText(/^(?=.{0,120}$).*((di chuyển|quantize|căn).*4 (note|nốt)|4 (note|nốt).*(di chuyển|quantize|căn))/i).first(),
-      ).toBeVisible(quick);
     });
 
     test("EDT-047 undo after quantizing restores the original start positions", async ({
@@ -238,10 +229,6 @@ test.describe("Editing tools", () => {
     test("EDT-048 quantizing notes already on the grid reports that nothing moved", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID100: quantize gives no feedback; when no note needs moving nothing tells the user so",
-      );
       const notes: NoteSeed[] = [
         { id: "b1", pitch: 48, start: 0, trackId: "track-2" },
         { id: "b2", pitch: 50, start: 120, trackId: "track-2" },
@@ -253,12 +240,12 @@ test.describe("Editing tools", () => {
       await selectTrack(page, "Bass");
       await toolbarButton(page, "1/16").click();
       await (await editItem(page, "Quantize")).click();
-      await page.waitForTimeout(3_500);
-
-      expect(await readDraft(api, id)).toEqual(before);
       await expect(
         page.getByText(/không có (note|nốt) nào cần|đã nằm trên lưới|không cần (di chuyển|căn)/i).first(),
       ).toBeVisible(quick);
+      await page.waitForTimeout(3_500);
+
+      expect(await readDraft(api, id)).toEqual(before);
     });
 
     test("EDT-049 a quantize collision keeps the earlier note and is reported", async ({
@@ -313,10 +300,6 @@ test.describe("Editing tools", () => {
     test("EDT-052 copying 3 notes confirms the copy and leaves the project unchanged", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID103: copying gives no confirmation of what was copied; the only sign is that the Paste button becomes enabled",
-      );
       const { api, id, branchId } = await seed(page, BAR2_PATTERN);
       const before = await readDraft(api, id);
       await openEditor(page, id);
@@ -324,13 +307,13 @@ test.describe("Editing tools", () => {
       await closeEditMenu(page);
       await selectBar2Pattern(page);
       await page.keyboard.press("Control+C");
+      await expect(copyMessage(page).first()).toBeVisible(quick);
 
       await expect(await editItem(page, "Paste")).toBeEnabled();
       await closeEditMenu(page);
       await page.waitForTimeout(3_000);
       expect(await readDraft(api, id)).toEqual(before);
       expect(await api.history(branchId)).toHaveLength(0);
-      await expect(copyMessage(page).first()).toBeVisible(quick);
     });
 
     test("EDT-054 copy with no note selected does nothing and keeps the earlier pattern", async ({
@@ -727,10 +710,7 @@ test.describe("Editing tools", () => {
     test("EDT-089 a rendering failure is reported with a suggestion to export a shorter range", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID108: a rendering failure shows only the raw error text (Out of memory); it does not say the export failed in plain words and does not suggest a shorter range",
-      );
+      test.fail(true, "DFID108: with a failing renderer the export dialog stays in the rendering state and shows no failure message");
       const { api, id } = await seed(page, [
         { id: "l1", pitch: 72, start: 0, trackId: "track-1" },
       ]);
@@ -747,13 +727,10 @@ test.describe("Editing tools", () => {
         downloads += 1;
       });
       await dialog.getByRole("button", { name: /Xuất WAV/ }).click();
-      await expect(dialog.getByText(/Out of memory/)).toBeVisible();
+      await expect(dialog.getByText(/xuất.*(thất bại|không thành công)|không xuất được/i).first()).toBeVisible({ timeout: 20_000 });
 
       expect(downloads).toBe(0);
       expect(await readDraft(api, id)).toEqual(before);
-      await expect
-        .soft(dialog.getByText(/xuất.*(thất bại|không thành công)|không xuất được/i).first())
-        .toBeVisible(quick);
       await expect(dialog.getByText(/ngắn hơn|đoạn ngắn|khoảng ngắn/i).first()).toBeVisible(
         quick,
       );

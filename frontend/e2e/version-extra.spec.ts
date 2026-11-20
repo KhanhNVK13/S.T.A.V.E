@@ -178,7 +178,6 @@ test.describe("Version control extra", () => {
   });
 
   test("Blocked by DFID129, BRN-031 the merge is restarted when someone commits to the target during review", async ({ page }) => {
-    test.fail(true, "DFID129: the merge is applied on top of the new target commit");
     const { user, api } = await owner();
     const project = await api.createProject("Test Song");
     await api.putDraft(project.id, BASE);

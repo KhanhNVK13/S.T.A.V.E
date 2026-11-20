@@ -66,6 +66,8 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
   const [notice, setNotice] = useState<string | null>(null);
   const [infoNotice, setInfoNotice] = useState<string | null>(null);
   const mergeSummaryForRef = useRef<string | null>(null);
+  const [startCommit, setStartCommit] = useState('');
+  const mergeTargetHeadRef = useRef<string | undefined>(undefined);
   const [mergeSummary, setMergeSummary] = useState<
     "loading" | "unavailable" | { added: number; removed: number; modified: number } | null
   >(null);
@@ -140,7 +142,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
     setCreateBusy(true);
     try {
       if (!switchAfterCreate) {
-        await createBranch(projectId, { name });
+        await createBranch(projectId, { name, startCommitId: startCommit || undefined });
         setNewName("");
         setCreating(false);
         setNotice(
@@ -149,7 +151,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
         await load();
         return;
       }
-      const outcome = await createAndActivateBranch(projectId, { name });
+      const outcome = await createAndActivateBranch(projectId, { name, startCommitId: startCommit || undefined });
       setNewName("");
       setCreating(false);
       setNotice(
@@ -201,9 +203,10 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
     setMergeSummary(null);
     mergeSummaryForRef.current = source.id;
     const behind = divergence[source.id]?.behind;
-    if (behind !== 0 || !defaultBranch?.head_commit_id || !source.head_commit_id) return;
+    const baseCommitId = behind === 0 ? defaultBranch?.head_commit_id : source.base_commit_id;
+    if (!baseCommitId || !source.head_commit_id) return;
     setMergeSummary("loading");
-    compareCommits(defaultBranch.head_commit_id, source.head_commit_id)
+    compareCommits(baseCommitId, source.head_commit_id)
       .then((diff) => {
         if (mergeSummaryForRef.current === source.id) setMergeSummary(diff.summary.notes);
       })
@@ -229,10 +232,12 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
     setMergeSource(source);
     setMergeBusy(true);
     setMergeError(null);
+    mergeTargetHeadRef.current = defaultBranch.head_commit_id ?? undefined;
     try {
       const result = await mergeBranches({
         sourceBranchId: source.id,
         targetBranchId: defaultBranch.id,
+        expectedTargetHeadCommitId: mergeTargetHeadRef.current,
       });
       setMergeConfirm(null);
       if (result.hasConflicts) {
@@ -263,6 +268,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
         sourceBranchId: mergeSource.id,
         targetBranchId: defaultBranch.id,
         resolutions,
+        expectedTargetHeadCommitId: mergeTargetHeadRef.current,
       });
       setNotice(t("blist.mergedResolved", { source: mergeSource.name }));
       setConflicts(null);
@@ -326,9 +332,26 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
             />
             {nameError && <FieldError>{nameError}</FieldError>}
           </label>
-          <p className="basis-full text-xs text-muted">
-            {t("blist.startsFrom")}
-          </p>
+          <label className="flex min-w-[220px] flex-1 flex-col gap-1.5">
+            <span className="text-xs font-semibold">{t("blist.startPoint")}</span>
+            <select
+              name="startCommit"
+              value={startCommit}
+              onChange={(e) => setStartCommit(e.target.value)}
+              className={`${INPUT_CLASS} h-[37px]`}
+            >
+              <option value="">{t("blist.startLatest")}</option>
+              {[...commitsById.values()]
+                .filter((c) => c.branch_id === defaultBranch?.id)
+                .sort((a, b) => b.created_at.localeCompare(a.created_at))
+                .slice(1)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.message}
+                  </option>
+                ))}
+            </select>
+          </label>
           <label className="flex basis-full items-center gap-2 text-[13px]">
             <input
               type="checkbox"

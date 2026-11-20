@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RequireAuth } from "../../components/require-auth";
 import { PageHeader } from "../../components/ui/page-header";
 import { Tabs } from "../../components/ui/tabs";
+import { INPUT_CLASS } from "../../components/ui/form";
 import { PullRequestListState, STATUS_KEY } from "../../components/pull-request/pull-request-list";
 import { listPullRequests } from "../../lib/api-client";
 import type { PullRequestListItem, PullRequestStatus } from "../../lib/api-client";
@@ -11,6 +12,14 @@ import { errorSource, renderError, type ErrorSource } from "../../lib/error-mess
 import { useI18n } from "../../context/i18n-context";
 
 type View = "incoming" | "created";
+type SortOrder = "newest" | "oldest" | "title";
+
+function sortItems(items: PullRequestListItem[], order: SortOrder): PullRequestListItem[] {
+  const copy = [...items];
+  if (order === "title") return copy.sort((a, b) => a.title.localeCompare(b.title));
+  const sign = order === "newest" ? -1 : 1;
+  return copy.sort((a, b) => sign * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+}
 
 function PullRequestsView() {
   const { t } = useI18n();
@@ -19,6 +28,7 @@ function PullRequestsView() {
   const [items, setItems] = useState<PullRequestListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ErrorSource | null>(null);
+  const [order, setOrder] = useState<SortOrder>("newest");
 
   const latest = useRef(0);
 
@@ -64,11 +74,24 @@ function PullRequestsView() {
       </div>
 
       <div className="mt-4 flex flex-col gap-4">
-        <div role="group" aria-label={t("pullRequestsPage.statusLabel")}>
-          <Tabs tabs={statusTabs} active={status} onChange={(id) => setStatus(id as PullRequestStatus)} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div role="group" aria-label={t("pullRequestsPage.statusLabel")}>
+            <Tabs tabs={statusTabs} active={status} onChange={(id) => setStatus(id as PullRequestStatus)} />
+          </div>
+          <select
+            name="pr-sort"
+            aria-label={t("prl.sort")}
+            value={order}
+            onChange={(e) => setOrder(e.target.value as SortOrder)}
+            className={`${INPUT_CLASS} w-auto`}
+          >
+            <option value="newest">{t("prl.sortNewest")}</option>
+            <option value="oldest">{t("prl.sortOldest")}</option>
+            <option value="title">{t("prl.sortTitle")}</option>
+          </select>
         </div>
 
-        <PullRequestListState loading={loading} error={renderError(error)} items={items} status={status} onRetry={() => void load()} />
+        <PullRequestListState loading={loading} error={renderError(error)} items={sortItems(items, order)} status={status} onRetry={() => void load()} />
       </div>
     </div>
   );

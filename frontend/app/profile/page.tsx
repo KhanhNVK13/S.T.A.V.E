@@ -185,7 +185,8 @@ function ProfileForm() {
             {t("profile.publicAddress")}{" "}
             <Link href={`/creator/${profile.id}`} className="font-mono text-accent hover:underline">
               /creator/{profile.id}
-            </Link>
+            </Link>{" "}
+            <span className="font-mono">(@{profile.username})</span>
           </p>
         )}
       </aside>
@@ -358,6 +359,8 @@ function ChangePasswordForm() {
   const { t } = useI18n();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [error, setError] = useState<ErrorSource | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -374,9 +377,15 @@ function ChangePasswordForm() {
     const newInvalid =
       validatePassword(newPassword, t("profile.newPasswordShort")) ??
       (newPassword === currentPassword ? t("profile.newPasswordSame") : null);
+    const confirmInvalid = !confirmPassword
+      ? requiredMessage()
+      : confirmPassword !== newPassword
+        ? t("auth.passwordMismatch")
+        : null;
     setCurrentError(currentInvalid);
     setNewError(newInvalid);
-    if (currentInvalid || newInvalid) {
+    setConfirmError(confirmInvalid);
+    if (currentInvalid || newInvalid || confirmInvalid) {
       focusFirstInvalid(form);
       return;
     }
@@ -388,6 +397,7 @@ function ChangePasswordForm() {
       });
       setCurrentPassword("");
       setNewPassword("");
+      setConfirmPassword("");
       setSuccess(true);
       setOpen(false);
     } catch (err) {
@@ -441,6 +451,19 @@ function ChangePasswordForm() {
               onChange={(e) => {
                 setNewPassword(e.target.value);
                 setNewError(null);
+              }}
+              className={`${INPUT_CLASS} h-[37px]`}
+            />
+          </Field>
+          <Field label={t("auth.confirmPassword")} error={confirmError}>
+            <input
+              name="confirm-password"
+              autoComplete="new-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                setConfirmError(null);
               }}
               className={`${INPUT_CLASS} h-[37px]`}
             />

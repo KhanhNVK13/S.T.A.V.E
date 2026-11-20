@@ -275,8 +275,14 @@ export async function getUserPublicProjects(id: string): Promise<PublicProject[]
 }
 
 /** UC-11: Get project rankings */
-export async function getProjectRankings(type?: 'trending' | 'top_forked' | 'top_played'): Promise<PublicProject[]> {
-  const query = type ? `?type=${type}` : '';
+export async function getProjectRankings(
+  type?: 'trending' | 'top_forked' | 'top_played',
+  period?: 'week' | 'month' | 'all',
+): Promise<PublicProject[]> {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  if (period) params.set('period', period);
+  const query = params.toString() ? `?${params.toString()}` : '';
   return apiFetch<PublicProject[]>(`/explore/rankings${query}`);
 }
 

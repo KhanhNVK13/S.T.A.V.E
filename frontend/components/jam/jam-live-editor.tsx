@@ -220,7 +220,8 @@ export function JamLiveEditor({
 
       {/* The shared canvas grid + velocity lane (same as the private editor). */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="min-h-0 flex-1 overflow-hidden rounded border border-border">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-border">
+          <div className="absolute inset-0 flex flex-col">
           <PianoRoll
             ref={rollRef}
             notes={notes}
@@ -240,6 +241,7 @@ export function JamLiveEditor({
             isReadOnly={isReadOnly}
             onScrollXChange={setScrollX}
           />
+          </div>
         </div>
         <VelocityLane
           notes={notes}
