@@ -1755,6 +1755,7 @@ export const vi: Record<keyof typeof en, string> = {
   "aj.noneInStatus": "Không có sự kiện nào ở trạng thái này.",
   "aj.open": "mở",
   "aj.view": "Xem",
+  "aj.viewResult": "Xem kết quả",
   "aj.configure": "Cấu hình",
   "aj.cancel": "Huỷ",
   "aj.endEvent": "Kết thúc sự kiện",
