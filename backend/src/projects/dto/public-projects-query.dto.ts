@@ -63,6 +63,8 @@ export class PublicProjectsQueryDto {
   instrument?: string[];
 
   @IsOptional()
-  @IsIn(['newest', 'popular', 'most_played'])
-  sort?: 'newest' | 'popular' | 'most_played' = 'newest';
+  @IsIn(['newest', 'recently_updated', 'popular', 'most_played', 'most_forked'])
+  sort?:
+    'newest' | 'recently_updated' | 'popular' | 'most_played' | 'most_forked' =
+    'newest';
 }

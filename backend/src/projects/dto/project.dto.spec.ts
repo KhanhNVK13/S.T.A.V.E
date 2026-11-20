@@ -150,6 +150,12 @@ describe('BE-PRJ-02 PublicProjectsQueryDto.validate(query)', () => {
     ).resolves.toHaveLength(0);
   });
 
+  it('UTCID11 accepts sort recently_updated', async () => {
+    await expect(
+      validatePublicQuery({ sort: 'recently_updated' }),
+    ).resolves.toHaveLength(0);
+  });
+
   it('UTCID03 accepts boundary limit 1 and sort most_played', async () => {
     await expect(
       validatePublicQuery({
@@ -205,7 +211,7 @@ describe('BE-PRJ-02 PublicProjectsQueryDto.validate(query)', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toEqual(
       expect.objectContaining({
-        isIn: 'sort must be one of the following values: newest, popular, most_played',
+        isIn: 'sort must be one of the following values: newest, recently_updated, popular, most_played, most_forked',
       }),
     );
   });

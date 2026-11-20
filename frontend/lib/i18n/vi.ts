@@ -1485,6 +1485,7 @@ export const vi: Record<keyof typeof en, string> = {
   "nts.inAppLabel": "{label}: nhận trong ứng dụng",
   "ex.allGenres": "Tất cả thể loại",
   "ex.sortNewest": "Mới nhất",
+  "ex.sortRecentlyUpdated": "Cập nhật gần đây",
   "ex.sortPopular": "Nổi bật",
   "ex.loadFail": "Không thể tải danh sách dự án. Vui lòng thử lại.",
   "ex.search": "Tìm dự án công khai",
@@ -2838,4 +2839,7 @@ export const vi: Record<keyof typeof en, string> = {
 
   "accessibilityPage.motionTitle": "Nền đứng yên",
   "accessibilityPage.motionDesc": "Dừng các vì sao trôi và cảnh 3D phía sau trang. Nền vẫn hiển thị, chỉ không còn chuyển động.",
+
+  "ex.sortMostPlayed": "Nghe nhiều nhất",
+  "ex.sortMostForked": "Fork nhiều nhất",
 };

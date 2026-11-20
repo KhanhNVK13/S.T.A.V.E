@@ -242,7 +242,12 @@ export async function listPublicProjects(params?: {
   limit?: number;
   genre?: string;
   tag?: string;
-  sort?: 'newest' | 'popular' | 'most_played';
+  sort?:
+    | 'newest'
+    | 'recently_updated'
+    | 'popular'
+    | 'most_played'
+    | 'most_forked';
   search?: string;
   instrument?: string[];
 }): Promise<PublicProjectsResponse> {
