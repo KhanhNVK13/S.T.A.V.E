@@ -1753,6 +1753,7 @@ export const en = {
   "aj.noneInStatus": "No events in this status.",
   "aj.open": "open",
   "aj.view": "View",
+  "aj.viewResult": "View result",
   "aj.configure": "Configure",
   "aj.cancel": "Cancel",
   "aj.endEvent": "End event",

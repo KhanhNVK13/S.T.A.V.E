@@ -289,8 +289,11 @@ function AdminJamManager() {
                   {e.currentParticipantCount}
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
-                  <Link href={`/jam/${e.id}`} className="text-xs text-accent hover:underline">
-                    {t("aj.view")}
+                  <Link
+                    href={e.status === "ended" ? `/jam/${e.id}/result` : `/jam/${e.id}`}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    {e.status === "ended" ? t("aj.viewResult") : t("aj.view")}
                   </Link>
                   {(e.status === "scheduled" || e.status === "active") && (
                     <>
