@@ -161,12 +161,8 @@ export class ProjectsService {
       .from('projects')
       .select('*')
       .eq('owner_id', ownerId)
-<<<<<<< Updated upstream
-      .order('updated_at', { ascending: false });
-=======
       .is('moderation_hidden_at', null)
-      .order('created_at', { ascending: false });
->>>>>>> Stashed changes
+      .order('updated_at', { ascending: false });
 
     if (error) {
       throw new InternalServerErrorException('Could not list projects');
