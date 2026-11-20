@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase-browser";
 import { authErrorSource, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
-import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
+import { DEFAULT_AFTER_LOGIN_PATH, readNextParam, withNextParam } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { useI18n } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
@@ -38,8 +38,11 @@ export default function RegisterPage() {
   const [closed, setClosed] = useState(false);
   const [mailFailed, setMailFailed] = useState(false);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
+  const [nextPath, setNextPath] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL search chỉ đọc được ở client
+    setNextPath(readNextParam(window.location.search));
     let cancelled = false;
     isRegistrationOpen()
       .then((open) => {
@@ -77,10 +80,11 @@ export default function RegisterPage() {
       setError(errorSource(null, "auth.register.closed"));
       return;
     }
+    const next = readNextParam(window.location.search);
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: withNextParam(`${window.location.origin}/auth/callback`, next) },
     });
     setSubmitting(false);
 
@@ -104,7 +108,7 @@ export default function RegisterPage() {
     }
 
     if (signUpData.session) {
-      router.push(DEFAULT_AFTER_LOGIN_PATH);
+      router.push(next ?? DEFAULT_AFTER_LOGIN_PATH);
       return;
     }
 
@@ -113,10 +117,11 @@ export default function RegisterPage() {
 
   async function handleResend() {
     setResendState("sending");
+    const next = readNextParam(window.location.search);
     const { error: resendError } = await supabase.auth.resend({
       type: "signup",
       email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: withNextParam(`${window.location.origin}/auth/callback`, next) },
     });
     if (resendError) {
       setResendState("idle");
@@ -152,7 +157,7 @@ export default function RegisterPage() {
                 ? t("auth.resentShort")
                 : t("auth.resend")}
           </Button>
-          <Link href="/login" className="mt-4 text-sm text-accent hover:underline">
+          <Link href={withNextParam("/login", nextPath)} className="mt-4 text-sm text-accent hover:underline">
             {t("auth.register.toLogin")}
           </Link>
         </div>
@@ -234,7 +239,7 @@ export default function RegisterPage() {
       </form>
       <p className="mt-5 text-center text-sm text-muted">
         {t("auth.haveAccount")}{" "}
-        <Link href="/login" className="text-accent underline underline-offset-2 hover:no-underline">
+        <Link href={withNextParam("/login", nextPath)} className="text-accent underline underline-offset-2 hover:no-underline">
           {t("auth.signIn")}
         </Link>
       </p>
