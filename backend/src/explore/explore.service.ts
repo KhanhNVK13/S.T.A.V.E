@@ -121,17 +121,28 @@ export class ExploreService {
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    if (query.sort === 'popular' || query.sort === 'most_played') {
+    if (
+      query.sort === 'popular' ||
+      query.sort === 'most_played' ||
+      query.sort === 'most_forked'
+    ) {
+      const column: RankedColumn =
+        query.sort === 'most_played'
+          ? 'plays'
+          : query.sort === 'most_forked'
+            ? 'forks'
+            : 'score_all';
       const tagIds = query.tag
         ? await this.getProjectIdsForTag(query.tag)
         : null;
-      const ranked = await this.rankedProjectIds('score_all', {
+      const ranked = await this.rankedProjectIds(column, {
         offset,
         limit,
         genre: query.genre,
         search: query.search,
         tagIds,
         instruments: query.instrument,
+        requirePositive: false,
       });
       const cards = await this.loadCardsInOrder(ranked.ids);
       return {
@@ -172,7 +183,11 @@ export class ExploreService {
       queryBuilder = queryBuilder.in('id', projectIds);
     }
 
-    queryBuilder = queryBuilder.order('created_at', { ascending: false });
+    queryBuilder = queryBuilder
+      .order(query.sort === 'recently_updated' ? 'updated_at' : 'created_at', {
+        ascending: false,
+      })
+      .order('id');
 
     const { data, error, count } = await queryBuilder;
 
@@ -436,7 +451,44 @@ export class ExploreService {
       offset: 0,
       limit: 10,
     });
-    return this.loadCardsInOrder(ranked.ids);
+    const cards = await this.loadCardsInOrder(ranked.ids);
+
+    // Override play_count / fork_count with engagement view values so the
+    // numbers shown on the card match the stats used for sorting.
+    if (ranked.ids.length > 0) {
+      const { data: engagementRows, error: engagementError } =
+        await this.supabase
+          .from('project_engagement')
+          .select(
+            `project_id, plays${suffix} as plays, forks${suffix} as forks`,
+          )
+          .in('project_id', ranked.ids);
+
+      if (engagementError) {
+        throw new InternalServerErrorException('Could not get rankings');
+      }
+
+      if (engagementRows) {
+        const engMap = new Map(
+          (
+            engagementRows as unknown as {
+              project_id: string;
+              plays: number;
+              forks: number;
+            }[]
+          ).map((r) => [r.project_id, r]),
+        );
+        for (const card of cards) {
+          const eng = engMap.get(card.id);
+          if (eng) {
+            card.play_count = eng.plays;
+            card.fork_count = eng.forks;
+          }
+        }
+      }
+    }
+
+    return cards;
   }
 
   /** UC-12: Featured content for landing page. */
@@ -449,15 +501,6 @@ export class ExploreService {
       cta_secondary: { label: 'Khám phá dự án', href: '/explore' },
     };
 
-    const visibleProjectsBase = () =>
-      this.supabase
-        .from('projects')
-        .select(PROJECT_CARD_COLUMNS)
-        .eq('owner.status', 'active')
-        .eq('visibility', 'public')
-        .is('archived_at', null)
-        .is('moderation_hidden_at', null);
-
     const [
       { data: featuredData },
       { data: trendingData },
@@ -465,7 +508,16 @@ export class ExploreService {
       { count: totalUsers },
       { count: totalForks },
     ] = await Promise.all([
-      visibleProjectsBase().order('created_at', { ascending: false }).limit(6),
+      this.rankedProjectIds('score_all', { offset: 0, limit: 6 })
+        .then(async (ranked) => ({
+          data: await this.loadCardRows(ranked.ids),
+        }))
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Featured list unavailable on the landing page: ${String(error)}`,
+          );
+          return { data: [] as ProjectCardRow[] };
+        }),
       this.rankedProjectIds('trending_score', { offset: 0, limit: 6 })
         .then(async (ranked) => ({
           data: await this.loadCardRows(ranked.ids),
@@ -489,9 +541,7 @@ export class ExploreService {
     ]);
 
     const [featuredProjects, trendingProjects] = await Promise.all([
-      this.enrichProjectCards(
-        (featuredData ?? []) as unknown as ProjectCardRow[],
-      ),
+      this.enrichProjectCards(featuredData ?? []),
       this.enrichProjectCards(trendingData ?? []),
     ]);
 
@@ -516,14 +566,20 @@ export class ExploreService {
       search?: string;
       tagIds?: string[] | null;
       instruments?: string[];
+      requirePositive?: boolean;
     },
   ): Promise<{ ids: string[]; total: number }> {
     let builder = this.supabase
       .from('project_engagement')
       .select('project_id', { count: 'exact' })
-      .eq('is_visible', true)
+      .eq('is_visible', true);
+    if (options.requirePositive !== false) {
+      builder = builder.gt(column, 0);
+    }
+    builder = builder
       .order(column, { ascending: false })
       .order('created_at', { ascending: false })
+      .order('project_id')
       .range(options.offset, options.offset + options.limit - 1);
     if (options.genre) builder = builder.ilike('genre', `%${options.genre}%`);
     if (options.search) builder = builder.ilike('name', `%${options.search}%`);
