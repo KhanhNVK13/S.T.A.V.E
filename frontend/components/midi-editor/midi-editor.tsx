@@ -72,9 +72,10 @@ export type SaveStatus = "saved" | "saving" | "unsaved" | "error";
 interface MidiEditorProps {
   projectId: string;
   projectName: string;
+  isOwner?: boolean;
 }
 
-export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
+export function MidiEditor({ projectId, projectName, isOwner = true }: MidiEditorProps) {
   const { t, tx, locale } = useI18n();
   // ── State ───────────────────────────────────────────────────
   const [snapshot, setSnapshot] = useState<DraftSnapshot>({
@@ -1363,6 +1364,9 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
 
   function handlePlay() {
     if (isPlaying) return;
+    if (snapshot.tracks.length > 0 && snapshot.tracks.every((tr) => tr.muted)) {
+      setEditorToast({ message: tNow("edc.allMuted"), variant: "warning" });
+    }
     if (loopOn && loopRange && loopRange.end > loopRange.start) {
       loopRegionRef.current = { start: loopRange.start, end: loopRange.end };
       loopAnchorRef.current = loopRange.start;
@@ -1486,6 +1490,7 @@ export function MidiEditor({ projectId, projectName }: MidiEditorProps) {
       <EditorRedesign
         projectId={projectId}
         projectName={projectName}
+        isOwner={isOwner}
         snapshot={snapshot}
         notes={snapshot.notes}
         tracks={snapshot.tracks}

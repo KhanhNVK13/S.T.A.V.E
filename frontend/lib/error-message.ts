@@ -201,6 +201,11 @@ const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽ
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     const lang = getLang();
+    if (err.message === "Pull request is no longer open") {
+      const status = (err.body as { status?: string } | undefined)?.status;
+      if (status === "merged") return tNow("err.prMerged");
+      if (status === "closed") return tNow("err.prClosed");
+    }
     const known = API_MESSAGES[err.message]?.[lang];
     if (known) return known;
     if (lang === "vi" && VIETNAMESE.test(err.message)) return err.message;

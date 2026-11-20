@@ -190,7 +190,6 @@ test.describe("Account and profile", () => {
   });
 
   test("Blocked by DFID134, AUTH-058 Cancel discards unsaved profile changes", async ({ page }) => {
-    test.fail(true, "DFID134: the profile form has no Cancel action");
     const user = await profiled();
     await loginThroughUi(page, user);
     await openProfile(page);
@@ -199,7 +198,7 @@ test.describe("Account and profile", () => {
     await page.reload();
     expect((await fetchE2eProfile(user.id))).toMatchObject({ display_name: "User A", bio: "Test bio" });
     await page.locator('input[name="displayName"]').fill("Alice Tester");
-    await page.getByRole("button", { name: /^huỷ$/i }).click({ timeout: 5_000 });
+    await page.getByRole("button", { name: /^huỷ( thay đổi)?$/i }).click({ timeout: 5_000 });
     await expect(page.locator('input[name="displayName"]')).toHaveValue("User A");
   });
 
@@ -226,7 +225,6 @@ test.describe("Account and profile", () => {
   });
 
   test("Blocked by DFID135, AUTH-063 an avatar larger than 2 MB is rejected", async ({ page }) => {
-    test.fail(true, "DFID135: originals up to 10 MB are accepted and resized");
     const user = await profiled();
     await loginThroughUi(page, user);
     await openProfile(page);
@@ -266,7 +264,6 @@ test.describe("Account and profile", () => {
   });
 
   test("Blocked by DFID156, AUTH-069 mismatched new password fields are rejected", async ({ page }) => {
-    test.fail(true, "DFID156: the change-password form has no confirmation field");
     const user = await profiled();
     await loginThroughUi(page, user);
     await page.goto("/profile");
@@ -304,7 +301,6 @@ test.describe("Account and profile", () => {
   });
 
   test("Blocked by DFID160, AUTH-077 other users' forks and the deleted user's comments survive account deletion", async () => {
-    test.fail(true, "DFID160: comments.author_id cascades on delete, so the deleted user's comments are removed");
     const del = await profiled({ display_name: "Delete Zero One" });
     const delApi = await UserApi.for(del);
     const shared = await delApi.createProject("Shared Song");

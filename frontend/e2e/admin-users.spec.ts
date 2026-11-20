@@ -589,10 +589,6 @@ test.describe("Admin - User Management", () => {
   test("ADM-USR-020 removes a user: account and projects go, the removal is recorded", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID068, DFID072, DFID074: no completion message, the removal dialog does not say what is removed and what remains, and an account that has committed is not removed although the API answers success",
-    );
     const adminActor = await makeActor("Admin", { role: "admin" });
     const b = await makeActor("B");
     const pub = await publicProject(b, "Public Song");
@@ -602,7 +598,7 @@ test.describe("Admin - User Management", () => {
     await openUsers(page, b.username);
     await rowOf(page, b.username).getByRole("button", { name: /xoá/i }).click();
     await expect
-      .soft(dialog(page).getByText(/sẽ bị xoá|còn lại|vẫn giữ|được giữ/i))
+      .soft(dialog(page).getByText(/sẽ bị xoá|còn lại|vẫn giữ|được giữ/i).first())
       .toBeVisible(quick);
     await expect(dialog(page).getByText(/không thể hoàn tác/i)).toBeVisible();
     const confirm = dialog(page).getByRole("button", { name: /xác nhận/i });
@@ -612,11 +608,11 @@ test.describe("Admin - User Management", () => {
     await dialog(page).locator("input").fill(b.username);
     await expect(confirm).toBeEnabled();
     await confirm.click();
+    await expect
+      .soft(page.getByText(/đã hoàn tất|đã ghi|đã được ghi|thành công/i).first())
+      .toBeVisible({ timeout: 15_000 });
     await expect(dialog(page)).toHaveCount(0);
     await expect(page.getByText(`@${b.username}`)).toHaveCount(0);
-    await expect
-      .soft(page.getByText(/đã hoàn tất|đã ghi|thành công/i).first())
-      .toBeVisible(quick);
 
     expect(await passwordLoginStatus(b.user.email, b.user.password)).not.toBe(
       200,
@@ -714,10 +710,6 @@ test.describe("Admin - User Management", () => {
   });
 
   test("API: removing an account that owns commits and tags removes the account", async () => {
-    test.fail(
-      true,
-      "DFID074: the API answers success but the account stays because commits.author_id has no cascade and the failed delete is ignored",
-    );
     const adminActor = await makeActor("Admin", { role: "admin" });
     const b = await makeActor("B");
     const pub = await publicProject(b, "Public Song");

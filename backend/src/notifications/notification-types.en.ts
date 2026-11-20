@@ -94,6 +94,10 @@ export const ENGLISH_DEFAULTS: Record<
     subject: 'Payment issue resolved',
     body: 'Your payment issue was resolved: {{summary}}',
   },
+  'security.password_changed': {
+    subject: 'Password changed',
+    body: 'The password of your STAVE account was just changed and your other devices were signed out. If this was not you, reset your password right away.',
+  },
   'security.google_connected': {
     subject: 'Google account linked',
     body: 'The Google account {{email}} was linked to your STAVE account.',

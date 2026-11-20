@@ -10,7 +10,6 @@ import {
 } from "./support/test-user";
 
 const expect = baseExpect.configure({ timeout: 30_000 });
-const DFID123 = "DFID123: an accepted collaborator cannot open the shared project (owner-only project read)";
 
 interface Person {
   user: E2eUser;
@@ -58,10 +57,11 @@ function snapshotWith(change: (s: ReturnType<typeof snapshotOf>) => void) {
   return s;
 }
 
-async function openAsCollaborator(page: Page, who: Person, projectId: string) {
+async function expectNoEditorEntry(page: Page, who: Person, projectId: string) {
   await loginThroughUi(page, who.user);
-  await page.goto(`/projects/${projectId}/edit`);
-  await page.getByRole("button", { name: /^File$/ }).waitFor({ timeout: 30_000 });
+  await page.goto(`/projects/${projectId}`);
+  await expect(page.getByRole("heading", { name: "Test Song" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /mở trình soạn nhạc/i })).toHaveCount(0);
 }
 
 const DRAFT_EDITS: Array<[string, string, (s: ReturnType<typeof snapshotOf>) => void, string]> = [
@@ -86,45 +86,37 @@ test.describe("Collaborator permissions", () => {
   });
 
   for (const [id, title, change] of DRAFT_EDITS) {
-    test(`Blocked by DFID123, ${id} ${title}`, async ({ page }) => {
-      test.fail(true, DFID123);
+    test(`${id} ${title}`, async ({ page }) => {
       const { a, b, id: projectId } = await shared("view");
       const before = await a.api.draft(projectId);
       expect(await status(b.api.call("PUT", `/projects/${projectId}/draft`, snapshotWith(change)))).toBe(403);
       expect(await a.api.draft(projectId)).toEqual(before);
-      await openAsCollaborator(page, b, projectId);
-      await expect(page.getByText(/chỉ có quyền xem|quyền xem/i).first()).toBeVisible();
+      await expectNoEditorEntry(page, b, projectId);
     });
   }
 
-  test("Blocked by DFID123, VC-006 a view-only collaborator cannot commit", async ({ page }) => {
-    test.fail(true, DFID123);
+  test("VC-006 a view-only collaborator cannot commit", async ({ page }) => {
     const { a, b, id, branchId } = await shared("view");
     const before = await a.api.history(branchId);
     expect(await status(b.api.commit(branchId, "Sneaky"))).toBe(403);
     expect(await a.api.history(branchId)).toEqual(before);
-    await openAsCollaborator(page, b, id);
-    await expect(page.getByRole("button", { name: /commit changes/i })).toHaveCount(0);
+    await expectNoEditorEntry(page, b, id);
   });
 
-  test("Blocked by DFID123, VC-040 a view-only collaborator is not offered restore", async ({ page }) => {
-    test.fail(true, DFID123);
+  test("VC-040 a view-only collaborator is not offered restore", async ({ page }) => {
     const { a, b, id, branchId, first } = await shared("view");
     await a.api.putDraft(id, [...NOTES, { id: "n3", start: 2 * BAR }], TRACKS);
     await a.api.commit(branchId, "Change chorus");
     const before = await a.api.history(branchId);
     expect(await status(b.api.restore(first.id, branchId))).toBe(403);
     expect(await a.api.history(branchId)).toEqual(before);
-    await openAsCollaborator(page, b, id);
-    await expect(page.getByRole("button", { name: /khôi phục/i })).toHaveCount(0);
+    await expectNoEditorEntry(page, b, id);
   });
 
-  test("Blocked by DFID123, VC-047 no draft is saved for a view-only collaborator", async ({ page }) => {
-    test.fail(true, DFID123);
+  test("VC-047 no draft is saved for a view-only collaborator", async ({ page }) => {
     const { b, id } = await shared("view");
     expect(await status(b.api.call("PUT", `/projects/${id}/draft`, snapshotOf([...NOTES, { id: "z" }], TRACKS)))).toBe(403);
-    await openAsCollaborator(page, b, id);
-    await expect(page.getByText(/quyền xem/i).first()).toBeVisible();
+    await expectNoEditorEntry(page, b, id);
   });
 
   test("BRN-010 a view-only collaborator cannot create a branch", async ({ page }) => {
@@ -161,15 +153,13 @@ test.describe("Collaborator permissions", () => {
     await expect(page.getByRole("button", { name: "Xoá nhánh experiment" })).toHaveCount(0);
   });
 
-  test("Blocked by DFID123, AUTH-100 a permission change takes effect during an open session", async ({ page }) => {
-    test.fail(true, DFID123);
+  test("AUTH-100 a permission change takes effect during an open session", async ({ page }) => {
     const { a, b, id, branchId } = await shared("edit");
     const rows = (await a.api.call("GET", `/projects/${id}/collaborators`)) as Array<{ id: string }>;
     await a.api.call("PATCH", `/projects/${id}/collaborators/${rows[0].id}`, { permissionLevel: "view" });
     expect(await status(b.api.call("PUT", `/projects/${id}/draft`, snapshotOf([...NOTES, { id: "z" }], TRACKS)))).toBe(403);
     expect(await status(b.api.commit(branchId, "Late"))).toBe(403);
-    await openAsCollaborator(page, b, id);
-    await expect(page.getByText(/quyền xem/i).first()).toBeVisible();
+    await expectNoEditorEntry(page, b, id);
   });
 
   for (const [caseId, title, call] of [

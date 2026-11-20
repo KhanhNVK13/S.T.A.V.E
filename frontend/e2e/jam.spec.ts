@@ -98,23 +98,32 @@ async function enterRoom(page: Page, id: string) {
 }
 
 async function jamPoint(page: Page, tick: number, pitch: number) {
-  const box = await page.evaluate(
-    ({ pitch, headerH, rowH }) => {
-      const canvas = Array.from(document.querySelectorAll("canvas")).find((c) => c.height > 2000);
-      if (!canvas) throw new Error("jam grid not found");
-      let container: HTMLElement | null = canvas.parentElement;
-      while (container && container.scrollHeight <= container.clientHeight + 10) container = container.parentElement;
-      if (!container) throw new Error("jam grid scroller not found");
-      container.scrollTop = Math.max(0, headerH + (127 - pitch) * rowH + rowH / 2 - container.clientHeight / 2);
-      container.scrollLeft = 0;
-      const r = canvas.getBoundingClientRect();
-      return { left: r.left, top: r.top, scrollTop: 0, scrollLeft: 0 };
-    },
-    { pitch, headerH: HEADER_H, rowH: ROW_H },
-  );
-  await page.waitForTimeout(200);
+  for (const nudge of [1, 0]) {
+    await page.evaluate(
+      ({ pitch, headerH, rowH, nudge }) => {
+        const canvas = Array.from(document.querySelectorAll("canvas")).find(
+          (c) => (c.parentElement?.parentElement?.scrollHeight ?? 0) > 2000,
+        );
+        if (!canvas) throw new Error("jam grid not found");
+        const container = canvas.parentElement!.parentElement!;
+        container.scrollTop =
+          Math.round(Math.max(0, headerH + (127 - pitch) * rowH + rowH / 2 - container.clientHeight / 2)) + nudge;
+        container.scrollLeft = 0;
+      },
+      { pitch, headerH: HEADER_H, rowH: ROW_H, nudge },
+    );
+    await page.waitForTimeout(250);
+  }
+  const box = await page.evaluate(() => {
+    const canvas = Array.from(document.querySelectorAll("canvas")).find(
+      (c) => (c.parentElement?.parentElement?.scrollHeight ?? 0) > 2000,
+    )!;
+    const r = canvas.getBoundingClientRect();
+    const container = canvas.parentElement!.parentElement!;
+    return { left: r.left, top: r.top, scrollTop: container.scrollTop, scrollLeft: container.scrollLeft };
+  });
   return {
-    x: box.left + KEY_WIDTH + (tick + PPQ / 4) * 0.06 - box.scrollLeft,
+    x: box.left + KEY_WIDTH + tick * 0.06 + 2 - box.scrollLeft,
     y: box.top + HEADER_H + (127 - pitch) * ROW_H + ROW_H / 2 - box.scrollTop,
   };
 }
@@ -178,7 +187,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-003 leaving and rejoining restores the session with the current state", async ({ page, browser }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const b = await person("B");
@@ -234,7 +242,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID169, JAM-006 a guest is sent to log in and returned to the event", async ({ page }) => {
-      test.fail(true, "DFID169: after logging in from the event link the user returns to the event but is not joined until the page is reloaded");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await createEvent(boss, "Open Jam");
@@ -256,7 +263,6 @@ test.describe("Community Jam", () => {
 
   test.describe("UC-67 Edit during Jam", () => {
     test("Blocked by DFID167, JAM-007 an edit is applied, broadcast, attributed and starts the cooldown", async ({ page, browser }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const b = await person("B");
@@ -277,7 +283,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-008 an edit during the cooldown is neither applied nor queued", async ({ page }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await createEvent(boss, "Open Jam", { cooldown: 10 });
@@ -292,7 +297,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-009 two near-simultaneous changes of the same note keep the later one", async ({ page, browser }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const b = await person("B");
@@ -303,16 +307,18 @@ test.describe("Community Jam", () => {
       const other = await second(browser, b);
       await enterRoom(other.page, event.id);
       await page.waitForTimeout(1_500);
+      await page.getByRole("button", { name: "Chọn (P)" }).click();
+      await other.page.getByRole("button", { name: "Chọn (P)" }).click();
       const fromA = await jamPoint(page, 0, 60);
       const toA = await jamPoint(page, 0, 62);
-      await page.mouse.move(fromA.x, fromA.y);
+      await page.mouse.move(fromA.x + 10, fromA.y);
       await page.mouse.down();
-      await page.mouse.move(toA.x, toA.y, { steps: 6 });
+      await page.mouse.move(toA.x + 10, toA.y, { steps: 6 });
       const fromB = await jamPoint(other.page, 0, 60);
       const toB = await jamPoint(other.page, 0, 64);
-      await other.page.mouse.move(fromB.x, fromB.y);
+      await other.page.mouse.move(fromB.x + 10, fromB.y);
       await other.page.mouse.down();
-      await other.page.mouse.move(toB.x, toB.y, { steps: 6 });
+      await other.page.mouse.move(toB.x + 10, toB.y, { steps: 6 });
       await page.mouse.up();
       await other.page.mouse.up();
       await page.waitForTimeout(2_000);
@@ -324,7 +330,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-010 when the event ends during editing, changes stop and the frozen result is shown", async ({ page }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await createEvent(boss, "Open Jam", { cooldown: 1 });
@@ -381,7 +386,6 @@ test.describe("Community Jam", () => {
     }
 
     test("Blocked by DFID167, JAM-014 forking the result creates an independent private project", async ({ page, browser }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const c = await person("C");
@@ -399,7 +403,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-015 a guest sees the result and must log in to fork", async ({ page, browser }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await endedWithNote(page, boss, a);
@@ -423,7 +426,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-017 a result load failure shows a retry message", async ({ page }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await endedWithNote(page, boss, a);
@@ -440,14 +442,14 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-018 attempting to edit the result keeps it read-only with an explanation", async ({ page }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await endedWithNote(page, boss, a);
       await page.goto(`/jam/${event.id}/result`);
-      await expect(page.getByText(/Sự kiện đã kết thúc/).first()).toBeVisible();
+      await expect(page.getByText("Nghệ sĩ tham gia đóng góp")).toBeVisible();
       const p = await jamPoint(page, BAR, 62);
       await page.mouse.dblclick(p.x, p.y);
+      await expect(page.getByText(/Sự kiện đã kết thúc/).first()).toBeVisible();
       const n = await jamPoint(page, 0, 60);
       await page.mouse.move(n.x, n.y);
       await page.mouse.down();
@@ -531,7 +533,6 @@ test.describe("Community Jam", () => {
       page,
       browser,
     }) => {
-      test.fail(true, "DFID130: participants are not told that the end time changed, the countdown only moves");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await createEvent(boss, "Open Jam");
@@ -563,7 +564,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID166, JAM-032 an end time in the past is refused and the event stays live", async ({ page }) => {
-      test.fail(true, "DFID166: the dialog rejects the time but does not suggest ending the event instead");
       const boss = await person("Admin", "admin");
       const event = await createEvent(boss, "Open Jam");
       expect(await status(boss.api.call("PATCH", `/admin/jam-events/${event.id}`, { scheduledEndAt: iso(-10 * 60_000) }))).toBe(400);
@@ -599,7 +599,6 @@ test.describe("Community Jam", () => {
 
   test.describe("UC-95 End event", () => {
     test("Blocked by DFID167, JAM-034 the event ends at its end time and the result is frozen", async ({ page, browser }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const b = await person("B");
@@ -618,7 +617,7 @@ test.describe("Community Jam", () => {
       const frozen = await result(event.id);
       expect(frozen.snapshot?.notes.map((n) => n.pitch).sort()).toEqual([60, 64]);
       expect(frozen.contributors.map((c) => c.userId).sort()).toEqual([a.user.id, b.user.id].sort());
-      const { count } = await admin().from("commits").select("id, branches!inner(project_id)", { count: "exact", head: true }).eq("branches.project_id", frozen.resultingProjectId!);
+      const { count } = await admin().from("commits").select("id, branches!commits_branch_id_fkey!inner(project_id)", { count: "exact", head: true }).eq("branches.project_id", frozen.resultingProjectId!);
       expect(count).toBe(1);
       await page.getByRole("link", { name: "Xem kết quả Jam" }).click();
       await expect(page.getByText("Nghệ sĩ tham gia đóng góp")).toBeVisible();
@@ -651,7 +650,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID130, JAM-036 extending the end time keeps the event running and participants are told", async ({ page }) => {
-      test.fail(true, "DFID130: participants are not told that the end time changed");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await createEvent(boss, "Open Jam", { cooldown: 1 });
@@ -685,7 +683,6 @@ test.describe("Community Jam", () => {
     });
 
     test("Blocked by DFID167, JAM-039 an edit made at the moment the event ends is not applied", async ({ page }) => {
-      test.fail(true, "DFID167: ending the event does not link the result project, so the frozen result has no snapshot or contributors");
       const boss = await person("Admin", "admin");
       const a = await person("A");
       const event = await createEvent(boss, "Open Jam", { cooldown: 1 });

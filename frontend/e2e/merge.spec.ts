@@ -112,10 +112,6 @@ test.describe("Branch merge", () => {
   test("BRN-024 merges a branch without conflicts and summarises what it brings in", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID031: the merge confirmation only counts commits; it does not summarise the notes the merge brings in",
-    );
     const { id } = await diverged(page, false);
     await startMerge(page, id);
     await expect(page.getByRole("alertdialog")).toContainText(

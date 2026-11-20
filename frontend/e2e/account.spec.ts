@@ -40,6 +40,7 @@ async function submitPasswordChange(page: Page, current: string, next: string) {
   await page.getByRole("button", { name: /^đổi mật khẩu$/i }).click();
   await page.locator('input[name="current-password"]').fill(current);
   await page.locator('input[name="new-password"]').fill(next);
+  await page.locator('input[name="confirm-password"]').fill(next);
   await page.getByRole("button", { name: /cập nhật mật khẩu/i }).click();
 }
 
@@ -52,10 +53,6 @@ test.describe("Account settings", () => {
     test("AUTH-059 blocks saving when the display name is empty", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID013: an empty display name is accepted and no required-field message is shown",
-      );
       const user = await userWithProfile();
       await openProfile(page, user);
       await page.locator('input[name="displayName"]').fill("");

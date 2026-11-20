@@ -38,10 +38,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-003 blocks registration when a required field is empty", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID008: empty required fields show only a browser tooltip, not an inline message beneath each field",
-      );
       await page.goto("/register");
       await page.locator('form button[type="submit"]').click();
       await expect(
@@ -190,10 +186,6 @@ test.describe("Authentication and account", () => {
     test("AUTH-052 shows the stored profile on the Profile tab", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID011: the public profile address derived from the username is not shown on the Profile tab",
-      );
       const user = await createE2eUser();
       await createE2eProfile(user, {
         display_name: "User A",

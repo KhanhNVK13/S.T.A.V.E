@@ -81,7 +81,7 @@ export function AdminJamConfigDialog({
       if (Number.isNaN(endMs)) {
         nextErrors.end = t("ac.endInvalid");
       } else if (endMs <= Date.now()) {
-        nextErrors.end = t("ac.endTooEarly");
+        nextErrors.end = isActive ? t("ac.endTooEarlyLive") : t("ac.endTooEarly");
       } else if (!isActive && startAt) {
         const startMs = new Date(startAt).getTime();
         if (!Number.isNaN(startMs) && endMs <= startMs) {

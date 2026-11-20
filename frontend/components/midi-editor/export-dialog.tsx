@@ -46,6 +46,7 @@ interface ExportDialogProps {
   projectName: string;
   selectedNoteIds?: ReadonlySet<string>;
   onClose: () => void;
+  onExportMidi?: () => void;
 }
 
 type ExportFormat = "wav" | "mp3" | "bundle";
@@ -58,7 +59,7 @@ const SAMPLE_RATE_OPTIONS: { value: number; label: TKey }[] = [
   { value: 22050, label: "exp.srSmall" },
 ];
 
-export function ExportDialog({ projectId, snapshot, projectName, selectedNoteIds, onClose }: ExportDialogProps) {
+export function ExportDialog({ projectId, snapshot, projectName, selectedNoteIds, onClose, onExportMidi }: ExportDialogProps) {
   const { t } = useI18n();
   const [sampleRate, setSampleRate] = useState(44100);
   // Xuất riêng mỗi track thành 1 file WAV thay vì trộn chung — cùng engine,
@@ -163,9 +164,8 @@ export function ExportDialog({ projectId, snapshot, projectName, selectedNoteIds
     abortRef.current?.abort();
     abortRef.current = null;
     setProgress(0);
-    setErrorMsg(tNow("exp.cancelled"));
-    setPhase("error");
-  }, []);
+    onClose();
+  }, [onClose]);
 
   const handleClose = useCallback(() => {
     abortRef.current?.abort();
@@ -291,10 +291,18 @@ export function ExportDialog({ projectId, snapshot, projectName, selectedNoteIds
                 { value: "wav", label: t("exp.fmtWav") },
                 { value: "mp3", label: t("exp.fmtMp3") },
                 { value: "bundle", label: t("exp.fmtBundle") },
+                ...(onExportMidi ? [{ value: "midi", label: t("exp.fmtMidi") }] : []),
               ] as const).map((f) => (
                 <button
                   key={f.value}
-                  onClick={() => setFormat(f.value)}
+                  onClick={() => {
+                    if (f.value === "midi") {
+                      onClose();
+                      onExportMidi?.();
+                      return;
+                    }
+                    setFormat(f.value as ExportFormat);
+                  }}
                   disabled={phase === "rendering"}
                   aria-pressed={format === f.value}
                   style={{
@@ -327,6 +335,9 @@ export function ExportDialog({ projectId, snapshot, projectName, selectedNoteIds
             </div>
           )}
           {format === "wav" && <p style={styles.progressHint}>{t("exp.wavQuality")}</p>}
+          {format === "bundle" && !snapshot.tracks.some((tr) => Object.keys(tr.soundMap ?? {}).length > 0) && (
+            <p style={styles.progressHint}>{t("exp.bundleNoSounds")}</p>
+          )}
 
           {isAudioFile && (
             <>

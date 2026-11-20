@@ -13,14 +13,16 @@ import { useI18n } from '../../context/i18n-context';
 import { tNow } from '../../lib/i18n';
 
 type RankingType = 'trending' | 'top_forked' | 'top_played';
+type RankingPeriod = 'week' | 'month' | 'all';
 
 export default function RankingsPage() {
   const { t } = useI18n();
   const [type, setType] = useState<RankingType>('trending');
+  const [period, setPeriod] = useState<RankingPeriod>('week');
 
   const { data, loading, error } = useApiResource<PublicProject[]>(
-    () => getProjectRankings(type),
-    [type],
+    () => getProjectRankings(type, period),
+    [type, period],
     tNow('rk.loadFail'),
   );
   const projects = data ?? [];
@@ -29,6 +31,12 @@ export default function RankingsPage() {
     { id: 'trending', label: t('rk.trending') },
     { id: 'top_forked', label: t('rk.topForked') },
     { id: 'top_played', label: t('rk.topPlayed') },
+  ];
+
+  const periodTabs = [
+    { id: 'week', label: t('rk.week') },
+    { id: 'month', label: t('rk.month') },
+    { id: 'all', label: t('rk.allTime') },
   ];
 
   return (
@@ -50,6 +58,10 @@ export default function RankingsPage() {
         <Tabs tabs={tabs} active={type} onChange={(id) => setType(id as RankingType)} />
       </div>
 
+      <div className="mb-7 min-w-0" role="group" aria-label={t('rk.periodLabel')}>
+        <Tabs tabs={periodTabs} active={period} onChange={(id) => setPeriod(id as RankingPeriod)} />
+      </div>
+
       {loading ? (
         <ProjectRowsSkeleton rows={10} />
       ) : error ? (
@@ -60,7 +72,7 @@ export default function RankingsPage() {
           </Button>
         </div>
       ) : projects.length === 0 ? (
-        <EmptyState icon={Trophy} title={t('rk.empty')} />
+        <EmptyState icon={Trophy} title={t('rk.empty')} description={period !== 'all' ? t('rk.emptyPeriod') : undefined} />
       ) : (
         <ProjectRows projects={projects} rankFrom={1} />
       )}

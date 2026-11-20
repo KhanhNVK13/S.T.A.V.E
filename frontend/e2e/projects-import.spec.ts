@@ -214,7 +214,7 @@ test.describe("Projects and MIDI import", () => {
   });
 
   test("Blocked by DFID137, DFID140, EDT-001 imports a valid MIDI file with a summary of dropped data and an initial commit", async ({ page }) => {
-    test.fail(true, "DFID140: the summary does not list the dropped pitch bend and control change data; DFID137: import starts from the project page, not from a new project");
+    test.fail(true, "DFID137: import cannot start from a new project; the first-commit message and history count differ from the case");
     const { user, api } = await owner();
     const project = await api.createProject("import_3tracks");
     await loginThroughUi(page, user);
@@ -242,7 +242,6 @@ test.describe("Projects and MIDI import", () => {
   });
 
   test("Blocked by DFID141, EDT-002 cancelling or removing the chosen file imports nothing", async ({ page }) => {
-    test.fail(true, "DFID141: there is no drop zone and the chosen file cannot be removed");
     const { user, api } = await owner();
     const project = await api.createProject("Test Song");
     const before = (await myProjects(api)).length;
@@ -261,13 +260,12 @@ test.describe("Projects and MIDI import", () => {
   });
 
   test("Blocked by DFID142, EDT-006 a MIDI file without notes asks for confirmation before importing", async ({ page }) => {
-    test.fail(true, "DFID142: a file without notes is refused outright instead of asking for confirmation");
     const { user, api } = await owner();
     const project = await api.createProject("Test Song");
     await loginThroughUi(page, user);
     const dialog = await openImport(page, project.id);
     await chooseFile(page, "no_notes.mid", buildMidi({ tracks: 1, notesPerTrack: 0, ppq: 480 }));
-    await expect(dialog.getByText("File MIDI này không có nốt nào để nhập.")).toBeVisible();
+    await expect(dialog.getByText(/File MIDI này không có nốt nào/)).toBeVisible();
     expect(await api.history(project.branchId)).toHaveLength(0);
     await expect(dialog.getByRole("button", { name: /vẫn nhập|tiếp tục|xác nhận/i })).toBeVisible({ timeout: 5_000 });
   });
