@@ -7,7 +7,6 @@ import { supabase } from "../../lib/supabase-browser";
 import { authErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { apiFetch, setStoredSessionId } from "../../lib/api-client";
 import { setFlashToast } from "../../lib/flash-toast";
-import { DEFAULT_AFTER_LOGIN_PATH } from "../../lib/safe-redirect";
 import {validatePassword, requiredMessage, focusFirstInvalid } from "../../lib/validation";
 import { useAuth } from "../../context/auth-context";
 import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-card";
@@ -77,7 +76,7 @@ export default function ResetPasswordPage() {
         : t("auth.reset.doneOthersFailed"),
       othersSignedOut ? "success" : "warning",
     );
-    router.push(DEFAULT_AFTER_LOGIN_PATH);
+    router.push("/projects");
   }
 
   if (loading || (!session && !waited)) {

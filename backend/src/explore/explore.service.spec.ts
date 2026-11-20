@@ -819,6 +819,28 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
       'active',
     );
   });
+
+  it.each([
+    ['trending', 'week', 'score_week'],
+    ['trending', 'month', 'score_month'],
+    ['top_played', 'week', 'plays_week'],
+    ['top_played', 'month', 'plays_month'],
+    ['top_forked', 'week', 'forks_week'],
+    ['top_forked', 'month', 'forks_month'],
+    ['trending', 'all', 'trending_score'],
+  ] as const)(
+    'UTCID10 ranks %s for the %s period by %s',
+    async (type, period, column) => {
+      const { service, mock } = makeService(viewOf(['p1']), cardsOf(['p1']));
+
+      await service.getRankings(type, period);
+
+      expect(mock.builders.project_engagement.order).toHaveBeenCalledWith(
+        column,
+        { ascending: false },
+      );
+    },
+  );
 });
 
 // ============================================================================

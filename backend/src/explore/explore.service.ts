@@ -19,6 +19,18 @@ import { instrumentStoredForms } from './instrument-codes';
 
 export type { PublicProjectCard };
 export type RankingType = 'trending' | 'top_forked' | 'top_played';
+export type RankingPeriod = 'week' | 'month' | 'all';
+type RankedColumn =
+  | 'score_all'
+  | 'trending_score'
+  | 'plays'
+  | 'forks'
+  | 'plays_week'
+  | 'plays_month'
+  | 'forks_week'
+  | 'forks_month'
+  | 'score_week'
+  | 'score_month';
 
 /**
  * Shape of a raw row returned by `PROJECT_CARD_COLUMNS` selects, before tag/fork enrichment.
@@ -408,13 +420,18 @@ export class ExploreService {
    */
   async getRankings(
     type: RankingType = 'trending',
+    period: RankingPeriod = 'all',
   ): Promise<PublicProjectCard[]> {
-    const column =
+    const suffix = period === 'all' ? '' : `_${period}`;
+    const column = (
       type === 'top_forked'
-        ? 'forks'
+        ? `forks${suffix}`
         : type === 'top_played'
-          ? 'plays'
-          : 'trending_score';
+          ? `plays${suffix}`
+          : period === 'all'
+            ? 'trending_score'
+            : `score${suffix}`
+    ) as RankedColumn;
     const ranked = await this.rankedProjectIds(column, {
       offset: 0,
       limit: 10,
@@ -491,7 +508,7 @@ export class ExploreService {
   }
 
   private async rankedProjectIds(
-    column: 'score_all' | 'trending_score' | 'plays' | 'forks',
+    column: RankedColumn,
     options: {
       offset: number;
       limit: number;

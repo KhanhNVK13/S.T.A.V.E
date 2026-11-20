@@ -203,7 +203,7 @@ export function parseMidiBuffer(
 
   return {
     schemaVersion: DRAFT_SCHEMA_VERSION,
-    meta: { tempo, timeSignature: ts, ppq },
+    meta: { tempo, timeSignature: ts, ppq: targetPpq },
     tracks: newTracks,
     notes: newNotes,
   };

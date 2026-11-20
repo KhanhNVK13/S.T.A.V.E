@@ -64,10 +64,6 @@ test.describe("Project management, further cases", () => {
   test("PRJ-016 archives a public project and removes it from Explore", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID048: archiving gives no undo option and the confirmation does not say the project can be restored at any time",
-    );
     const { id } = await ownerWith(page, "public");
     expect(await exploreHas(id)).toBe(true);
     await page.goto("/projects");
@@ -75,12 +71,10 @@ test.describe("Project management, further cases", () => {
       .getByRole("button", { name: /lưu trữ/i })
       .click();
     const dialog = page.getByRole("alertdialog").or(page.getByRole("dialog"));
-    await expect.soft(dialog).toContainText(/bất cứ lúc nào|khôi phục/i);
+    await expect(dialog).toContainText(/bất cứ lúc nào|khôi phục/i);
     await dialog.getByRole("button", { name: /^lưu trữ$/i }).click();
-    await expect
-      .soft(page.getByRole("button", { name: /hoàn tác/i }))
-      .toBeVisible({ timeout: 5_000 });
-    await page.getByText(/^Đã lưu trữ/).first().click();
+    await expect(page.getByRole("button", { name: /hoàn tác/i })).toBeVisible({ timeout: 5_000 });
+    await page.getByRole("tab", { name: /^Đã lưu trữ/ }).click();
     await expect(projectRow(page, "Test Song")).toContainText("Đã lưu trữ");
     await page.goto(`/projects/${id}?tab=commits`);
     await expect(page.getByText("Verse idea")).toBeVisible();

@@ -10,6 +10,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityLogService } from '../activity-log/activity-log.service';
 import { ConfigService } from '@nestjs/config';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
@@ -65,6 +66,7 @@ export class AuthService {
     @Optional()
     @Inject(EMAIL_SENDER)
     private readonly emailSender?: EmailSender,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   private authApiKey(): string {
@@ -492,6 +494,7 @@ export class AuthService {
 
     await this.revokeOtherSessions(userId, accessToken, currentSessionId);
 
+    void this.notifications?.notify(userId, 'security.password_changed', {});
     void this.sendPasswordChangedEmail(email);
   }
 

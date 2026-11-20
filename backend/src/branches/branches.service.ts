@@ -241,6 +241,10 @@ export class BranchesService {
 
     const branchCount = await this.getProjectBranchCount(projectId);
     if (branchCount <= 1) {
+      const missing = await this.getBranchById(dto.targetBranchId);
+      if (!missing || missing.project_id !== projectId) {
+        throw new NotFoundException('Target branch does not exist');
+      }
       throw new BadRequestException('Project has only one branch');
     }
 

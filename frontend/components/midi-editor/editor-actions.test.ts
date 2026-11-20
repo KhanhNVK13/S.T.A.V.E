@@ -1646,7 +1646,7 @@ describe("MidiEditor.handleExportMidi (custom sounds)", () => {
     vi.mocked(exportMidiFile).mockClear().mockReturnValue(new Uint8Array([1]));
     const ed = await renderEditor(withSounds());
     ed.call("onExportMidi");
-    expect(screen.getByText("Âm thanh tuỳ chỉnh sẽ không có trong file")).toBeTruthy();
+    expect(screen.getByText("Âm thanh riêng sẽ không có trong file")).toBeTruthy();
     expect(exportMidiFile).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Huỷ" }));
     expect(exportMidiFile).not.toHaveBeenCalled();

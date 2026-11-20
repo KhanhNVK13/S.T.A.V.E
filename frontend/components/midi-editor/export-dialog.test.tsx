@@ -135,18 +135,19 @@ describe("FE-EXP-01 ExportDialog (audio export options)", () => {
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
   });
 
-  it("UTCID08 Cancel export while rendering stops the export and says nothing was downloaded", async () => {
+  it("UTCID08 Cancel export while rendering stops the export, downloads nothing and closes the dialog", async () => {
     let signal: AbortSignal | undefined;
     exportAudioMock.mockImplementation((_s, opts: { signal: AbortSignal }) => {
       signal = opts.signal;
       return new Promise<Blob>(() => {});
     });
-    render(<ExportDialog projectId="p" snapshot={snapshot} projectName="Song" onClose={() => {}} />);
+    const onClose = vi.fn();
+    render(<ExportDialog projectId="p" snapshot={snapshot} projectName="Song" onClose={onClose} />);
     fireEvent.click(screen.getByText("↓ Export WAV"));
     await waitFor(() => expect(signal).toBeDefined());
     fireEvent.click(screen.getByRole("button", { name: "Cancel export" }));
     expect(signal?.aborted).toBe(true);
-    expect(await screen.findByText(/Export cancelled. Nothing was downloaded./)).toBeTruthy();
+    expect(onClose).toHaveBeenCalled();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 

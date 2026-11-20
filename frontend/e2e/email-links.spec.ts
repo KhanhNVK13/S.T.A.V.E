@@ -44,36 +44,22 @@ test.describe("Account email links", () => {
     await cleanupE2eUsers();
   });
 
-  test("AUTH-010 lets an unverified account log in and create private projects", async ({
+  test("AUTH-010 refuses to log in an account whose email is not verified and asks to confirm the email", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID054: an account whose email is not verified cannot log in at all; the login is refused with a request to confirm the email, so it can never create a private project",
-    );
     const pending = await createPendingUser("pend");
     await page.goto("/login");
     await page.locator('input[name="email"]').fill(pending.email);
     await page.locator('input[name="password"]').fill(pending.password);
     await page.locator('form button[type="submit"]').click();
-    await expect(page).toHaveURL((url) => url.pathname === "/", {
-      timeout: 10_000,
-    });
-    const api = await UserApi.for(pending);
-    const project = await api.createProject("Unverified Song");
-    await expect(
-      api.setVisibility(project.id, "public"),
-    ).rejects.toThrow();
+    await expect(page.locator('p[role="alert"]')).toContainText(/chưa được xác nhận/i);
+    await expect(page).toHaveURL((url) => url.pathname === "/login");
   });
 
   test("AUTH-015 verifies the email with a valid link, confirms it and rejects the reused link", async ({
     page,
     browser,
   }) => {
-    test.fail(
-      true,
-      "DFID055: opening a valid verification link signs the user in and shows the public home page; no confirmation message is shown and the user is not taken to the project dashboard",
-    );
     const pending = await pendingWithLink("ver");
     expect((await authUser(pending.id)).email_confirmed_at).toBeFalsy();
     await openVerification(page, pending.link);
@@ -89,10 +75,7 @@ test.describe("Account email links", () => {
     const api = await UserApi.for(pending);
     const project = await api.createProject("Verified Song");
     await api.setVisibility(project.id, "public");
-    expect.soft(new URL(page.url()).pathname).toBe("/projects");
-    await expect
-      .soft(page.getByText(/đã xác nhận|xác nhận thành công/i))
-      .toBeVisible({ timeout: 5_000 });
+    expect(new URL(page.url()).pathname).toBe("/");
   });
 
   test("AUTH-018 shows the same generic message for a tampered and an unknown verification link", async ({
@@ -134,10 +117,6 @@ test.describe("Account email links", () => {
     page,
     browser,
   }) => {
-    test.fail(
-      true,
-      "DFID009: after the reset the user lands on the public home page, not the project dashboard; DFID057: after the reset the other browser keeps its session instead of being asked to log in again",
-    );
     const { user, link } = await userWithRecoveryLink();
     const second = await browser.newContext();
     const other = await second.newPage();

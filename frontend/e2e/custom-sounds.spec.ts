@@ -207,10 +207,6 @@ test.describe("Custom sound library", () => {
   test("AUD-025 rejects a file longer than 30 seconds and explains why", async ({
     page,
   }) => {
-    test.fail(
-      true,
-      "DFID081: the over-length message states the 30 second limit but does not explain that custom sounds are played as individual notes",
-    );
     const a = await makeActor();
     const project = await seedProject(a, "Test Song");
     await loginThroughUi(page, a.user);
@@ -224,7 +220,7 @@ test.describe("Custom sound library", () => {
     await expect(dialog.locator("li")).toHaveCount(0);
     expect(await listSounds(a.api)).toHaveLength(0);
     await expect(dialog.getByRole("alert")).toContainText(
-      /từng nốt|nốt nhạc|nguyên/i,
+      /từng nốt|nốt nhạc|nốt riêng lẻ|nguyên/i,
       quick,
     );
   });

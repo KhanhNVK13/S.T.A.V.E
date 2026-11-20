@@ -6,7 +6,7 @@ import {
 import { supabase } from "./supabase-browser";
 import { tNow } from "./i18n";
 
-export const AVATAR_MAX_SOURCE_BYTES = 10 * 1024 * 1024;
+export const AVATAR_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 export const AVATAR_SIZE_PX = 256;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 

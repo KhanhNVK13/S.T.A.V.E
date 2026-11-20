@@ -167,7 +167,6 @@ test.describe("Notifications and personalization", () => {
   });
 
   test("Blocked by DFID145, NOT-009 security notifications are still delivered when optional types are off", async ({ page }) => {
-    test.fail(true, "DFID145: changing the password creates no security notification");
     const { user, api } = await member();
     await loginThroughUi(page, user);
     await page.goto("/notifications/settings");

@@ -96,7 +96,7 @@ export default function EditProjectPage() {
             </div>
           </div>
         ) : (
-          <MidiEditor projectId={projectId} projectName={project.name} />
+          <MidiEditor projectId={projectId} projectName={project.name} isOwner={project.viewer_access === "owner"} />
         )}
       </div>
     </RequireAuth>

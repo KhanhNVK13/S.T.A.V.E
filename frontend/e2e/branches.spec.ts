@@ -64,10 +64,6 @@ test.describe("Branch management", () => {
     test("BRN-001 proposes the latest commit as starting point and switches to the new branch", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID027: the create form has no starting point and no switch option; the new branch is only added to the list",
-      );
       const { api, id } = await setup(page);
       await openBranches(page, id);
       await page.getByRole("button", { name: /^tạo nhánh$/i }).click();
@@ -107,10 +103,6 @@ test.describe("Branch management", () => {
     test("BRN-004 shows an inline error when the branch name is empty", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID028: the Create button is only disabled for an empty name and no message says the name is required",
-      );
       const { api, id } = await setup(page);
       await openBranches(page, id);
       await page.getByRole("button", { name: /^tạo nhánh$/i }).click();

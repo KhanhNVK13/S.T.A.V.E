@@ -202,7 +202,6 @@ test.describe("Pull requests", () => {
     });
 
     test("Blocked by DFID129, BRN-047 resolution stops when someone commits to the target meanwhile", async ({ page }) => {
-      test.fail(true, "DFID129: the merge is applied on top of the new target commit instead of asking to restart");
       const { a, id, mainId } = await branchConflict(page);
       const dialog = await startMerge(page, id);
       await a.api.putDraft(id, [{ id: "c1", pitch: 65, start: 2 * BAR }, { id: "c2", pitch: 66, start: 4 * BAR }, { id: "u1", pitch: 50, start: 0 }], TRACKS);
@@ -381,7 +380,6 @@ test.describe("Pull requests", () => {
     }
 
     test("Blocked by DFID127, PR-010 lists incoming and created pull requests with their details", async ({ page, browser }) => {
-      test.fail(true, "DFID127: the pull request list has no sort order control");
       const { s } = await fourPrs();
       await loginThroughUi(page, s.b.user);
       await page.goto("/pull-requests");
@@ -691,7 +689,6 @@ test.describe("Pull requests", () => {
     });
 
     test("Blocked by DFID128, PR-033 a pull request closed by someone else is not merged", async ({ page }) => {
-      test.fail(true, "DFID128: the message says the pull request was handled by someone else but not that it is closed");
       const s = await forked();
       const pr = await openPr(s);
       const before = await s.b.api.head(s.publicMain);
@@ -823,7 +820,6 @@ test.describe("Pull requests", () => {
     });
 
     test("Blocked by DFID128, PR-041 a pull request already merged by someone else is not closed", async ({ page }) => {
-      test.fail(true, "DFID128: the message says the pull request was handled by someone else but not that it is merged");
       const s = await forked();
       const pr = await openPr(s);
       const c = await person("C");

@@ -150,5 +150,5 @@ export async function ensurePlans(): Promise<void> {
 }
 
 export function anyDialog(page: Page) {
-  return page.locator('[role="dialog"], [role="alertdialog"]');
+  return page.locator('[role="dialog"]:not([data-nextjs-dialog]), [role="alertdialog"]');
 }

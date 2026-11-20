@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   ConnectedSocket,
+  MessageBody,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -64,6 +65,7 @@ export class CollaborationGateway implements OnModuleInit {
 
   private readonly logger = new Logger(CollaborationGateway.name);
   private readonly registry = new PresenceRegistry();
+  private readonly pendingAuth = new Map<string, Promise<void>>();
 
   // The SUPABASE_ADMIN_CLIENT provider hands out a SupabaseClient; handshake
   // auth only touches `.auth.getUser` + `.from(...)`, same surface as the
@@ -88,6 +90,16 @@ export class CollaborationGateway implements OnModuleInit {
    * `socket.data`.
    */
   async handleConnection(client: Socket): Promise<void> {
+    const pending = this.authenticate(client);
+    this.pendingAuth.set(client.id, pending);
+    try {
+      await pending;
+    } finally {
+      this.pendingAuth.delete(client.id);
+    }
+  }
+
+  private async authenticate(client: Socket): Promise<void> {
     const auth = client.handshake.auth as CollabHandshakeAuth | undefined;
 
     if (!auth?.accessToken || !auth.sessionId) {
@@ -165,10 +177,11 @@ export class CollaborationGateway implements OnModuleInit {
   @SubscribeMessage('presence:join')
   async handleJoin(
     @ConnectedSocket() client: Socket,
-    payload: { projectId?: unknown },
+    @MessageBody() payload: { projectId?: unknown },
   ): Promise<void> {
+    await this.pendingAuth.get(client.id);
     const data = client.data as CollabSocketData | undefined;
-    if (!data) {
+    if (!data?.user) {
       // Connection was not authorized — drop it instead of joining a room.
       client.disconnect(true);
       return;
@@ -219,10 +232,10 @@ export class CollaborationGateway implements OnModuleInit {
   @SubscribeMessage('presence:leave')
   handleLeave(
     @ConnectedSocket() client: Socket,
-    payload: { projectId?: unknown },
+    @MessageBody() payload: { projectId?: unknown },
   ): void {
     const data = client.data as CollabSocketData | undefined;
-    if (!data) return;
+    if (!data?.user) return;
 
     const projectId =
       typeof payload?.projectId === 'string' ? payload.projectId : '';
@@ -320,8 +333,14 @@ export class CollaborationGateway implements OnModuleInit {
     const socketIds = this.registry.removeUser(projectId, userId);
     // `sockets` (the public Nsp) exposes the live socket map by id.
     // `server` is undefined in the bare unit-test instances — safe-access.
+    const live = (
+      this.server as unknown as {
+        sockets?: Map<string, Socket> | { sockets?: Map<string, Socket> };
+      }
+    )?.sockets;
+    const liveSockets = live instanceof Map ? live : live?.sockets;
     for (const socketId of socketIds) {
-      this.server?.sockets.sockets.get(socketId)?.disconnect(true);
+      liveSockets?.get(socketId)?.disconnect(true);
     }
 
     if (socketIds.length > 0) this.broadcastRoster(projectId);

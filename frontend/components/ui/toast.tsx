@@ -12,6 +12,8 @@ interface ToastProps {
   onDismiss: () => void;
   /** ms trước khi tự đóng; 0 = không tự đóng. Mặc định 4000. */
   duration?: number;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 const ICONS: Record<ToastVariant, typeof Info> = {
@@ -34,7 +36,7 @@ const VARIANT_CLASSES: Record<ToastVariant, string> = {
  * giao diện). Tự đóng sau `duration` ms; người dùng cũng có thể bấm X để
  * đóng ngay.
  */
-export function Toast({ message, variant = "info", onDismiss, duration = 4000 }: ToastProps) {
+export function Toast({ message, variant = "info", onDismiss, duration = 4000, actionLabel, onAction }: ToastProps) {
   useEffect(() => {
     if (duration <= 0) return;
     const timer = setTimeout(onDismiss, duration);
@@ -52,6 +54,11 @@ export function Toast({ message, variant = "info", onDismiss, duration = 4000 }:
       >
         <Icon className="mt-0.5 h-4 w-4 shrink-0" />
         <p className="flex-1">{message}</p>
+        {actionLabel && onAction && (
+          <button onClick={onAction} className="shrink-0 font-medium underline underline-offset-2">
+            {actionLabel}
+          </button>
+        )}
         <button
           onClick={onDismiss}
           className="shrink-0 opacity-80 hover:opacity-100"

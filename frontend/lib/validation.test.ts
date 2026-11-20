@@ -11,7 +11,7 @@ import { setLang } from './i18n';
 
 beforeEach(() => setLang('vi'));
 
-const REQUIRED = 'Vui lòng nhập trường này.';
+const REQUIRED = 'Trường này là bắt buộc.';
 const BAD_EMAIL = 'Email chưa đúng định dạng, ví dụ ban@email.com.';
 
 describe('FE-LIB-49 validation.ts', () => {

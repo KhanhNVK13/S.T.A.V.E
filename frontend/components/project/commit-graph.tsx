@@ -187,7 +187,9 @@ export function CommitGraph({
     const flags = [
       heads.has(commit.id) ? t("projectPage.graphFlagHead") : "",
       commit.merged_from_commit_id ? t("projectPage.graphFlagMerge") : "",
-      commit.id === activeHead ? t("projectPage.graphFlagActive") : "",
+      commit.id === activeHead
+        ? `${t("projectPage.graphFlagActive")}, ${t("projectPage.graphHead")}`
+        : "",
     ].join("");
     return `${t("projectPage.graphCommitLabel", {
       id: commit.id.slice(0, 7),

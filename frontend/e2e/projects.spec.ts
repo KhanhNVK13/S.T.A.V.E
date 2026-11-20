@@ -54,10 +54,6 @@ test.describe("Project management", () => {
     test("PRJ-003 shows an inline error when the project name is empty", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID018: the Create button is only disabled for an empty name and no message says the name is required",
-      );
       const user = await signedIn(page);
       await page.goto("/projects/new");
       await page.locator('input[name="name"]').fill("");
@@ -138,10 +134,6 @@ test.describe("Project management", () => {
     test("PRJ-011 shows an inline error when the new name is empty", async ({
       page,
     }) => {
-      test.fail(
-        true,
-        "DFID018: the Save button is only disabled for an empty name and no message says the name is required",
-      );
       const user = await signedIn(page);
       const id = await createE2eProject(user.id, "Test Song");
       await page.goto(`/projects/${id}/settings`);

@@ -21,7 +21,7 @@ export function LanguageSwitch({ className = "" }: { className?: string }) {
             type="button"
             lang={l}
             aria-pressed={active}
-            aria-label={t(l === "en" ? "lang.en" : "lang.vi")}
+            aria-label={`${SHORT[l]} ${t(l === "en" ? "lang.en" : "lang.vi")}`}
             title={t(l === "en" ? "lang.en" : "lang.vi")}
             onClick={() => setLang(l)}
             className={`h-full rounded-full px-2.5 text-xs font-semibold tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${

@@ -19,6 +19,7 @@ import type {
 import { jamNoteToDraftNote } from "@stave/shared-types";
 import { supabase } from "../../lib/supabase-browser";
 import { getStoredSessionId } from "../../lib/api-client";
+import { useSessionReady } from "../../lib/use-session-ready";
 
 /**
  * UC-66 — client side of the live Community Jam room (`/jam` namespace).
@@ -68,6 +69,8 @@ export interface UseJamSocketResult {
   cooldownRemainingMs: number;
   /** Seconds the server enforces between two edits of the same user. */
   cooldownSec: number;
+  /** The admin moved the end time of the live event (new end, ISO). */
+  endChange: { newEndAt: string; at: number } | null;
   /**
    * 12.E1 — the background flush has failed repeatedly; the in-RAM snapshot
    * is still authoritative, and the UI shows the storage warning banner.
@@ -110,6 +113,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
   // UC-95 / BR-70 — set when the server broadcast the end (`jam:ended` or
   // `jam:event_ended`); the live room shows the frozen banner on this.
   const [endedByServer, setEndedByServer] = useState(false);
+  const [endChange, setEndChange] = useState<{ newEndAt: string; at: number } | null>(null);
   const [storageWarning, setStorageWarning] = useState<JamStorageWarningPayload | null>(null);
   const [lastRemoteNoteUpdate, setLastRemoteNoteUpdate] = useState<{
     noteId: string;
@@ -117,6 +121,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
     at: number;
   } | null>(null);
 
+  const sessionReady = useSessionReady();
   const socketRef = useRef<Socket | null>(null);
   // The caller's own user id — needed to tell "my edit" from "someone else's"
   // on `jam:note_updated` (8.E1 only notifies on REMOTE writes).
@@ -168,7 +173,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
   }, []);
 
   useEffect(() => {
-    if (!eventId) return;
+    if (!eventId || !sessionReady) return;
 
     let socket: Socket | null = null;
     let disposed = false;
@@ -308,6 +313,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
       // NOT set — the jam is still live, it just got longer.
       nsp.on("jam:end_extended", (payload: JamEndExtendedPayload) => {
         if (disposed) return;
+        setEndChange({ newEndAt: payload.newEndAt, at: Date.now() });
         setState((prev) =>
           prev ? { ...prev, endsAt: payload.newEndAt } : prev,
         );
@@ -362,7 +368,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
       setStatus("idle");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, retryNonce]);
+  }, [eventId, retryNonce, sessionReady]);
 
   // 2.1 — the client owns the 2.E1 cooldown countdown between server pings:
   // tick down to the deadline we were given (or that we set after sending).
@@ -423,6 +429,7 @@ export function useJamSocket(eventId: string | null): UseJamSocketResult {
     endedByServer,
     cooldownRemainingMs,
     cooldownSec,
+    endChange,
     storageWarning,
     lastRemoteNoteUpdate,
     editNote,

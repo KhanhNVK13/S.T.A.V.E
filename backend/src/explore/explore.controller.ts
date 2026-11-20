@@ -61,7 +61,7 @@ export class ExploreController {
   /** UC-11: View project rankings — sorted by fork_count (top_forked) or play_count (trending/top_played). */
   @Get('rankings')
   getRankings(@Query() query: RankingsQueryDto) {
-    return this.exploreService.getRankings(query.type);
+    return this.exploreService.getRankings(query.type, query.period);
   }
 
   /** UC-12: Featured content for landing page. */
