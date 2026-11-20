@@ -2840,4 +2840,6 @@ export const en = {
 
   "ex.sortMostPlayed": "Most played",
   "ex.sortMostForked": "Most forked",
+  "ex.colComments": "Comments",
+  "ex.statComments": "Comments",
 } as const satisfies Record<string, string>;

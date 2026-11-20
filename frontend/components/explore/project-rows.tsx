@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { GitFork, Play } from "lucide-react";
+import { GitFork, MessageSquare, Play } from "lucide-react";
 import type { PublicProject } from "../../lib/api-client";
 import { formatRelativeTime } from "../../lib/format-date";
 import { useT } from "../../context/i18n-context";
@@ -10,7 +10,9 @@ import { Badge } from "../ui/badge";
 import { RowHeader, RowItem, RowList, RowStat, RowTime, RowTitle } from "../ui/row-list";
 
 const COLS = "md:grid-cols-[minmax(0,1fr)_112px_84px_84px_108px]";
+const COLS_COMMENTS = "md:grid-cols-[minmax(0,1fr)_112px_84px_84px_84px_108px]";
 const COLS_RANKED = "md:grid-cols-[52px_minmax(0,1fr)_112px_84px_84px_108px]";
+const COLS_RANKED_COMMENTS = "md:grid-cols-[52px_minmax(0,1fr)_112px_84px_84px_84px_108px]";
 
 function RankBadge({ rank }: { rank: number }) {
   const podium = rank <= 3;
@@ -35,14 +37,25 @@ export function ProjectRows({
   rankFrom?: number;
 }) {
   const t = useT();
+  const showComments = projects.some((p) => p.comment_count !== undefined);
+  const cols =
+    rankFrom === undefined
+      ? showComments
+        ? COLS_COMMENTS
+        : COLS
+      : showComments
+        ? COLS_RANKED_COMMENTS
+        : COLS_RANKED;
+
   return (
-    <RowList cols={rankFrom === undefined ? COLS : COLS_RANKED}>
+    <RowList cols={cols}>
       <RowHeader>
         {rankFrom !== undefined && <span>{t("rk.colRank")}</span>}
         <span>{t("ex.colProject")}</span>
         <span>{t("ex.colGenre")}</span>
         <span>{t("ex.colPlays")}</span>
         <span>Fork</span>
+        {showComments && <span>{t("ex.colComments")}</span>}
         <span className="text-right">{t("ex.colUpdated")}</span>
       </RowHeader>
 
@@ -78,6 +91,13 @@ export function ProjectRows({
               </span>
               <RowStat icon={Play} value={project.play_count} title={t("ex.statPlays")} />
               <RowStat icon={GitFork} value={project.fork_count} title={t("ex.statForks")} />
+              {showComments && (
+                <RowStat
+                  icon={MessageSquare}
+                  value={project.comment_count ?? 0}
+                  title={t("ex.statComments")}
+                />
+              )}
               <RowTime>{formatRelativeTime(project.updated_at)}</RowTime>
             </div>
           </RowItem>

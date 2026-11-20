@@ -2842,4 +2842,6 @@ export const vi: Record<keyof typeof en, string> = {
 
   "ex.sortMostPlayed": "Nghe nhiều nhất",
   "ex.sortMostForked": "Fork nhiều nhất",
+  "ex.colComments": "Bình luận",
+  "ex.statComments": "Bình luận",
 };

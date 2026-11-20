@@ -88,7 +88,26 @@ function ExploreContent() {
     tNow('explorePage.featuredFail'),
   );
   const showFeatured = !filtered && page === 1;
-  const featuredProjects = showFeatured ? (featured?.featured_projects ?? []) : [];
+  const needNewestFallback =
+    showFeatured &&
+    featured !== null &&
+    featured.trending_projects.length === 0 &&
+    sort !== 'newest';
+  const { data: newestFallback } = useApiResource<PublicProjectsResponse>(
+    () =>
+      needNewestFallback
+        ? listPublicProjects({ page: 1, limit: 6, sort: 'newest' })
+        : Promise.resolve({ items: [], total: 0, page: 1, totalPages: 0, limit: 6 }),
+    [needNewestFallback],
+  );
+  const fallbackNewest =
+    sort === 'newest' ? (data?.items ?? []).slice(0, 6) : (newestFallback?.items ?? []);
+  const featuredProjects =
+    showFeatured && featured
+      ? featured.trending_projects.length > 0
+        ? featured.trending_projects
+        : fallbackNewest
+      : [];
 
   function updateParams(newParams: Record<string, string | null>) {
     const params = new URLSearchParams(window.location.search);
