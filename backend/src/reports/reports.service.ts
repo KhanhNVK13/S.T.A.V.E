@@ -68,6 +68,17 @@ export class ReportsService {
         reporter_id: reporterId,
         reason: dto.reason,
         details: sanitizeReportDetails(dto.details),
+        copyright_claim:
+          dto.reason === 'copyright' && dto.copyrightClaim
+            ? {
+                claimantName: dto.copyrightClaim.claimantName,
+                claimantRole: dto.copyrightClaim.claimantRole,
+                workDescription: dto.copyrightClaim.workDescription,
+                evidence: dto.copyrightClaim.evidence,
+                goodFaith: true,
+                accuracy: true,
+              }
+            : null,
         status: 'pending',
       })
       .select('id')

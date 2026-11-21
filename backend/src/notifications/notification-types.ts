@@ -237,6 +237,27 @@ export const NOTIFICATION_TYPES: NotificationTypeDefinition[] = [
     'Dự án "{{projectName}}" đã được khôi phục.',
   ),
   define(
+    'moderation.appeal_received',
+    MODERATION,
+    ['projectName'],
+    'Có kháng cáo mới',
+    'Chủ dự án "{{projectName}}" đã gửi kháng cáo việc gỡ dự án.',
+  ),
+  define(
+    'moderation.appeal_upheld',
+    MODERATION,
+    ['projectName', 'note'],
+    'Kháng cáo được chấp nhận',
+    'Kháng cáo về dự án "{{projectName}}" đã được chấp nhận và dự án đã được khôi phục. Ghi chú: {{note}}',
+  ),
+  define(
+    'moderation.appeal_rejected',
+    MODERATION,
+    ['projectName', 'note'],
+    'Kháng cáo bị bác bỏ',
+    'Kháng cáo về dự án "{{projectName}}" đã bị bác bỏ. Ghi chú: {{note}}',
+  ),
+  define(
     'report.reviewed',
     REPORTS,
     ['projectName'],

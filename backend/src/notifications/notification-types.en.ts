@@ -114,6 +114,18 @@ export const ENGLISH_DEFAULTS: Record<
     subject: 'Project restored',
     body: 'The project "{{projectName}}" was restored.',
   },
+  'moderation.appeal_received': {
+    subject: 'New appeal',
+    body: 'The owner of "{{projectName}}" appealed the removal of the project.',
+  },
+  'moderation.appeal_upheld': {
+    subject: 'Appeal accepted',
+    body: 'Your appeal about "{{projectName}}" was accepted and the project was restored. Note: {{note}}',
+  },
+  'moderation.appeal_rejected': {
+    subject: 'Appeal rejected',
+    body: 'Your appeal about "{{projectName}}" was rejected. Note: {{note}}',
+  },
   'report.reviewed': {
     subject: 'Report reviewed',
     body: 'Your report about "{{projectName}}" was reviewed.',

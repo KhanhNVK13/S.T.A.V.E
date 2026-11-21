@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
+import { TERMS_VERSION } from '@stave/shared-types';
 import {
   createSupabaseMock,
   type SupabaseMockOptions,
@@ -563,5 +564,52 @@ describe('BE-USR-10 UsersService.removeAvatar(userId)', () => {
     await expect(service.removeAvatar(userId)).rejects.toThrow(
       new InternalServerErrorException('Could not remove avatar'),
     );
+  });
+});
+
+describe('BE-USR-11 UsersService.acceptTerms(userId, version)', () => {
+  it('UTCID01 saves the accepted version and the server time', async () => {
+    const accepted = {
+      ...userRow,
+      terms_accepted_version: TERMS_VERSION,
+      terms_accepted_at: '2026-11-21T00:00:00.000Z',
+    };
+    const { service, builders } = makeService({ users: [{ data: accepted }] });
+
+    await expect(service.acceptTerms(userId, TERMS_VERSION)).resolves.toBe(
+      accepted,
+    );
+    expect(builders.users.update).toHaveBeenCalledWith({
+      terms_accepted_version: TERMS_VERSION,
+      terms_accepted_at: expect.any(String) as string,
+    });
+    expect(builders.users.eq).toHaveBeenCalledWith('id', userId);
+  });
+
+  it('UTCID02 rejects a version that is not the current one', async () => {
+    const { service, builders } = makeService({ users: [{ data: userRow }] });
+
+    await expect(
+      service.acceptTerms(userId, '1999-01-01'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(builders.users.update).not.toHaveBeenCalled();
+  });
+
+  it('UTCID03 throws NotFoundException when the profile does not exist', async () => {
+    const { service } = makeService({ users: [{ data: null }] });
+
+    await expect(
+      service.acceptTerms(userId, TERMS_VERSION),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('UTCID04 throws InternalServerErrorException when the update fails', async () => {
+    const { service } = makeService({
+      users: [{ data: null, error: { message: 'boom' } }],
+    });
+
+    await expect(
+      service.acceptTerms(userId, TERMS_VERSION),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 });

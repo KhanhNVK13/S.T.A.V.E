@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { InternalServerErrorException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { TERMS_VERSION } from '@stave/shared-types';
 import {
   AVATARS_BUCKET,
   AVATAR_MAX_BYTES,
@@ -62,6 +63,27 @@ export class UsersService {
       .maybeSingle<UserRow>();
 
     if (error || !data) throw new NotFoundException('Profile not found');
+    return data;
+  }
+
+  async acceptTerms(userId: string, version: string): Promise<UserRow> {
+    if (version !== TERMS_VERSION) {
+      throw new BadRequestException('These terms are no longer current');
+    }
+    const { data, error } = await this.supabase
+      .from('users')
+      .update({
+        terms_accepted_version: version,
+        terms_accepted_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+      .select('*')
+      .maybeSingle<UserRow>();
+    if (error) {
+      this.logger.error(`Could not save terms acceptance: ${error.message}`);
+      throw new InternalServerErrorException('Could not accept the terms');
+    }
+    if (!data) throw new NotFoundException('Profile not found');
     return data;
   }
 

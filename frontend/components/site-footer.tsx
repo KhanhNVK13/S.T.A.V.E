@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "../context/i18n-context";
 import { isLandingPath } from "./landing/landing-paths";
@@ -39,6 +40,11 @@ export function SiteCredits({ className = "" }: { className?: string }) {
         >
           {t("footer.fullCredits")}
         </a>
+      </p>
+      <p className="mt-1">
+        <Link href="/terms" className="underline hover:text-foreground">
+          {t("footer.terms")}
+        </Link>
       </p>
     </div>
   );
