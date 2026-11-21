@@ -135,6 +135,7 @@ export const en = {
   "landing.toolboxTitle": "Everything a MIDI project needs.",
   "landing.gmTitle": "General MIDI instruments",
   "landing.gmText": "From Acoustic Grand Piano to Gunshot. Assign any sound to any track.",
+  "landing.gmFamilies": "16 instrument families, 8 programs each",
   "landing.drumTitle": "Drum kits",
   "landing.drumText": "A full percussion channel with its own pads.",
   "landing.ownTitle": "Your own sounds",

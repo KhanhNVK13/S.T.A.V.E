@@ -137,6 +137,7 @@ export const vi: Record<keyof typeof en, string> = {
   "landing.toolboxTitle": "Mọi thứ một dự án MIDI cần.",
   "landing.gmTitle": "nhạc cụ General MIDI",
   "landing.gmText": "Từ Acoustic Grand Piano đến Gunshot. Gán bất kỳ âm thanh nào cho bất kỳ track nào.",
+  "landing.gmFamilies": "16 họ nhạc cụ, mỗi họ 8 chương trình",
   "landing.drumTitle": "Bộ trống",
   "landing.drumText": "Một kênh bộ gõ đầy đủ với các pad riêng.",
   "landing.ownTitle": "Âm thanh của riêng bạn",
