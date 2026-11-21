@@ -1,9 +1,10 @@
-import type { CreateReportResponse, ReportReason } from "@stave/shared-types";
+import type { CopyrightClaim, CreateReportResponse, ReportReason } from "@stave/shared-types";
 import { apiFetch } from "./api-client";
 
 export interface ReportProjectPayload {
   reason: ReportReason;
   details?: string;
+  copyrightClaim?: CopyrightClaim;
 }
 
 export function reportProject(

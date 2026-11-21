@@ -1,5 +1,6 @@
 'use client';
 
+import { RemovedProjectsSection } from "../../components/moderation/removed-projects-section";
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -559,6 +560,8 @@ function ProjectsContent() {
           )}
         </>
       )}
+
+      <RemovedProjectsSection />
 
       <SharedProjects />
     </div>

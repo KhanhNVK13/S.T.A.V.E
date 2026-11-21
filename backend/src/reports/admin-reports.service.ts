@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   MODERATION_DEFAULT_RETENTION_DAYS,
   type AdminReportListResponse,
+  type CopyrightClaim,
   type ReportDetail,
   type ReportGroup,
   type ReportPreview,
@@ -65,6 +66,7 @@ interface ReportDetailRow {
   status: 'pending' | 'resolved';
   resolution: ReportResolution | null;
   reporter_id: string | null;
+  copyright_claim?: CopyrightClaim | null;
 }
 
 interface PreviewProjectRow {
@@ -159,7 +161,7 @@ export class AdminReportsService {
     let query = this.supabase
       .from('reports')
       .select(
-        'id, reason, details, created_at, status, resolution, reporter_id',
+        'id, reason, details, created_at, status, resolution, reporter_id, copyright_claim',
       )
       .eq('status', filter.status);
     query =
@@ -193,6 +195,7 @@ export class AdminReportsService {
       id: row.id,
       reason: toReportReason(row.reason),
       details: row.details,
+      ...(row.copyright_claim ? { copyrightClaim: row.copyright_claim } : {}),
       createdAt: row.created_at,
       reporter: row.reporter_id
         ? {

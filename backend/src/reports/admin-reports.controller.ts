@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import type {
   AdminReportListResponse,
+  CopyrightTakedownContext,
+  CopyrightTakedownResponse,
   DismissReportsResponse,
   RemoveReportedProjectResponse,
   ReportDetail,
@@ -26,6 +28,7 @@ import { AdminReportsService } from './admin-reports.service';
 import { ReportModerationService } from './report-moderation.service';
 import { DismissReportsDto } from './dto/dismiss-reports.dto';
 import { RemoveProjectDto } from './dto/remove-project.dto';
+import { CopyrightTakedownDto } from './dto/copyright-takedown.dto';
 import { ListReportsQueryDto } from './dto/list-reports-query.dto';
 import { ReportStatusQueryDto } from './dto/report-status-query.dto';
 
@@ -84,6 +87,26 @@ export class AdminReportsController {
     @Param('projectId', ParseUUIDPipe) projectId: string,
   ): Promise<ReportRemovalContext> {
     return this.moderationService.getRemovalContext(projectId);
+  }
+
+  @Get(':projectId/copyright-context')
+  copyrightContext(
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+  ): Promise<CopyrightTakedownContext> {
+    return this.moderationService.getCopyrightContext(projectId);
+  }
+
+  @Post(':projectId/copyright-takedown')
+  copyrightTakedown(
+    @Req() req: AuthenticatedRequest,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Body() dto: CopyrightTakedownDto,
+  ): Promise<CopyrightTakedownResponse> {
+    return this.moderationService.takedownCopyright(
+      req.user.id,
+      projectId,
+      dto,
+    );
   }
 
   @Post(':projectId/remove')
