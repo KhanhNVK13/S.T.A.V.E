@@ -27,6 +27,8 @@ import { tNow, type TKey } from "../../lib/i18n";
 const BUCKET = "custom-sounds";
 export const MAX_SOUND_DURATION_SEC = 30;
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+import { formatBytes } from "../../lib/format-bytes";
+
 const ACCEPT = ".wav,.mp3,audio/wav,audio/x-wav,audio/mpeg";
 
 function formatTime(sec: number): string {
@@ -34,10 +36,7 @@ function formatTime(sec: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-export function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+export const formatSize = formatBytes;
 
 async function decodeFile(blob: Blob): Promise<AudioBuffer> {
   const context = new AudioContext();

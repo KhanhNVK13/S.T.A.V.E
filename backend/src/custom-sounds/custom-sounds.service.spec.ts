@@ -15,6 +15,11 @@ import {
   CUSTOM_SOUNDS_BUCKET,
   type CustomSoundRow,
 } from './custom-sounds.service';
+import type { SubscriptionsService } from '../billing/subscriptions.service';
+
+const plainPlan = {
+  getEffective: jest.fn().mockResolvedValue({ plan: { features: {} } }),
+} as unknown as SubscriptionsService;
 
 const ownerId = '11111111-1111-4111-8111-111111111111';
 const otherOwnerId = '22222222-2222-4222-8222-222222222222';
@@ -89,9 +94,10 @@ function makeBlob(buffer: Buffer) {
 function makeService(
   results: Parameters<typeof createSupabaseMock>[0] = [],
   options: SupabaseMockOptions = {},
+  subscriptions: SubscriptionsService = plainPlan,
 ) {
   const mock = createSupabaseMock(results, options);
-  const service = new CustomSoundsService(mock.client);
+  const service = new CustomSoundsService(mock.client, subscriptions);
   return { service, mock };
 }
 
@@ -397,7 +403,7 @@ describe('BE-SND CustomSoundsService', () => {
     });
   });
 
-  describe('BE-SND-05 getQuotaBytes()', () => {
+  describe('BE-SND-05 getBaseQuotaBytes()', () => {
     it('UTCID01 returns positive numeric setting value', async () => {
       const { service } = makeService([], {
         tables: {
@@ -405,7 +411,7 @@ describe('BE-SND CustomSoundsService', () => {
         },
       });
 
-      expect(await service.getQuotaBytes()).toBe(104857600);
+      expect(await service.getBaseQuotaBytes()).toBe(104857600);
     });
 
     it('UTCID02 parses numeric string setting value', async () => {
@@ -415,7 +421,7 @@ describe('BE-SND CustomSoundsService', () => {
         },
       });
 
-      expect(await service.getQuotaBytes()).toBe(20971520);
+      expect(await service.getBaseQuotaBytes()).toBe(20971520);
     });
 
     it('UTCID03 returns 1 when setting value is 1', async () => {
@@ -425,7 +431,7 @@ describe('BE-SND CustomSoundsService', () => {
         },
       });
 
-      expect(await service.getQuotaBytes()).toBe(1);
+      expect(await service.getBaseQuotaBytes()).toBe(1);
     });
 
     it('UTCID04 falls back to default 50MB when setting value is 0', async () => {
@@ -435,7 +441,7 @@ describe('BE-SND CustomSoundsService', () => {
         },
       });
 
-      expect(await service.getQuotaBytes()).toBe(52428800);
+      expect(await service.getBaseQuotaBytes()).toBe(52428800);
     });
 
     it('UTCID05 falls back to default 50MB when setting value is negative', async () => {
@@ -445,7 +451,7 @@ describe('BE-SND CustomSoundsService', () => {
         },
       });
 
-      expect(await service.getQuotaBytes()).toBe(52428800);
+      expect(await service.getBaseQuotaBytes()).toBe(52428800);
     });
 
     it('UTCID06 falls back to default 50MB when setting value is NaN', async () => {
@@ -455,7 +461,7 @@ describe('BE-SND CustomSoundsService', () => {
         },
       });
 
-      expect(await service.getQuotaBytes()).toBe(52428800);
+      expect(await service.getBaseQuotaBytes()).toBe(52428800);
     });
 
     it('UTCID07 falls back to default 50MB when setting row is null', async () => {
@@ -465,7 +471,68 @@ describe('BE-SND CustomSoundsService', () => {
         },
       });
 
-      expect(await service.getQuotaBytes()).toBe(52428800);
+      expect(await service.getBaseQuotaBytes()).toBe(52428800);
+    });
+  });
+
+  describe('BE-SND-05b getQuotaBytes(ownerId) adds the plan storage', () => {
+    const base = {
+      tables: { platform_settings: [{ data: { value: 52428800 } }] },
+    };
+    const planWith = (features: Record<string, unknown>) =>
+      ({
+        getEffective: jest.fn().mockResolvedValue({ plan: { features } }),
+      }) as unknown as SubscriptionsService;
+
+    it('UTCID01 a plan with extra_storage_mb raises the quota above the base', async () => {
+      const { service } = makeService(
+        [],
+        base,
+        planWith({ extra_storage_mb: 2048 }),
+      );
+      expect(await service.getQuotaBytes(ownerId)).toBe(
+        52428800 + 2048 * 1024 * 1024,
+      );
+    });
+
+    it('UTCID02 the free plan keeps the base quota', async () => {
+      const { service } = makeService([], base, planWith({}));
+      expect(await service.getQuotaBytes(ownerId)).toBe(52428800);
+    });
+
+    it('UTCID03 a negative or non-numeric extra is ignored', async () => {
+      const negative = makeService(
+        [],
+        base,
+        planWith({ extra_storage_mb: -5 }),
+      );
+      expect(await negative.service.getQuotaBytes(ownerId)).toBe(52428800);
+      const text = makeService(
+        [],
+        base,
+        planWith({ extra_storage_mb: 'lots' }),
+      );
+      expect(await text.service.getQuotaBytes(ownerId)).toBe(52428800);
+    });
+
+    it('UTCID04 an oversized extra is capped at the maximum plan value', async () => {
+      const { service } = makeService(
+        [],
+        base,
+        planWith({ extra_storage_mb: 9999999 }),
+      );
+      expect(await service.getQuotaBytes(ownerId)).toBe(
+        52428800 + 102400 * 1024 * 1024,
+      );
+    });
+
+    it('UTCID05 the plan lookup failing falls back to the base quota', async () => {
+      const failing = {
+        getEffective: jest.fn().mockRejectedValue(new Error('db down')),
+      } as unknown as SubscriptionsService;
+      const { service } = makeService([], base, failing);
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      expect(await service.getQuotaBytes(ownerId)).toBe(52428800);
     });
   });
 

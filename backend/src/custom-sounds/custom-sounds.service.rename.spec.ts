@@ -1,6 +1,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { createSupabaseMock } from '../test-utils/supabase-mock';
 import { CustomSoundsService } from './custom-sounds.service';
+import type { SubscriptionsService } from '../billing/subscriptions.service';
+
+const plainPlan = {
+  getEffective: jest.fn().mockResolvedValue({ plan: { features: {} } }),
+} as unknown as SubscriptionsService;
 
 const ownerId = '11111111-1111-4111-8111-111111111111';
 const soundId = '22222222-2222-4222-8222-222222222222';
@@ -27,7 +32,7 @@ function makeService(
     tables: { custom_sounds: [result] },
     storage: { 'custom-sounds': { createSignedUrl: [signed] } },
   });
-  return { service: new CustomSoundsService(mock.client), ...mock };
+  return { service: new CustomSoundsService(mock.client, plainPlan), ...mock };
 }
 
 describe('CustomSoundsService.rename', () => {

@@ -11,6 +11,8 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { SubscriptionsService } from '../billing/subscriptions.service';
+import { extraStorageBytes } from '../billing/storage-quota';
 import {
   MAX_SOUND_DURATION_SEC,
   MAX_SOUND_SIZE_BYTES,
@@ -83,6 +85,7 @@ export class CustomSoundsService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   private async loadViewableProject(
@@ -178,7 +181,7 @@ export class CustomSoundsService {
     return `${ownerId}/${soundId}.wav`;
   }
 
-  async getQuotaBytes(): Promise<number> {
+  async getBaseQuotaBytes(): Promise<number> {
     const { data } = await this.supabase
       .from('platform_settings')
       .select('value')
@@ -186,6 +189,19 @@ export class CustomSoundsService {
       .maybeSingle<{ value: unknown }>();
     const value = Number(data?.value);
     return Number.isFinite(value) && value > 0 ? value : DEFAULT_QUOTA_BYTES;
+  }
+
+  async getQuotaBytes(ownerId: string): Promise<number> {
+    const base = await this.getBaseQuotaBytes();
+    try {
+      const effective = await this.subscriptions.getEffective(ownerId);
+      return base + extraStorageBytes(effective.plan.features);
+    } catch (err) {
+      this.logger.warn(
+        `Could not read the plan of ${ownerId}, using the base quota: ${String(err)}`,
+      );
+      return base;
+    }
   }
 
   async getUsedBytes(ownerId: string): Promise<number> {
@@ -204,7 +220,7 @@ export class CustomSoundsService {
   private async assertWithinQuota(ownerId: string, extraBytes: number) {
     const [used, quota] = await Promise.all([
       this.getUsedBytes(ownerId),
-      this.getQuotaBytes(),
+      this.getQuotaBytes(ownerId),
     ]);
     if (used + extraBytes > quota) {
       throw new BadRequestException(
@@ -326,7 +342,7 @@ export class CustomSoundsService {
     const rows = data ?? [];
     const [urls, quotaBytes] = await Promise.all([
       Promise.all(rows.map((r) => this.signPlayback(r.file_url))),
-      this.getQuotaBytes(),
+      this.getQuotaBytes(ownerId),
     ]);
     return {
       items: rows.map((row, i) => this.toResponse(row, urls[i])),
