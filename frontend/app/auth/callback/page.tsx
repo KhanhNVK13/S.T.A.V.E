@@ -8,7 +8,7 @@ import { useAuth } from "../../../context/auth-context";
 import { authErrorMessage, authErrorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { supabase } from "../../../lib/supabase-browser";
 import { setFlashToast } from "../../../lib/flash-toast";
-import { safeRedirectPath } from "../../../lib/safe-redirect";
+import { DEFAULT_AFTER_LOGIN_PATH, readNextParam } from "../../../lib/safe-redirect";
 import { tNow } from "../../../lib/i18n";
 import { useT } from "../../../context/i18n-context";
 import { validateEmail } from "../../../lib/validation";
@@ -128,7 +128,7 @@ export default function AuthCallbackPage() {
       if (type === "signup" || type === "email") {
         setFlashToast(tNow("auth.cb.confirmedToast"));
       }
-      router.replace(safeRedirectPath(new URLSearchParams(window.location.search).get("next")));
+      router.replace(readNextParam(window.location.search) ?? DEFAULT_AFTER_LOGIN_PATH);
     }
   }, [loading, session, router]);
 
