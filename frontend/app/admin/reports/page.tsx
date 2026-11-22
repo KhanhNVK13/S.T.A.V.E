@@ -15,6 +15,7 @@ import { ApiError } from "../../../lib/api-client";
 import { useApiResource } from "../../../lib/use-api-resource";
 import { useI18n } from "../../../context/i18n-context";
 import type { TKey } from "../../../lib/i18n";
+import { CopyrightTakedownDialog } from "./copyright-takedown-dialog";
 import { DismissReportsDialog } from "./dismiss-reports-dialog";
 import { ProjectPreviewDialog } from "./project-preview-dialog";
 import { RemoveProjectDialog } from "./remove-project-dialog";
@@ -43,6 +44,7 @@ export default function AdminReportsPage() {
   const [reload, setReload] = useState(0);
   const [viewing, setViewing] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ReportGroup | null>(null);
+  const [copyrighting, setCopyrighting] = useState<ReportGroup | null>(null);
   const [dismissing, setDismissing] = useState<ReportGroup | null>(null);
   const [restoring, setRestoring] = useState<ReportGroup | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
@@ -65,6 +67,7 @@ export default function AdminReportsPage() {
 
   function finish(message: string) {
     setRemoving(null);
+    setCopyrighting(null);
     setDismissing(null);
     setNotice(message);
     setReload((n) => n + 1);
@@ -127,6 +130,7 @@ export default function AdminReportsPage() {
                   status={tab}
                   onView={setViewing}
                   onRemove={setRemoving}
+                  onCopyright={setCopyrighting}
                   onDismiss={setDismissing}
                   onRestore={(target) => {
                     setRestoreError(null);
@@ -159,6 +163,15 @@ export default function AdminReportsPage() {
           projectName={removing.projectName ?? ""}
           onClose={() => setRemoving(null)}
           onRemoved={() => finish(t("rpt.rmDone"))}
+        />
+      )}
+
+      {copyrighting?.projectId && (
+        <CopyrightTakedownDialog
+          projectId={copyrighting.projectId}
+          projectName={copyrighting.projectName ?? ""}
+          onClose={() => setCopyrighting(null)}
+          onRemoved={(forks) => finish(t("cpr.done", { forks }))}
         />
       )}
 

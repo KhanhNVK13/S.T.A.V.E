@@ -54,6 +54,9 @@ const TYPE_KEYS: Record<string, TKey> = {
   "security.google_disconnected": "nts.type.security.google_disconnected",
   "moderation.project_removed": "nts.type.moderation.project_removed",
   "moderation.project_restored": "nts.type.moderation.project_restored",
+  "moderation.appeal_received": "nts.type.moderation.appeal_received",
+  "moderation.appeal_upheld": "nts.type.moderation.appeal_upheld",
+  "moderation.appeal_rejected": "nts.type.moderation.appeal_rejected",
   "report.reviewed": "nts.type.report.reviewed",
 };
 

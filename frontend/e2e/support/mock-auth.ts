@@ -72,6 +72,8 @@ export async function mockUserSession(
         avatar_url: null,
         role: user.role,
         status: "active",
+        terms_accepted_version: "pre-terms",
+        terms_accepted_at: "2026-10-31T00:00:00.000Z",
         created_at: "2026-10-31T00:00:00.000Z",
         updated_at: "2026-10-31T00:00:00.000Z",
       }),

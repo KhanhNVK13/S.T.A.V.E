@@ -18,6 +18,7 @@ import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SetThemeDto } from './dto/set-theme.dto';
 import { ConfirmAvatarDto, CreateAvatarUploadDto } from './dto/avatar.dto';
+import { AcceptTermsDto } from './dto/accept-terms.dto';
 
 @UseGuards(JwtAuthGuard, SessionAuthGuard)
 @Controller('users')
@@ -32,6 +33,13 @@ export class UsersController {
   @Patch('me')
   updateMe(@Req() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.id, dto);
+  }
+
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 10 * 60_000 } })
+  @Post('me/terms')
+  acceptTerms(@Req() req: AuthenticatedRequest, @Body() dto: AcceptTermsDto) {
+    return this.usersService.acceptTerms(req.user.id, dto.version);
   }
 
   @UseGuards(UserThrottlerGuard)

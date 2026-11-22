@@ -101,10 +101,10 @@ describe("ReportDialog", () => {
   it("gửi gọi API đúng payload, details đã trim, rồi báo onSent", async () => {
     vi.mocked(reportProject).mockResolvedValue({ id: "r1" });
     const onSent = vi.fn();
-    render(<Harness onSent={onSent} initialReason="copyright" initialDetails="  giống bài X  " />);
+    render(<Harness onSent={onSent} initialReason="spam" initialDetails="  giống bài X  " />);
     fireEvent.click(submit());
     await waitFor(() => expect(onSent).toHaveBeenCalledTimes(1));
-    expect(reportProject).toHaveBeenCalledWith("p1", { reason: "copyright", details: "giống bài X" });
+    expect(reportProject).toHaveBeenCalledWith("p1", { reason: "spam", details: "giống bài X" });
   });
 
   it("không gửi trường details khi để trống", async () => {
@@ -189,5 +189,61 @@ describe("ReportDialog", () => {
     const box = screen.getByRole("textbox");
     expect(box.getAttribute("name")).toBe("details");
     expect(box.getAttribute("autocomplete")).toBe("off");
+  });
+});
+
+describe("ReportDialog: báo cáo bản quyền", () => {
+  const fillClaim = () => {
+    fireEvent.change(screen.getByLabelText("Your full name or the name of the rights holder"), {
+      target: { value: "Nguyen Van A" },
+    });
+    fireEvent.click(screen.getByLabelText("The copyright owner"));
+    fireEvent.change(screen.getByLabelText("The work that is being copied"), {
+      target: { value: "Bài hát Mưa năm 2020" },
+    });
+    fireEvent.change(screen.getByLabelText("How you can show your rights"), {
+      target: { value: "Bản thảo gốc và hợp đồng" },
+    });
+  };
+
+  it("chọn bản quyền thì hiện các trường khiếu nại, lý do khác thì không", () => {
+    render(<Harness />);
+    expect(screen.queryByLabelText("The copyright owner")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Copyright infringement"));
+    expect(screen.getByLabelText("The copyright owner")).toBeTruthy();
+    expect(screen.getByLabelText("An authorised agent of the owner")).toBeTruthy();
+  });
+
+  it("chưa điền đủ thông tin và hai cam kết thì chưa gửi được", () => {
+    render(<Harness initialReason="copyright" />);
+    expect(submit().disabled).toBe(true);
+    fillClaim();
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText(/believe in good faith/));
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText(/information I gave is accurate/));
+    expect(submit().disabled).toBe(false);
+  });
+
+  it("gửi kèm copyrightClaim đã làm sạch khoảng trắng", async () => {
+    vi.mocked(reportProject).mockResolvedValue({ id: "r1" });
+    const onSent = vi.fn();
+    render(<Harness initialReason="copyright" onSent={onSent} />);
+    fillClaim();
+    fireEvent.click(screen.getByLabelText(/believe in good faith/));
+    fireEvent.click(screen.getByLabelText(/information I gave is accurate/));
+    fireEvent.click(submit());
+    await waitFor(() => expect(onSent).toHaveBeenCalledTimes(1));
+    expect(reportProject).toHaveBeenCalledWith("p1", {
+      reason: "copyright",
+      copyrightClaim: {
+        claimantName: "Nguyen Van A",
+        claimantRole: "owner",
+        workDescription: "Bài hát Mưa năm 2020",
+        evidence: "Bản thảo gốc và hợp đồng",
+        goodFaith: true,
+        accuracy: true,
+      },
+    });
   });
 });

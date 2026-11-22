@@ -29,6 +29,7 @@ export function ReportGroupRow({
   status,
   onView,
   onRemove,
+  onCopyright,
   onDismiss,
   onRestore,
 }: {
@@ -36,6 +37,7 @@ export function ReportGroupRow({
   status: ReportStatusFilter;
   onView: (projectId: string) => void;
   onRemove: (group: ReportGroup) => void;
+  onCopyright: (group: ReportGroup) => void;
   onDismiss: (group: ReportGroup) => void;
   onRestore: (group: ReportGroup) => void;
 }) {
@@ -156,6 +158,15 @@ export function ReportGroupRow({
                 <Button variant="secondary" onClick={() => onDismiss(group)} aria-label={`${t("rpt.dismissBtn")}: ${projectName}`}>
                   {t("rpt.dismissBtn")}
                 </Button>
+                {group.reasons.some((entry) => entry.reason === "copyright") && (
+                  <Button
+                    variant="danger"
+                    onClick={() => onCopyright(group)}
+                    aria-label={`${t("cpr.button")}: ${projectName}`}
+                  >
+                    {t("cpr.button")}
+                  </Button>
+                )}
                 <Button variant="danger" onClick={() => onRemove(group)} aria-label={`${t("rpt.removeBtn")}: ${projectName}`}>
                   {t("rpt.removeBtn")}
                 </Button>
@@ -214,6 +225,20 @@ export function ReportGroupRow({
                       {formatWhen(item.createdAt, locale)}
                     </time>
                   </div>
+                  {item.copyrightClaim && (
+                    <div className="flex flex-col gap-0.5 rounded-card border border-border bg-surface px-3 py-2 text-xs text-muted">
+                      <span className="font-medium text-foreground">
+                        {t("cpr.claimant", { name: item.copyrightClaim.claimantName })} (
+                        {t(`cpr.role.${item.copyrightClaim.claimantRole}`)})
+                      </span>
+                      <span>
+                        {t("cpr.work")}: {item.copyrightClaim.workDescription}
+                      </span>
+                      <span>
+                        {t("cpr.evidence")}: {item.copyrightClaim.evidence}
+                      </span>
+                    </div>
+                  )}
                   {item.details ? (
                     <p className="whitespace-pre-wrap break-words text-[13px]">{item.details}</p>
                   ) : (

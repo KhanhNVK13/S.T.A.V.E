@@ -211,6 +211,13 @@ export async function setProjectTags(id: string, tags: string[]): Promise<string
   return result.tags;
 }
 
+export async function acceptTerms(version: string): Promise<void> {
+  await apiFetch<unknown>("/users/me/terms", {
+    method: "POST",
+    body: JSON.stringify({ version }),
+  });
+}
+
 export async function pushAccountLanguage(language: "en" | "vi"): Promise<void> {
   await apiFetch<unknown>("/users/me", {
     method: "PATCH",

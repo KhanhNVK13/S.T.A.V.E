@@ -4,6 +4,7 @@
  * Read by MIDI Editor, Version Control, and the projects/drafts API alike —
  * do not diverge per-module.
  */
+import type { CopyrightClaim } from "./copyright.ts";
 export const DRAFT_SCHEMA_VERSION = 3;
 
 export interface DraftMeta {
@@ -497,6 +498,7 @@ export type * from "./comments";
 // Community Jam (UC-66/67, 93..95) — shapes shared with `backend/src/jam/`.
 export type * from "./jam";
 export * from "./billing.ts";
+export * from "./copyright.ts";
 
 export const ACTIVITY_TYPES = [
   "signin",
@@ -707,6 +709,7 @@ export interface ReportDetail {
   id: string;
   reason: ReportReason;
   details: string | null;
+  copyrightClaim?: CopyrightClaim | null;
   createdAt: string;
   /** Only ever present on the admin detail endpoint. */
   reporter: { id: string; displayName: string | null } | null;
