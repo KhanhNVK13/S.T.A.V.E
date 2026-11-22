@@ -32,7 +32,10 @@ import { useSpaceScene, useSpaceScroll } from '../../components/space/use-space-
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'ex.sortNewest' },
-  { value: 'most_played', label: 'ex.sortPopular' },
+  { value: 'recently_updated', label: 'ex.sortRecentlyUpdated' },
+  { value: 'popular', label: 'ex.sortPopular' },
+  { value: 'most_played', label: 'ex.sortMostPlayed' },
+  { value: 'most_forked', label: 'ex.sortMostForked' },
 ] as const;
 
 const CHIP_BASE =
@@ -50,7 +53,12 @@ function ExploreContent() {
   const searchParams = useSearchParams();
 
   const page = parseInt(searchParams.get('page') ?? '1', 10);
-  const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'most_played';
+  const sort = (searchParams.get('sort') ?? 'newest') as
+    | 'newest'
+    | 'recently_updated'
+    | 'popular'
+    | 'most_played'
+    | 'most_forked';
   const genre = searchParams.get('genre') ?? '';
   const search = searchParams.get('search') ?? '';
   const tag = searchParams.get('tag') ?? '';

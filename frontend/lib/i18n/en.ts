@@ -1484,6 +1484,7 @@ export const en = {
   "nts.inAppLabel": "{label}: receive in the app",
   "ex.allGenres": "All genres",
   "ex.sortNewest": "Newest",
+  "ex.sortRecentlyUpdated": "Recently updated",
   "ex.sortPopular": "Popular",
   "ex.loadFail": "Couldn't load the project list. Please try again.",
   "ex.search": "Search public projects",
@@ -2839,6 +2840,8 @@ export const en = {
   "accessibilityPage.motionTitle": "Still background",
   "accessibilityPage.motionDesc": "Stops the drifting stars and the 3D scenes behind the pages. The background stays, it just no longer moves.",
 
+  "ex.sortMostPlayed": "Most played",
+  "ex.sortMostForked": "Most forked",
   "terms.gateTitle": "Terms of Use",
   "terms.gateIntro": "Before you start, please read and accept the Terms of Use. You cannot use STAVE without accepting them.",
   "terms.sum1": "Only upload and share music you have the right to share.",

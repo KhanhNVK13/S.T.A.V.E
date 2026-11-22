@@ -1,7 +1,7 @@
 'use client';
 
 import { RemovedProjectsSection } from "../../components/moderation/removed-projects-section";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
@@ -15,7 +15,7 @@ import {
   listProjects,
   type ProjectVisibility,
 } from '../../lib/api-client';
-import { formatDateTime, formatRelativeTime } from '../../lib/format-date';
+import { appLocale, formatDateTime, formatRelativeTime } from '../../lib/format-date';
 import { PageHeader } from '../../components/ui/page-header';
 import { Badge } from '../../components/ui/badge';
 import { Button, buttonClass } from '../../components/ui/button';
@@ -44,8 +44,8 @@ interface Project {
 type SortOption = 'default' | 'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc';
 
 const SORT_OPTIONS: { value: SortOption; label: TKey }[] = [
-  { value: 'default', label: 'projects.sortDefault' },
   { value: 'updated_desc', label: 'projects.sortNewest' },
+  { value: 'default', label: 'projects.sortDefault' },
   { value: 'updated_asc', label: 'projects.sortOldest' },
   { value: 'name_asc', label: 'projects.sortNameAsc' },
   { value: 'name_desc', label: 'projects.sortNameDesc' },
@@ -198,10 +198,10 @@ function ProjectsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ErrorSource | null>(null);
 
-  // Filter/sort/pagination state
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<SortOption>('default');
-  const [genre, setGenre] = useState<string>('');
+  // Filter/sort/pagination state — derived from URL params (B5, B6)
+  const sort = (searchParams.get('sort') as SortOption) || 'updated_desc';
+  const search = searchParams.get('search') || '';
+  const genre = searchParams.get('genre') || '';
   const tab = (searchParams.get('tab') as Tab) || 'all';
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
 
@@ -241,17 +241,35 @@ function ProjectsContent() {
     );
   }
 
-  function updateUrl(updates: Record<string, string | null>) {
+  const updateUrl = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === 'default' || value === 'all' || value === '1') {
+      const isDefault =
+        key === 'tab' && value === 'all' ||
+        key === 'page' && value === '1' ||
+        key === 'sort' && value === 'updated_desc';
+      if (value === null || value === '' || isDefault) {
         params.delete(key);
       } else {
         params.set(key, value);
       }
     }
     router.push(`/projects?${params.toString()}`);
-  }
+  }, [router, searchParams]);
+
+  // Local search input with debounce (syncs to URL after 400ms)
+  const [searchInput, setSearchInput] = useState(search);
+  const prevSearchRef = useRef(search);
+  useEffect(() => {
+    if (prevSearchRef.current !== search) {
+      prevSearchRef.current = search;
+      setSearchInput(search);
+      return;
+    }
+    if (searchInput === search) return;
+    const timer = setTimeout(() => updateUrl({ search: searchInput || null, page: null }), 400);
+    return () => clearTimeout(timer);
+  }, [searchInput, search, updateUrl]);
 
   // Filter + sort
   const filteredProjects = useMemo(() => {
@@ -281,10 +299,10 @@ function ProjectsContent() {
         result.sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
         break;
       case 'name_asc':
-        result.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+        result.sort((a, b) => a.name.localeCompare(b.name, appLocale(), { numeric: true, sensitivity: 'base' }));
         break;
       case 'name_desc':
-        result.sort((a, b) => b.name.localeCompare(a.name, 'vi'));
+        result.sort((a, b) => b.name.localeCompare(a.name, appLocale(), { numeric: true, sensitivity: 'base' }));
         break;
       case 'default':
       default:
@@ -377,11 +395,8 @@ function ProjectsContent() {
             name="q"
             autoComplete="off"
             type="search"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              updateUrl({ page: null }); // reset to page 1 on search
-            }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t('projects.filterPlaceholder')}
             aria-label={t('projects.filterPlaceholder')}
             className={`${INPUT_CLASS} h-[34px] w-full pl-8`}
@@ -391,8 +406,7 @@ function ProjectsContent() {
         <select
           value={genre}
           onChange={(e) => {
-            setGenre(e.target.value);
-            updateUrl({ page: null });
+            updateUrl({ genre: e.target.value || null, page: null });
           }}
           aria-label={t('projects.filterGenre')}
           className={`${INPUT_CLASS} h-[34px]`}
@@ -408,8 +422,7 @@ function ProjectsContent() {
         <select
           value={sort}
           onChange={(e) => {
-            setSort(e.target.value as SortOption);
-            updateUrl({ page: null }); // reset to page 1 on sort change
+            updateUrl({ sort: e.target.value, page: null });
           }}
           aria-label={t('projects.sort')}
           className={`${INPUT_CLASS} h-[34px]`}
@@ -459,9 +472,8 @@ function ProjectsContent() {
             search || genre ? (
               <button
                 onClick={() => {
-                  setSearch('');
-                  setGenre('');
-                  updateUrl({ page: null });
+                  setSearchInput('');
+                  updateUrl({ search: null, genre: null, page: null });
                 }}
                 className="text-sm text-accent hover:underline"
               >

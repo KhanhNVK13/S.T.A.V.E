@@ -73,9 +73,26 @@ describe('ExploreService engagement ranking', () => {
     engagement: { data?: unknown; error?: unknown; count?: number },
     cards: unknown[] = [],
   ) {
+    // getRankings() now queries project_engagement twice: once for ranking IDs,
+    // once for engagement stats override. Provide a second result for the
+    // override query when there are ranked IDs.
+    const engagementIds = Array.isArray(engagement.data) ? engagement.data : [];
+    const overrideResult =
+      engagementIds.length > 0
+        ? {
+            data: engagementIds.map((r: { project_id: string }) => ({
+              project_id: r.project_id,
+              plays: 0,
+              forks: 0,
+            })),
+          }
+        : undefined;
+    const engagementQueue = overrideResult
+      ? [engagement, overrideResult]
+      : [engagement];
     const mock = createSupabaseMock([], {
       tables: {
-        project_engagement: [engagement],
+        project_engagement: engagementQueue,
         projects: [{ data: cards }, { data: [] }],
         project_tags: [{ data: [] }],
       },
@@ -95,6 +112,7 @@ describe('ExploreService engagement ranking', () => {
     expect(builders.project_engagement.order).toHaveBeenCalledWith('forks', {
       ascending: false,
     });
+    expect(builders.project_engagement.gt).toHaveBeenCalledWith('forks', 0);
     expect(builders.project_engagement.eq).toHaveBeenCalledWith(
       'is_visible',
       true,
@@ -125,10 +143,10 @@ describe('ExploreService engagement ranking', () => {
 
     expect(result.total).toBe(7);
     expect(result.totalPages).toBe(2);
-    expect(builders.project_engagement.order).toHaveBeenCalledWith(
-      'score_all',
-      { ascending: false },
-    );
+    expect(builders.project_engagement.order).toHaveBeenCalledWith('plays', {
+      ascending: false,
+    });
+    expect(builders.project_engagement.gt).not.toHaveBeenCalled();
   });
 
   it('fails with a server error when the view cannot be read', async () => {
