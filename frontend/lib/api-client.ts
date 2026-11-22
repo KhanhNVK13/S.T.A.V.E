@@ -306,7 +306,7 @@ export async function getFeaturedContent(): Promise<FeaturedContent> {
 // ============================================
 // Draft API (MIDI Editor)
 // ============================================
-import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
+import type { DraftNote, DraftSnapshot, DraftTrack, StorageUsage } from "@stave/shared-types";
 
 export type { DraftSnapshot };
 
@@ -878,6 +878,10 @@ export async function confirmCustomSoundUpload(payload: {
 
 export async function listCustomSounds(): Promise<CustomSoundLibrary> {
   return apiFetch("/users/me/custom-sounds");
+}
+
+export async function getStorageUsage(): Promise<StorageUsage> {
+  return apiFetch("/users/me/storage");
 }
 
 export interface CustomSoundUsage {

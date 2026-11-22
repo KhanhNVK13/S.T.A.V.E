@@ -500,6 +500,7 @@ export type * from "./comments";
 export type * from "./jam";
 export * from "./billing.ts";
 export * from "./copyright.ts";
+export * from "./storage-usage.ts";
 
 export const ACTIVITY_TYPES = [
   "signin",

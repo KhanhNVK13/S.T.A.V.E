@@ -7,6 +7,11 @@ import {
   CustomSoundsService,
   CUSTOM_SOUNDS_BUCKET,
 } from './custom-sounds.service';
+import type { SubscriptionsService } from '../billing/subscriptions.service';
+
+const plainPlan = {
+  getEffective: jest.fn().mockResolvedValue({ plan: { features: {} } }),
+} as unknown as SubscriptionsService;
 
 const ownerId = '11111111-1111-4111-8111-111111111111';
 const soundId = '44444444-4444-4444-8444-444444444444';
@@ -46,7 +51,7 @@ function blobOf(buffer: Buffer) {
 
 function makeService(options: SupabaseMockOptions) {
   const mock = createSupabaseMock([], options);
-  return { service: new CustomSoundsService(mock.client), ...mock };
+  return { service: new CustomSoundsService(mock.client, plainPlan), ...mock };
 }
 
 function removeCalls(storage: { from: jest.Mock }): string[][] {

@@ -24,6 +24,7 @@ import { Switch } from "../../components/ui/switch";
 import { Tabs } from "../../components/ui/tabs";
 import { useAccessibility } from "../../context/accessibility-context";
 import { SoundLibraryPanel } from "../../components/custom-sound/sound-library-panel";
+import { StorageUsageSection } from "../../components/settings/storage-usage";
 import { apiErrorMessage, authErrorSource, errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { supabase } from "../../lib/supabase-browser";
 import { hasPasswordProvider, hasRecentOAuthLogin } from "../../lib/auth-methods";
@@ -323,6 +324,7 @@ function ProfileTab() {
           <Music className="h-3.5 w-3.5" /> {t("profile.openLibrary")}
         </Button>
       </SettingRow>
+      <StorageUsageSection />
       {soundsOpen && (
         <Dialog title={t("profile.soundLibrary")} onClose={() => setSoundsOpen(false)} className="max-w-xl p-6">
           <SoundLibraryPanel />
