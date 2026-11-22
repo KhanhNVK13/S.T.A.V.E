@@ -704,22 +704,45 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
 
   const projectIds = Array.from({ length: 10 }, (_, i) => `p${i + 1}`);
 
+  type EngagementOverride = {
+    project_id: string;
+    plays?: number;
+    plays_week?: number;
+    plays_month?: number;
+    forks?: number;
+    forks_week?: number;
+    forks_month?: number;
+    comments?: number;
+  };
+
   const makeService = (
     ranked: QueryResult,
     cards: QueryResult = { data: [] },
-    overrideRow?: { project_id: string; plays: number; forks: number },
+    overrideRow?: EngagementOverride | EngagementOverride[],
   ) => {
     // getRankings() now queries project_engagement twice: once for ranking IDs
     // and once for engagement stats override. Provide a second result.
     const rankedIds = Array.isArray(ranked.data) ? ranked.data : [];
+    const overrides = Array.isArray(overrideRow)
+      ? overrideRow
+      : overrideRow
+        ? [overrideRow]
+        : [];
+    const overrideById = new Map(overrides.map((r) => [r.project_id, r]));
     const overrideResult: QueryResult =
       rankedIds.length > 0
         ? {
-            data: rankedIds.map((r: { project_id: string }) =>
-              r.project_id === overrideRow?.project_id
-                ? overrideRow
-                : { project_id: r.project_id, plays: 0, forks: 0 },
-            ),
+            data: rankedIds.map((r: { project_id: string }) => ({
+              project_id: r.project_id,
+              plays: 0,
+              plays_week: 0,
+              plays_month: 0,
+              forks: 0,
+              forks_week: 0,
+              forks_month: 0,
+              comments: 0,
+              ...overrideById.get(r.project_id),
+            })),
           }
         : { data: [] };
     const engagementQueue =
@@ -885,7 +908,14 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
       const { service, mock } = makeService(
         viewOf(['p1']),
         cardsOf(['p1']),
-        period === 'all' ? undefined : { project_id: 'p1', plays: 2, forks: 1 },
+        period === 'all'
+          ? { project_id: 'p1', plays: 2, forks: 1, comments: 5 }
+          : {
+              project_id: 'p1',
+              [`plays_${period}`]: 2,
+              [`forks_${period}`]: 1,
+              comments: 5,
+            },
       );
 
       const result = await service.getRankings(type, period);
@@ -896,18 +926,48 @@ describe('BE-EXP-05 ExploreService.getRankings(type)', () => {
       );
       if (period === 'all') {
         expect(mock.builders.project_engagement.select).toHaveBeenCalledWith(
-          'project_id, plays as plays, forks as forks',
+          'project_id, plays, forks, comments',
         );
+        expect(result[0]?.play_count).toBe(2);
+        expect(result[0]?.fork_count).toBe(1);
+        expect(result[0]?.comment_count).toBe(5);
         return;
       }
-      const suffix = `_${period}`;
       expect(mock.builders.project_engagement.select).toHaveBeenCalledWith(
-        `project_id, plays${suffix} as plays, forks${suffix} as forks`,
+        `project_id, plays_${period}, forks_${period}, comments`,
       );
       expect(result[0]?.play_count).toBe(2);
       expect(result[0]?.fork_count).toBe(1);
+      expect(result[0]?.comment_count).toBe(5);
     },
   );
+
+  it('UTCID13 sets comment_count from project_engagement.comments in getRankings while listPublicProjects leaves it undefined', async () => {
+    const { service } = makeService(
+      viewOf(['p1', 'p2']),
+      cardsOf(['p1', 'p2']),
+      [
+        { project_id: 'p1', comments: 4 },
+        { project_id: 'p2', comments: 0 },
+      ],
+    );
+
+    const rankedResult = await service.getRankings('trending', 'week');
+
+    expect(rankedResult[0]?.comment_count).toBe(4);
+    expect(rankedResult[1]?.comment_count).toBe(0);
+
+    const listMock = createSupabaseMock([], {
+      tables: {
+        projects: [{ data: [rankRow('p1', 0)], count: 1 }, { data: [] }],
+        project_tags: [{ data: [] }],
+      },
+    });
+    const listService = new ExploreService(listMock.client);
+    const listResult = await listService.listPublicProjects({ sort: 'newest' });
+
+    expect(listResult.items[0]?.comment_count).toBeUndefined();
+  });
 });
 
 // ============================================================================

@@ -109,6 +109,7 @@ export interface PublicProjectCard {
   updated_at: string;
   play_count: number;
   fork_count: number;
+  comment_count?: number;
   owner: PublicProjectOwner;
   tags: string[];
 }

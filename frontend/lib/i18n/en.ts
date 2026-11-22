@@ -2842,6 +2842,8 @@ export const en = {
 
   "ex.sortMostPlayed": "Most played",
   "ex.sortMostForked": "Most forked",
+  "ex.colComments": "Comments",
+  "ex.statComments": "Comments",
   "terms.gateTitle": "Terms of Use",
   "terms.gateIntro": "Before you start, please read and accept the Terms of Use. You cannot use STAVE without accepting them.",
   "terms.sum1": "Only upload and share music you have the right to share.",

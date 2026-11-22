@@ -453,15 +453,15 @@ export class ExploreService {
     });
     const cards = await this.loadCardsInOrder(ranked.ids);
 
-    // Override play_count / fork_count with engagement view values so the
-    // numbers shown on the card match the stats used for sorting.
+    // Override play_count / fork_count / comment_count with engagement view
+    // values so the numbers shown on the card match the stats used for sorting.
     if (ranked.ids.length > 0) {
+      const playsCol = `plays${suffix}` as const;
+      const forksCol = `forks${suffix}` as const;
       const { data: engagementRows, error: engagementError } =
         await this.supabase
           .from('project_engagement')
-          .select(
-            `project_id, plays${suffix} as plays, forks${suffix} as forks`,
-          )
+          .select(`project_id, ${playsCol}, ${forksCol}, comments`)
           .in('project_id', ranked.ids);
 
       if (engagementError) {
@@ -471,18 +471,18 @@ export class ExploreService {
       if (engagementRows) {
         const engMap = new Map(
           (
-            engagementRows as unknown as {
+            engagementRows as unknown as ({
               project_id: string;
-              plays: number;
-              forks: number;
-            }[]
+              comments: number;
+            } & Record<typeof playsCol | typeof forksCol, number>)[]
           ).map((r) => [r.project_id, r]),
         );
         for (const card of cards) {
           const eng = engMap.get(card.id);
           if (eng) {
-            card.play_count = eng.plays;
-            card.fork_count = eng.forks;
+            card.play_count = eng[playsCol];
+            card.fork_count = eng[forksCol];
+            card.comment_count = eng.comments;
           }
         }
       }

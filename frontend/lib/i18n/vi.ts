@@ -2844,6 +2844,8 @@ export const vi: Record<keyof typeof en, string> = {
 
   "ex.sortMostPlayed": "Nghe nhiều nhất",
   "ex.sortMostForked": "Fork nhiều nhất",
+  "ex.colComments": "Bình luận",
+  "ex.statComments": "Bình luận",
   "terms.gateTitle": "Điều khoản sử dụng",
   "terms.gateIntro": "Trước khi bắt đầu, hãy đọc và đồng ý với Điều khoản sử dụng. Bạn không thể dùng STAVE nếu không đồng ý.",
   "terms.sum1": "Chỉ tải lên và chia sẻ nhạc mà bạn có quyền chia sẻ.",

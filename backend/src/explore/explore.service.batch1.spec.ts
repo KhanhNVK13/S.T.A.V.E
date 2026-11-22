@@ -83,7 +83,12 @@ describe('ExploreService engagement ranking', () => {
             data: engagementIds.map((r: { project_id: string }) => ({
               project_id: r.project_id,
               plays: 0,
+              plays_week: 0,
+              plays_month: 0,
               forks: 0,
+              forks_week: 0,
+              forks_month: 0,
+              comments: 0,
             })),
           }
         : undefined;
@@ -109,6 +114,7 @@ describe('ExploreService engagement ranking', () => {
     const result = await service.getRankings('top_forked');
 
     expect(result.map((card) => card.id)).toEqual([idB, idA]);
+    expect(result[0].comment_count).toBe(0);
     expect(builders.project_engagement.order).toHaveBeenCalledWith('forks', {
       ascending: false,
     });
