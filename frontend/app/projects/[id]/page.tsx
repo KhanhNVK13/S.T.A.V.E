@@ -243,7 +243,7 @@ function ProjectOverview({ id }: { id: string }) {
       try {
         window.sessionStorage.setItem(PENDING_FORK_KEY, JSON.stringify({ id, at: Date.now() }));
       } catch {}
-      router.push(`/login?redirect=${encodeURIComponent(`/projects/${id}`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/projects/${id}`)}`);
       return;
     }
     void performFork();
@@ -552,7 +552,7 @@ function ProjectOverview({ id }: { id: string }) {
                     <CircleUserRound className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
                       <Link
-                        href={`/login?redirect=${encodeURIComponent(`/projects/${id}`)}`}
+                        href={`/login?next=${encodeURIComponent(`/projects/${id}`)}`}
                         className="font-semibold text-accent hover:underline"
                       >
                         {t("nav.signIn")}

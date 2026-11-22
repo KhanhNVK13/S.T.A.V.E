@@ -1,6 +1,6 @@
 # PROJECT_STATE — STAVE
 
-> Trạng thái hiện hành của dự án. File này **ngắn có chủ đích**: chỉ ghi hiện tại đang ở đâu, việc đang mở, quyết định còn hiệu lực. Lịch sử chi tiết nằm ở `archive/` (nguyên văn, bất biến, số §N giữ nguyên để tra chéo với CLAUDE.md và code). Cập nhật cuối: **18/11/2026**.
+> Trạng thái hiện hành của dự án. File này **ngắn có chủ đích**: chỉ ghi hiện tại đang ở đâu, việc đang mở, quyết định còn hiệu lực. Lịch sử chi tiết nằm ở `archive/` (nguyên văn, bất biến, số §N giữ nguyên để tra chéo với CLAUDE.md và code). Cập nhật cuối: **20/11/2026**.
 >
 > **Quy tắc ghi:** phiên mới chỉ sửa mục 1–5 của file này cho đúng hiện tại. Khi một giai đoạn kết thúc, chuyển phần chi tiết sang file `archive/` mới (hoặc cuối file cùng giai đoạn) rồi chỉ giữ một dòng tóm tắt ở đây. Trung thực: ghi rõ mức đã verify (typecheck / gọi API thật / chạy E2E / người tự kiểm), không làm tròn lên. Quy ước ổn định nằm ở `CLAUDE.md`, không lặp lại ở đây.
 >
@@ -20,7 +20,14 @@
 
 **Quy ước test:** tên ca mang mã trùng sheet Report 5 (`BE-CMT-01 UTCID03`, `FE-LIB-12`…) để đếm tự động; `it.failing` đánh dấu lỗi đã biết kèm mã DFID và phải gỡ khi lỗi được sửa; spec backend dựng service bằng `ProjectAccessService` thật trên mock Supabase (`backend/src/test-utils/supabase-mock.ts`, hàng đợi theo bảng, lọc theo `.eq`); test frontend phải ghim ngôn ngữ (`setLang('vi')`) vì app mặc định tiếng Anh; test tự động **không bao giờ** ghi vào DB production (dùng DB test); `docs/Report5_Unit Test.xlsx` sửa trực tiếp bằng XML (có bản sao lưu).
 
-## 1. Đang ở đâu (18/11/2026)
+## 1. Đang ở đâu (20/11/2026)
+
+- **20/11/2026, sửa 4 lỗi live web trên nhánh riêng `bugfix/live-web-routing-and-validation` (tách từ `origin/main` `37cf3ea`, chưa commit/push):**
+  - `backend/src/explore/explore.controller.ts`: gắn `ParseUUIDPipe({ errorHttpStatusCode: 404 })` (`notFoundOnBadId`) cho 4 GET `:id` endpoint công khai (`/explore/users/:id/projects`, `/explore/users/:id`, `/explore/projects/:id`, `/explore/projects/:id/graph`), chặn lỗi HTTP 500 trên `/creator/not-a-uuid`; thêm `explore.controller.spec.ts`.
+  - `frontend/app/admin/page.tsx`: thêm route `/admin` chuyển hướng sang `/admin/dashboard` (tránh 404).
+  - `frontend/lib/safe-redirect.ts`, `components/require-auth.tsx`, `app/login/page.tsx`, `app/register/page.tsx`, `app/auth/callback/page.tsx`, `app/projects/[id]/page.tsx`: giữ và lọc an toàn `?next=` (chặn open-redirect và vòng lặp trang auth) khi khách bị đẩy từ route bảo vệ về `/login` → Google OAuth / `/register` → `/auth/callback`, đồng thời thống nhất `?next=` thay `?redirect=` trên trang chi tiết dự án (bỏ qua `?next=` khi user vừa đăng xuất). Thêm `safe-redirect.test.ts` và `require-auth.test.tsx`.
+  - `frontend/context/auth-context.tsx`, `frontend/app/reset-password/page.tsx`: thêm timeout dự phòng 5s cho `AuthContext.loading`; `/reset-password` kiểm tra token/lỗi trên URL (`no-token`/`error`/`has-token`) để hiện ngay màn báo link không hợp lệ kèm link `/forgot-password` thay vì kẹt spinner vô hạn; thêm `reset-password/page.test.tsx`.
+  - **Kiểm chứng:** Backend `tsc --noEmit` đạt, ESLint `0` lỗi, Jest **`135/135` suite (`2.765/2.765` ca)** đạt, `nest build` đạt; Frontend `next typegen` + `tsc --noEmit` đạt, ESLint `0` lỗi, Vitest **`89/89` file (`1.322/1.322` ca)** đạt (`next build` cần mạng tải Google Fonts ở CI/Netlify). Đã kiểm tra thủ công logic chống open-redirect và vòng lặp URL.
 
 - **20/11/2026, hoàn thiện tài liệu sau khi phiên A xong (CHƯA commit; `docs/` bị `.gitignore` nên phải sao lưu thủ công; sao lưu từng bước ở `docs/backup-reports/*.before-20-11*.docx`).**
   - **Report 5 Test Documentation** (`docs/Report5_Test Documentation.docx`, Word mở được, 21 trang): mục 5.2 và 5.3 điền số cuối từ workbook: Unit 2727 ca (2723 Passed, 2 Failed, 2 Pending, 0,07%), Integration 663/141 (17,54%), System 700/104 (12,94%), Acceptance 756/48 (5,97%), tổng 3531 ca / 50 Failed (1,42%); lỗi 159 (Critical 2, High 13, Medium 128, Low 16), 113 đã sửa (12 đã re-test), 46 còn mở (1 Critical JAM-009, 5 High, 31 Medium, 9 Low). **Target mới người dùng chốt: Unit ≤ 3,5%, Integration ≤ 20%, System ≤ 15%, Acceptance ≤ 7,5%** (cả bốn đều đạt); đã sửa ở Report 3 mục 4.2.2 và Report 5 mục 1.2, bảng 5.2, tiêu chí ở 2.x. Tiêu chí mức System đổi thành "No critical defect left open without an accepted exception" (JAM-009 còn mở, cần giám khảo chấp nhận ngoại lệ). **Người dùng quyết định không giả kết quả Round 1/2 bằng cách chép Passed của Round 3**; Round là các mốc kết quả (thực tế chạy lặp 10–15 lần, mỗi round chạy cả bộ mất một ngày).

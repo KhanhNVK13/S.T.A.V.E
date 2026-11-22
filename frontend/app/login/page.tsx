@@ -7,7 +7,7 @@ import { supabase } from "../../lib/supabase-browser";
 import { ApiError, loginWithPassword } from "../../lib/api-client";
 import { authErrorSource, rawErrorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { takeAuthNotice } from "../../lib/auth-notice";
-import { safeRedirectPath } from "../../lib/safe-redirect";
+import { DEFAULT_AFTER_LOGIN_PATH, readNextParam, withNextParam } from "../../lib/safe-redirect";
 import { AuthCard, AuthField, AuthDivider, GoogleButton, AUTH_INPUT_CLASS } from "../../components/auth-card";
 import { useT } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
@@ -23,11 +23,13 @@ export default function LoginPage() {
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
+  const [nextPath, setNextPath] = useState<string | null>(null);
 
   useEffect(() => {
     const notice = takeAuthNotice();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage chỉ đọc được ở client
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage và URL search chỉ đọc được ở client
     if (notice) setError(rawErrorSource(notice));
+    setNextPath(readNextParam(window.location.search));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -64,16 +66,17 @@ export default function LoginPage() {
       setUnconfirmed(signInError.code === "email_not_confirmed");
       return;
     }
-    const params = new URLSearchParams(window.location.search);
-    router.push(safeRedirectPath(params.get("next") ?? params.get("redirect")));
+    const next = readNextParam(window.location.search);
+    router.push(next ?? DEFAULT_AFTER_LOGIN_PATH);
   }
 
   async function handleResend() {
     setResendState("sending");
+    const next = readNextParam(window.location.search);
     const { error: resendError } = await supabase.auth.resend({
       type: "signup",
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: withNextParam(`${window.location.origin}/auth/callback`, next) },
     });
     if (resendError) {
       setResendState("idle");
@@ -84,9 +87,10 @@ export default function LoginPage() {
   }
 
   async function handleGoogle() {
+    const next = readNextParam(window.location.search);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: withNextParam(`${window.location.origin}/auth/callback`, next) },
     });
   }
 
@@ -152,7 +156,7 @@ export default function LoginPage() {
         <Link href="/forgot-password" className="font-semibold text-accent hover:underline">
           {t("auth.forgot")}
         </Link>
-        <Link href="/register" className="font-semibold text-accent hover:underline">
+        <Link href={withNextParam("/register", nextPath)} className="font-semibold text-accent hover:underline">
           {t("auth.noAccount")}
         </Link>
       </div>
