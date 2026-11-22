@@ -427,7 +427,7 @@ describe('BE-RPT-07 ReportModerationService.dismissReports', () => {
 
 describe('BE-RPT-06 ReportModerationService.restoreProject', () => {
   const rpcRow = (status: string) => ({
-    admin_restore_project: {
+    admin_restore_project_tree: {
       data: [{ o_status: status, o_owner_id: OWNER, o_project_name: 'Song' }],
       error: null,
     },
@@ -438,7 +438,7 @@ describe('BE-RPT-06 ReportModerationService.restoreProject', () => {
     await expect(service.restoreProject(ADMIN, PROJECT)).resolves.toEqual({
       restored: true,
     });
-    expect(mock.rpc).toHaveBeenCalledWith('admin_restore_project', {
+    expect(mock.rpc).toHaveBeenCalledWith('admin_restore_project_tree', {
       p_admin_id: ADMIN,
       p_project_id: PROJECT,
       p_retention_days: 14,
@@ -469,14 +469,14 @@ describe('BE-RPT-06 ReportModerationService.restoreProject', () => {
     const { service, mock } = build(rpcRow('restored'), {}, 'abc');
     await service.restoreProject(ADMIN, PROJECT);
     expect(mock.rpc).toHaveBeenCalledWith(
-      'admin_restore_project',
+      'admin_restore_project_tree',
       expect.objectContaining({ p_retention_days: 30 }),
     );
   });
 
   it('UTCID05 dự án không tồn tại thì 404', async () => {
     const { service } = build({
-      admin_restore_project: {
+      admin_restore_project_tree: {
         data: null,
         error: { message: 'PROJECT_NOT_FOUND' },
       },
@@ -488,7 +488,7 @@ describe('BE-RPT-06 ReportModerationService.restoreProject', () => {
 
   it('UTCID06 lỗi máy chủ thì 500 và không báo chủ dự án', async () => {
     const { service, notifications } = build({
-      admin_restore_project: { data: null, error: { message: 'boom' } },
+      admin_restore_project_tree: { data: null, error: { message: 'boom' } },
     });
     await expect(service.restoreProject(ADMIN, PROJECT)).rejects.toBeInstanceOf(
       InternalServerErrorException,

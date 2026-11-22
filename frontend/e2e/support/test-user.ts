@@ -111,6 +111,8 @@ export async function createE2eProfile(
       username,
       bio: fields.bio ?? null,
       status: fields.status ?? "active",
+      terms_accepted_version: "pre-terms",
+      terms_accepted_at: new Date().toISOString(),
     });
   if (error) throw new Error(`Could not create e2e profile: ${error.message}`);
 }

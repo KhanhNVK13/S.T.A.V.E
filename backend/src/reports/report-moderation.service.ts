@@ -12,6 +12,10 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   MODERATION_DEFAULT_RETENTION_DAYS,
+  type CopyrightClaim,
+  type CopyrightForkInfo,
+  type CopyrightTakedownContext,
+  type CopyrightTakedownResponse,
   type DismissReportsResponse,
   type RemoveReportedProjectResponse,
   type ReportRemovalContext,
@@ -27,6 +31,7 @@ import {
   retainUntilFrom,
 } from './reports.logic';
 import type { RemoveProjectDto } from './dto/remove-project.dto';
+import type { CopyrightTakedownDto } from './dto/copyright-takedown.dto';
 import type { DismissReportsDto } from './dto/dismiss-reports.dto';
 
 export const RETENTION_SETTING_KEY = 'moderation_retention_days';
@@ -56,7 +61,28 @@ interface RestoreRow {
   o_status: 'restored' | 'not_removed' | 'expired';
   o_owner_id: string;
   o_project_name: string;
+  o_restored_forks?: CopyrightForkInfo[] | null;
 }
+
+interface CopyrightRemoveRow extends RemoveRow {
+  o_forks: CopyrightForkInfo[] | null;
+}
+
+interface ClaimRow {
+  id: string;
+  created_at: string;
+  copyright_claim: CopyrightClaim | null;
+}
+
+interface ForkRow {
+  id: string;
+  name: string;
+  owner_id: string;
+  moderation_hidden_at?: string | null;
+}
+
+const FORK_LIST_LIMIT = 100;
+const FORK_TREE_MAX_DEPTH = 20;
 
 const SOUND_INDEX_PAGE_SIZE = 500;
 export const SOUND_INDEX_MAX_PAGES = 200;
@@ -198,6 +224,181 @@ export class ReportModerationService {
     };
   }
 
+  async getCopyrightContext(
+    projectId: string,
+  ): Promise<CopyrightTakedownContext> {
+    const project = await this.loadProject(projectId);
+    const { data: claimRows, error: claimError } = await this.supabase
+      .from('reports')
+      .select('id, created_at, copyright_claim')
+      .eq('project_id', projectId)
+      .eq('status', 'pending')
+      .eq('reason', 'copyright')
+      .order('created_at', { ascending: true })
+      .limit(50)
+      .returns<ClaimRow[]>();
+    if (claimError) {
+      this.logger.error(`Could not read claims: ${claimError.message}`);
+      throw new InternalServerErrorException('Could not load takedown details');
+    }
+    const claims = (claimRows ?? []).flatMap((row) =>
+      row.copyright_claim
+        ? [
+            {
+              ...row.copyright_claim,
+              reportId: row.id,
+              createdAt: row.created_at,
+            },
+          ]
+        : [],
+    );
+    if ((claimRows ?? []).length === 0) {
+      throw new ForbiddenException(
+        'This project has no open copyright reports',
+      );
+    }
+
+    const base = await this.buildContext(project);
+    const forkTree = await this.collectForks(projectId);
+    const owners = await this.loadDisplayNames([
+      ...new Set(forkTree.map((fork) => fork.owner_id)),
+    ]);
+
+    return {
+      claims,
+      forks: forkTree.slice(0, FORK_LIST_LIMIT).map((fork) => ({
+        projectId: fork.id,
+        name: fork.name,
+        ownerDisplayName: owners.get(fork.owner_id) ?? null,
+      })),
+      forksTruncated: forkTree.length > FORK_LIST_LIMIT,
+      priorTakedowns: await this.countPriorTakedowns(project.owner_id),
+      sounds: base.sounds,
+      truncated: base.truncated,
+      retentionDays: base.retentionDays,
+    };
+  }
+
+  async takedownCopyright(
+    adminId: string,
+    projectId: string,
+    dto: CopyrightTakedownDto,
+  ): Promise<CopyrightTakedownResponse> {
+    await this.assertSoundsBelongToProject(projectId, dto.removeSoundIds);
+    const { data, error } = await this.supabase.rpc(
+      'admin_remove_copyright_project',
+      {
+        p_admin_id: adminId,
+        p_project_id: projectId,
+        p_reason: dto.reason,
+        p_sound_ids: dto.removeSoundIds ?? [],
+      },
+    );
+    if (error) this.failRemove(error.message);
+    const row = (data as CopyrightRemoveRow[] | null)?.[0];
+    if (!row) {
+      throw new InternalServerErrorException('Could not remove project');
+    }
+
+    const removedFiles = row.o_file_urls ?? [];
+    const files = removedFiles.filter(Boolean);
+    if (files.length > 0) await this.removeSoundFiles(projectId, files);
+
+    await this.notifications.notify(
+      row.o_owner_id,
+      'moderation.project_removed',
+      { projectName: row.o_project_name, reason: dto.reason, projectId },
+    );
+    const forks = row.o_forks ?? [];
+    await this.notifyForkOwners(forks, 'moderation.project_removed', {
+      reason: dto.reason,
+    });
+    await this.notifyReporters(row.o_reporter_ids, row.o_project_name);
+
+    const days = await this.getRetentionDays();
+    return {
+      closedReports: row.o_closed_count,
+      removedSounds: removedFiles.length,
+      removedForks: forks.length,
+      retainUntil: retainUntilFrom(new Date().toISOString(), days),
+    };
+  }
+
+  private async collectForks(rootId: string): Promise<ForkRow[]> {
+    const seen = new Set<string>([rootId]);
+    const rows: ForkRow[] = [];
+    let frontier = [rootId];
+    for (
+      let depth = 0;
+      depth < FORK_TREE_MAX_DEPTH && frontier.length > 0;
+      depth += 1
+    ) {
+      const { data, error } = await this.supabase
+        .from('projects')
+        .select('id, name, owner_id, moderation_hidden_at')
+        .in('forked_from_project_id', frontier)
+        .limit(1000)
+        .returns<ForkRow[]>();
+      if (error) {
+        this.logger.error(`Could not read forks: ${error.message}`);
+        throw new InternalServerErrorException(
+          'Could not load takedown details',
+        );
+      }
+      frontier = [];
+      for (const fork of data ?? []) {
+        if (seen.has(fork.id)) continue;
+        seen.add(fork.id);
+        if (!fork.moderation_hidden_at) rows.push(fork);
+        frontier.push(fork.id);
+      }
+    }
+    return rows;
+  }
+
+  private async countPriorTakedowns(ownerId: string): Promise<number> {
+    const { data: owned, error: ownedError } = await this.supabase
+      .from('projects')
+      .select('id')
+      .eq('owner_id', ownerId)
+      .limit(1000)
+      .returns<{ id: string }[]>();
+    if (ownedError) {
+      this.logger.error(`Could not read owner projects: ${ownedError.message}`);
+      return 0;
+    }
+    const ids = (owned ?? []).map((row) => row.id);
+    if (ids.length === 0) return 0;
+    const { count, error } = await this.supabase
+      .from('admin_audit_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('action', 'project.copyright_takedown')
+      .in('target_id', ids);
+    if (error) {
+      this.logger.error(`Could not count takedowns: ${error.message}`);
+      return 0;
+    }
+    return count ?? 0;
+  }
+
+  private async loadDisplayNames(
+    ids: string[],
+  ): Promise<Map<string, string | null>> {
+    const names = new Map<string, string | null>();
+    if (ids.length === 0) return names;
+    const { data, error } = await this.supabase
+      .from('users')
+      .select('id, display_name')
+      .in('id', [...new Set(ids)])
+      .returns<{ id: string; display_name: string | null }[]>();
+    if (error) {
+      this.logger.error(`Could not read user names: ${error.message}`);
+      return names;
+    }
+    for (const row of data ?? []) names.set(row.id, row.display_name);
+    return names;
+  }
+
   async dismissReports(
     adminId: string,
     projectId: string,
@@ -282,16 +483,19 @@ export class ReportModerationService {
     projectId: string,
   ): Promise<RestoreProjectResponse> {
     const days = await this.getRetentionDays();
-    const { data, error } = await this.supabase.rpc('admin_restore_project', {
-      p_admin_id: adminId,
-      p_project_id: projectId,
-      p_retention_days: days,
-    });
+    const { data, error } = await this.supabase.rpc(
+      'admin_restore_project_tree',
+      {
+        p_admin_id: adminId,
+        p_project_id: projectId,
+        p_retention_days: days,
+      },
+    );
     if (error) {
       if (error.message.includes('PROJECT_NOT_FOUND')) {
         throw new NotFoundException('Project not found');
       }
-      this.logger.error(`admin_restore_project failed: ${error.message}`);
+      this.logger.error(`admin_restore_project_tree failed: ${error.message}`);
       throw new InternalServerErrorException('Could not restore project');
     }
     const row = (data as RestoreRow[] | null)?.[0];
@@ -311,6 +515,10 @@ export class ReportModerationService {
       row.o_owner_id,
       'moderation.project_restored',
       { projectName: row.o_project_name, projectId },
+    );
+    await this.notifyForkOwners(
+      row.o_restored_forks ?? [],
+      'moderation.project_restored',
     );
     return { restored: true };
   }
@@ -351,6 +559,31 @@ export class ReportModerationService {
     }
     this.logger.error(`admin_remove_reported_project failed: ${message}`);
     throw new InternalServerErrorException('Could not remove project');
+  }
+
+  async notifyForkOwners(
+    forks: CopyrightForkInfo[],
+    type: 'moderation.project_removed' | 'moderation.project_restored',
+    extra: Record<string, unknown> = {},
+  ): Promise<void> {
+    for (let i = 0; i < forks.length; i += NOTIFY_BATCH_SIZE) {
+      const batch = forks.slice(i, i + NOTIFY_BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map((fork) =>
+          this.notifications.notify(fork.ownerId, type, {
+            ...extra,
+            projectName: fork.name,
+            projectId: fork.projectId,
+          }),
+        ),
+      );
+      const failed = results.filter((result) => result.status === 'rejected');
+      if (failed.length > 0) {
+        this.logger.error(
+          `Could not notify ${failed.length} of ${batch.length} fork owners`,
+        );
+      }
+    }
   }
 
   private async notifyReporters(

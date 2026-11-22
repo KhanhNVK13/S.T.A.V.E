@@ -4,6 +4,7 @@ import "./globals.css";
 import { AccessibilityProvider } from "../context/accessibility-context";
 import { AuthProvider } from "../context/auth-context";
 import { AccountLanguageSync } from "../components/account-language-sync";
+import { TermsGate } from "../components/terms-gate";
 import { ThemeProvider } from "../context/theme-context";
 import { I18nProvider } from "../context/i18n-context";
 import { ShellSwitch } from "../components/shell/shell-switch";
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <I18nProvider>
             <AuthProvider>
               <AccountLanguageSync />
+              <TermsGate />
               <ThemeProvider>
                 <SpaceBackdrop />
                 <SkipLink />

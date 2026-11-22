@@ -1,5 +1,7 @@
 import type {
   AdminReportListResponse,
+  CopyrightTakedownContext,
+  CopyrightTakedownResponse,
   DismissReportsResponse,
   ModerationPolicy,
   RemoveReportedProjectResponse,
@@ -58,5 +60,19 @@ export function dismissReports(
 export function restoreReportedProject(projectId: string): Promise<RestoreProjectResponse> {
   return apiFetch<RestoreProjectResponse>(`/admin/reports/${encodeURIComponent(projectId)}/restore`, {
     method: "POST",
+  });
+}
+
+export function getCopyrightContext(projectId: string): Promise<CopyrightTakedownContext> {
+  return apiFetch<CopyrightTakedownContext>(`/admin/reports/${encodeURIComponent(projectId)}/copyright-context`);
+}
+
+export function copyrightTakedown(
+  projectId: string,
+  body: { reason: string; removeSoundIds: string[] },
+): Promise<CopyrightTakedownResponse> {
+  return apiFetch<CopyrightTakedownResponse>(`/admin/reports/${encodeURIComponent(projectId)}/copyright-takedown`, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }

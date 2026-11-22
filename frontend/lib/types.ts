@@ -11,6 +11,8 @@ export interface Profile {
   status: UserStatus;
   role: UserRole;
   language?: "en" | "vi";
+  terms_accepted_version?: string | null;
+  terms_accepted_at?: string | null;
   created_at: string;
   updated_at: string;
 }

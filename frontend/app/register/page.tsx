@@ -231,6 +231,15 @@ export default function RegisterPage() {
         <Button type="submit" disabled={submitting || closed} className="w-full">
           {submitting ? t("auth.register.creating") : t("auth.register.submit")}
         </Button>
+        <p className="text-center text-xs text-muted">
+          {tx("terms.signupNote", {
+            terms: (
+              <Link href="/terms" target="_blank" className="text-accent underline underline-offset-2 hover:no-underline">
+                {t("terms.link")}
+              </Link>
+            ),
+          })}
+        </p>
       </form>
       <p className="mt-5 text-center text-sm text-muted">
         {t("auth.haveAccount")}{" "}

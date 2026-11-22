@@ -22,10 +22,10 @@ function makeService(tables: SupabaseMockOptions['tables'] = {}) {
 }
 
 describe('BE-NTF-01 notification types', () => {
-  it('UTCID01 defines 29 unique types', () => {
+  it('UTCID01 defines 32 unique types', () => {
     const types = NOTIFICATION_TYPES.map((t) => t.type);
-    expect(types).toHaveLength(29);
-    expect(new Set(types).size).toBe(29);
+    expect(types).toHaveLength(32);
+    expect(new Set(types).size).toBe(32);
   });
 
   it('UTCID02 marks only security and billing types as mandatory', () => {

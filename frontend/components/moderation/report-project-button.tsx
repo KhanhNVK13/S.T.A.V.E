@@ -7,6 +7,7 @@ import type { ReportReason } from "@stave/shared-types";
 import { Button } from "../ui/button";
 import { Toast } from "../ui/toast";
 import { ReportDialog } from "./report-dialog";
+import { EMPTY_CLAIM, type ClaimDraft } from "./claim-draft";
 import { useAuth } from "../../context/auth-context";
 import { useI18n } from "../../context/i18n-context";
 
@@ -17,6 +18,7 @@ export function ReportProjectButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState("");
+  const [claim, setClaim] = useState<ClaimDraft>(EMPTY_CLAIM);
   const [sent, setSent] = useState(false);
   const dismissToast = useCallback(() => setSent(false), []);
 
@@ -32,6 +34,7 @@ export function ReportProjectButton({ projectId }: { projectId: string }) {
     setOpen(false);
     setReason(null);
     setDetails("");
+    setClaim(EMPTY_CLAIM);
     setSent(true);
   }
 
@@ -47,6 +50,8 @@ export function ReportProjectButton({ projectId }: { projectId: string }) {
           details={details}
           onReasonChange={setReason}
           onDetailsChange={setDetails}
+          claim={claim}
+          onClaimChange={setClaim}
           onClose={() => setOpen(false)}
           onSent={handleSent}
         />

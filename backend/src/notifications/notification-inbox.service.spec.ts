@@ -297,7 +297,7 @@ describe('BE-NTF-08 NotificationInboxService preferences', () => {
       ],
     });
     const items = await service.getPreferences(userId);
-    expect(items).toHaveLength(29);
+    expect(items).toHaveLength(32);
     expect(items.find((i) => i.type === 'comment.new')?.channels).toEqual({
       in_app: false,
       email: false,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { FeaturedContent } from "../../lib/api-client";
 import { useI18n } from "../../context/i18n-context";
+import type { DictKey } from "../../lib/i18n";
 import { SiteCredits } from "../site-footer";
 import { pulseSpace, setSpaceProgress } from "../space/space-store";
 import { useSpaceScene } from "../space/use-space-scene";
@@ -15,6 +16,13 @@ import "./landing.css";
 const SECTION_KEYS = ["landing.sec.1", "landing.sec.2", "landing.sec.3", "landing.sec.4", "landing.sec.5", "landing.sec.6", "landing.sec.7"] as const;
 
 type GsapModule = typeof import("gsap").gsap;
+
+const GM_FAMILIES: DictKey[] = [
+  "exi.cat.piano", "exi.cat.chromatic_percussion", "exi.cat.organ", "exi.cat.guitar",
+  "exi.cat.bass", "exi.cat.strings", "exi.cat.ensemble", "exi.cat.brass",
+  "exi.cat.reed", "exi.cat.pipe", "exi.cat.synth_lead", "exi.cat.synth_pad",
+  "exi.cat.synth_effects", "exi.cat.ethnic", "exi.cat.percussive", "exi.cat.sound_effects",
+];
 
 function wavePeaks(): string[] {
   const r = seededRandom(5);
@@ -131,7 +139,7 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
 
           const ctx = gsap.context(() => {
             const q = (sel: string, from: ParentNode = root) => Array.from(from.querySelectorAll<HTMLElement>(sel));
-            gsap.set(q(".s-tools .gmrow, .s-tools .pads span, .s-tools .wave, .s-how .step, .s-hist .g-edge, .s-hist .cstar, .s-hist .dec"), { opacity: 0 });
+            gsap.set(q(".s-tools .gm li, .s-tools .pads span, .s-tools .wave, .s-how .step, .s-hist .g-edge, .s-hist .cstar, .s-hist .dec"), { opacity: 0 });
 
             ScrollTrigger.create({
               scroller,
@@ -178,7 +186,7 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
               },
               s6(sec) {
                 gsap.fromTo(q(".tile", sec), { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.8, ease: "power2.out", stagger: 0.14, delay: 0.1, overwrite: "auto" });
-                gsap.fromTo(q(".gmrow", sec), { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "power2.out", stagger: 0.09, delay: 0.3, overwrite: "auto" });
+                gsap.fromTo(q(".gm li", sec), { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out", stagger: 0.04, delay: 0.3, overwrite: "auto" });
                 gsap.fromTo(sec.querySelector(".wave"), { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "power2.out", delay: 0.5, overwrite: "auto" });
                 gsap.fromTo(q(".pads span", sec), { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.6, ease: "power2.out", stagger: 0.05, delay: 0.4, overwrite: "auto" });
               },
@@ -197,7 +205,7 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
             const exit = (i: number) => {
               const sec = sections[i];
               const lift = q("[data-rv], .step, .tile, .name-staff, .tagline, .dot, .ltr, .word", sec);
-              const fade = q(".cstar, .dec, .g-edge, .gmrow, .pads span, .wave", sec);
+              const fade = q(".cstar, .dec, .g-edge, .gm li, .pads span, .wave", sec);
               if (lift.length) {
                 gsap.killTweensOf(lift);
                 gsap.to(lift, { opacity: 0, y: -12, ...OUT });
@@ -433,13 +441,14 @@ export function Landing({ data, signedIn = false }: { data: FeaturedContent | nu
             <article className="tile panel t-gm">
               <h3><span className="big">128</span> {t("landing.gmTitle")}</h3>
               <p>{t("landing.gmText")}</p>
-              <div className="gm" aria-hidden="true">
-                {Array.from({ length: 8 }, (_, r) => (
-                  <div className="gmrow" key={r}>
-                    {Array.from({ length: 16 }, (_, c) => <i key={c} />)}
-                  </div>
+              <ol className="gm" aria-label={t("landing.gmFamilies")}>
+                {GM_FAMILIES.map((key, i) => (
+                  <li key={key}>
+                    <span className="gm-range" translate="no">{String(i * 8 + 1).padStart(3, "0")}–{String(i * 8 + 8).padStart(3, "0")}</span>
+                    <span className="gm-name">{t(key)}</span>
+                  </li>
                 ))}
-              </div>
+              </ol>
             </article>
             <article className="tile panel t-drum">
               <h3>{t("landing.drumTitle")}</h3>

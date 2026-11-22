@@ -136,16 +136,45 @@ describe('ReportsService.createReport', () => {
       [{ data: { id: REPORT_ID }, error: null }],
     );
     await service.createReport(USER, PROJECT, {
-      reason: 'copyright',
+      reason: 'spam',
       details: 'giống bài X',
     });
     expect(mock.builders.reports.insert).toHaveBeenCalledWith({
       project_id: PROJECT,
       reporter_id: USER,
-      reason: 'copyright',
+      reason: 'spam',
       details: 'giống bài X',
+      copyright_claim: null,
       status: 'pending',
     });
+  });
+
+  it('thành công: báo cáo bản quyền lưu thông tin khiếu nại', async () => {
+    const { service, mock } = build(
+      [project()],
+      [{ data: { id: REPORT_ID }, error: null }],
+    );
+    await service.createReport(USER, PROJECT, {
+      reason: 'copyright',
+      copyrightClaim: {
+        claimantName: 'Nguyen Van A',
+        claimantRole: 'agent',
+        workDescription: 'Bài hát "Mưa" năm 2020',
+        evidence: 'Bản thảo gốc và hợp đồng',
+        goodFaith: true,
+        accuracy: true,
+      },
+    });
+    expect(mock.builders.reports.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'copyright',
+        copyright_claim: expect.objectContaining({
+          claimantName: 'Nguyen Van A',
+          claimantRole: 'agent',
+          goodFaith: true,
+        }) as unknown,
+      }),
+    );
   });
 
   it('thành công: details vắng hoặc trắng được ghi là null', async () => {

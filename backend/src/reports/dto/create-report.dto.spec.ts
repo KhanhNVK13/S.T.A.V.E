@@ -24,12 +24,56 @@ describe('CreateReportDto', () => {
       : [response.message];
   };
 
-  it.each(REPORT_REASONS.map((r) => r.key))(
+  it.each(REPORT_REASONS.map((r) => r.key).filter((k) => k !== 'copyright'))(
     'chấp nhận lý do %s',
     async (reason) => {
       await expect(transform({ reason })).resolves.toEqual({ reason });
     },
   );
+
+  const claim = {
+    claimantName: 'Nguyen Van A',
+    claimantRole: 'owner',
+    workDescription: 'Bài hát "Mưa" do tôi sáng tác năm 2020',
+    evidence: 'Bản thảo gốc và hợp đồng phát hành',
+    goodFaith: true,
+    accuracy: true,
+  };
+
+  it('lý do copyright cần thông tin khiếu nại đầy đủ', async () => {
+    const messages = await rejection({ reason: 'copyright' });
+    expect(messages.some((m) => m.includes('copyrightClaim'))).toBe(true);
+  });
+
+  it('copyright hợp lệ khi có đủ thông tin và hai cam kết', async () => {
+    const dto = await transform({ reason: 'copyright', copyrightClaim: claim });
+    expect(dto).toMatchObject({
+      reason: 'copyright',
+      copyrightClaim: { claimantName: 'Nguyen Van A', goodFaith: true },
+    });
+  });
+
+  it('copyright bị từ chối khi thiếu cam kết thiện chí', async () => {
+    const messages = await rejection({
+      reason: 'copyright',
+      copyrightClaim: { ...claim, goodFaith: false },
+    });
+    expect(messages.some((m) => m.includes('goodFaith'))).toBe(true);
+  });
+
+  it('copyright bị từ chối khi mô tả tác phẩm quá ngắn', async () => {
+    const messages = await rejection({
+      reason: 'copyright',
+      copyrightClaim: { ...claim, workDescription: 'abc' },
+    });
+    expect(messages.some((m) => m.includes('workDescription'))).toBe(true);
+  });
+
+  it('lý do khác không bắt buộc thông tin khiếu nại', async () => {
+    await expect(
+      transform({ reason: 'spam', copyrightClaim: undefined }),
+    ).resolves.toMatchObject({ reason: 'spam' });
+  });
 
   it('reason lạ bị từ chối', async () => {
     const messages = await rejection({ reason: 'boring' });
