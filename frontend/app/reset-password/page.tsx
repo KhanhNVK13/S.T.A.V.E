@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase-browser";
@@ -13,6 +14,27 @@ import { AuthCard, AuthField, AUTH_INPUT_CLASS } from "../../components/auth-car
 import { useT } from "../../context/i18n-context";
 import { Button } from "../../components/ui/button";
 
+type ResetUrlState = "checking" | "error" | "no-token" | "has-token";
+
+function inspectResetUrl(): Exclude<ResetUrlState, "checking"> {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search);
+  if (hash.has("error") || hash.has("error_code") || query.has("error") || query.has("error_code")) {
+    return "error";
+  }
+  if (
+    hash.has("access_token") ||
+    hash.has("token_hash") ||
+    hash.get("type") === "recovery" ||
+    query.has("code") ||
+    query.has("token_hash") ||
+    query.get("type") === "recovery"
+  ) {
+    return "has-token";
+  }
+  return "no-token";
+}
+
 export default function ResetPasswordPage() {
   const t = useT();
   const router = useRouter();
@@ -23,8 +45,11 @@ export default function ResetPasswordPage() {
   const [fieldErrors, setFieldErrors] = useState<{ password?: string; confirmPassword?: string }>({});
   const [submitting, setSubmitting] = useState(false);
   const [waited, setWaited] = useState(false);
+  const [urlState, setUrlState] = useState<ResetUrlState>("checking");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL chỉ đọc được ở client
+    setUrlState(inspectResetUrl());
     const timer = setTimeout(() => setWaited(true), 3000);
     return () => clearTimeout(timer);
   }, []);
@@ -79,7 +104,11 @@ export default function ResetPasswordPage() {
     router.push("/projects");
   }
 
-  if (loading || (!session && !waited)) {
+  const isProcessing =
+    urlState === "checking" ||
+    (urlState !== "error" && !waited && (loading || (urlState === "has-token" && !session)));
+
+  if (isProcessing) {
     return (
       <AuthCard>
         <div className="flex flex-col items-center gap-2 py-4 text-sm text-muted">
@@ -90,12 +119,18 @@ export default function ResetPasswordPage() {
     );
   }
 
-  if (!session) {
+  if (urlState === "error" || !session) {
     return (
       <AuthCard title={t("auth.reset.invalidTitle")}>
         <p className="text-sm text-muted">
           {t("auth.reset.invalidBody")}
         </p>
+        <Link
+          href="/forgot-password"
+          className="mt-4 inline-block text-sm font-semibold text-accent hover:underline"
+        >
+          {t("auth.cb.newLink")}
+        </Link>
       </AuthCard>
     );
   }

@@ -15,6 +15,8 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionAuthGuard } from '../common/guards/session-auth.guard';
 import type { AuthenticatedRequest } from '../common/guards/jwt-auth.guard';
 
+const notFoundOnBadId = new ParseUUIDPipe({ errorHttpStatusCode: 404 });
+
 @Controller('explore')
 export class ExploreController {
   constructor(private readonly exploreService: ExploreService) {}
@@ -27,13 +29,13 @@ export class ExploreController {
 
   /** UC-09: View public project detail — 404 for private projects. */
   @Get('projects/:id')
-  getPublicProject(@Param('id') id: string) {
+  getPublicProject(@Param('id', notFoundOnBadId) id: string) {
     return this.exploreService.getPublicProject(id);
   }
 
   /** Public commit graph (no auth, public projects only) — 404 otherwise. */
   @Get('projects/:id/graph')
-  getPublicProjectGraph(@Param('id') id: string) {
+  getPublicProjectGraph(@Param('id', notFoundOnBadId) id: string) {
     return this.exploreService.getPublicProjectGraph(id);
   }
 
@@ -48,13 +50,13 @@ export class ExploreController {
 
   /** UC-10: View public user profile. */
   @Get('users/:id')
-  getPublicUserProfile(@Param('id') id: string) {
+  getPublicUserProfile(@Param('id', notFoundOnBadId) id: string) {
     return this.exploreService.getPublicUserProfile(id);
   }
 
   /** UC-10: List public projects of a specific user. */
   @Get('users/:id/projects')
-  getUserPublicProjects(@Param('id') id: string) {
+  getUserPublicProjects(@Param('id', notFoundOnBadId) id: string) {
     return this.exploreService.getUserPublicProjects(id);
   }
 
