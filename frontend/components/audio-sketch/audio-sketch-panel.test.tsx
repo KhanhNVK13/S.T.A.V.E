@@ -4,6 +4,7 @@ import { setLang } from "../../lib/i18n";
 import { AudioSketchPanel } from "./audio-sketch-panel";
 import * as api from "../../lib/api-client";
 import * as wav from "../../lib/wav-encoder";
+import * as audioToMidi from "../../lib/audio-to-midi";
 import { supabase } from "../../lib/supabase-browser";
 
 vi.mock("../../lib/api-client", async (importOriginal) => ({
@@ -217,5 +218,63 @@ describe("FE-SKT-01 AudioSketchPanel (trim, attach, discard, list)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
     await waitFor(() => expect(api.deleteAudioSketch).toHaveBeenCalled());
     expect(screen.getAllByText("Hum idea").length).toBeGreaterThan(0);
+  });
+
+  it("omits Transcribe to MIDI buttons when onCreateMidiTrack is not provided", async () => {
+    vi.mocked(api.listAudioSketches).mockResolvedValue([savedSketch()]);
+    await reviewing();
+    await screen.findByText("Hum idea");
+    expect(screen.queryByRole("button", { name: "Transcribe to MIDI" })).toBeNull();
+  });
+
+  it("renders Transcribe to MIDI for both live review bar and saved sketches when onCreateMidiTrack is provided", async () => {
+    const resampleSpy = vi
+      .spyOn(audioToMidi, "resampleAudioForBasicPitch")
+      .mockResolvedValue({ duration: 10, sampleRate: 22050, numberOfChannels: 1, length: 220500 } as AudioBuffer);
+    const inferenceSpy = vi
+      .spyOn(audioToMidi, "runBasicPitchInference")
+      .mockResolvedValue({ frames: [[0.5]], onsets: [[0.6]], contours: [[0.1]] });
+    const extractSpy = vi
+      .spyOn(audioToMidi, "extractMidiNotesFromFrames")
+      .mockReturnValue([{ id: "n-1", pitch: 60, start: 0, duration: 120, velocity: 100 }]);
+    const decodeSpy = vi
+      .spyOn(audioToMidi, "fetchAndDecodeAudio")
+      .mockResolvedValue({ duration: 8, sampleRate: 44100, numberOfChannels: 1, length: 352800 } as AudioBuffer);
+
+    vi.mocked(api.listAudioSketches).mockResolvedValue([savedSketch()]);
+    const onCreateMidiTrack = vi.fn();
+
+    render(
+      <AudioSketchPanel
+        projectId="p1"
+        tempo={120}
+        ppq={480}
+        canAddTrack
+        onCreateMidiTrack={onCreateMidiTrack}
+      />,
+    );
+
+    await screen.findByText("Keeping 00:10 / 00:10");
+    await screen.findByText("Hum idea");
+
+    expect(screen.getByTestId("transcribe-live-sketch")).toBeTruthy();
+    expect(screen.getByTestId("transcribe-sketch-k1")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("transcribe-live-sketch"));
+    await screen.findByTestId("a2m-note-count");
+    fireEvent.click(screen.getByRole("button", { name: "Add to Piano Roll" }));
+
+    expect(onCreateMidiTrack).toHaveBeenCalledWith({
+      name: expect.stringMatching(/^Sketch /),
+      instrument: "Acoustic Grand Piano",
+      notes: [{ id: "n-1", pitch: 60, start: 0, duration: 120, velocity: 100 }],
+    });
+
+    fireEvent.click(screen.getByTestId("transcribe-sketch-k1"));
+    await waitFor(() => expect(decodeSpy).toHaveBeenCalledWith("blob:k1"));
+    await screen.findByTestId("a2m-note-count");
+    expect(resampleSpy).toHaveBeenCalledTimes(2);
+    expect(inferenceSpy).toHaveBeenCalledTimes(2);
+    expect(extractSpy).toHaveBeenCalled();
   });
 });

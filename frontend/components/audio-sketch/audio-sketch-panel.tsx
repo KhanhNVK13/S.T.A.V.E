@@ -23,6 +23,8 @@ import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Toast } from "../ui/toast";
 import { EmptyState } from "../ui/empty-state";
 import { INPUT_CLASS } from "../ui/form";
+import { AiActionButton } from "../ai/ai-ui";
+import { AudioToMidiDialog, type AudioToMidiConfirmPayload } from "./audio-to-midi-dialog";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { APP_LOCALE } from "../../lib/format-date";
 import { useI18n } from "../../context/i18n-context";
@@ -150,12 +152,29 @@ function TrimmableWaveform({
  */
 export type AudioSketchState = "idle" | "recording" | "reviewing" | "attaching";
 
+type TranscribeTarget =
+  | {
+      kind: "live";
+      buffer: AudioBuffer;
+      trim: { start: number; end: number };
+      defaultName: string;
+    }
+  | { kind: "saved"; sketch: AudioSketch };
+
 export function AudioSketchPanel({
   projectId,
   onStateChange,
+  tempo = 120,
+  ppq = 480,
+  canAddTrack = true,
+  onCreateMidiTrack,
 }: {
   projectId: string;
   onStateChange?: (state: AudioSketchState) => void;
+  tempo?: number;
+  ppq?: number;
+  canAddTrack?: boolean;
+  onCreateMidiTrack?: (payload: AudioToMidiConfirmPayload) => void;
 }) {
   const { t, tx } = useI18n();
   const recorder = useAudioRecorder();
@@ -172,6 +191,7 @@ export function AudioSketchPanel({
   const [name, setName] = useState("");
   const [attaching, setAttaching] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [transcribeTarget, setTranscribeTarget] = useState<TranscribeTarget | null>(null);
 
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AudioSketch | null>(null);
@@ -513,6 +533,23 @@ export function AudioSketchPanel({
             <Button variant="secondary" onClick={previewTrimmed}>
               <Play className="h-3.5 w-3.5" /> {t("sk.previewTrim")}
             </Button>
+            {onCreateMidiTrack && (
+              <AiActionButton
+                compact
+                label={t("a2m.action")}
+                title={t("a2m.actionTitle")}
+                disabled={attaching || trim.end - trim.start <= 0}
+                onClick={() =>
+                  setTranscribeTarget({
+                    kind: "live",
+                    buffer,
+                    trim,
+                    defaultName: name.trim() || "Audio Sketch",
+                  })
+                }
+                testId="transcribe-live-sketch"
+              />
+            )}
             <Button onClick={() => void handleAttach()} disabled={attaching}>
               {attaching ? (
                 <>
@@ -576,6 +613,17 @@ export function AudioSketchPanel({
                   <Badge variant="neutral">{t("sk.trimmed")}</Badge>
                 ) : null}
 
+                {onCreateMidiTrack && (
+                  <AiActionButton
+                    compact
+                    label={t("a2m.action")}
+                    title={sketch.playbackUrl ? t("a2m.actionTitle") : t("sk.noLink")}
+                    disabled={!sketch.playbackUrl}
+                    onClick={() => setTranscribeTarget({ kind: "saved", sketch })}
+                    testId={`transcribe-sketch-${sketch.id}`}
+                  />
+                )}
+
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -620,6 +668,27 @@ export function AudioSketchPanel({
         onCancel={() => setPendingDelete(null)}
       />
       {notice && <Toast message={notice} variant="success" onDismiss={dismissNotice} />}
+      {onCreateMidiTrack && (
+        <AudioToMidiDialog
+          open={transcribeTarget !== null}
+          onClose={() => setTranscribeTarget(null)}
+          buffer={transcribeTarget?.kind === "live" ? transcribeTarget.buffer : null}
+          trim={transcribeTarget?.kind === "live" ? transcribeTarget.trim : undefined}
+          sketch={transcribeTarget?.kind === "saved" ? transcribeTarget.sketch : null}
+          tempo={tempo}
+          ppq={ppq}
+          canAddTrack={canAddTrack}
+          defaultTrackName={
+            transcribeTarget?.kind === "live"
+              ? transcribeTarget.defaultName
+              : (transcribeTarget?.sketch.name ?? "Audio Sketch")
+          }
+          onConfirm={(payload) => {
+            setTranscribeTarget(null);
+            onCreateMidiTrack(payload);
+          }}
+        />
+      )}
     </div>
   );
 }

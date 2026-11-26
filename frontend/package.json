@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
+    "@spotify/basic-pitch": "^1.0.1",
     "@stave/shared-types": "0.0.1",
     "@supabase/supabase-js": "^2.112.4",
     "@tonejs/midi": "^2.0.28",

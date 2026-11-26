@@ -62,6 +62,10 @@ const nextConfig: NextConfig = {
         source: "/instruments/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=604800" }],
       },
+      {
+        source: "/models/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800" }],
+      },
     ];
   },
 };
