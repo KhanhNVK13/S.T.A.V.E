@@ -1,3 +1,4 @@
+import { ai2AskEn } from "./ai2-ask";
 import { ai2AudioEn } from "./ai2-audio";
 import { ai2ExploreEn } from "./ai2-explore";
 import { ai2TriageEn } from "./ai2-triage";
@@ -3051,6 +3052,7 @@ export const en = {
   "jamAi.recap": "Recap Jam with AI",
   "jamAi.title": "Community Jam session recap",
   "jamAi.loading": "AI is summarizing the Jam session…",
+  ...ai2AskEn,
   ...ai2AudioEn,
   ...ai2ExploreEn,
   ...ai2TriageEn,

@@ -70,7 +70,7 @@ describe("FE-APL-01 AdminPlansPage FeaturesDialog (edit plan features)", () => {
     await waitFor(() => expect(changeAdminPlanFeatures).toHaveBeenCalled());
     const [id, features, effectiveAt] = vi.mocked(changeAdminPlanFeatures).mock.calls[0];
     expect(id).toBe("p1");
-    expect(features).toEqual({ theme_from_image: true, extra_storage: true, extra_storage_mb: 100 });
+    expect(features).toEqual({ theme_from_image: true, extra_storage: true, ask_stave: false, extra_storage_mb: 100 });
     expect(new Date(effectiveAt).getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 3600 * 1000);
   });
 

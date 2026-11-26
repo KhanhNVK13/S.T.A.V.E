@@ -1,4 +1,5 @@
 import type { en } from "./en";
+import { ai2AskVi } from "./ai2-ask";
 import { ai2AudioVi } from "./ai2-audio";
 import { ai2ExploreVi } from "./ai2-explore";
 import { ai2TriageVi } from "./ai2-triage";
@@ -3052,6 +3053,7 @@ export const vi: Record<keyof typeof en, string> = {
   "jamAi.recap": "Tóm tắt phiên Jam bằng AI",
   "jamAi.title": "Tổng kết phiên Community Jam",
   "jamAi.loading": "AI đang tổng hợp số liệu phiên Jam…",
+  ...ai2AskVi,
   ...ai2AudioVi,
   ...ai2ExploreVi,
   ...ai2TriageVi,
