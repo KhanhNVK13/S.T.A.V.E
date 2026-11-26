@@ -31,6 +31,8 @@ import { CommitHistory } from "../../../components/project/commit-history";
 import { BranchList } from "../../../components/project/branch-list";
 import { VersionSummary } from "../../../components/project/version-summary";
 import { TheoryInsightCard } from "../../../components/project/theory-insight-card";
+import { AskStaveCard } from "../../../components/project/ask-stave-card";
+import { SimilarProjectsCard } from "../../../components/project/similar-projects-card";
 import { ImportMidiDialog } from "../../../components/project/import-midi-dialog";
 import { ProjectPullRequests } from "../../../components/pull-request/project-pull-requests";
 import { ReportProjectButton } from "../../../components/moderation/report-project-button";
@@ -478,7 +480,27 @@ function ProjectOverview({ id }: { id: string }) {
 
               {canViewHistory && <TheoryInsightCard key={`theory-${refreshKey}`} projectId={data.id} />}
 
-              <section className={canViewHistory ? "mt-6 border-t border-border pt-4" : ""}>
+              {canViewHistory && !!user && (
+                <AskStaveCard key={`ask-${refreshKey}`} projectId={data.id} />
+              )}
+
+              {data.visibility === "public" && (
+                <SimilarProjectsCard
+                  key={`similar-${refreshKey}`}
+                  projectId={data.id}
+                  isPublic={data.visibility === "public"}
+                />
+              )}
+
+              <section
+                className={
+                  canViewHistory
+                    ? "mt-6 border-t border-border pt-4"
+                    : data.visibility === "public"
+                      ? "mt-6"
+                      : ""
+                }
+              >
                 <h2 className="mb-2 text-[15px] font-semibold">{t("project.about")}</h2>
                 <p className="max-w-3xl text-[13px] leading-relaxed text-muted">
                   {data.description ?? t("project.noDescription")}

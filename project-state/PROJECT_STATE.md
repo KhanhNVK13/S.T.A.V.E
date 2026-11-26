@@ -1,6 +1,6 @@
 # PROJECT_STATE — STAVE
 
-> Trạng thái hiện hành của dự án. File này **ngắn có chủ đích**: chỉ ghi hiện tại đang ở đâu, việc đang mở, quyết định còn hiệu lực. Lịch sử chi tiết nằm ở `archive/` (nguyên văn, bất biến, số §N giữ nguyên để tra chéo với CLAUDE.md và code). Cập nhật cuối: **23/11/2026**.
+> Trạng thái hiện hành của dự án. File này **ngắn có chủ đích**: chỉ ghi hiện tại đang ở đâu, việc đang mở, quyết định còn hiệu lực. Lịch sử chi tiết nằm ở `archive/` (nguyên văn, bất biến, số §N giữ nguyên để tra chéo với CLAUDE.md và code). Cập nhật cuối: **26/11/2026**.
 >
 > **Quy tắc ghi:** phiên mới chỉ sửa mục 1–5 của file này cho đúng hiện tại. Khi một giai đoạn kết thúc, chuyển phần chi tiết sang file `archive/` mới (hoặc cuối file cùng giai đoạn) rồi chỉ giữ một dòng tóm tắt ở đây. Trung thực: ghi rõ mức đã verify (typecheck / gọi API thật / chạy E2E / người tự kiểm), không làm tròn lên. Quy ước ổn định nằm ở `CLAUDE.md`, không lặp lại ở đây.
 >
@@ -20,7 +20,15 @@
 
 **Quy ước test:** tên ca mang mã trùng sheet Report 5 (`BE-CMT-01 UTCID03`, `FE-LIB-12`…) để đếm tự động; `it.failing` đánh dấu lỗi đã biết kèm mã DFID và phải gỡ khi lỗi được sửa; spec backend dựng service bằng `ProjectAccessService` thật trên mock Supabase (`backend/src/test-utils/supabase-mock.ts`, hàng đợi theo bảng, lọc theo `.eq`); test frontend phải ghim ngôn ngữ (`setLang('vi')`) vì app mặc định tiếng Anh; test tự động **không bao giờ** ghi vào DB production (dùng DB test); `docs/Report5_Unit Test.xlsx` sửa trực tiếp bằng XML (có bản sao lưu).
 
-## 1. Đang ở đâu (23/11/2026)
+## 1. Đang ở đâu (26/11/2026)
+
+- **26/11/2026, tích hợp đủ 4 tính năng AI Nhóm 2 trên nhánh `feature/ai-group-2` (tách từ `feature/ai-group-1` `37c0899`, commit cục bộ chưa push):**
+  - **Audio-to-MIDI phía trình duyệt (`@spotify/basic-pitch` ^1.0.1):** host model cục bộ tại `frontend/public/models/basic-pitch/` (cache header trong `frontend/next.config.ts`), `frontend/lib/audio-to-midi.ts`, `AudioToMidiDialog`, gắn vào `AudioSketchPanel`, `EditorRedesign` và `MidiEditor` (giữ Next.js `16.4.3`, đổi `labelKey` → `labelId` ở `audio-to-midi-dialog.tsx` để qua `gitleaks`).
+  - **Musical Fingerprinting 24 chiều (`pgvector`) & Explore AI:** `backend/src/musical-fingerprint/` (vector 24 chiều chuẩn hoá L2, hook không chặn khi commit nhánh mặc định), `GET /explore/projects/:id/similar` + lọc tempo/mode ở `ExploreService`, `POST /ai/explore-parse` (`ExploreSearchService`/`ExploreAiController`, parser tất định + Gemini JSON + rule fallback), `SimilarProjectsCard` tại `frontend/app/projects/[id]/page.tsx` và chip/AI search tại `frontend/app/explore/page.tsx`.
+  - **Ask STAVE cho STAVE+ (`ask_stave` trong `shared-types/src/billing.ts`):** function calling chỉ đọc ở `GeminiClient`, `POST /ai/ask-project` (`AskProjectService`/`AskProjectController`, 5 tool đọc lịch sử/diff/nhạc lý/bình luận), `AskStaveCard` tại `frontend/app/projects/[id]/page.tsx` (khi `canViewHistory && !!user`).
+  - **Admin Moderation Triage (on-demand):** `ReportsModule` export `AdminReportsService`, `POST /ai/moderation-triage` (`ModerationTriageService`/`ModerationTriageController`, `AdminGuard`, rule baseline + Gemini JSON), `ModerationTriagePanel` tại `frontend/app/admin/reports/report-group-row.tsx`.
+  - **Wiring dùng chung & i18n:** `backend/src/ai/ai.module.ts` import `CommentsModule`, `ReportsModule`, `ExploreModule`, `MusicalFingerprintModule` và đăng ký đủ controller/service mới; `frontend/lib/i18n/{en,vi}.ts` gộp đủ 4 khối `ai2-*`.
+  - **Migration & mức verify thực tế:** `backend/supabase/migrations/20261126000001_musical_fingerprints_pgvector.sql` mới viết trong repo, **chờ áp SQL thủ công lên Supabase DB production/test**. Sau tích hợp đã kiểm: root `npm install` đạt; `backend` `nest build` (0 lỗi), ESLint `ai.module.ts` (0 lỗi), Jest `src/ai`, `src/musical-fingerprint`, `src/commits`, `src/explore`, `src/reports` (40 suite, 747 ca đạt); `frontend` `next typegen && tsc --noEmit` (0 lỗi), ESLint 4 file tích hợp (0 lỗi), Vitest 5 file liên quan (28 ca đạt). **Chưa chạy** Gemini API thật (live), kiểm thử trình duyệt thật hay Playwright E2E cho AI Nhóm 2.
 
 - **23/11/2026, đồng bộ lên `origin/main` mới nhất (`2540358`) + hoàn thiện hệ thống nhận diện UI AI, chuyển toàn bộ AI sang kích hoạt theo nút bấm (on-demand), nâng cấp Phân tích Nhạc lý khách quan và thêm đủ 4 tính năng AI Nhóm 1 (CHƯA commit, 0 migration DB):**
   - **Hệ nhận diện AI dùng chung (`frontend/components/ai/ai-ui.tsx`, `components/midi-editor/redesign/tokens.ts`):** `AiBadge`, `AiActionButton`, `AiCallout` dùng token `--violet`/`--violet-muted` và icon `Sparkles`, tách bạch rõ số liệu đo bằng code với phần văn bản do Gemini diễn giải (kèm ghi chú khách quan và nút Sao chép/Tạo lại).
