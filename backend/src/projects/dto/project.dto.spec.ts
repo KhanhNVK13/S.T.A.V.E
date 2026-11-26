@@ -215,6 +215,23 @@ describe('BE-PRJ-02 PublicProjectsQueryDto.validate(query)', () => {
       }),
     );
   });
+
+  it('UTCID12 accepts valid tempoMin, tempoMax, and mode musical filters', async () => {
+    const dto = plainToInstance(PublicProjectsQueryDto, {
+      tempoMin: '60',
+      tempoMax: '140',
+      mode: 'minor',
+    });
+    await expect(validate(dto)).resolves.toHaveLength(0);
+    expect(dto).toMatchObject({ tempoMin: 60, tempoMax: 140, mode: 'minor' });
+  });
+
+  it('UTCID13 rejects out-of-range BPM or invalid mode filters', async () => {
+    expect(await validatePublicQuery({ tempoMin: '10' })).toHaveLength(1);
+    expect(await validatePublicQuery({ tempoMax: '350' })).toHaveLength(1);
+    expect(await validatePublicQuery({ tempoMin: 'abc' })).toHaveLength(1);
+    expect(await validatePublicQuery({ mode: 'dorian' })).toHaveLength(1);
+  });
 });
 
 describe('BE-PRJ-03 RankingsQueryDto.validate(query)', () => {

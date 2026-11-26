@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   InternalServerErrorException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -15,6 +16,7 @@ import type {
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
 import type { PublicProjectsQueryDto } from '../projects/dto/public-projects-query.dto';
 import type { PublicUserProfile } from '../users/dto/public-user-profile.dto';
+import { MusicalFingerprintService } from '../musical-fingerprint/musical-fingerprint.service';
 import { instrumentStoredForms } from './instrument-codes';
 
 export type { PublicProjectCard };
@@ -67,6 +69,23 @@ export interface PaginatedResult<T> {
 
 export type FeaturedResult = PublicFeaturedContent;
 
+export interface SimilarPublicProjectCard extends PublicProjectCard {
+  similarity: number;
+  tempo: number;
+  tonalityTonic: string | null;
+  tonalityMode: 'major' | 'minor' | null;
+}
+
+function mergeFilterIds(
+  a: string[] | null,
+  b: string[] | null,
+): string[] | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  const set = new Set(b);
+  return a.filter((id) => set.has(id));
+}
+
 /** Columns shared by every query that returns a `PublicProjectCard` — keep in sync with `ProjectCardRow`. */
 const PROJECT_CARD_COLUMNS = `id, name, description, genre, license, visibility, archived_at, created_at, updated_at, play_count,
    owner:owner_id!inner (id, username, display_name, avatar_url, status)`;
@@ -111,6 +130,8 @@ export class ExploreService {
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabase: SupabaseClient,
+    @Optional()
+    private readonly fingerprints?: MusicalFingerprintService,
   ) {}
 
   /** UC-08: List public projects with pagination and filters. */
@@ -120,6 +141,23 @@ export class ExploreService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
+
+    const hasMusicalFilters =
+      query.tempoMin !== undefined ||
+      query.tempoMax !== undefined ||
+      query.mode !== undefined;
+    const musicalIds =
+      hasMusicalFilters && this.fingerprints
+        ? await this.fingerprints.findProjectIdsByMusicalFilters({
+            tempoMin: query.tempoMin,
+            tempoMax: query.tempoMax,
+            mode: query.mode,
+          })
+        : null;
+
+    if (musicalIds !== null && musicalIds.length === 0) {
+      return { items: [], total: 0, page, totalPages: 0, limit };
+    }
 
     if (
       query.sort === 'popular' ||
@@ -135,12 +173,16 @@ export class ExploreService {
       const tagIds = query.tag
         ? await this.getProjectIdsForTag(query.tag)
         : null;
+      const filterIds = mergeFilterIds(tagIds, musicalIds);
+      if (filterIds !== null && filterIds.length === 0 && musicalIds !== null) {
+        return { items: [], total: 0, page, totalPages: 0, limit };
+      }
       const ranked = await this.rankedProjectIds(column, {
         offset,
         limit,
         genre: query.genre,
         search: query.search,
-        tagIds,
+        tagIds: filterIds,
         instruments: query.instrument,
         requirePositive: false,
       });
@@ -152,6 +194,12 @@ export class ExploreService {
         totalPages: Math.ceil(ranked.total / limit),
         limit,
       };
+    }
+
+    const tagIds = query.tag ? await this.getProjectIdsForTag(query.tag) : null;
+    const filterIds = mergeFilterIds(tagIds, musicalIds);
+    if (filterIds !== null && filterIds.length === 0 && musicalIds !== null) {
+      return { items: [], total: 0, page, totalPages: 0, limit };
     }
 
     let queryBuilder = this.supabase
@@ -178,9 +226,8 @@ export class ExploreService {
       );
     }
 
-    if (query.tag) {
-      const projectIds = await this.getProjectIdsForTag(query.tag);
-      queryBuilder = queryBuilder.in('id', projectIds);
+    if (filterIds !== null) {
+      queryBuilder = queryBuilder.in('id', filterIds);
     }
 
     queryBuilder = queryBuilder
@@ -207,6 +254,48 @@ export class ExploreService {
       totalPages: Math.ceil(total / limit),
       limit,
     };
+  }
+
+  /** Find public projects with similar musical fingerprints via pgvector. */
+  async getSimilarPublicProjects(
+    id: string,
+    limit = 6,
+  ): Promise<SimilarPublicProjectCard[]> {
+    const { data: project, error: projectError } = await this.supabase
+      .from('projects')
+      .select('id, owner:owner_id!inner (status)')
+      .eq('owner.status', 'active')
+      .eq('id', id)
+      .eq('visibility', 'public')
+      .is('archived_at', null)
+      .is('moderation_hidden_at', null)
+      .maybeSingle<{ id: string }>();
+
+    if (projectError || !project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    const matches =
+      (await this.fingerprints?.findSimilarProjectMatches(id, limit)) ?? [];
+    if (matches.length === 0) {
+      return [];
+    }
+
+    const cards = await this.loadCardsInOrder(matches.map((m) => m.projectId));
+    const matchById = new Map(matches.map((m) => [m.projectId, m]));
+    return cards
+      .map((card) => {
+        const match = matchById.get(card.id);
+        if (!match) return null;
+        return {
+          ...card,
+          similarity: match.similarity,
+          tempo: match.tempo,
+          tonalityTonic: match.tonalityTonic,
+          tonalityMode: match.tonalityMode,
+        };
+      })
+      .filter((item): item is SimilarPublicProjectCard => item !== null);
   }
 
   /** UC-09: Get single public project detail. */

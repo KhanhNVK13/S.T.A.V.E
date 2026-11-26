@@ -1,4 +1,5 @@
 import { ai2AudioEn } from "./ai2-audio";
+import { ai2ExploreEn } from "./ai2-explore";
 import { ai2TriageEn } from "./ai2-triage";
 
 export const en = {
@@ -3051,5 +3052,6 @@ export const en = {
   "jamAi.title": "Community Jam session recap",
   "jamAi.loading": "AI is summarizing the Jam session…",
   ...ai2AudioEn,
+  ...ai2ExploreEn,
   ...ai2TriageEn,
 } as const satisfies Record<string, string>;

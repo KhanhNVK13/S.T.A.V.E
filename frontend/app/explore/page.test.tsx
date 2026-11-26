@@ -8,14 +8,23 @@ import {
   type PublicProject,
   type PublicProjectsResponse,
 } from "../../lib/api-client";
+import {
+  listFilteredPublicProjects,
+  parseExploreQuery,
+} from "../../lib/api-similar";
 import { setLang } from "../../lib/i18n";
 
 const pushMock = vi.fn();
 let currentSearchParams = new URLSearchParams();
+let currentAuthUser: { id: string } | null = null;
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
   useSearchParams: () => currentSearchParams,
+}));
+
+vi.mock("../../context/auth-context", () => ({
+  useAuth: () => ({ user: currentAuthUser }),
 }));
 
 vi.mock("../../components/space/use-space-scene", () => ({
@@ -32,8 +41,19 @@ vi.mock("../../lib/api-client", async (importOriginal) => {
   };
 });
 
+vi.mock("../../lib/api-similar", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/api-similar")>();
+  return {
+    ...actual,
+    listFilteredPublicProjects: vi.fn(),
+    parseExploreQuery: vi.fn(),
+  };
+});
+
 const mockGetFeaturedContent = vi.mocked(getFeaturedContent);
 const mockListPublicProjects = vi.mocked(listPublicProjects);
+const mockListFilteredPublicProjects = vi.mocked(listFilteredPublicProjects);
+const mockParseExploreQuery = vi.mocked(parseExploreQuery);
 
 function makeProject(id: string, name: string, over: Partial<PublicProject> = {}): PublicProject {
   return {
@@ -98,6 +118,7 @@ function getFeaturedSection(): HTMLElement | null {
 beforeEach(() => {
   setLang("en");
   currentSearchParams = new URLSearchParams();
+  currentAuthUser = null;
   pushMock.mockReset();
 });
 
@@ -297,5 +318,94 @@ describe("ExplorePage Featured section", () => {
 
     await waitFor(() => expect(mockGetFeaturedContent).toHaveBeenCalledTimes(2));
     expect(await within(featuredSection).findByText("Recovered Trending")).toBeTruthy();
+  });
+});
+
+describe("ExplorePage musical filters and AI search", () => {
+  it("reads tempoMin, tempoMax, and mode URL params, renders removable pills, and calls listFilteredPublicProjects", async () => {
+    currentSearchParams = new URLSearchParams("tempoMin=70&tempoMax=85&mode=minor");
+    mockGetFeaturedContent.mockResolvedValue(makeFeatured());
+    mockListFilteredPublicProjects.mockResolvedValue(
+      makeListResponse([makeProject("m1", "Minor Ballad")]),
+    );
+
+    render(<ExplorePage />);
+
+    expect(await screen.findByText("Minor Ballad")).toBeTruthy();
+    expect(getFeaturedSection()).toBeNull();
+    expect(mockListFilteredPublicProjects).toHaveBeenCalledWith({
+      page: 1,
+      limit: 9,
+      sort: "newest",
+      genre: undefined,
+      search: undefined,
+      tag: undefined,
+      instrument: undefined,
+      tempoMin: 70,
+      tempoMax: 85,
+      mode: "minor",
+    });
+
+    const minPill = screen.getByRole("button", { name: "Remove minimum tempo filter" });
+    const maxPill = screen.getByRole("button", { name: "Remove maximum tempo filter" });
+    const modePill = screen.getByRole("button", { name: "Remove mode filter" });
+    expect(minPill.textContent).toContain(">= 70 BPM");
+    expect(maxPill.textContent).toContain("<= 85 BPM");
+    expect(modePill.textContent).toContain("Minor");
+
+    fireEvent.click(maxPill);
+    expect(pushMock).toHaveBeenCalled();
+  });
+
+  it("hides Smart search button when signed out and runs parseExploreQuery with dismissible callout when signed in", async () => {
+    mockGetFeaturedContent.mockResolvedValue(
+      makeFeatured({ trending_projects: [makeProject("t1", "Featured Song")] }),
+    );
+    mockListPublicProjects.mockResolvedValue(makeListResponse([makeProject("a1", "All Song")]));
+
+    const { unmount } = render(<ExplorePage />);
+    expect(await screen.findByText("All Song")).toBeTruthy();
+    expect(screen.queryByTestId("explore-ai-search-btn")).toBeNull();
+    unmount();
+
+    currentAuthUser = { id: "user-1" };
+    mockParseExploreQuery.mockResolvedValue({
+      instruments: ["Acoustic Grand Piano"],
+      genre: "Jazz",
+      tempoMin: null,
+      tempoMax: 85,
+      mode: "minor",
+      search: null,
+      explanation: "Mapped query to objective filters: Acoustic Grand Piano · Jazz · Minor mode · <= 85 BPM.",
+      source: "ai",
+    });
+
+    render(<ExplorePage />);
+
+    const input = screen.getByLabelText("Search public projects");
+    fireEvent.change(input, { target: { value: "slow minor jazz piano under 85 bpm" } });
+    fireEvent.click(screen.getByTestId("explore-ai-search-btn"));
+
+    await waitFor(() =>
+      expect(mockParseExploreQuery).toHaveBeenCalledWith(
+        "slow minor jazz piano under 85 bpm",
+        "en",
+      ),
+    );
+    expect(pushMock).toHaveBeenCalledWith(
+      expect.stringContaining("tempoMax=85"),
+    );
+    expect(pushMock).toHaveBeenCalledWith(
+      expect.stringContaining("mode=minor"),
+    );
+    expect(pushMock).toHaveBeenCalledWith(
+      expect.stringContaining("genre=Jazz"),
+    );
+
+    const callout = await screen.findByTestId("explore-ai-callout");
+    expect(callout.textContent).toContain("Mapped query to objective filters");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss filter note" }));
+    expect(screen.queryByTestId("explore-ai-callout")).toBeNull();
   });
 });

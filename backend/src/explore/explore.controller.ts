@@ -39,6 +39,19 @@ export class ExploreController {
     return this.exploreService.getPublicProjectGraph(id);
   }
 
+  /** Public projects with a similar musical fingerprint — 404 when source is missing or non-public. */
+  @Get('projects/:id/similar')
+  getSimilarPublicProjects(
+    @Param('id', notFoundOnBadId) id: string,
+    @Query('limit') limitRaw?: string,
+  ) {
+    const parsed = limitRaw !== undefined ? parseInt(limitRaw, 10) : 6;
+    const limit = Number.isFinite(parsed)
+      ? Math.min(12, Math.max(1, parsed))
+      : 6;
+    return this.exploreService.getSimilarPublicProjects(id, limit);
+  }
+
   @Post('projects/:id/play')
   @UseGuards(JwtAuthGuard, SessionAuthGuard)
   recordPlay(
