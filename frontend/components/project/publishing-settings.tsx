@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getProjectTags, setProjectTags, updateProject } from "../../lib/api-client";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { DEFAULT_LICENSE, asLicense, type ProjectLicense } from "../../lib/license";
@@ -8,7 +8,7 @@ import { useT } from "../../context/i18n-context";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { LicensePicker } from "./license-picker";
-import { TagEditor } from "./tag-editor";
+import { MAX_TAGS, TagEditor, cleanTag } from "./tag-editor";
 
 export function LicenseCard({
   projectId,
@@ -75,7 +75,17 @@ export function LicenseCard({
   );
 }
 
-export function TagsCard({ projectId, disabled }: { projectId: string; disabled: boolean }) {
+export function TagsCard({
+  projectId,
+  disabled,
+  externalTag,
+  onTagsChanged,
+}: {
+  projectId: string;
+  disabled: boolean;
+  externalTag?: { tag: string; nonce: number } | null;
+  onTagsChanged?: (tags: string[]) => void;
+}) {
   const t = useT();
   const [saved, setSavedTags] = useState<string[] | null>(null);
   const [tags, setTags] = useState<string[]>([]);
@@ -93,6 +103,7 @@ export function TagsCard({ projectId, disabled }: { projectId: string; disabled:
         setLoadError(null);
         setSavedTags(list);
         setTags(list);
+        onTagsChanged?.(list);
       })
       .catch((err) => {
         if (!cancelled) setLoadError(errorSource(err, "tag.loadFail"));
@@ -100,7 +111,32 @@ export function TagsCard({ projectId, disabled }: { projectId: string; disabled:
     return () => {
       cancelled = true;
     };
-  }, [projectId, reloadKey]);
+  }, [projectId, reloadKey, onTagsChanged]);
+
+  const tagsRef = useRef(tags);
+  useEffect(() => {
+    tagsRef.current = tags;
+  }, [tags]);
+  const appliedNonceRef = useRef(0);
+
+  useEffect(() => {
+    if (
+      externalTag &&
+      externalTag.nonce > 0 &&
+      externalTag.nonce !== appliedNonceRef.current &&
+      saved !== null
+    ) {
+      appliedNonceRef.current = externalTag.nonce;
+      const cleaned = cleanTag(externalTag.tag);
+      const current = tagsRef.current;
+      if (cleaned && !current.includes(cleaned) && current.length < MAX_TAGS) {
+        const next = [...current, cleaned];
+        setTags(next);
+        setDone(false);
+        onTagsChanged?.(next);
+      }
+    }
+  }, [externalTag, saved, onTagsChanged]);
 
   const dirty = saved !== null && (tags.length !== saved.length || tags.some((tag, i) => tag !== saved[i]));
 
@@ -112,6 +148,7 @@ export function TagsCard({ projectId, disabled }: { projectId: string; disabled:
       const result = await setProjectTags(projectId, tags);
       setSavedTags(result);
       setTags(result);
+      onTagsChanged?.(result);
       setDone(true);
     } catch (err) {
       setError(errorSource(err, "tag.saveFail"));
@@ -141,6 +178,7 @@ export function TagsCard({ projectId, disabled }: { projectId: string; disabled:
             tags={tags}
             onChange={(next) => {
               setTags(next);
+              onTagsChanged?.(next);
               setDone(false);
             }}
             disabled={disabled || saving}

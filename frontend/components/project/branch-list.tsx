@@ -643,6 +643,7 @@ export function BranchList({ projectId, readOnly = false }: { projectId: string;
           targetName={defaultBranch.name}
           submitting={mergeBusy}
           error={renderError(resolveError)}
+          aiContext={{ sourceBranchId: mergeSource.id, targetBranchId: defaultBranch.id }}
           onCancel={() => {
             setConflicts(null);
             setMergeSource(null);

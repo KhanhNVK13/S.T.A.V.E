@@ -11,7 +11,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { GitCommitHorizontal, RefreshCw } from "lucide-react";
+import { GitCommitHorizontal, Loader2, Sparkles } from "lucide-react";
 import type { DraftSnapshot } from "@stave/shared-types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../../../lib/api-client";
 import { summarizeChanges } from "./change-summary";
@@ -65,38 +65,38 @@ export function CommitDialog({
     message.length <= COMMIT_MESSAGE_MAX_LENGTH &&
     !submitting;
 
-  const [aiBusy, setAiBusy] = useState(
-    () => aiEnabled && !!onSuggestCommitMessage && message.trim().length === 0,
-  );
+  const [aiBusy, setAiBusy] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [aiUnavailable, setAiUnavailable] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
-  const userTypedRef = useRef(message.trim().length > 0);
 
-  function runSuggestion(refill: boolean) {
+  function runSuggestion() {
     if (!onSuggestCommitMessage) return;
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
-    if (refill) setAiBusy(true);
+    setAiBusy(true);
+    setAiUnavailable(false);
     void onSuggestCommitMessage(controller.signal)
       .then((suggestion) => {
-        if (suggestion === null || controller.signal.aborted) return;
-        if (refill || !userTypedRef.current) {
-          onMessageChange(suggestion);
-          setAiSuggestion(suggestion);
+        if (controller.signal.aborted) return;
+        if (suggestion === null) {
+          setAiUnavailable(true);
+          return;
         }
+        onMessageChange(suggestion);
+        setAiSuggestion(suggestion);
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!controller.signal.aborted) setAiUnavailable(true);
+      })
       .finally(() => {
         if (!controller.signal.aborted) setAiBusy(false);
       });
   }
 
   useEffect(() => {
-    if (!aiEnabled || !onSuggestCommitMessage) return;
-    if (!userTypedRef.current) runSuggestion(false);
     return () => controllerRef.current?.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -145,17 +145,43 @@ export function CommitDialog({
           <label htmlFor="commit-message" style={styles.label}>
             {t("cd.message")}
           </label>
-          <span
-            style={{
-              ...styles.counter,
-              color:
-                message.length > COMMIT_MESSAGE_MAX_LENGTH
-                  ? DC.danger
-                  : DC.textMuted,
-            }}
-          >
-            {message.length}/{COMMIT_MESSAGE_MAX_LENGTH}
-          </span>
+          <div style={styles.labelActions}>
+            {aiEnabled && onSuggestCommitMessage && (
+              <button
+                type="button"
+                onClick={runSuggestion}
+                disabled={aiBusy || submitting}
+                aria-busy={aiBusy || undefined}
+                style={{
+                  ...styles.aiBtn,
+                  opacity: aiBusy || submitting ? 0.65 : 1,
+                  cursor: aiBusy || submitting ? "not-allowed" : "pointer",
+                }}
+              >
+                {aiBusy ? (
+                  <Loader2 size={12} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                ) : (
+                  <Sparkles size={12} aria-hidden="true" />
+                )}
+                {aiBusy
+                  ? t("cd.aiBusy")
+                  : aiSuggestion !== null
+                    ? t("cd.aiRegenerate")
+                    : t("cd.aiSuggest")}
+              </button>
+            )}
+            <span
+              style={{
+                ...styles.counter,
+                color:
+                  message.length > COMMIT_MESSAGE_MAX_LENGTH
+                    ? DC.danger
+                    : DC.textMuted,
+              }}
+            >
+              {message.length}/{COMMIT_MESSAGE_MAX_LENGTH}
+            </span>
+          </div>
         </div>
         <textarea
           id="commit-message"
@@ -166,8 +192,7 @@ export function CommitDialog({
           placeholder={t("cd.placeholder")}
           aria-describedby="commit-message-hint"
           onChange={(e) => {
-            userTypedRef.current = true;
-            setAiSuggestion(null);
+            setAiUnavailable(false);
             onMessageChange(e.target.value);
           }}
           onKeyDown={(e) => {
@@ -186,38 +211,30 @@ export function CommitDialog({
           <div id="commit-message-hint" style={styles.hint}>
             {t("cd.required")}
           </div>
+        ) : aiSuggestion !== null && aiSuggestion === message ? (
+          <div id="commit-message-hint" style={styles.aiStrip}>
+            <span style={styles.aiBadge}>
+              <Sparkles size={11} aria-hidden="true" />
+              {t("ai.badge")}
+            </span>
+            <span>{t("cd.aiLabel")}</span>
+          </div>
+        ) : aiSuggestion !== null ? (
+          <div id="commit-message-hint" style={styles.aiStrip}>
+            <span style={styles.aiBadge}>
+              <Sparkles size={11} aria-hidden="true" />
+              {t("ai.badge")}
+            </span>
+            <span>{t("cd.aiEdited")}</span>
+          </div>
+        ) : aiUnavailable ? (
+          <div id="commit-message-hint" style={styles.helper}>
+            {t("cd.aiUnavailable")}
+          </div>
         ) : (
           <div id="commit-message-hint" style={styles.helper}>
-            {aiEnabled && onSuggestCommitMessage && aiSuggestion === message ? (
-              <>
-                {t("cd.aiLabel")}{" "}
-                <button
-                  type="button"
-                  onClick={() => runSuggestion(true)}
-                  style={styles.retryBtn}
-                >
-                  <RefreshCw size={12} className="mr-0.5 inline" />
-                  {t("cd.aiRegenerate")}
-                </button>
-              </>
-            ) : (
-              <>
-                {aiEnabled && onSuggestCommitMessage && (
-                  <button
-                    type="button"
-                    onClick={() => runSuggestion(true)}
-                    style={styles.retryBtn}
-                  >
-                    <RefreshCw size={12} className="mr-0.5 inline" />
-                    {t("cd.aiSuggest")}
-                  </button>
-                )}
-                {aiEnabled && onSuggestCommitMessage && " "}
-                {trimmed.length === 0
-                  ? t("cd.hintEmpty")
-                  : t("cd.hintKeys")}
-              </>
-            )}
+            {trimmed.length === 0 ? t("cd.hintEmpty") : t("cd.hintKeys")}
+            {aiEnabled && onSuggestCommitMessage ? ` · ${t("cd.aiHint")}` : ""}
           </div>
         )}
       </div>
@@ -288,9 +305,28 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
     marginBottom: 6,
   },
   label: { fontSize: 12.5, fontWeight: 600, color: DC.text },
+  labelActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+  aiBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 9999,
+    border: `1px solid ${DC.violetBorder}`,
+    background: DC.violetSoft,
+    color: DC.violet,
+    fontSize: 12,
+    fontWeight: 600,
+    padding: "4px 11px",
+  },
   counter: { font: `500 11px ${DC.mono}` },
   textarea: {
     width: "100%",
@@ -306,15 +342,29 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hint: { marginTop: 6, fontSize: 12, color: DC.danger, fontWeight: 600 },
   helper: { marginTop: 6, fontSize: 12, color: DC.textMuted },
-  retryBtn: {
-    background: "none",
-    border: "none",
-    color: DC.accent,
+  aiStrip: {
+    marginTop: 7,
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    borderLeft: `2px solid ${DC.violet}`,
+    background: `color-mix(in oklab, ${DC.violetSoft} 55%, transparent)`,
+    borderRadius: 6,
+    padding: "5px 9px",
     fontSize: 12,
-    fontWeight: 500,
-    cursor: "pointer",
-    padding: 2,
-    marginLeft: 4,
-    borderRadius: 4,
+    color: DC.textMuted,
+  },
+  aiBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 9999,
+    border: `1px solid ${DC.violetBorder}`,
+    background: DC.violetSoft,
+    color: DC.violet,
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "1px 7px",
   },
 };

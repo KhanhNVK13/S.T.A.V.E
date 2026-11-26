@@ -17,32 +17,45 @@ import type { SuggestionLang } from './commit-message.service';
 import {
   analyzeTheory,
   type BarChord,
+  type DescriptiveProfile,
+  type DetectedCadence,
+  type MidiIntegrityReport,
   type Tonality,
   type TheoryAnalysis,
 } from './theory-analysis';
 
 export interface TheoryInsightResult {
   tonality: Tonality | null;
+  alternativeTonality: Tonality | null;
   chords: BarChord[];
+  cadences: DetectedCadence[];
+  profile: DescriptiveProfile;
+  integrity: MidiIntegrityReport;
   truncated: boolean;
   explanation: string | null;
+  explanationSource: 'ai' | null;
 }
 
 const MAX_CHORDS_FOR_AI = 16;
+const MAX_CADENCES_FOR_AI = 8;
 export const THEORY_CACHE_MAX_ENTRIES = 200;
-const EXPLANATION_MAX_LENGTH = 400;
+const EXPLANATION_MAX_LENGTH = 600;
 
 const THEORY_PROMPTS: Record<SuggestionLang, string> = {
   vi:
-    'Bạn giải thích ngắn gọn về nhạc lý cho người dùng một ứng dụng soạn nhạc MIDI. ' +
-    'Dưới đây là kết quả đã được máy tính tính sẵn (giọng chủ âm và các hợp âm theo ô nhịp) ở dạng JSON. ' +
-    'Hãy viết đúng một hoặc hai câu tiếng Việt diễn giải kết quả này, chỉ dùng thông tin có trong dữ liệu, ' +
-    'không tự đổi giọng hay hợp âm, không sáng tác nhạc, không dùng dấu ngoặc kép. Danh sách hợp âm có thể chỉ là phần đầu bản nhạc (totalChordBars là tổng số ô nhịp có hợp âm). ',
+    'Bạn tóm tắt khách quan cấu trúc nhạc lý và thông số MIDI cho người dùng ứng dụng soạn nhạc. ' +
+    'Dữ liệu JSON dưới đây được trích xuất bằng thuật toán Krumhansl-Schmuckler và kiểm tra MIDI 1.0. ' +
+    'Hãy viết 2 đến 3 câu tiếng Việt ngắn gọn tóm tắt giọng (kèm ứng viên gần nếu có), tiến trình hợp âm/vòng kết, âm vực/mật độ nốt, ' +
+    'và chỉ nhắc số nốt trùng/chồng lấn kỹ thuật nếu > 0. ' +
+    'TUYỆT ĐỐI KHÔNG đánh giá hay/dở, KHÔNG suy đoán cảm xúc (vui/buồn), KHÔNG coi nốt biến âm hay sắc thái velocity đều là lỗi, ' +
+    'không gợi ý sửa nhạc, không dùng dấu ngoặc kép. ',
   en:
-    'You briefly explain music theory to a user of a MIDI composing app. ' +
-    'Below is a result already computed by code (the key and the chords per bar) as JSON. ' +
-    'Write exactly one or two English sentences interpreting it, using only what is in the data, ' +
-    'without changing the key or chords, without composing music, and without quotation marks. The chord list may be only the start of the piece (totalChordBars is the total number of bars with a chord). ',
+    'You objectively summarize music-theory structure and MIDI measurements for a composing app user. ' +
+    'The JSON below was computed by Krumhansl-Schmuckler analysis and MIDI 1.0 technical checks. ' +
+    'Write 2 to 3 concise English sentences summarizing the detected key (and close candidate if present), chord/cadence structure, pitch range/density, ' +
+    'and mention duplicate/overlap MIDI technical counts only if > 0. ' +
+    'STRICTLY FORBIDDEN: judging artistic quality, guessing emotion or mood (happy/sad), treating accidentals or flat velocity as errors, ' +
+    'suggesting musical changes, or using quotation marks. ',
 };
 
 function confidenceLevel(confidence: number): 'high' | 'medium' | 'low' {
@@ -70,10 +83,12 @@ export class TheoryInsightService {
     projectId: string,
     commitId: string | null,
     lang: SuggestionLang = 'vi',
+    includeAi = true,
   ): Promise<TheoryInsightResult> {
     await this.access.assertCanRead(projectId, userId);
 
-    const cacheKey = commitId ? `${projectId}:${commitId}:${lang}` : null;
+    const cacheKey =
+      includeAi && commitId ? `${projectId}:${commitId}:${lang}` : null;
     if (cacheKey) {
       const cached = this.commitCache.get(cacheKey);
       if (cached) {
@@ -88,11 +103,19 @@ export class TheoryInsightService {
       : await this.readCurrentSnapshot(projectId, userId);
 
     const analysis = analyzeTheory(snapshot);
-    const explanation = await this.explain(userId, analysis, lang);
-    const result: TheoryInsightResult = { ...analysis, explanation };
+    const explanation = includeAi
+      ? await this.explain(userId, analysis, lang)
+      : null;
+    const result: TheoryInsightResult = {
+      ...analysis,
+      explanation,
+      explanationSource: explanation ? 'ai' : null,
+    };
 
     const nothingToExplain =
-      !analysis.tonality && analysis.chords.every((c) => c.chord === null);
+      !analysis.tonality &&
+      analysis.chords.every((c) => c.chord === null) &&
+      analysis.profile.totalNotes === 0;
     if (cacheKey && (explanation !== null || nothingToExplain)) {
       this.commitCache.set(cacheKey, result);
       if (this.commitCache.size > THEORY_CACHE_MAX_ENTRIES) {
@@ -173,9 +196,17 @@ export class TheoryInsightService {
     lang: SuggestionLang,
   ): Promise<string | null> {
     const allChords = analysis.chords.filter(
-      (c): c is { bar: number; chord: string } => c.chord !== null,
+      (c): c is { bar: number; chord: string; roman: string | null } =>
+        c.chord !== null,
     );
     const chords = allChords.slice(0, MAX_CHORDS_FOR_AI);
+    if (
+      !analysis.tonality &&
+      chords.length === 0 &&
+      analysis.profile.totalNotes === 0
+    ) {
+      return null;
+    }
     if (!analysis.tonality && chords.length === 0) return null;
     if (!this.rateLimiter.tryConsume(userId)) return null;
 
@@ -184,11 +215,40 @@ export class TheoryInsightService {
         ? {
             tonic: analysis.tonality.tonic,
             mode: analysis.tonality.mode,
+            r: analysis.tonality.confidence,
             confidence: confidenceLevel(analysis.tonality.confidence),
+          }
+        : null,
+      alternativeKey: analysis.alternativeTonality
+        ? {
+            tonic: analysis.alternativeTonality.tonic,
+            mode: analysis.alternativeTonality.mode,
+            r: analysis.alternativeTonality.confidence,
           }
         : null,
       chords,
       totalChordBars: allChords.length,
+      cadences: analysis.cadences.slice(0, MAX_CADENCES_FOR_AI),
+      profile: {
+        tempo: analysis.profile.tempo,
+        timeSignature: analysis.profile.timeSignature,
+        totalBars: analysis.profile.totalBars,
+        totalNotes: analysis.profile.totalNotes,
+        pitchRange: analysis.profile.pitchRange
+          ? `${analysis.profile.pitchRange.lowest}-${analysis.profile.pitchRange.highest}`
+          : null,
+        averageNotesPerBar: analysis.profile.averageNotesPerBar,
+        scaleFit: analysis.profile.scaleFit
+          ? {
+              inScalePercent: analysis.profile.scaleFit.inScalePercent,
+              outOfScaleCount: analysis.profile.scaleFit.outOfScaleCount,
+            }
+          : null,
+      },
+      midiIntegrity: {
+        duplicateCount: analysis.integrity.duplicateCount,
+        overlapCount: analysis.integrity.overlapCount,
+      },
     };
 
     try {

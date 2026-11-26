@@ -20,10 +20,13 @@ import {
   closePullRequest,
   commentPullRequest,
   deletePullRequestComment,
+  explainPullRequestMergeRisk,
+  getPrAiSummary,
   getPullRequest,
   mergePullRequest,
   resolvePullRequestConflicts,
 } from "../../../lib/api-client";
+import { AiActionButton, AiCallout } from "../../../components/ai/ai-ui";
 import type { ConflictChoice, MergeConflictResult, PullRequestComment, PullRequestDetail } from "../../../lib/api-client";
 import { errorSource, renderError, type ErrorSource } from "../../../lib/error-message";
 import { formatRelativeTime } from "../../../lib/format-date";
@@ -34,7 +37,7 @@ import { tNow } from "../../../lib/i18n";
 const COMMENT_MAX = 2000;
 
 function PullRequestView({ id }: { id: string }) {
-  const { t, tx } = useI18n();
+  const { t, tx, lang } = useI18n();
   const { user } = useAuth();
   const [detail, setDetail] = useState<PullRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +45,12 @@ function PullRequestView({ id }: { id: string }) {
   const [tab, setTab] = useState<"changes" | "commits" | "discussion">("changes");
   const [toast, setToast] = useState<{ message: string; variant: "success" | "danger" } | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
+  const [prAi, setPrAi] = useState<{
+    key: string;
+    loading: boolean;
+    summary: string | null;
+    unavailable: boolean;
+  }>({ key: "", loading: false, summary: null, unavailable: false });
 
   const [mergeOpen, setMergeOpen] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -201,6 +210,24 @@ function PullRequestView({ id }: { id: string }) {
     { id: "discussion", label: t("pullRequestsPage.tabDiscussion", { n: detail.comments.length }) },
   ];
 
+  const prAiKey = `${id}:${lang}`;
+  const activePrAi = prAi.key === prAiKey ? prAi : null;
+
+  async function requestPrSummary() {
+    setPrAi({ key: prAiKey, loading: true, summary: null, unavailable: false });
+    try {
+      const res = await getPrAiSummary(id, lang);
+      setPrAi({
+        key: prAiKey,
+        loading: false,
+        summary: res.summary,
+        unavailable: res.summary === null,
+      });
+    } catch {
+      setPrAi({ key: prAiKey, loading: false, summary: null, unavailable: true });
+    }
+  }
+
   return (
     <div className="mx-auto min-h-full max-w-5xl px-5 py-8">
       <div className="mb-5">
@@ -272,8 +299,8 @@ function PullRequestView({ id }: { id: string }) {
         </div>
       )}
 
-      {(permissions.canMerge || permissions.canClose) && (
-        <div className="mb-6 flex flex-wrap gap-2">
+      {(permissions.canMerge || permissions.canClose || analysis) && (
+        <div className="mb-6 flex flex-wrap items-center gap-2">
           {permissions.canMerge && pr.applicable && (
             <Button
               onClick={() => {
@@ -295,7 +322,31 @@ function PullRequestView({ id }: { id: string }) {
               {user?.id === detail.pullRequest.author?.id && !permissions.canMerge ? t("prd.withdraw") : t("prd.closeNoMerge")}
             </Button>
           )}
+          {analysis && (
+            <AiActionButton
+              label={t("prAi.summarize")}
+              loading={activePrAi?.loading ?? false}
+              onClick={() => void requestPrSummary()}
+              testId="pr-ai-summary-btn"
+            />
+          )}
         </div>
+      )}
+
+      {activePrAi && (
+        <AiCallout
+          className="mb-6"
+          title={t("prAi.title")}
+          loading={activePrAi.loading}
+          loadingLabel={t("prAi.loading")}
+          unavailable={activePrAi.unavailable && !activePrAi.summary}
+          text={activePrAi.summary}
+          copyText={activePrAi.summary}
+          onRegenerate={() => void requestPrSummary()}
+          regenerating={activePrAi.loading}
+          subtitle={t("ai.objectiveNote")}
+          testId="pr-ai-summary-callout"
+        />
       )}
 
       <div role="group" aria-label={t("pullRequestsPage.tabsLabel")}>
@@ -415,7 +466,13 @@ function PullRequestView({ id }: { id: string }) {
           <>
             {tx("prd.mergeBody", { n: analysis?.newCommits.length ?? 0, target: <strong>{targetLabel}</strong> })}
             {hasConflicts && t("prd.mergeConflictsNote")}
-            {analysis?.risk && <MergeRiskView result={analysis.risk} />}
+            {analysis?.risk && (
+              <MergeRiskView
+                key={`pr-risk-${id}-${lang}`}
+                result={analysis.risk}
+                onRequestAiExplanation={() => explainPullRequestMergeRisk(id, lang)}
+              />
+            )}
           </>
         }
         confirmLabel={t("blist.mergeConfirm")}
@@ -472,6 +529,7 @@ function PullRequestView({ id }: { id: string }) {
           targetName={targetLabel}
           submitting={merging}
           error={renderError(resolveError)}
+          aiContext={{ pullRequestId: id }}
           onCancel={() => {
             setConflicts(null);
             setResolveError(null);

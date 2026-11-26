@@ -48,16 +48,18 @@ export interface MergeRiskMetrics {
   targetCommits: number;
 }
 
+export type ExplanationSource = 'ai' | 'rule' | null;
+
 /** Kết quả trả về của `GET /ai/merge-risk`. */
 export interface MergeRiskResult {
   level: MergeRiskLevel;
   metrics: MergeRiskMetrics;
   /**
    * Một–hai câu giải thích do Gemini viết từ các con số ở trên.
-   * `null` khi mức thấp (không tạo cảnh báo giả) hoặc khi AI lỗi/quá hạn —
-   * giao diện vẫn hiện đủ số liệu (BR-79).
+   * `null` khi AI lỗi/quá hạn hoặc chưa yêu cầu AI — giao diện vẫn hiện đủ số liệu.
    */
   explanation: string | null;
+  explanationSource: ExplanationSource;
 }
 
 export const LOW_RISK_EXPLANATIONS: Record<SuggestionLang, string> = {
@@ -71,13 +73,17 @@ export const LOW_RISK_EXPLANATION = LOW_RISK_EXPLANATIONS.vi;
 /** Lời nhắc cố định — chỉ nhận các con số, không nhận nội dung nốt (BR-80). */
 const EXPLANATION_PROMPTS: Record<SuggestionLang, string> = {
   vi: [
-    'Bạn viết một đoạn giải thích ngắn bằng tiếng Việt cho người dùng về rủi ro khi hợp nhất hai nhánh.',
-    'Dưới đây là các con số ở dạng JSON. Hãy viết đúng một hoặc hai câu, nêu thật những số liệu đã có,',
+    'Bạn viết một đoạn giải thích ngắn bằng tiếng Việt cho người dùng về rủi ro khi hợp nhất hai nhánh trong một dự án nhạc MIDI.',
+    'Trong JSON bên dưới: sourceChanged, targetChanged và overlap đều là SỐ NỐT NHẠC MIDI (tuyệt đối KHÔNG gọi là tệp hay file);',
+    'conflictsCount là số xung đột nốt; sourceCommits và targetCommits là số commit thêm từ điểm gốc chung.',
+    'Hãy viết đúng một hoặc hai câu, nêu thật những số liệu đã có,',
     'không thêm chi tiết nào không có trong dữ liệu, không dùng dấu ngoặc kép và không giải thích thêm.',
   ].join(' '),
   en: [
-    'You write a short English explanation for the user about the risk of merging two branches.',
-    'Below are the numbers as JSON. Write exactly one or two sentences that state the given figures faithfully,',
+    'You write a short English explanation for the user about the risk of merging two branches in a MIDI music project.',
+    'In the JSON below, sourceChanged, targetChanged, and overlap are counts of MIDI NOTES (never call them files);',
+    'conflictsCount is the number of note conflicts; sourceCommits and targetCommits are added commits since the merge base.',
+    'Write exactly one or two sentences that state the given figures faithfully,',
     'with no detail that is not in the data, no quotation marks and no extra explanation.',
   ].join(' '),
 };
@@ -116,6 +122,7 @@ export class MergeRiskService {
     sourceBranchId: string,
     targetBranchId: string,
     lang: SuggestionLang = 'vi',
+    includeAi = true,
   ): Promise<MergeRiskResult> {
     const [source, target] = await Promise.all([
       this.getBranch(sourceBranchId),
@@ -207,13 +214,48 @@ export class MergeRiskService {
       targetCommits,
     };
 
-    // Mức thấp: trả lời cố định, KHÔNG gọi AI, không tạo cảnh báo giả.
     if (level === 'low') {
-      return { level, metrics, explanation: LOW_RISK_EXPLANATIONS[lang] };
+      return {
+        level,
+        metrics,
+        explanation: LOW_RISK_EXPLANATIONS[lang],
+        explanationSource: 'rule',
+      };
+    }
+
+    if (!includeAi) {
+      return { level, metrics, explanation: null, explanationSource: null };
     }
 
     const explanation = await this.explain(userId, metrics, lang);
-    return { level, metrics, explanation };
+    return {
+      level,
+      metrics,
+      explanation,
+      explanationSource: explanation ? 'ai' : null,
+    };
+  }
+
+  async explainFromMetrics(
+    userId: string,
+    level: MergeRiskLevel,
+    metrics: MergeRiskMetrics,
+    lang: SuggestionLang = 'vi',
+  ): Promise<{
+    explanation: string | null;
+    explanationSource: ExplanationSource;
+  }> {
+    if (level === 'low') {
+      return {
+        explanation: LOW_RISK_EXPLANATIONS[lang],
+        explanationSource: 'rule',
+      };
+    }
+    const explanation = await this.explain(userId, metrics, lang);
+    return {
+      explanation,
+      explanationSource: explanation ? 'ai' : null,
+    };
   }
 
   /**

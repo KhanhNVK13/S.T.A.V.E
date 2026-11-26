@@ -5,8 +5,9 @@ import { MergeResolutionsSummary } from "./merge-resolutions-summary";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, GitCompareArrows, Loader2, Play, Square } from "lucide-react";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
-import { compareCommits, getCommit } from "../../lib/api-client";
+import { compareCommits, getCommit, getDiffAiSummary } from "../../lib/api-client";
 import type { SnapshotDiff, SnapshotMetaChange } from "../../lib/api-client";
+import { AiActionButton, AiCallout } from "../ai/ai-ui";
 import { pitchName } from "../../lib/midi-note-name";
 import { Badge } from "../ui/badge";
 import { DIFF_GLYPH, DIFF_TEXT, DiffBadge } from "./diff-ui";
@@ -126,7 +127,7 @@ export function CommitCompare({
   target: CompareSide;
   onClose: () => void;
 }) {
-  const { t: tt } = useI18n();
+  const { t: tt, lang } = useI18n();
   const [base, setBase] = useState(initialBase);
   const [target, setTarget] = useState(initialTarget);
   const [diff, setDiff] = useState<SnapshotDiff | null>(null);
@@ -142,6 +143,13 @@ export function CommitCompare({
   const [playing, setPlaying] = useState<"base" | "target" | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
   const [playError, setPlayError] = useState<ErrorSource | null>(null);
+  const [aiState, setAiState] = useState<{
+    key: string;
+    style: "summary" | "release-notes";
+    loading: boolean;
+    summary: string | null;
+    unavailable: boolean;
+  }>({ key: "", style: "summary", loading: false, summary: null, unavailable: false });
 
   const stopPlayback = useCallback(() => {
     playerRef.current?.stop();
@@ -237,6 +245,42 @@ export function CommitCompare({
     stopPlayback();
     setBase(target);
     setTarget(base);
+  }
+
+  const aiKey = `${base.id}:${target.id}:${lang}`;
+  const activeAi = aiState.key === aiKey ? aiState : null;
+
+  async function requestDiffAi(style: "summary" | "release-notes") {
+    setAiState({
+      key: aiKey,
+      style,
+      loading: true,
+      summary: null,
+      unavailable: false,
+    });
+    try {
+      const res = await getDiffAiSummary({
+        baseCommitId: base.id,
+        targetCommitId: target.id,
+        lang,
+        style,
+      });
+      setAiState({
+        key: aiKey,
+        style,
+        loading: false,
+        summary: res.summary,
+        unavailable: res.summary === null,
+      });
+    } catch {
+      setAiState({
+        key: aiKey,
+        style,
+        loading: false,
+        summary: null,
+        unavailable: true,
+      });
+    }
   }
 
   const allTracks = useMemo(() => {
@@ -342,6 +386,40 @@ export function CommitCompare({
               <Stat label={tt("comparePage.statBars")} value={String(affected.bars)} />
               <Stat label={tt("comparePage.statTracks")} value={String(affected.tracks)} className="col-span-2 sm:col-span-1" />
             </dl>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <AiActionButton
+                compact
+                label={tt("cmpAi.summarize")}
+                loading={(activeAi?.loading && activeAi.style === "summary") ?? false}
+                disabled={activeAi?.loading ?? false}
+                onClick={() => void requestDiffAi("summary")}
+                testId="cmp-ai-summary-btn"
+              />
+              <AiActionButton
+                compact
+                label={tt("cmpAi.releaseNotes")}
+                loading={(activeAi?.loading && activeAi.style === "release-notes") ?? false}
+                disabled={activeAi?.loading ?? false}
+                onClick={() => void requestDiffAi("release-notes")}
+                testId="cmp-ai-release-btn"
+              />
+            </div>
+
+            {activeAi && (
+              <AiCallout
+                title={activeAi.style === "release-notes" ? tt("cmpAi.titleRelease") : tt("cmpAi.titleSummary")}
+                loading={activeAi.loading}
+                loadingLabel={tt("cmpAi.loading")}
+                unavailable={activeAi.unavailable && !activeAi.summary}
+                text={activeAi.summary}
+                copyText={activeAi.summary}
+                onRegenerate={() => void requestDiffAi(activeAi.style)}
+                regenerating={activeAi.loading}
+                subtitle={tt("ai.objectiveNote")}
+                testId="cmp-ai-callout"
+              />
+            )}
 
             {nothingReported && <p className="text-xs text-muted">{tt("cmp.internalOnly")}</p>}
 

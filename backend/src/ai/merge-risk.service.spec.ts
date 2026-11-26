@@ -6,11 +6,7 @@ jest.mock('uuid', () => ({
   v4: jest.fn(() => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
 }));
 
-import {
-  MergeRiskService,
-  LOW_RISK_EXPLANATION,
-  LOW_RISK_EXPLANATIONS,
-} from './merge-risk.service';
+import { MergeRiskService, LOW_RISK_EXPLANATIONS } from './merge-risk.service';
 import { GeminiClient } from './gemini-client';
 import { AiRateLimiter } from './ai-rate-limiter';
 import { DiffService } from '../commits/diff.service';
@@ -205,7 +201,34 @@ describe('BE-AIX-03 MergeRiskService.assess(userId, sourceBranchId, targetBranch
     const result = await service.assess(userId, sourceBranchId, targetBranchId);
 
     expect(result.level).toBe('low');
-    expect(result.explanation).toBe(LOW_RISK_EXPLANATION);
+    expect(result.explanation).toBe(LOW_RISK_EXPLANATIONS.vi);
+    expect(result.explanationSource).toBe('rule');
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('skips AI for medium/high risk when includeAi is false', async () => {
+    const generateText = jest.fn().mockResolvedValue('Should not run');
+    const source = snapshot([note('n1'), note('n2'), note('n3'), note('n4')]);
+    const { service } = makeService({
+      base: EMPTY,
+      source,
+      target: EMPTY,
+      commitSnapshots: [EMPTY, source, EMPTY],
+      conflictsCount: 2,
+      ancestry: [[], [], []],
+      generateText,
+    });
+
+    const result = await service.assess(
+      userId,
+      sourceBranchId,
+      targetBranchId,
+      'vi',
+      false,
+    );
+    expect(result.level).toBe('medium');
+    expect(result.explanation).toBeNull();
+    expect(result.explanationSource).toBeNull();
     expect(generateText).not.toHaveBeenCalled();
   });
 
@@ -469,9 +492,19 @@ describe('BE-AIX-03 MergeRiskService.assess(userId, sourceBranchId, targetBranch
 
     const prompt = generateText.mock.calls[0][0] as string;
     expect(prompt).toContain('"conflictsCount"');
+    expect(prompt).toContain('NỐT NHẠC MIDI');
     expect(prompt).not.toContain('"pitch"');
     expect(prompt).not.toContain('"snapshot"');
     expect(prompt).not.toContain(userId);
+  });
+
+  it('specifies MIDI notes (not files) in English explanation prompt as well', async () => {
+    const { service, generateText } = makeService(medium());
+
+    await service.assess(userId, sourceBranchId, targetBranchId, 'en');
+
+    const prompt = generateText.mock.calls[0][0] as string;
+    expect(prompt).toContain('MIDI NOTES (never call them files)');
   });
 
   it('UTCID16 returns 400 when the two branches belong to different projects', async () => {

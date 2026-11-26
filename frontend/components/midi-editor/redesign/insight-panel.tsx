@@ -18,9 +18,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Lightbulb, MapPin, X } from "lucide-react";
+import { Lightbulb, Loader2, MapPin, RefreshCw, Sparkles, X } from "lucide-react";
 import type { DraftMeta, DraftNote, DraftTrack } from "@stave/shared-types";
 import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
+import { getTheoryInsight } from "../../../lib/api-client";
 import { analyze, ticksPerBar, type Insight } from "../../../lib/music-theory";
 import { DC } from "./tokens";
 import { useI18n } from "../../../context/i18n-context";
@@ -166,6 +167,26 @@ export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpT
     });
   }
 
+  const [aiState, setAiState] = useState<{
+    loading: boolean;
+    text: string | null;
+    unavailable: boolean;
+  }>({ loading: false, text: null, unavailable: false });
+
+  async function requestAiExplanation() {
+    setAiState({ loading: true, text: null, unavailable: false });
+    try {
+      const res = await getTheoryInsight(projectId, lang, undefined, { explain: true });
+      setAiState({
+        loading: false,
+        text: res.explanation,
+        unavailable: res.explanation === null,
+      });
+    } catch {
+      setAiState({ loading: false, text: null, unavailable: true });
+    }
+  }
+
   const result = computed?.result ?? null;
   const stale =
     computed !== null &&
@@ -252,6 +273,52 @@ export function InsightPanel({ projectId, notes, tracks, meta: metaProp, onJumpT
                 <InsightRow key={i.id} insight={i} onDismiss={dismiss} onJumpToBar={onJumpToBar} />
               ))
             )}
+
+            <div style={styles.aiBlock}>
+              <button
+                type="button"
+                onClick={() => void requestAiExplanation()}
+                disabled={aiState.loading}
+                aria-busy={aiState.loading || undefined}
+                style={{
+                  ...styles.aiBtn,
+                  opacity: aiState.loading ? 0.65 : 1,
+                  cursor: aiState.loading ? "not-allowed" : "pointer",
+                }}
+              >
+                {aiState.loading ? (
+                  <Loader2 size={12} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                ) : (
+                  <Sparkles size={12} aria-hidden="true" />
+                )}
+                {aiState.loading ? t("ai.analyzing") : t("ins.aiExplain")}
+              </button>
+
+              {(aiState.text || aiState.unavailable) && (
+                <div style={styles.aiBox}>
+                  <div style={styles.aiHead}>
+                    <span style={styles.aiBadge}>
+                      <Sparkles size={10} aria-hidden="true" />
+                      {t("ai.badge")}
+                    </span>
+                    <span style={styles.aiTitle}>{t("ins.aiTitle")}</span>
+                    <button
+                      type="button"
+                      onClick={() => void requestAiExplanation()}
+                      disabled={aiState.loading}
+                      style={styles.aiRegen}
+                      aria-label={t("ai.regenerate")}
+                    >
+                      <RefreshCw size={11} aria-hidden="true" />
+                    </button>
+                  </div>
+                  <p style={styles.aiText}>
+                    {aiState.text ?? t("ai.unavailable")}
+                  </p>
+                  <p style={styles.aiFootnote}>{t("ai.objectiveNote")}</p>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -377,5 +444,80 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: "#fff",
     cursor: "pointer",
+  },
+  aiBlock: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTop: `1px solid ${DC.border}`,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  aiBtn: {
+    alignSelf: "flex-start",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 9999,
+    border: `1px solid ${DC.violetBorder}`,
+    background: DC.violetSoft,
+    color: DC.violet,
+    padding: "5px 12px",
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  aiBox: {
+    borderRadius: 9,
+    border: `1px solid ${DC.violetBorder}`,
+    borderLeft: `2px solid ${DC.violet}`,
+    background: `color-mix(in oklab, ${DC.violetSoft} 55%, transparent)`,
+    padding: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  aiHead: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+  },
+  aiBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 9999,
+    border: `1px solid ${DC.violetBorder}`,
+    background: DC.violetSoft,
+    color: DC.violet,
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "1px 7px",
+  },
+  aiTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: 600,
+    color: DC.text,
+  },
+  aiRegen: {
+    background: "none",
+    border: "none",
+    color: DC.violet,
+    cursor: "pointer",
+    padding: 3,
+    display: "inline-flex",
+    alignItems: "center",
+  },
+  aiText: {
+    fontSize: 11.5,
+    lineHeight: 1.55,
+    color: DC.text,
+    margin: 0,
+  },
+  aiFootnote: {
+    fontSize: 11,
+    lineHeight: 1.4,
+    color: DC.textMuted,
+    margin: 0,
   },
 };

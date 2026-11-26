@@ -1195,38 +1195,234 @@ export interface MergeRiskMetrics {
   targetCommits: number;
 }
 
+export type AiExplanationSource = "ai" | "rule" | null;
+
 export interface MergeRiskResult {
   level: MergeRiskLevel;
   metrics: MergeRiskMetrics;
   explanation: string | null;
+  explanationSource?: AiExplanationSource;
 }
 
 export async function getMergeRisk(
   sourceBranchId: string,
   targetBranchId: string,
   lang?: "en" | "vi",
+  options?: { explain?: boolean },
 ): Promise<MergeRiskResult> {
   const search = new URLSearchParams({ sourceBranchId, targetBranchId });
   if (lang) search.set("lang", lang);
+  if (options?.explain === false) search.set("explain", "false");
   return apiFetch<MergeRiskResult>(`/ai/merge-risk?${search.toString()}`);
 }
 
+export async function explainPullRequestMergeRisk(
+  pullRequestId: string,
+  lang?: "en" | "vi",
+): Promise<{ explanation: string | null; explanationSource: AiExplanationSource }> {
+  return apiFetch(`/ai/pull-requests/${pullRequestId}/risk-explain`, {
+    method: "POST",
+    body: JSON.stringify(lang ? { lang } : {}),
+  });
+}
+
+export interface TheoryTonality {
+  tonic: string;
+  mode: "major" | "minor";
+  confidence: number;
+}
+
+export interface TheoryCadence {
+  type: "authentic" | "plagal" | "deceptive" | "half";
+  fromBar: number;
+  toBar: number;
+  fromChord: string;
+  toChord: string;
+  fromRoman: string;
+  toRoman: string;
+}
+
+export interface TheoryDescriptiveProfile {
+  tempo: number;
+  timeSignature: [number, number];
+  totalBars: number;
+  totalNotes: number;
+  pitchedTrackCount: number;
+  percussionTrackCount: number;
+  pitchRange: {
+    lowest: string;
+    highest: string;
+    lowestMidi: number;
+    highestMidi: number;
+  } | null;
+  averageNotesPerBar: number;
+  densestBar: { bar: number; noteCount: number } | null;
+  velocity: { min: number; max: number; average: number } | null;
+  scaleFit: {
+    inScalePercent: number;
+    outOfScaleCount: number;
+    accidentalPitchClasses: string[];
+  } | null;
+}
+
+export interface TheoryIntegritySample {
+  bar: number;
+  trackName: string;
+  pitchName: string;
+}
+
+export interface TheoryIntegrityReport {
+  duplicateCount: number;
+  overlapCount: number;
+  duplicateSamples: TheoryIntegritySample[];
+  overlapSamples: TheoryIntegritySample[];
+}
+
 export interface TheoryInsightResult {
-  tonality: { tonic: string; mode: "major" | "minor"; confidence: number } | null;
-  chords: { bar: number; chord: string | null }[];
+  tonality: TheoryTonality | null;
+  alternativeTonality?: TheoryTonality | null;
+  chords: { bar: number; chord: string | null; roman?: string | null }[];
+  cadences?: TheoryCadence[];
+  profile?: TheoryDescriptiveProfile;
+  integrity?: TheoryIntegrityReport;
   truncated: boolean;
   explanation: string | null;
+  explanationSource?: "ai" | null;
 }
 
 export async function getTheoryInsight(
   projectId: string,
   lang?: "en" | "vi",
   commitId?: string,
+  options?: { explain?: boolean },
 ): Promise<TheoryInsightResult> {
   const search = new URLSearchParams({ projectId });
   if (commitId) search.set("commitId", commitId);
   if (lang) search.set("lang", lang);
+  if (options?.explain === false) search.set("explain", "false");
   return apiFetch<TheoryInsightResult>(`/ai/theory-insight?${search.toString()}`);
+}
+
+export interface DiffStoryFacts {
+  areIdentical: boolean;
+  notesAdded: number;
+  notesRemoved: number;
+  notesModified: number;
+  tracksAdded: Array<{ name: string; instrument: string | null; notes: number }>;
+  tracksRemoved: Array<{ name: string; instrument: string | null; notes: number }>;
+  tracksModified: string[];
+  metaChanges: Array<{ field: string; from: unknown; to: unknown }>;
+  barsRange: [number, number] | null;
+  topHotspotBars: Array<{ bar: number; added: number; removed: number; modified: number }>;
+  keyChange: { from: string; to: string } | null;
+  pitchRangeChange: { from: string; to: string } | null;
+  commitMessages?: string[];
+}
+
+export interface PrSummaryResult {
+  facts: DiffStoryFacts;
+  summary: string | null;
+}
+
+export async function getPrAiSummary(
+  pullRequestId: string,
+  lang?: "en" | "vi",
+): Promise<PrSummaryResult> {
+  return apiFetch<PrSummaryResult>("/ai/pr-summary", {
+    method: "POST",
+    body: JSON.stringify({ pullRequestId, ...(lang ? { lang } : {}) }),
+  });
+}
+
+export interface DiffSummaryResult {
+  facts: DiffStoryFacts;
+  summary: string | null;
+  style: "summary" | "release-notes";
+}
+
+export async function getDiffAiSummary(payload: {
+  baseCommitId: string;
+  targetCommitId: string;
+  lang?: "en" | "vi";
+  style?: "summary" | "release-notes";
+}): Promise<DiffSummaryResult> {
+  return apiFetch<DiffSummaryResult>("/ai/diff-summary", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface ConflictAdviceResult {
+  barCount: number;
+  conflictCount: number;
+  truncated: boolean;
+  advice: string | null;
+}
+
+export async function getMergeConflictAdvice(payload: {
+  sourceBranchId?: string;
+  targetBranchId?: string;
+  pullRequestId?: string;
+  lang?: "en" | "vi";
+}): Promise<ConflictAdviceResult> {
+  return apiFetch<ConflictAdviceResult>("/ai/conflict-advice", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface PublishSuggestResult {
+  description: string | null;
+  tags: string[];
+  facts: {
+    name: string;
+    genre: string | null;
+    tempo: number;
+    timeSignature: [number, number];
+    totalBars: number;
+    totalNotes: number;
+    trackCount: number;
+    instruments: string[];
+    key: string | null;
+  };
+  aiAvailable: boolean;
+}
+
+export async function getPublishAiSuggestions(
+  projectId: string,
+  lang?: "en" | "vi",
+): Promise<PublishSuggestResult> {
+  return apiFetch<PublishSuggestResult>("/ai/publish-suggest", {
+    method: "POST",
+    body: JSON.stringify({ projectId, ...(lang ? { lang } : {}) }),
+  });
+}
+
+export interface JamRecapResult {
+  recap: string | null;
+  stats: {
+    eventName: string;
+    contributorCount: number;
+    totalActions: number;
+    topContributors: Array<{ name: string; actionCount: number }>;
+    noteCount: number;
+    trackCount: number;
+    instruments: string[];
+    tempo: number;
+    timeSignature: [number, number];
+    totalBars: number;
+    key: string | null;
+  } | null;
+}
+
+export async function getJamAiRecap(
+  eventId: string,
+  lang?: "en" | "vi",
+): Promise<JamRecapResult> {
+  return apiFetch<JamRecapResult>("/ai/jam-recap", {
+    method: "POST",
+    body: JSON.stringify({ eventId, ...(lang ? { lang } : {}) }),
+  });
 }
 
 export interface ProjectPreview {

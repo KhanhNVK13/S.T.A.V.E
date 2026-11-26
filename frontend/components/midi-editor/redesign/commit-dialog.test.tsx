@@ -7,7 +7,6 @@ import {
   vi,
 } from "vitest";
 import {
-  act,
   cleanup,
   fireEvent,
   render,
@@ -20,9 +19,6 @@ import { CommitDialog } from "./commit-dialog";
 import { setLang } from "../../../lib/i18n/store";
 
 beforeEach(() => {
-  // Khoá ngôn ngữ cho test: app mặc định là "en", nhưng các khẳng định
-  // dưới đây viết bằng tiếng Việt → ghim "vi" để test không phụ thuộc
-  // ngôn ngữ mặc định (và không đụng localStorage của máy).
   setLang("vi");
 });
 
@@ -57,10 +53,6 @@ const DRAFT: DraftSnapshot = {
 
 const SUGGESTION = "Thêm nốt trên đoạn 1";
 
-/**
- * Wrapper giữ `message` như editor thật (controlled), để luông gợi ý
- * "điền vào ô trống" chạy đúng như trong app.
- */
 function Harness({
   onSuggest,
   aiEnabled = true,
@@ -94,57 +86,56 @@ function Harness({
   );
 }
 
-describe("CommitDialog — UC-70 gợi ý commit message bằng AI", () => {
-  it("tự gọi AI khi hộp mở và điền gợi ý vào ô trống, hiện nhãn + nút Tạo lại", async () => {
+describe("CommitDialog — gợi ý commit message bằng AI theo nút bấm", () => {
+  it("không tự gọi AI khi hộp mở; chỉ gọi khi người dùng bấm nút Gợi ý bởi AI", async () => {
     const onSuggest = vi.fn().mockResolvedValue(SUGGESTION);
     render(<Harness onSuggest={onSuggest} />);
+
+    expect(onSuggest).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Gợi ý bởi AI/i }));
 
     await waitFor(() => expect(onSuggest).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByText(/Gợi ý bởi AI\./)).toBeTruthy());
     expect(
       (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
     ).toBe(SUGGESTION);
+    expect(screen.getByText("AI")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Tạo lại/i })).toBeTruthy();
   });
 
-  it("không ghi đè nội dung người dùng đã gõ (5.1)", async () => {
-    let resolveSuggest: ((value: string | null) => void) | null = null;
-    const onSuggest = vi.fn(
-      () =>
-        new Promise<string | null>((resolve) => {
-          resolveSuggest = resolve;
-        }),
-    );
+  it("chuyển sang nhãn Đã chỉnh sửa khi người dùng sửa lại câu AI gợi ý", async () => {
+    const onSuggest = vi.fn().mockResolvedValue(SUGGESTION);
     render(<Harness onSuggest={onSuggest} />);
 
-    // Người dùng gõ trước khi gợi ý về.
+    fireEvent.click(screen.getByRole("button", { name: /Gợi ý bởi AI/i }));
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
+      ).toBe(SUGGESTION),
+    );
+
     fireEvent.change(screen.getByLabelText("Nội dung commit"), {
       target: { value: "Nội dung của tôi" },
     });
-    await act(async () => {
-      resolveSuggest!("Gợi ý AI");
-    });
 
-    expect(
-      (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
-    ).toBe("Nội dung của tôi");
+    expect(screen.getByText(/Đã chỉnh sửa từ gợi ý AI\./)).toBeTruthy();
   });
 
-  it("nút \"Tạo lại\" xin gợi ý mới và ghi đè ô nhập", async () => {
+  it("nút Tạo lại xin gợi ý mới và cập nhật ô nhập", async () => {
     const onSuggest = vi
       .fn()
       .mockResolvedValueOnce("Gợi ý 1")
       .mockResolvedValueOnce("Gợi ý 2");
     render(<Harness onSuggest={onSuggest} />);
 
-    await waitFor(() => expect(onSuggest).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: /Gợi ý bởi AI/i }));
     await waitFor(() =>
       expect(
         (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
       ).toBe("Gợi ý 1"),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Tạo lại/i }));
 
+    fireEvent.click(screen.getByRole("button", { name: /Tạo lại/i }));
     await waitFor(() =>
       expect(
         (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
@@ -153,13 +144,34 @@ describe("CommitDialog — UC-70 gợi ý commit message bằng AI", () => {
     expect(onSuggest).toHaveBeenCalledTimes(2);
   });
 
-  it("AI lỗi (ví dụ không có khoá) → ô trống, không báo lỗi, không chặn commit (BR-79)", async () => {
+  it("AI lỗi hoặc trả null → hiện thông báo nhẹ, không chặn commit", async () => {
     const onSuggest = vi.fn().mockRejectedValue(new Error("no api key"));
     render(<Harness onSuggest={onSuggest} />);
 
-    await waitFor(() => expect(onSuggest).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Gợi ý bởi AI/i }));
+    await waitFor(() => expect(onSuggest).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(screen.queryByText(/Đang gợi ý/i)).toBeNull(),
+      expect(screen.getByText(/Chưa lấy được gợi ý từ AI/i)).toBeTruthy(),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Nội dung commit"), {
+      target: { value: "Tự viết message" },
+    });
+    const commitBtn = screen.getByRole("button", {
+      name: /Tạo commit/i,
+    }) as HTMLButtonElement;
+    expect(commitBtn.disabled).toBe(false);
+  });
+
+  it("gợi ý null → giữ ô trống và báo nhẹ không dùng role=alert", async () => {
+    const onSuggest = vi.fn().mockResolvedValue(null);
+    render(<Harness onSuggest={onSuggest} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Gợi ý bởi AI/i }));
+    await waitFor(() => expect(onSuggest).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByText(/Chưa lấy được gợi ý từ AI/i)).toBeTruthy(),
     );
     expect(
       (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
@@ -167,18 +179,7 @@ describe("CommitDialog — UC-70 gợi ý commit message bằng AI", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("gợi ý null (AI bị bỏ qua: first commit / chạm trần / quá hạn) → ô trống, không lỗi", async () => {
-    const onSuggest = vi.fn().mockResolvedValue(null);
-    render(<Harness onSuggest={onSuggest} />);
-
-    await waitFor(() => expect(onSuggest).toHaveBeenCalled());
-    expect(
-      (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
-    ).toBe("");
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("huỷ yêu cầu khi hộp đóng (unmount)", async () => {
+  it("huỷ yêu cầu đang chờ khi hộp đóng (unmount)", async () => {
     let captured: AbortSignal | null = null;
     const onSuggest = vi.fn((signal: AbortSignal) => {
       captured = signal;
@@ -186,35 +187,18 @@ describe("CommitDialog — UC-70 gợi ý commit message bằng AI", () => {
     });
     const { unmount } = render(<Harness onSuggest={onSuggest} />);
 
-    await waitFor(() => expect(onSuggest).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Gợi ý bởi AI/i }));
+    await waitFor(() => expect(onSuggest).toHaveBeenCalledTimes(1));
     unmount();
     expect(captured!.aborted).toBe(true);
   });
 
-  it("không gọi AI khi branch chưa có commit nào để so (aiEnabled=false)", async () => {
+  it("ẩn nút AI khi branch chưa có commit nào để so (aiEnabled=false)", () => {
     const onSuggest = vi.fn().mockResolvedValue("Không nên gọi");
     render(<Harness onSuggest={onSuggest} aiEnabled={false} headSnapshot={null} />);
 
-    await waitFor(() =>
-      expect(screen.getByText(/Bản ghi phiên bản đầu tiên/)).toBeTruthy(),
-    );
-    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByText(/Bản ghi phiên bản đầu tiên/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Gợi ý bởi AI/i })).toBeNull();
     expect(onSuggest).not.toHaveBeenCalled();
-  });
-
-  it("nút Tạo commit không bị chặn bởi AI (gợi ý chỉ là phụ)", async () => {
-    const onSuggest = vi.fn().mockResolvedValue(SUGGESTION);
-    render(<Harness onSuggest={onSuggest} />);
-
-    await waitFor(() =>
-      expect(
-        (screen.getByLabelText("Nội dung commit") as HTMLTextAreaElement).value,
-      ).toBe(SUGGESTION),
-    );
-    // Có gợi ý → nút bật, commit không cần ai làm gì thêm (UC-70: không tự commit).
-    const commitBtn = screen.getByRole("button", {
-      name: /Tạo commit/i,
-    }) as HTMLButtonElement;
-    expect(commitBtn.disabled).toBe(false);
   });
 });

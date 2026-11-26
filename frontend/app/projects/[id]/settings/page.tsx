@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Lock, Globe2, Archive, Undo2, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Check, Lock, Globe2, Plus, Archive, Undo2, Trash2, TriangleAlert } from "lucide-react";
 import { RequireAuth } from "../../../../components/require-auth";
 import {
   archiveProject,
@@ -11,11 +11,14 @@ import {
   deleteProject,
   getProject,
   getProjectDeletePreview,
+  getPublishAiSuggestions,
   setProjectVisibility,
   updateProject,
   ProjectVisibility,
   type ProjectDeletePreview,
+  type PublishSuggestResult,
 } from "../../../../lib/api-client";
+import { AiActionButton, AiCallout } from "../../../../components/ai/ai-ui";
 import { PageHeader } from "../../../../components/ui/page-header";
 import { Card } from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
@@ -49,11 +52,15 @@ interface Project {
 function ProjectInfoCard({
   project,
   onSaved,
+  currentTags,
+  onSuggestTag,
 }: {
   project: Project;
   onSaved: (updated: Pick<Project, "name" | "description" | "genre">) => void;
+  currentTags: string[];
+  onSuggestTag: (tag: string) => void;
 }) {
-  const { t, locale } = useI18n();
+  const { t, locale, lang } = useI18n();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const [genre, setGenre] = useState(project.genre ?? "");
@@ -61,11 +68,46 @@ function ProjectInfoCard({
   const [saveError, setSaveError] = useState<ErrorSource | null>(null);
   const [saved, setSaved] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [aiState, setAiState] = useState<{
+    loading: boolean;
+    result: PublishSuggestResult | null;
+    unavailable: boolean;
+    descApplied: boolean;
+    tagNotice: string | null;
+  }>({ loading: false, result: null, unavailable: false, descApplied: false, tagNotice: null });
   const isArchived = !!project.archived_at;
   const dirty =
     name.trim() !== project.name ||
     description !== (project.description ?? "") ||
     genre !== (project.genre ?? "");
+
+  async function requestAiSuggestions() {
+    setAiState({
+      loading: true,
+      result: null,
+      unavailable: false,
+      descApplied: false,
+      tagNotice: null,
+    });
+    try {
+      const result = await getPublishAiSuggestions(project.id, lang);
+      setAiState({
+        loading: false,
+        result,
+        unavailable: !result.aiAvailable,
+        descApplied: false,
+        tagNotice: null,
+      });
+    } catch {
+      setAiState({
+        loading: false,
+        result: null,
+        unavailable: true,
+        descApplied: false,
+        tagNotice: null,
+      });
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +139,114 @@ function ProjectInfoCard({
 
   return (
     <Card className="p-6">
-      <h2 className="mb-4 text-base font-semibold text-foreground">{t("pset.infoTitle")}</h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-foreground">{t("pset.infoTitle")}</h2>
+        {!isArchived && (
+          <AiActionButton
+            compact
+            label={t("pubAi.suggest")}
+            loading={aiState.loading}
+            onClick={() => void requestAiSuggestions()}
+            testId="pub-ai-suggest-btn"
+          />
+        )}
+      </div>
+      {(aiState.loading || aiState.result || aiState.unavailable) && (
+        <AiCallout
+          className="mb-4"
+          title={t("pubAi.title")}
+          loading={aiState.loading}
+          loadingLabel={t("pubAi.loading")}
+          unavailable={aiState.unavailable}
+          onRegenerate={() => void requestAiSuggestions()}
+          regenerating={aiState.loading}
+          subtitle={t("ai.objectiveNote")}
+          testId="pub-ai-callout"
+        >
+          {aiState.result && aiState.result.aiAvailable && (
+            <div className="space-y-3">
+              {aiState.result.description && (
+                <div className="space-y-1.5">
+                  <p className="text-[13px] leading-relaxed text-foreground">
+                    {aiState.result.description}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setDescription(aiState.result?.description ?? "");
+                        setSaved(false);
+                        setAiState((prev) => ({ ...prev, descApplied: true }));
+                      }}
+                    >
+                      {aiState.descApplied ? (
+                        <Check className="h-3.5 w-3.5 text-success-foreground" aria-hidden="true" />
+                      ) : null}
+                      {t("pubAi.applyDesc")}
+                    </Button>
+                    {aiState.descApplied && (
+                      <span className="text-xs text-success-foreground">{t("pubAi.descApplied")}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {aiState.result.tags.length > 0 && (
+                <div className="space-y-1.5 border-t border-violet/20 pt-2">
+                  <p className="text-xs text-muted">{t("pubAi.tagsHint")}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiState.result.tags.map((tag) => {
+                      const exists = currentTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          disabled={exists || currentTags.length >= 5}
+                          onClick={() => {
+                            if (exists) {
+                              setAiState((prev) => ({
+                                ...prev,
+                                tagNotice: t("pubAi.tagExists", { tag }),
+                              }));
+                              return;
+                            }
+                            if (currentTags.length >= 5) {
+                              setAiState((prev) => ({
+                                ...prev,
+                                tagNotice: t("pubAi.tagLimit", { n: 5 }),
+                              }));
+                              return;
+                            }
+                            onSuggestTag(tag);
+                            setAiState((prev) => ({
+                              ...prev,
+                              tagNotice: t("pubAi.tagAdded", { tag }),
+                            }));
+                          }}
+                          className="inline-flex items-center gap-1 rounded-full border border-violet/35 bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-violet hover:bg-violet-muted disabled:cursor-not-allowed disabled:opacity-55"
+                        >
+                          {exists ? (
+                            <Check className="h-3 w-3 text-success-foreground" aria-hidden="true" />
+                          ) : (
+                            <Plus className="h-3 w-3 text-violet" aria-hidden="true" />
+                          )}
+                          #{tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {aiState.tagNotice && (
+                    <p role="status" className="text-xs text-muted">
+                      {aiState.tagNotice}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </AiCallout>
+      )}
       {isArchived && (
         <p className="mb-4 flex items-start gap-2 text-sm text-muted">
           <Lock className="mt-0.5 h-4 w-4 shrink-0" />
@@ -232,6 +381,12 @@ export default function ProjectSettingsPage() {
   const [deletePreview, setDeletePreview] = useState<ProjectDeletePreview | "error" | null>(null);
   const [archiveNotice, setArchiveNotice] = useState<"archived" | "restored" | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [currentTags, setCurrentTags] = useState<string[]>([]);
+  const [externalTag, setExternalTag] = useState<{ tag: string; nonce: number } | null>(null);
+  const handleTagsChanged = useCallback((next: string[]) => setCurrentTags(next), []);
+  const handleSuggestTag = useCallback((tag: string) => {
+    setExternalTag((prev) => ({ tag, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -415,6 +570,8 @@ export default function ProjectSettingsPage() {
             <ProjectInfoCard
               project={project}
               onSaved={(updated) => setProject((prev) => (prev ? { ...prev, ...updated } : prev))}
+              currentTags={currentTags}
+              onSuggestTag={handleSuggestTag}
             />
 
             <Card className="p-6">
@@ -500,7 +657,12 @@ export default function ProjectSettingsPage() {
               />
             )}
 
-            <TagsCard projectId={projectId} disabled={!!project.archived_at} />
+            <TagsCard
+              projectId={projectId}
+              disabled={!!project.archived_at}
+              externalTag={externalTag}
+              onTagsChanged={handleTagsChanged}
+            />
 
             <Card className="border-danger/20 p-6">
               <div className="mb-2 flex items-center gap-2">

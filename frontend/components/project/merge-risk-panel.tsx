@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GitMerge, TriangleAlert } from "lucide-react";
 import {
   getMergeRisk,
+  type AiExplanationSource,
   type MergeRiskLevel,
   type MergeRiskResult,
 } from "../../lib/api-client";
+import { AiActionButton, AiCallout } from "../ai/ai-ui";
 import { Badge } from "../ui/badge";
 import { useI18n } from "../../context/i18n-context";
 
 /**
- * UC-71 — cảnh báo rủi ro merge. Chỉ đọc và giải thích, KHÔNG chặn việc hợp
- * nhất. Đang tải hoặc tải lỗi thì hiện một dòng trạng thái ngắn (không im
- * lặng, không chặn nút Hợp nhất). Dùng lại được ở trang pull request bằng cách
- * truyền `sourceBranchId` và `targetBranchId`.
+ * Cảnh báo rủi ro hợp nhất — chỉ đọc và giải thích, không chặn thao tác hợp nhất.
+ * Số liệu rule-based tải ngay; diễn giải AI gọi theo yêu cầu (bấm nút).
  */
 export function MergeRiskPanel({
   sourceBranchId,
@@ -35,7 +35,7 @@ export function MergeRiskPanel({
   useEffect(() => {
     let cancelled = false;
 
-    getMergeRisk(sourceBranchId, targetBranchId, lang)
+    getMergeRisk(sourceBranchId, targetBranchId, lang, { explain: false })
       .then((data) => {
         if (!cancelled) setState({ key: requestKey, result: data, failed: false });
       })
@@ -47,6 +47,16 @@ export function MergeRiskPanel({
       cancelled = true;
     };
   }, [sourceBranchId, targetBranchId, requestKey, lang]);
+
+  const requestAiExplanation = useCallback(async () => {
+    const full = await getMergeRisk(sourceBranchId, targetBranchId, lang, {
+      explain: true,
+    });
+    return {
+      explanation: full.explanation,
+      explanationSource: full.explanationSource ?? (full.explanation ? "ai" : null),
+    };
+  }, [sourceBranchId, targetBranchId, lang]);
 
   const stale = !state || state.key !== requestKey;
   if (stale) {
@@ -64,18 +74,64 @@ export function MergeRiskPanel({
     );
   }
 
-  return <MergeRiskView result={state.result} />;
+  return (
+    <MergeRiskView
+      key={requestKey}
+      result={state.result}
+      onRequestAiExplanation={requestAiExplanation}
+    />
+  );
 }
 
 /** Hiển thị kết quả đã có sẵn (trang pull request nhận số liệu cùng phản hồi chi tiết). */
 export function MergeRiskView({
   result,
+  onRequestAiExplanation,
 }: {
-  result: { level: MergeRiskLevel; metrics: MergeRiskResult["metrics"]; explanation?: string | null };
+  result: {
+    level: MergeRiskLevel;
+    metrics: MergeRiskResult["metrics"];
+    explanation?: string | null;
+    explanationSource?: AiExplanationSource;
+  };
+  onRequestAiExplanation?: () => Promise<{
+    explanation: string | null;
+    explanationSource?: AiExplanationSource;
+  }>;
 }) {
   const { t } = useI18n();
   const { level, metrics } = result;
-  const explanation = "explanation" in result ? result.explanation : null;
+  const initialExplanation = "explanation" in result ? (result.explanation ?? null) : null;
+  const [aiState, setAiState] = useState<{
+    explanation: string | null;
+    loading: boolean;
+    unavailable: boolean;
+  }>({
+    explanation: initialExplanation,
+    loading: false,
+    unavailable: false,
+  });
+
+  async function requestAi() {
+    if (!onRequestAiExplanation) return;
+    setAiState((prev) => ({ ...prev, loading: true, unavailable: false }));
+    try {
+      const res = await onRequestAiExplanation();
+      setAiState({
+        explanation: res.explanation,
+        loading: false,
+        unavailable: res.explanation === null,
+      });
+    } catch {
+      setAiState((prev) => ({
+        ...prev,
+        loading: false,
+        unavailable: true,
+      }));
+    }
+  }
+
+  const activeExplanation = aiState.explanation;
 
   return (
     <div
@@ -83,18 +139,30 @@ export function MergeRiskView({
       data-level={level}
       className="mt-3 rounded-card border border-border bg-surface-subtle p-3"
     >
-      <div className="flex items-center gap-2">
-        <span className="text-foreground">
-          {level === "low" ? (
-            <GitMerge size={14} aria-hidden />
-          ) : (
-            <TriangleAlert size={14} aria-hidden />
-          )}
-        </span>
-        <span className="text-[13px] font-semibold text-foreground">
-          {t("mrisk.title")}
-        </span>
-        <Badge variant={LEVEL_VARIANT[level]}>{t(`mrisk.level.${level}`)}</Badge>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-foreground">
+            {level === "low" ? (
+              <GitMerge size={14} aria-hidden="true" />
+            ) : (
+              <TriangleAlert size={14} aria-hidden="true" />
+            )}
+          </span>
+          <span className="text-[13px] font-semibold text-foreground">
+            {t("mrisk.title")}
+          </span>
+          <Badge variant={LEVEL_VARIANT[level]}>{t(`mrisk.level.${level}`)}</Badge>
+        </div>
+
+        {level !== "low" && onRequestAiExplanation && !activeExplanation && (
+          <AiActionButton
+            compact
+            label={t("mrisk.aiExplain")}
+            loading={aiState.loading}
+            onClick={() => void requestAi()}
+            testId="merge-risk-ai-btn"
+          />
+        )}
       </div>
 
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
@@ -124,10 +192,25 @@ export function MergeRiskView({
         </div>
       </dl>
 
-      {explanation && (
+      {level === "low" && activeExplanation && (
         <p className="mt-2 text-[12px] leading-relaxed text-muted">
-          {explanation}
+          {activeExplanation}{" "}
+          <span className="text-xs text-muted/80">({t("mrisk.aiRuleNote")})</span>
         </p>
+      )}
+
+      {level !== "low" && (activeExplanation || aiState.loading || aiState.unavailable) && (
+        <AiCallout
+          className="mt-2.5"
+          title={t("mrisk.aiTitle")}
+          loading={aiState.loading}
+          unavailable={aiState.unavailable && !activeExplanation}
+          text={activeExplanation}
+          onRegenerate={onRequestAiExplanation ? () => void requestAi() : undefined}
+          regenerating={aiState.loading}
+          subtitle={t("ai.objectiveNote")}
+          testId="merge-risk-ai-callout"
+        />
       )}
     </div>
   );
