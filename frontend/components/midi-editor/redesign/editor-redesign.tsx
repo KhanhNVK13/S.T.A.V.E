@@ -208,6 +208,11 @@ interface EditorRedesignProps {
   /** UC-39: Xuất project ra file .mid */
   onExportMidi: () => void;
   onNotify?: (message: string, variant: "success" | "warning" | "info") => void;
+  onCreateMidiTrack?: (payload: {
+    name: string;
+    instrument: string | null;
+    notes: Omit<DraftNote, "trackId">[];
+  }) => boolean | void;
 }
 
 export function EditorRedesign(props: EditorRedesignProps) {
@@ -227,7 +232,7 @@ export function EditorRedesign(props: EditorRedesignProps) {
     masterVolume, onMasterVolumeChange,
     customSounds, onSetSoundMapping, onCustomSoundsChanged,
     onTempoChange, metronomeOn, onMetronomeToggle,
-    playbackRate, onPlaybackRateChange, onExportMidi, onNotify,
+    playbackRate, onPlaybackRateChange, onExportMidi, onNotify, onCreateMidiTrack,
   } = props;
 
   const canStop = isPlaying || isPaused;
@@ -1229,7 +1234,23 @@ export function EditorRedesign(props: EditorRedesignProps) {
           onClose={requestCloseSketch}
           closeDisabled={sketchState === "recording" || sketchState === "attaching"}
         >
-          <AudioSketchPanel projectId={projectId} onStateChange={setSketchState} />
+          <AudioSketchPanel
+            projectId={projectId}
+            onStateChange={setSketchState}
+            tempo={tempo}
+            ppq={ppq}
+            canAddTrack={canAddTrack}
+            onCreateMidiTrack={
+              onCreateMidiTrack
+                ? (payload) => {
+                    const created = onCreateMidiTrack(payload);
+                    if (created !== false) {
+                      closeSketch();
+                    }
+                  }
+                : undefined
+            }
+          />
         </Modal>
       )}
 
