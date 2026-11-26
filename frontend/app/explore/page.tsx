@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search as SearchIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -10,6 +10,11 @@ import {
   FeaturedContent,
   PublicProjectsResponse,
 } from '../../lib/api-client';
+import {
+  listFilteredPublicProjects,
+  parseExploreQuery,
+  type ExploreParseResponse,
+} from '../../lib/api-similar';
 import { useApiResource } from '../../lib/use-api-resource';
 import {
   MAX_INSTRUMENT_FILTERS,
@@ -23,8 +28,10 @@ import {
 import { PageHeader } from '../../components/ui/page-header';
 import { EmptyState } from '../../components/ui/empty-state';
 import { Button } from '../../components/ui/button';
+import { AiActionButton, AiCallout } from '../../components/ai/ai-ui';
 import { ProjectRows, ProjectRowsSkeleton } from '../../components/explore/project-rows';
 import { FeaturedCards } from '../../components/explore/featured-cards';
+import { useAuth } from '../../context/auth-context';
 import { useI18n } from '../../context/i18n-context';
 import { tNow } from '../../lib/i18n';
 import { GENRES } from '../../lib/genres';
@@ -47,8 +54,21 @@ const SELECT_CLASS =
 const FILTER_PILL =
   'flex h-10 items-center gap-1.5 rounded-full border border-accent/60 bg-accent-muted px-4 text-[13px] font-medium text-accent transition-colors hover:border-accent';
 
+function parseBpmParam(raw: string | null): number | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return undefined;
+  const n = Number(trimmed);
+  return Number.isInteger(n) && n >= 20 && n <= 300 ? n : undefined;
+}
+
+function parseModeParam(raw: string | null): 'major' | 'minor' | undefined {
+  return raw === 'major' || raw === 'minor' ? raw : undefined;
+}
+
 function ExploreContent() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -64,20 +84,37 @@ function ExploreContent() {
   const tag = searchParams.get('tag') ?? '';
   const instrumentParam = searchParams.get('instrument');
   const instruments = useMemo(() => parseInstrumentParam(instrumentParam), [instrumentParam]);
-  const filtered = Boolean(search || genre || tag || instruments.length > 0);
+  const tempoMin = parseBpmParam(searchParams.get('tempoMin'));
+  const tempoMax = parseBpmParam(searchParams.get('tempoMax'));
+  const mode = parseModeParam(searchParams.get('mode'));
+  const hasMusicalFilters = tempoMin !== undefined || tempoMax !== undefined || mode !== undefined;
+  const filtered = Boolean(search || genre || tag || instruments.length > 0 || hasMusicalFilters);
 
   const { data, loading, error } = useApiResource<PublicProjectsResponse>(
     () =>
-      listPublicProjects({
-        page,
-        limit: 9,
-        sort,
-        genre: genre || undefined,
-        search: search || undefined,
-        tag: tag || undefined,
-        instrument: instruments.length > 0 ? instruments : undefined,
-      }),
-    [page, sort, genre, search, tag, instruments],
+      hasMusicalFilters
+        ? listFilteredPublicProjects({
+            page,
+            limit: 9,
+            sort,
+            genre: genre || undefined,
+            search: search || undefined,
+            tag: tag || undefined,
+            instrument: instruments.length > 0 ? instruments : undefined,
+            tempoMin,
+            tempoMax,
+            mode,
+          })
+        : listPublicProjects({
+            page,
+            limit: 9,
+            sort,
+            genre: genre || undefined,
+            search: search || undefined,
+            tag: tag || undefined,
+            instrument: instruments.length > 0 ? instruments : undefined,
+          }),
+    [page, sort, genre, search, tag, instruments, tempoMin, tempoMax, mode],
     tNow('ex.loadFail'),
   );
 
@@ -123,7 +160,10 @@ function ExploreContent() {
       newParams.genre !== undefined ||
       newParams.search !== undefined ||
       newParams.tag !== undefined ||
-      newParams.instrument !== undefined
+      newParams.instrument !== undefined ||
+      newParams.tempoMin !== undefined ||
+      newParams.tempoMax !== undefined ||
+      newParams.mode !== undefined
     ) {
       params.set('page', '1');
     }
@@ -131,12 +171,45 @@ function ExploreContent() {
   }
 
   const [searchInput, setSearchInput] = useState(search);
+  const skipNextDebounceRef = useRef(false);
+  const [aiNotice, setAiNotice] = useState<{
+    loading: boolean;
+    error: boolean;
+    result: ExploreParseResponse | null;
+  } | null>(null);
+
   useEffect(() => {
+    if (skipNextDebounceRef.current) {
+      skipNextDebounceRef.current = false;
+      return;
+    }
     if (searchInput === search) return;
     const timer = setTimeout(() => updateParams({ search: searchInput || null }), 400);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
+
+  async function handleAiSearch() {
+    const trimmed = searchInput.trim();
+    if (!trimmed) return;
+    setAiNotice({ loading: true, error: false, result: null });
+    try {
+      const parsed = await parseExploreQuery(trimmed, lang);
+      skipNextDebounceRef.current = true;
+      setSearchInput(parsed.search ?? '');
+      updateParams({
+        search: parsed.search,
+        genre: parsed.genre,
+        instrument: serializeInstrumentParam(parsed.instruments),
+        tempoMin: parsed.tempoMin !== null ? String(parsed.tempoMin) : null,
+        tempoMax: parsed.tempoMax !== null ? String(parsed.tempoMax) : null,
+        mode: parsed.mode,
+      });
+      setAiNotice({ loading: false, error: false, result: parsed });
+    } catch {
+      setAiNotice({ loading: false, error: true, result: null });
+    }
+  }
 
   const items = data?.items;
 
@@ -153,12 +226,26 @@ function ExploreContent() {
             autoComplete="off"
             type="search"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(e) => {
+              skipNextDebounceRef.current = false;
+              setSearchInput(e.target.value);
+            }}
             placeholder={t('ex.search')}
             aria-label={t('ex.search')}
             className="h-14 w-full rounded-full border border-border-strong bg-surface-subtle/60 pl-[52px] pr-5 text-base transition-colors placeholder:text-muted hover:border-foreground/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 sm:text-[17px]"
           />
         </div>
+
+        {user && (
+          <AiActionButton
+            label={t('exAi.button')}
+            loadingLabel={t('exAi.loading')}
+            loading={aiNotice?.loading ?? false}
+            disabled={searchInput.trim().length === 0}
+            onClick={() => void handleAiSearch()}
+            testId="explore-ai-search-btn"
+          />
+        )}
 
         {tag && (
           <button
@@ -172,6 +259,41 @@ function ExploreContent() {
           </button>
         )}
       </div>
+
+      {aiNotice && (
+        <div className="mb-5">
+          <AiCallout
+            title={t('exAi.title')}
+            loading={aiNotice.loading}
+            loadingLabel={t('exAi.loading')}
+            unavailable={aiNotice.error}
+            unavailableLabel={t('exAi.error')}
+            text={aiNotice.result?.explanation ?? null}
+            subtitle={
+              aiNotice.result
+                ? aiNotice.result.source === 'rule'
+                  ? t('exAi.ruleNote')
+                  : t('exAi.aiNote')
+                : undefined
+            }
+            testId="explore-ai-callout"
+          >
+            {!aiNotice.loading && (
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setAiNotice(null)}
+                  aria-label={t('exAi.dismiss')}
+                  className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-surface/60 px-2.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+                >
+                  <X aria-hidden="true" className="h-3 w-3" />
+                  {t('ui.close')}
+                </button>
+              </div>
+            )}
+          </AiCallout>
+        </div>
+      )}
 
       <div role="group" aria-label={t('ex.filterGenre')} className="mb-4 flex flex-wrap gap-2">
         <button
@@ -245,6 +367,42 @@ function ExploreContent() {
             <X aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
         ))}
+
+        {tempoMin !== undefined && (
+          <button
+            type="button"
+            onClick={() => updateParams({ tempoMin: null })}
+            aria-label={t('exAi.removeTempoMin')}
+            className={FILTER_PILL}
+          >
+            {t('exAi.pillTempoMin', { bpm: tempoMin })}
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {tempoMax !== undefined && (
+          <button
+            type="button"
+            onClick={() => updateParams({ tempoMax: null })}
+            aria-label={t('exAi.removeTempoMax')}
+            className={FILTER_PILL}
+          >
+            {t('exAi.pillTempoMax', { bpm: tempoMax })}
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {mode && (
+          <button
+            type="button"
+            onClick={() => updateParams({ mode: null })}
+            aria-label={t('exAi.removeMode')}
+            className={FILTER_PILL}
+          >
+            {t(mode === 'minor' ? 'exAi.pillModeMinor' : 'exAi.pillModeMajor')}
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {showFeatured && (featuredProjects.length > 0 || featuredError) && (
@@ -305,8 +463,18 @@ function ExploreContent() {
                 <Button
                   variant="secondary"
                   onClick={() => {
+                    skipNextDebounceRef.current = true;
                     setSearchInput('');
-                    updateParams({ search: null, genre: null, tag: null, instrument: null });
+                    setAiNotice(null);
+                    updateParams({
+                      search: null,
+                      genre: null,
+                      tag: null,
+                      instrument: null,
+                      tempoMin: null,
+                      tempoMax: null,
+                      mode: null,
+                    });
                   }}
                 >
                   {t('ex.clearFilters')}

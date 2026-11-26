@@ -6,9 +6,10 @@ import { MemberPreviewController } from './member-preview.controller';
 import { PublicHistoryService } from './public-history.service';
 import { DiffService } from '../commits/diff.service';
 import { ProjectAccessModule } from '../project-access/project-access.module';
+import { MusicalFingerprintModule } from '../musical-fingerprint/musical-fingerprint.module';
 
 @Module({
-  imports: [ProjectAccessModule],
+  imports: [ProjectAccessModule, MusicalFingerprintModule],
   controllers: [
     ExploreController,
     PublicHistoryController,

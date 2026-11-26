@@ -144,7 +144,11 @@ const withProjectAccessRows = (responses: MockResponseMap): MockResponseMap => {
 
 const buildService = (
   responses: MockResponseMap,
-  extras: { jamLock?: unknown; branchMoved?: unknown } = {},
+  extras: {
+    jamLock?: unknown;
+    branchMoved?: unknown;
+    fingerprints?: unknown;
+  } = {},
 ) => {
   const { client, calls, rpcCalls } = createMockSupabaseClient(
     withProjectAccessRows(responses),
@@ -156,6 +160,7 @@ const buildService = (
     new ProjectAccessService(client as any),
     extras.jamLock as any,
     extras.branchMoved as any,
+    extras.fingerprints as any,
   );
   return { service, calls, rpcCalls };
 };
@@ -457,6 +462,52 @@ describe('BE-CMT-01 CommitsService.createCommit', () => {
       'new-commit-id',
       USER,
     );
+  });
+
+  it('UTCID15 (N): updates musical fingerprint when committing to default branch and ignores errors', async () => {
+    const fingerprints = {
+      upsertForProject: jest.fn().mockRejectedValue(new Error('db down')),
+    };
+    const { service } = buildService(
+      {
+        branches: [{ data: branchRow(USER, null, { is_default: true }) }],
+        rpc: [{ data: rpcCommit() }],
+      },
+      { fingerprints },
+    );
+
+    const committed = await service.createCommit(USER, {
+      branch_id: BRANCH,
+      message: 'Add bass',
+      snapshot: snapshot(),
+    } as any);
+
+    expect(committed.id).toBe('new-commit-id');
+    expect(fingerprints.upsertForProject).toHaveBeenCalledWith(
+      PROJECT,
+      expect.objectContaining({ meta: snapshot().meta }),
+    );
+  });
+
+  it('UTCID16 (N): skips musical fingerprint update for non-default branches', async () => {
+    const fingerprints = {
+      upsertForProject: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service } = buildService(
+      {
+        branches: [{ data: branchRow(USER, null, { is_default: false }) }],
+        rpc: [{ data: rpcCommit() }],
+      },
+      { fingerprints },
+    );
+
+    await service.createCommit(USER, {
+      branch_id: BRANCH,
+      message: 'Experiment',
+      snapshot: snapshot(),
+    } as any);
+
+    expect(fingerprints.upsertForProject).not.toHaveBeenCalled();
   });
 });
 

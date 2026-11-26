@@ -1,3 +1,5 @@
+import { ai2ExploreEn } from "./ai2-explore";
+
 export const en = {
   "lang.group": "Language",
   "lang.en": "English",
@@ -3047,4 +3049,5 @@ export const en = {
   "jamAi.recap": "Recap Jam with AI",
   "jamAi.title": "Community Jam session recap",
   "jamAi.loading": "AI is summarizing the Jam session…",
+  ...ai2ExploreEn,
 } as const satisfies Record<string, string>;

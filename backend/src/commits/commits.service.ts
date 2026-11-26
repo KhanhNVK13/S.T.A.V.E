@@ -24,6 +24,7 @@ import { ProjectsService } from '../projects/projects.service';
 import { ProjectAccessService } from '../project-access/project-access.service';
 import { JamLockService } from '../project-access/jam-lock.service';
 import { BranchMovedNotifier } from '../project-access/branch-moved-notifier';
+import { MusicalFingerprintService } from '../musical-fingerprint/musical-fingerprint.service';
 import { DiffService } from './diff.service';
 import {
   CreateCommitDto,
@@ -78,6 +79,7 @@ export class CommitsService {
     private readonly access: ProjectAccessService,
     @Optional() private readonly jamLock?: JamLockService,
     @Optional() private readonly branchMoved?: BranchMovedNotifier,
+    @Optional() private readonly fingerprints?: MusicalFingerprintService,
   ) {}
 
   // ==========================================================================
@@ -169,6 +171,11 @@ export class CommitsService {
 
     const row = commit as CommitDbRow;
     this.branchMoved?.notify(branch.project_id, branch_id, row.id, userId);
+    if (branch.is_default && this.fingerprints) {
+      void this.fingerprints
+        .upsertForProject(branch.project_id, snapshot)
+        .catch(() => undefined);
+    }
 
     return {
       id: row.id,
@@ -576,6 +583,11 @@ export class CommitsService {
 
     const row = newCommit as CommitDbRow;
     this.branchMoved?.notify(branch.project_id, branch_id, row.id, userId);
+    if (branch.is_default && this.fingerprints) {
+      void this.fingerprints
+        .upsertForProject(branch.project_id, commit.snapshot)
+        .catch(() => undefined);
+    }
 
     return {
       id: row.id,
