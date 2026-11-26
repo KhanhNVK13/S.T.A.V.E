@@ -1,4 +1,5 @@
 import type { en } from "./en";
+import { ai2TriageVi } from "./ai2-triage";
 
 export const vi: Record<keyof typeof en, string> = {
   "lang.group": "Ngôn ngữ",
@@ -3049,4 +3050,5 @@ export const vi: Record<keyof typeof en, string> = {
   "jamAi.recap": "Tóm tắt phiên Jam bằng AI",
   "jamAi.title": "Tổng kết phiên Community Jam",
   "jamAi.loading": "AI đang tổng hợp số liệu phiên Jam…",
+  ...ai2TriageVi,
 };

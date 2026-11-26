@@ -8,6 +8,7 @@ import type {
 } from "@stave/shared-types";
 import AdminReportsPage from "./page";
 import { getReportDetails, getReportPreview, listReportGroups } from "../../../lib/admin-reports-api";
+import { requestModerationTriage } from "../../../lib/api-moderation-triage";
 import { ApiError } from "../../../lib/api-client";
 import { setLang } from "../../../lib/i18n";
 
@@ -20,6 +21,10 @@ vi.mock("../../../lib/admin-reports-api", () => ({
   removeReportedProject: vi.fn(),
   dismissReports: vi.fn(),
   restoreReportedProject: vi.fn(),
+}));
+
+vi.mock("../../../lib/api-moderation-triage", () => ({
+  requestModerationTriage: vi.fn(),
 }));
 
 const P1 = "33333333-3333-4333-8333-333333333333";
@@ -77,6 +82,25 @@ beforeEach(() => {
   vi.mocked(listReportGroups).mockResolvedValue(listOf([group()]));
   vi.mocked(getReportDetails).mockResolvedValue([detail()]);
   vi.mocked(getReportPreview).mockResolvedValue(preview());
+  vi.mocked(requestModerationTriage).mockResolvedValue({
+    priority: "high",
+    categories: ["copyright_claim", "spam"],
+    summary: "Reported for suspected copyright overlap and spam.",
+    recommendedCheck: "Review copyright claim evidence and project tracks.",
+    explanationSource: "ai",
+    metrics: {
+      reportCount: 2,
+      reporterCount: 2,
+      hasCopyrightClaim: true,
+      reasonCounts: {
+        copyright: 1,
+        inappropriate: 0,
+        spam: 1,
+        harassment: 0,
+        other: 0,
+      },
+    },
+  });
 });
 
 afterEach(() => {
@@ -610,5 +634,55 @@ describe("AdminReportsPage: an toàn dữ liệu và vòng đời", () => {
     await act(async () => reject(new ApiError(500, "x")));
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
+  });
+});
+
+describe("AdminReportsPage: AI Moderation Triage", () => {
+  it("hiện nút AI Triage ở tab Open và chỉ gọi API khi admin bấm mở, bấm lại để đóng", async () => {
+    const { container } = render(<AdminReportsPage />);
+    await screen.findByText("Song A");
+
+    const triageBtn = screen.getByTestId(`triage-ai-btn-${P1}`);
+    expect(triageBtn.textContent).toContain("AI Triage");
+    expect(requestModerationTriage).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("moderation-triage-panel")).toBeNull();
+
+    fireEvent.click(triageBtn);
+    expect(await screen.findByText("Reported for suspected copyright overlap and spam.")).toBeTruthy();
+    expect(requestModerationTriage).toHaveBeenCalledTimes(1);
+    expect(requestModerationTriage).toHaveBeenCalledWith({
+      projectId: P1,
+      status: "open",
+      lang: "en",
+    });
+    expect(screen.getByText("High priority")).toBeTruthy();
+    expect(screen.getByText("AI assists triage only; Admin makes the final decision.")).toBeTruthy();
+    expect(container.ownerDocument.body.innerHTML).not.toMatch(/@|e-?mail/i);
+
+    fireEvent.click(triageBtn);
+    expect(screen.queryByTestId("moderation-triage-panel")).toBeNull();
+  });
+
+  it("không hiện nút AI Triage cho nhóm mồ côi, dự án không còn tồn tại, hoặc tab đã xử lý", async () => {
+    vi.mocked(listReportGroups).mockResolvedValue(
+      listOf([
+        group({ projectId: null, projectName: null, projectExists: false, ownerDisplayName: null }),
+        group({ projectId: P2, projectName: null, projectExists: false }),
+      ]),
+    );
+    render(<AdminReportsPage />);
+    expect(await screen.findAllByText("Project no longer exists")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "AI Triage" })).toBeNull();
+
+    vi.mocked(listReportGroups).mockResolvedValue(
+      listOf([group({ resolution: "upheld", resolutionNote: "Removed" })]),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Removed" }));
+    await screen.findByText("Song A");
+    expect(screen.queryByRole("button", { name: "AI Triage" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Dismissed" }));
+    await screen.findByText("Song A");
+    expect(screen.queryByRole("button", { name: "AI Triage" })).toBeNull();
   });
 });
