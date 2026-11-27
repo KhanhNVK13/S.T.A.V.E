@@ -2,9 +2,13 @@ import type { DraftNote, DraftSnapshot } from '@stave/shared-types';
 import {
   analyzeTheory,
   detectBarChords,
+  detectCadences,
+  detectMidiIntegrity,
   detectTonality,
+  detectTonalityCandidates,
   matchChord,
   MAX_NOTES_FOR_THEORY,
+  toRomanNumeral,
 } from './theory-analysis';
 
 const PPQ = 480;
@@ -113,6 +117,12 @@ describe('matchChord', () => {
     expect(matchChord(new Set([2, 5, 9, 0]), 2)).toBe('Dm7');
   });
 
+  it('names sus2, sus4 and dim7 chords', () => {
+    expect(matchChord(new Set([0, 2, 7]), 0)).toBe('Csus2');
+    expect(matchChord(new Set([0, 5, 7]), 0)).toBe('Csus4');
+    expect(matchChord(new Set([11, 2, 5, 8]), 11)).toBe('Bdim7');
+  });
+
   it('returns null for unknown shapes and for fewer than three notes', () => {
     expect(matchChord(new Set([0, 1, 2]), 0)).toBeNull();
     expect(matchChord(new Set([0, 7]), 0)).toBeNull();
@@ -134,8 +144,8 @@ describe('detectBarChords', () => {
       n('f', 72, BAR, BAR),
     ];
     expect(detectBarChords(notes, PPQ, [4, 4])).toEqual([
-      { bar: 1, chord: 'C' },
-      { bar: 2, chord: 'F' },
+      { bar: 1, chord: 'C', roman: null },
+      { bar: 2, chord: 'F', roman: null },
     ]);
   });
 
@@ -147,14 +157,14 @@ describe('detectBarChords', () => {
   it('gives null for a bar whose notes match no template', () => {
     const notes = [n('a', 60, 0, BAR), n('b', 61, 0, BAR), n('c', 62, 0, BAR)];
     expect(detectBarChords(notes, PPQ, [4, 4])).toEqual([
-      { bar: 1, chord: null },
+      { bar: 1, chord: null, roman: null },
     ]);
   });
 
   it('skips bars that contain no notes', () => {
     const notes = [n('a', 60, BAR * 2, BAR)];
     expect(detectBarChords(notes, PPQ, [4, 4])).toEqual([
-      { bar: 3, chord: null },
+      { bar: 3, chord: null, roman: null },
     ]);
   });
 
@@ -165,8 +175,8 @@ describe('detectBarChords', () => {
       n('c', 67, 0, BAR * 2),
     ];
     expect(detectBarChords(notes, PPQ, [4, 4])).toEqual([
-      { bar: 1, chord: 'C' },
-      { bar: 2, chord: 'C' },
+      { bar: 1, chord: 'C', roman: null },
+      { bar: 2, chord: 'C', roman: null },
     ]);
   });
 
@@ -190,9 +200,13 @@ describe('analyzeTheory', () => {
   });
 
   it('returns an empty analysis for a project with no tracks or notes', () => {
-    expect(analyzeTheory(snap([]))).toEqual({
+    expect(analyzeTheory(snap([]))).toMatchObject({
       tonality: null,
+      alternativeTonality: null,
       chords: [],
+      cadences: [],
+      profile: { totalNotes: 0, totalBars: 0 },
+      integrity: { duplicateCount: 0, overlapCount: 0 },
       truncated: false,
     });
   });
@@ -221,7 +235,7 @@ describe('robustness', () => {
       n('d', 62, 0, PPQ / 2),
     ];
     expect(detectBarChords(notes, PPQ, [4, 4])).toEqual([
-      { bar: 1, chord: 'C' },
+      { bar: 1, chord: 'C', roman: null },
     ]);
   });
 
@@ -234,10 +248,83 @@ describe('robustness', () => {
 
   it('does not throw on a snapshot missing meta, tracks or notes', () => {
     const partial = { schemaVersion: 1 } as unknown as DraftSnapshot;
-    expect(analyzeTheory(partial)).toEqual({
+    expect(analyzeTheory(partial)).toMatchObject({
       tonality: null,
+      alternativeTonality: null,
       chords: [],
+      cadences: [],
       truncated: false,
     });
+  });
+});
+
+describe('academic extensions and MIDI 1.0 integrity', () => {
+  it('computes alternativeTonality when relative key correlation is close', () => {
+    const notes = [60, 62, 64, 65, 67, 69, 71, 69, 64, 60].map((p, i) =>
+      n(`k${i}`, p, i * PPQ, PPQ),
+    );
+    const candidates = detectTonalityCandidates(notes);
+    expect(candidates.primary).not.toBeNull();
+    expect(candidates.alternative).not.toBeNull();
+  });
+
+  it('converts chords to Roman numerals in major and minor keys', () => {
+    const cMaj = { tonic: 'C', mode: 'major' as const, confidence: 0.9 };
+    expect(toRomanNumeral('C', cMaj)).toBe('I');
+    expect(toRomanNumeral('Dm', cMaj)).toBe('ii');
+    expect(toRomanNumeral('G7', cMaj)).toBe('V7');
+    expect(toRomanNumeral('Bdim', cMaj)).toBe('vii°');
+
+    const aMin = { tonic: 'A', mode: 'minor' as const, confidence: 0.9 };
+    expect(toRomanNumeral('Am', aMin)).toBe('i');
+    expect(toRomanNumeral('F', aMin)).toBe('VI');
+    expect(toRomanNumeral('E7', aMin)).toBe('V7');
+  });
+
+  it('detects authentic, plagal, deceptive, and half cadences', () => {
+    const bars = [
+      { bar: 1, chord: 'C', roman: 'I' },
+      { bar: 2, chord: 'F', roman: 'IV' },
+      { bar: 3, chord: 'G7', roman: 'V7' },
+      { bar: 4, chord: 'C', roman: 'I' },
+      { bar: 7, chord: 'G', roman: 'V' },
+      { bar: 8, chord: 'Am', roman: 'vi' },
+      { bar: 11, chord: 'C', roman: 'I' },
+      { bar: 12, chord: 'G', roman: 'V' },
+      { bar: 13, chord: 'F', roman: 'IV' },
+      { bar: 14, chord: 'C', roman: 'I' },
+    ];
+    const cadences = detectCadences(bars);
+    expect(cadences.map((c) => c.type)).toEqual([
+      'authentic',
+      'deceptive',
+      'half',
+      'plagal',
+    ]);
+  });
+
+  it('reports neutral descriptive profile stats and MIDI 1.0 duplicates/overlaps', () => {
+    const notes = [
+      n('d1', 60, 0, 960, 't1'),
+      n('d2', 60, 0, 480, 't1'),
+      n('o1', 60, 480, 480, 't1'),
+      n('ok', 64, 960, 480, 't1'),
+    ];
+    const s = snap(notes, [track('t1')]);
+    const integrity = detectMidiIntegrity(s);
+    expect(integrity.duplicateCount).toBe(1);
+    expect(integrity.overlapCount).toBe(1);
+    expect(integrity.duplicateSamples[0]).toMatchObject({
+      bar: 1,
+      trackName: 't1',
+      pitchName: 'C4',
+    });
+
+    const full = analyzeTheory(s);
+    expect(full.profile.pitchRange).toMatchObject({
+      lowest: 'C4',
+      highest: 'E4',
+    });
+    expect(full.profile.velocity).toEqual({ min: 90, max: 90, average: 90 });
   });
 });

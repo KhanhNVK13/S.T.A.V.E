@@ -176,7 +176,7 @@ describe('BE-AIX-06 TheoryInsightService.insight current snapshot for limited re
     });
     const result = await service.insight(userId, projectId, null, 'vi');
     expect(getDraft).toHaveBeenCalledTimes(1);
-    expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
+    expect(result.chords).toEqual([{ bar: 1, chord: 'C', roman: null }]);
   });
 
   it('still reads the active branch draft or head for a view-only collaborator', async () => {
@@ -187,7 +187,7 @@ describe('BE-AIX-06 TheoryInsightService.insight current snapshot for limited re
     });
     const result = await service.insight(userId, projectId, null, 'vi');
     expect(getDraft).toHaveBeenCalledWith(projectId, userId);
-    expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
+    expect(result.chords).toEqual([{ bar: 1, chord: 'C', roman: null }]);
   });
 
   it('UTCID21 does not swallow other draft errors', async () => {

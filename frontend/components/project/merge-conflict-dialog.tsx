@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GitMerge, TriangleAlert } from "lucide-react";
-import type { ConflictChoice, MergeConflictResult, MergeNoteConflict } from "../../lib/api-client";
+import {
+  getMergeConflictAdvice,
+  type ConflictChoice,
+  type MergeConflictResult,
+  type MergeNoteConflict,
+} from "../../lib/api-client";
+import { AiActionButton, AiCallout } from "../ai/ai-ui";
 import { pitchName } from "../../lib/midi-note-name";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -28,6 +34,7 @@ export function MergeConflictDialog({
   targetName,
   submitting,
   error = null,
+  aiContext,
   onCancel,
   onResolve,
 }: {
@@ -36,10 +43,18 @@ export function MergeConflictDialog({
   targetName: string;
   submitting: boolean;
   error?: string | null;
+  aiContext?: { sourceBranchId: string; targetBranchId: string } | { pullRequestId: string };
   onCancel: () => void;
   onResolve: (resolutions: { noteId: string; choice: ConflictChoice }[]) => void;
 }) {
-  const { t, tx } = useI18n();
+  const { t, tx, lang } = useI18n();
+  const [aiAdvice, setAiAdvice] = useState<{
+    key: string;
+    loading: boolean;
+    advice: string | null;
+    truncated: boolean;
+    unavailable: boolean;
+  }>({ key: "", loading: false, advice: null, truncated: false, unavailable: false });
   const signature = useMemo(
     () => conflictSignature(result, sourceName, targetName),
     [result, sourceName, targetName],
@@ -74,6 +89,37 @@ export function MergeConflictDialog({
 
   const bars = Object.keys(result.conflictsByBar).sort((a, b) => Number(a) - Number(b));
   const tally = tallyChoices(choices);
+  const aiKey = `${signature}:${lang}`;
+  const activeAdvice = aiAdvice.key === aiKey ? aiAdvice : null;
+
+  async function requestAdvice() {
+    if (!aiContext) return;
+    setAiAdvice({
+      key: aiKey,
+      loading: true,
+      advice: null,
+      truncated: false,
+      unavailable: false,
+    });
+    try {
+      const res = await getMergeConflictAdvice({ ...aiContext, lang });
+      setAiAdvice({
+        key: aiKey,
+        loading: false,
+        advice: res.advice,
+        truncated: res.truncated,
+        unavailable: res.advice === null,
+      });
+    } catch {
+      setAiAdvice({
+        key: aiKey,
+        loading: false,
+        advice: null,
+        truncated: false,
+        unavailable: true,
+      });
+    }
+  }
 
   function setAll(choice: ConflictChoice) {
     setChoices(Object.fromEntries(conflictNoteIds(result).map((id) => [id, choice])));
@@ -149,14 +195,38 @@ export function MergeConflictDialog({
           </p>
         ) : (
           <>
-            <div role="group" aria-label={t("mergePage.bulkLabel")} className="flex flex-wrap gap-2">
+            <div role="group" aria-label={t("mergePage.bulkLabel")} className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" onClick={() => setAll("PICK_TARGET")} disabled={submitting}>
                 {t("mergePage.keepAllOurs")}
               </Button>
               <Button variant="secondary" onClick={() => setAll("PICK_SOURCE")} disabled={submitting}>
                 {t("mergePage.takeAllTheirs")}
               </Button>
+              {aiContext && (
+                <AiActionButton
+                  compact
+                  label={t("mcAi.explain")}
+                  loading={activeAdvice?.loading ?? false}
+                  disabled={submitting}
+                  onClick={() => void requestAdvice()}
+                  testId="mc-ai-advice-btn"
+                />
+              )}
             </div>
+
+            {activeAdvice && (
+              <AiCallout
+                title={t("mcAi.title")}
+                loading={activeAdvice.loading}
+                loadingLabel={t("mcAi.loading")}
+                unavailable={activeAdvice.unavailable && !activeAdvice.advice}
+                text={activeAdvice.advice}
+                onRegenerate={() => void requestAdvice()}
+                regenerating={activeAdvice.loading}
+                subtitle={activeAdvice.truncated ? `${t("mcAi.truncated")} ${t("ai.objectiveNote")}` : t("ai.objectiveNote")}
+                testId="mc-ai-advice-callout"
+              />
+            )}
 
             {bars.map((bar) => (
               <section key={bar} className="overflow-hidden rounded-card border border-border">

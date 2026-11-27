@@ -67,4 +67,33 @@ export class PublicProjectsQueryDto {
   sort?:
     'newest' | 'recently_updated' | 'popular' | 'most_played' | 'most_forked' =
     'newest';
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === undefined || value === null
+      ? undefined
+      : Number(value),
+  )
+  @IsInt()
+  @Min(20)
+  @Max(300)
+  tempoMin?: number;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === undefined || value === null
+      ? undefined
+      : Number(value),
+  )
+  @IsInt()
+  @Min(20)
+  @Max(300)
+  tempoMax?: number;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === undefined || value === null ? undefined : value,
+  )
+  @IsIn(['major', 'minor'])
+  mode?: 'major' | 'minor';
 }

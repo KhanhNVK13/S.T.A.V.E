@@ -27,5 +27,6 @@ import { CustomSoundsModule } from '../custom-sounds/custom-sounds.module';
     ReportModerationService,
     AppealsService,
   ],
+  exports: [AdminReportsService],
 })
 export class ReportsModule {}

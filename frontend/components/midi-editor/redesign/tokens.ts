@@ -34,6 +34,9 @@ export const DC = {
   accentSoft: "var(--accent-muted)",
   accentDeep: "var(--accent-hover)",
   onAccent: "var(--accent-foreground)",
+  violet: "var(--violet)",
+  violetSoft: "var(--violet-muted)",
+  violetBorder: "color-mix(in oklab, var(--violet) 38%, var(--border))",
   scrim: "rgba(0, 0, 0, .6)",
   shadowPop: "0 18px 40px rgba(0, 0, 0, .45)",
 

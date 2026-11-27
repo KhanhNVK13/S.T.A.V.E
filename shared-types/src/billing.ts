@@ -2,6 +2,7 @@
 export const PLAN_FEATURES = [
   { key: "theme_from_image", label: "Theme tạo từ ảnh" },
   { key: "extra_storage", label: "Tăng dung lượng lưu trữ" },
+  { key: "ask_stave", label: "Hỏi đáp lịch sử dự án (Ask STAVE)" },
 ] as const;
 
 export type PlanFeatureKey = (typeof PLAN_FEATURES)[number]["key"];

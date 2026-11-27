@@ -23,7 +23,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { DRAFT_SCHEMA_VERSION } from "@stave/shared-types";
+import { DRAFT_SCHEMA_VERSION, GM_INSTRUMENT_NAMES } from "@stave/shared-types";
 import type { DraftNote, DraftSnapshot, DraftTrack } from "@stave/shared-types";
 import type { GridDivision, PianoRollHandle, ToolMode } from "./piano-roll";
 import { EditorRedesign } from "./redesign/editor-redesign";
@@ -770,6 +770,59 @@ export function MidiEditor({ projectId, projectName, isOwner = true }: MidiEdito
     };
     updateSnapshot(next);
     setSelectedTrackId(newTrack.id);
+  }
+
+  function handleCreateMidiTrack(payload: {
+    name: string;
+    instrument: string | null;
+    notes: Omit<DraftNote, "trackId">[];
+  }): boolean {
+    if (snapshot.tracks.length >= MAX_TRACKS) {
+      setTrackLimitWarning(true);
+      setTimeout(() => setTrackLimitWarning(false), 3000);
+      setEditorToast({
+        message: tNow("a2m.trackLimitWarn", { n: MAX_TRACKS }),
+        variant: "warning",
+      });
+      return false;
+    }
+
+    const idx = snapshot.tracks.length;
+    const trackId = crypto.randomUUID();
+    const trackName = payload.name.trim().slice(0, 50) || `Track ${idx + 1}`;
+    const instrument =
+      payload.instrument && GM_INSTRUMENT_NAMES.includes(payload.instrument)
+        ? payload.instrument
+        : null;
+
+    const newTrack: DraftTrack = {
+      id: trackId,
+      name: trackName,
+      order: idx,
+      color: nextTrackColor(snapshot.tracks.map((t) => t.color)),
+      muted: false,
+      solo: false,
+      volume: 0.8,
+      pan: 0,
+      instrument,
+    };
+
+    const newNotes: DraftNote[] = payload.notes.map((n) => ({
+      ...n,
+      trackId,
+    }));
+
+    updateSnapshot({
+      ...snapshot,
+      tracks: [...snapshot.tracks, newTrack],
+      notes: [...snapshot.notes, ...newNotes],
+    });
+    setSelectedTrackId(trackId);
+    setEditorToast({
+      message: tNow("a2m.trackCreated", { name: trackName, n: newNotes.length }),
+      variant: "success",
+    });
+    return true;
   }
 
   function handleToggleMute(id: string) {
@@ -1571,6 +1624,7 @@ export function MidiEditor({ projectId, projectName, isOwner = true }: MidiEdito
         onPlaybackRateChange={handlePlaybackRateChange}
         onExportMidi={handleExportMidi}
         onNotify={(message, variant) => setEditorToast({ message, variant })}
+        onCreateMidiTrack={handleCreateMidiTrack}
       />
       {editorToast && (
         <Toast

@@ -60,6 +60,7 @@ test.describe("AI assistance", () => {
     await loginThroughUi(page, user.user);
     await suggestWith(page, ["Thêm hai nốt mới ở ô nhịp 1"]);
     const dialog = await openCommitDialog(page, project.id);
+    await dialog.getByRole("button", { name: /gợi ý bởi ai/i }).click();
     await expect(dialog.getByText("Gợi ý bởi AI.")).toBeVisible();
     const box = dialog.locator("#commit-message");
     await expect(box).toHaveValue("Thêm hai nốt mới ở ô nhịp 1");
@@ -76,6 +77,7 @@ test.describe("AI assistance", () => {
     await suggestWith(page, ["Gợi ý thứ nhất", "Gợi ý thứ hai"]);
     const dialog = await openCommitDialog(page, project.id);
     const box = dialog.locator("#commit-message");
+    await dialog.getByRole("button", { name: /gợi ý bởi ai/i }).click();
     await expect(box).toHaveValue("Gợi ý thứ nhất");
     await dialog.getByRole("button", { name: "Tạo lại" }).click();
     await expect(box).toHaveValue("Gợi ý thứ hai");
@@ -99,6 +101,7 @@ test.describe("AI assistance", () => {
     await loginThroughUi(page, user.user);
     await suggestWith(page, ["fail"]);
     const dialog = await openCommitDialog(page, project.id);
+    await dialog.getByRole("button", { name: /gợi ý bởi ai/i }).click();
     await dialog.locator("#commit-message").fill("Commit without the AI");
     await dialog.getByRole("button", { name: /tạo commit/i }).click();
     await expect(dialog).toHaveCount(0);
@@ -115,6 +118,7 @@ test.describe("AI assistance", () => {
     await page.waitForTimeout(2000);
     await page.getByRole("button", { name: /commit changes/i }).click();
     const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: /gợi ý bởi ai/i }).click();
     const started = Date.now();
     await expect(dialog.locator("#commit-message")).toBeEditable();
     expect(Date.now() - started).toBeLessThan(3000);

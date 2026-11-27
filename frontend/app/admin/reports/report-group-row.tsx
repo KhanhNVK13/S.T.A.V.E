@@ -5,6 +5,8 @@ import { ChevronDown, ChevronRight, Eye, Loader2, RotateCcw } from "lucide-react
 import type { ReportDetail, ReportGroup, ReportStatusFilter } from "@stave/shared-types";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { AiActionButton } from "../../../components/ai/ai-ui";
+import { ModerationTriagePanel } from "../../../components/admin/moderation-triage-panel";
 import { RowItem, RowTime } from "../../../components/ui/row-list";
 import { REPORT_REASON_LABEL_KEYS } from "../../../components/moderation/reason-labels";
 import { getReportDetails } from "../../../lib/admin-reports-api";
@@ -44,9 +46,11 @@ export function ReportGroupRow({
   const { t, locale } = useI18n();
   const projectId = group.projectExists ? group.projectId : null;
   const [expanded, setExpanded] = useState(false);
+  const [triageOpen, setTriageOpen] = useState(false);
   const [details, setDetails] = useState<DetailsState>({ kind: "idle" });
   const mounted = useRef(true);
   const panelId = useId();
+  const triagePanelId = useId();
 
   useEffect(() => {
     mounted.current = true;
@@ -141,7 +145,7 @@ export function ReportGroupRow({
         )}
 
         {projectId !== null && (
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <div className="flex flex-wrap items-center gap-2 md:max-w-[380px] md:justify-end lg:max-w-[480px] xl:max-w-none">
             <Button variant="ghost" onClick={toggle} aria-expanded={expanded} aria-controls={panelId}>
               {expanded ? (
                 <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
@@ -155,6 +159,13 @@ export function ReportGroupRow({
             </Button>
             {status === "open" && (
               <>
+                <AiActionButton
+                  compact
+                  label={t("triageAi.button")}
+                  title={t("triageAi.buttonAria", { name: projectName })}
+                  onClick={() => setTriageOpen((open) => !open)}
+                  testId={`triage-ai-btn-${projectId}`}
+                />
                 <Button variant="secondary" onClick={() => onDismiss(group)} aria-label={`${t("rpt.dismissBtn")}: ${projectName}`}>
                   {t("rpt.dismissBtn")}
                 </Button>
@@ -248,6 +259,16 @@ export function ReportGroupRow({
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {projectId !== null && status === "open" && triageOpen && (
+        <div id={triagePanelId} className="border-b border-border bg-surface-subtle/20 px-3.5 py-3 last:border-b-0">
+          <ModerationTriagePanel
+            projectId={projectId}
+            status={status}
+            onClose={() => setTriageOpen(false)}
+          />
         </div>
       )}
     </>

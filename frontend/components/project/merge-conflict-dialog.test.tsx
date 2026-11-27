@@ -1,7 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import * as api from "../../lib/api-client";
 import type { MergeConflictResult } from "../../lib/api-client";
+import { setLang } from "../../lib/i18n";
 import { MergeConflictDialog } from "./merge-conflict-dialog";
+
+vi.mock("../../lib/api-client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api-client")>()),
+  getMergeConflictAdvice: vi.fn(),
+}));
+
+beforeEach(() => {
+  setLang("vi");
+  vi.mocked(api.getMergeConflictAdvice).mockReset();
+});
 
 afterEach(cleanup);
 
@@ -101,5 +113,37 @@ describe("MergeConflictDialog keep both", () => {
     expect(radios).toHaveLength(3);
     expect(radios[2].disabled).toBe(true);
     expect(radios[0].disabled).toBe(false);
+  });
+
+  it("requests AI conflict advice on button click without overriding radio choices", async () => {
+    vi.mocked(api.getMergeConflictAdvice).mockResolvedValue({
+      barCount: 1,
+      conflictCount: 2,
+      truncated: false,
+      advice: "- Ô nhịp 1: nhánh nguồn dịch cao độ lên 2 bán âm.",
+    });
+
+    render(
+      <MergeConflictDialog
+        result={result}
+        sourceName="feature"
+        targetName="main"
+        submitting={false}
+        aiContext={{ sourceBranchId: "b-src", targetBranchId: "b-tgt" }}
+        onCancel={vi.fn()}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    expect(api.getMergeConflictAdvice).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("mc-ai-advice-btn"));
+
+    const callout = await screen.findByTestId("mc-ai-advice-callout");
+    expect(api.getMergeConflictAdvice).toHaveBeenCalledWith({
+      sourceBranchId: "b-src",
+      targetBranchId: "b-tgt",
+      lang: "vi",
+    });
+    expect(callout.textContent).toContain("nhánh nguồn dịch cao độ");
   });
 });

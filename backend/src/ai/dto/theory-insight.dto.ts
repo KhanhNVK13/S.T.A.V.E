@@ -12,4 +12,8 @@ export class TheoryInsightDto {
   @IsOptional()
   @IsIn(['en', 'vi'])
   lang?: SuggestionLang;
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  explain?: 'true' | 'false';
 }

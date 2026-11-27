@@ -23,5 +23,6 @@ import { PullRequestsService } from './pull-requests.service';
     PullRequestsService,
     PullRequestMergeService,
   ],
+  exports: [PullRequestsService, PullRequestAnalysisService],
 })
 export class PullRequestsModule {}

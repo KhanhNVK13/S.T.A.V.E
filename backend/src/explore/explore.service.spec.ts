@@ -1495,3 +1495,150 @@ describe('BE-EXP-08 ExploreService.enrichProjectCards(projects, precomputedForkC
     );
   });
 });
+
+describe('ExploreService musical filters & similar projects', () => {
+  const cardRow = (id: string) => ({
+    id,
+    name: `Project ${id}`,
+    description: null,
+    genre: 'Lo-Fi',
+    visibility: 'public' as const,
+    archived_at: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    play_count: 3,
+    owner: {
+      id: 'usr_active',
+      username: 'owner',
+      display_name: 'Owner',
+      avatar_url: null,
+    },
+  });
+
+  it('applies tempoMin/tempoMax/mode filters in listPublicProjects across newest and ranked sorts', async () => {
+    const mock = createSupabaseMock([], {
+      tables: {
+        projects: [{ data: [cardRow('p2')], count: 1 }, { data: [] }],
+        project_tags: [{ data: [] }],
+      },
+    });
+    const fingerprints = {
+      findProjectIdsByMusicalFilters: jest.fn().mockResolvedValue(['p2']),
+      findSimilarProjectMatches: jest.fn(),
+    };
+    const service = new ExploreService(mock.client, fingerprints as never);
+
+    const res = await service.listPublicProjects({
+      sort: 'newest',
+      tempoMin: 70,
+      tempoMax: 90,
+      mode: 'minor',
+    });
+
+    expect(fingerprints.findProjectIdsByMusicalFilters).toHaveBeenCalledWith({
+      tempoMin: 70,
+      tempoMax: 90,
+      mode: 'minor',
+    });
+    expect(mock.builders.projects.in).toHaveBeenCalledWith('id', ['p2']);
+    expect(res.items.map((i) => i.id)).toEqual(['p2']);
+
+    const rankedMock = createSupabaseMock([], {
+      tables: {
+        project_engagement: [{ data: [{ project_id: 'p2' }], count: 1 }],
+        projects: [{ data: [cardRow('p2')] }, { data: [] }],
+        project_tags: [{ data: [] }],
+      },
+    });
+    const rankedService = new ExploreService(
+      rankedMock.client,
+      fingerprints as never,
+    );
+    const rankedRes = await rankedService.listPublicProjects({
+      sort: 'popular',
+      mode: 'minor',
+    });
+    expect(rankedMock.builders.project_engagement.in).toHaveBeenCalledWith(
+      'project_id',
+      ['p2'],
+    );
+    expect(rankedRes.items.map((i) => i.id)).toEqual(['p2']);
+  });
+
+  it('returns empty pagination when musical filters match no fingerprints', async () => {
+    const mock = createSupabaseMock([], { tables: {} });
+    const fingerprints = {
+      findProjectIdsByMusicalFilters: jest.fn().mockResolvedValue([]),
+    };
+    const service = new ExploreService(mock.client, fingerprints as never);
+
+    const res = await service.listPublicProjects({
+      sort: 'newest',
+      tempoMax: 45,
+    });
+    expect(res).toEqual({
+      items: [],
+      total: 0,
+      page: 1,
+      totalPages: 0,
+      limit: 20,
+    });
+  });
+
+  it('throws 404 from getSimilarPublicProjects when source project is non-public or missing', async () => {
+    const mock = createSupabaseMock([], {
+      tables: { projects: [{ data: null }] },
+    });
+    const fingerprints = {
+      findSimilarProjectMatches: jest.fn(),
+    };
+    const service = new ExploreService(mock.client, fingerprints as never);
+
+    await expect(service.getSimilarPublicProjects('p1')).rejects.toThrow(
+      new NotFoundException('Project not found'),
+    );
+    expect(fingerprints.findSimilarProjectMatches).not.toHaveBeenCalled();
+  });
+
+  it('enriches similar projects preserving pgvector similarity order', async () => {
+    const mock = createSupabaseMock([], {
+      tables: {
+        projects: [
+          { data: { id: 'src' } },
+          { data: [cardRow('p1'), cardRow('p2')] },
+          { data: [] },
+        ],
+        project_tags: [{ data: [] }],
+      },
+    });
+    const fingerprints = {
+      findSimilarProjectMatches: jest.fn().mockResolvedValue([
+        {
+          projectId: 'p2',
+          similarity: 0.94,
+          tempo: 88,
+          tonalityTonic: 'A',
+          tonalityMode: 'minor',
+        },
+        {
+          projectId: 'p1',
+          similarity: 0.81,
+          tempo: 92,
+          tonalityTonic: 'C',
+          tonalityMode: 'major',
+        },
+      ]),
+    };
+    const service = new ExploreService(mock.client, fingerprints as never);
+
+    const similar = await service.getSimilarPublicProjects('src', 6);
+    expect(similar.map((s) => s.id)).toEqual(['p2', 'p1']);
+    expect(similar[0]).toMatchObject({
+      id: 'p2',
+      similarity: 0.94,
+      tempo: 88,
+      tonalityTonic: 'A',
+      tonalityMode: 'minor',
+    });
+  });
+});

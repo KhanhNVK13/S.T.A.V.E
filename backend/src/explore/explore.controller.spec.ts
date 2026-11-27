@@ -13,6 +13,7 @@ describe('ExploreController UUID param validation', () => {
   let exploreService: {
     getPublicProject: jest.Mock;
     getPublicProjectGraph: jest.Mock;
+    getSimilarPublicProjects: jest.Mock;
     getPublicUserProfile: jest.Mock;
     getUserPublicProjects: jest.Mock;
   };
@@ -25,6 +26,7 @@ describe('ExploreController UUID param validation', () => {
         commits: [],
         total: 0,
       }),
+      getSimilarPublicProjects: jest.fn().mockResolvedValue([]),
       getPublicUserProfile: jest.fn().mockResolvedValue({ id: VALID_UUID }),
       getUserPublicProjects: jest.fn().mockResolvedValue([]),
     };
@@ -52,12 +54,17 @@ describe('ExploreController UUID param validation', () => {
     ['GET /explore/users/:id', `/explore/users/not-a-uuid`],
     ['GET /explore/projects/:id', `/explore/projects/not-a-uuid`],
     ['GET /explore/projects/:id/graph', `/explore/projects/not-a-uuid/graph`],
+    [
+      'GET /explore/projects/:id/similar',
+      `/explore/projects/not-a-uuid/similar`,
+    ],
   ])('%s returns 404 when :id is not a UUID', async (_label, path) => {
     await request(app.getHttpServer()).get(path).expect(404);
     expect(exploreService.getUserPublicProjects).not.toHaveBeenCalled();
     expect(exploreService.getPublicUserProfile).not.toHaveBeenCalled();
     expect(exploreService.getPublicProject).not.toHaveBeenCalled();
     expect(exploreService.getPublicProjectGraph).not.toHaveBeenCalled();
+    expect(exploreService.getSimilarPublicProjects).not.toHaveBeenCalled();
   });
 
   it('delegates valid UUIDs to ExploreService', async () => {
@@ -73,6 +80,9 @@ describe('ExploreController UUID param validation', () => {
     await request(app.getHttpServer())
       .get(`/explore/projects/${VALID_UUID}/graph`)
       .expect(200);
+    await request(app.getHttpServer())
+      .get(`/explore/projects/${VALID_UUID}/similar`)
+      .expect(200);
 
     expect(exploreService.getUserPublicProjects).toHaveBeenCalledWith(
       VALID_UUID,
@@ -83,6 +93,10 @@ describe('ExploreController UUID param validation', () => {
     expect(exploreService.getPublicProject).toHaveBeenCalledWith(VALID_UUID);
     expect(exploreService.getPublicProjectGraph).toHaveBeenCalledWith(
       VALID_UUID,
+    );
+    expect(exploreService.getSimilarPublicProjects).toHaveBeenCalledWith(
+      VALID_UUID,
+      6,
     );
   });
 });

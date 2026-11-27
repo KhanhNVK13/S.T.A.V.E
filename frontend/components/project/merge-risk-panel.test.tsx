@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { setLang } from "../../lib/i18n";
 import * as api from "../../lib/api-client";
 import { MergeRiskPanel } from "./merge-risk-panel";
@@ -17,9 +17,9 @@ afterEach(() => {
   cleanup();
 });
 
-function mockResult(overrides: Partial<Parameters<typeof api.getMergeRisk>[0]> = {}) {
+function mockResult(overrides: Partial<api.MergeRiskResult> = {}): api.MergeRiskResult {
   return {
-    level: "low" as const,
+    level: "low",
     metrics: {
       sourceChanged: 1,
       targetChanged: 1,
@@ -29,47 +29,103 @@ function mockResult(overrides: Partial<Parameters<typeof api.getMergeRisk>[0]> =
       targetCommits: 0,
     },
     explanation: "Hợp nhất đơn giản, ít chồng chéo và không có xung đột.",
+    explanationSource: "rule",
     ...overrides,
   };
 }
 
-describe("UC-71 MergeRiskPanel", () => {
-  it("MRP-01: shows the risk level, all numbers and the explanation", async () => {
-    vi.mocked(api.getMergeRisk).mockResolvedValue({
-      ...mockResult(),
-      level: "high",
-      metrics: {
-        sourceChanged: 12,
-        targetChanged: 8,
-        overlap: 6,
-        conflictsCount: 7,
-        sourceCommits: 15,
-        targetCommits: 3,
-      },
-      explanation: "Hai nhánh sửa cùng khu vực, 7 xung đột.",
-    });
+describe("MergeRiskPanel", () => {
+  it("loads rule metrics with explain=false and shows low-risk rule note without AI badge", async () => {
+    vi.mocked(api.getMergeRisk).mockResolvedValue(mockResult());
 
-    render(
-      <MergeRiskPanel
-        sourceBranchId="s-1"
-        targetBranchId="t-1"
-      />,
-    );
+    render(<MergeRiskPanel sourceBranchId="s-1" targetBranchId="t-1" />);
 
     const panel = await screen.findByTestId("merge-risk-panel");
-    const text = panel.textContent ?? "";
-    expect(panel.dataset.level).toBe("high");
-    expect(text).toContain("Rủi ro hợp nhất");
-    expect(text).toContain("Cao");
-    expect(text).toContain("12");
-    expect(text).toContain("8");
-    expect(text).toContain("7");
-    expect(text).toContain("15");
-    expect(text).toContain("3");
-    expect(text).toContain("Hai nhánh sửa cùng khu vực, 7 xung đột.");
+    expect(panel.dataset.level).toBe("low");
+    expect(api.getMergeRisk).toHaveBeenCalledWith("s-1", "t-1", "vi", {
+      explain: false,
+    });
+    expect(panel.textContent).toContain("Hợp nhất đơn giản");
+    expect(panel.textContent).toContain("Đánh giá quy tắc tự động");
+    expect(screen.queryByTestId("merge-risk-ai-btn")).toBeNull();
+    expect(screen.queryByTestId("merge-risk-ai-callout")).toBeNull();
   });
 
-  it("MRP-02: shows an unavailable note when loading fails and does not block merge", async () => {
+  it("shows on-demand AI button for medium/high risk and renders AiCallout on click", async () => {
+    vi.mocked(api.getMergeRisk)
+      .mockResolvedValueOnce(
+        mockResult({
+          level: "high",
+          metrics: {
+            sourceChanged: 12,
+            targetChanged: 8,
+            overlap: 6,
+            conflictsCount: 7,
+            sourceCommits: 15,
+            targetCommits: 3,
+          },
+          explanation: null,
+          explanationSource: null,
+        }),
+      )
+      .mockResolvedValueOnce(
+        mockResult({
+          level: "high",
+          metrics: {
+            sourceChanged: 12,
+            targetChanged: 8,
+            overlap: 6,
+            conflictsCount: 7,
+            sourceCommits: 15,
+            targetCommits: 3,
+          },
+          explanation: "Hai nhánh sửa cùng khu vực, 7 xung đột.",
+          explanationSource: "ai",
+        }),
+      );
+
+    render(<MergeRiskPanel sourceBranchId="s-1" targetBranchId="t-1" />);
+
+    const panel = await screen.findByTestId("merge-risk-panel");
+    expect(panel.dataset.level).toBe("high");
+    expect(panel.textContent).toContain("Cao");
+    expect(screen.queryByTestId("merge-risk-ai-callout")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("merge-risk-ai-btn"));
+    const callout = await screen.findByTestId("merge-risk-ai-callout");
+    expect(api.getMergeRisk).toHaveBeenNthCalledWith(2, "s-1", "t-1", "vi", {
+      explain: true,
+    });
+    expect(callout.textContent).toContain("AI");
+    expect(callout.textContent).toContain("Hai nhánh sửa cùng khu vực, 7 xung đột.");
+  });
+
+  it("shows fallback inside AiCallout when AI returns null explanation", async () => {
+    vi.mocked(api.getMergeRisk)
+      .mockResolvedValueOnce(
+        mockResult({
+          level: "medium",
+          explanation: null,
+          explanationSource: null,
+        }),
+      )
+      .mockResolvedValueOnce(
+        mockResult({
+          level: "medium",
+          explanation: null,
+          explanationSource: null,
+        }),
+      );
+
+    render(<MergeRiskPanel sourceBranchId="s-1" targetBranchId="t-1" />);
+    const btn = await screen.findByTestId("merge-risk-ai-btn");
+    fireEvent.click(btn);
+
+    const callout = await screen.findByTestId("merge-risk-ai-callout");
+    expect(callout.textContent).toContain("AI hiện chưa phản hồi");
+  });
+
+  it("shows an unavailable note when loading metrics fails and does not block merge", async () => {
     vi.mocked(api.getMergeRisk).mockRejectedValue(new Error("nope"));
 
     render(<MergeRiskPanel sourceBranchId="s-1" targetBranchId="t-1" />);
@@ -77,36 +133,5 @@ describe("UC-71 MergeRiskPanel", () => {
     const note = await screen.findByTestId("merge-risk-unavailable");
     expect(note.textContent).toContain("vẫn có thể hợp nhất");
     expect(document.querySelector('[data-testid="merge-risk-panel"]')).toBeNull();
-  });
-
-  it("MRP-04: asks the API for the current UI language", async () => {
-    vi.mocked(api.getMergeRisk).mockResolvedValue(mockResult());
-
-    render(<MergeRiskPanel sourceBranchId="s-1" targetBranchId="t-1" />);
-
-    await screen.findByTestId("merge-risk-panel");
-    expect(api.getMergeRisk).toHaveBeenCalledWith("s-1", "t-1", "vi");
-  });
-
-  it("MRP-03: when explanation is null, only the numbers are shown", async () => {
-    vi.mocked(api.getMergeRisk).mockResolvedValue({
-      ...mockResult(),
-      level: "medium",
-      explanation: null,
-    });
-
-    render(
-      <MergeRiskPanel
-        sourceBranchId="s-1"
-        targetBranchId="t-1"
-      />,
-    );
-
-    const panel = await screen.findByTestId("merge-risk-panel");
-    expect(panel.dataset.level).toBe("medium");
-    const text = panel.textContent ?? "";
-    expect(text).toContain("Vừa");
-    // Không có đoạn giải thích
-    expect(text).not.toContain("Hợp nhất đơn giản");
   });
 });

@@ -100,10 +100,26 @@ describe('BE-AIX-06 TheoryInsightService.insight', () => {
   it('UTCID01 analyses a commit and attaches the Gemini explanation', async () => {
     const { service, generateText } = makeService({});
     const result = await service.insight(userId, projectId, commitId, 'vi');
-    expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
+    expect(result.chords).toEqual([{ bar: 1, chord: 'C', roman: null }]);
     expect(result.explanation).toBe('Đây là hợp âm Đô trưởng.');
+    expect(result.explanationSource).toBe('ai');
     const prompt = generateText.mock.calls[0][0] as string;
     expect(prompt).toContain('"chord":"C"');
+  });
+
+  it('skips Gemini and rate limiter when includeAi is false', async () => {
+    const { service, generateText } = makeService({});
+    const result = await service.insight(
+      userId,
+      projectId,
+      commitId,
+      'vi',
+      false,
+    );
+    expect(result.chords).toEqual([{ bar: 1, chord: 'C', roman: null }]);
+    expect(result.explanation).toBeNull();
+    expect(result.explanationSource).toBeNull();
+    expect(generateText).not.toHaveBeenCalled();
   });
 
   it('UTCID02 rejects a stranger on a private project and never touches data', async () => {
@@ -161,11 +177,13 @@ describe('BE-AIX-06 TheoryInsightService.insight', () => {
       },
     });
     const result = await service.insight(userId, projectId, commitId);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       tonality: null,
       chords: [],
+      cadences: [],
       truncated: false,
       explanation: null,
+      explanationSource: null,
     });
     expect(generateText).not.toHaveBeenCalled();
   });
@@ -179,11 +197,13 @@ describe('BE-AIX-06 TheoryInsightService.insight', () => {
       commit: { snapshot: cluster, branch_id: branchId },
     });
     const result = await service.insight(userId, projectId, commitId);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       tonality: null,
-      chords: [{ bar: 1, chord: null }],
+      chords: [{ bar: 1, chord: null, roman: null }],
+      cadences: [],
       truncated: false,
       explanation: null,
+      explanationSource: null,
     });
     expect(generateText).not.toHaveBeenCalled();
   });
@@ -218,7 +238,7 @@ describe('BE-AIX-06 TheoryInsightService.insight', () => {
     const { service, getDraft } = makeService({ accessLevel: 'owner' });
     const result = await service.insight(userId, projectId, null);
     expect(getDraft).toHaveBeenCalledWith(projectId, userId);
-    expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
+    expect(result.chords).toEqual([{ bar: 1, chord: 'C', roman: null }]);
   });
 
   it('UTCID12 falls back to the default branch head for a public-project reader', async () => {
@@ -228,7 +248,7 @@ describe('BE-AIX-06 TheoryInsightService.insight', () => {
     });
     const result = await service.insight(userId, projectId, null);
     expect(getDraft).not.toHaveBeenCalled();
-    expect(result.chords).toEqual([{ bar: 1, chord: 'C' }]);
+    expect(result.chords).toEqual([{ bar: 1, chord: 'C', roman: null }]);
   });
 
   it('UTCID13 returns an empty analysis for a public project whose default branch has no commit', async () => {
@@ -237,11 +257,13 @@ describe('BE-AIX-06 TheoryInsightService.insight', () => {
       defaultBranchHead: null,
     });
     const result = await service.insight(userId, projectId, null);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       tonality: null,
       chords: [],
+      cadences: [],
       truncated: false,
       explanation: null,
+      explanationSource: null,
     });
   });
 });

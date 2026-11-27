@@ -16,7 +16,8 @@ import type {
   JamResultResponseDto,
 } from "@stave/shared-types";
 import { useAuth } from "../../context/auth-context";
-import { forkProject } from "../../lib/api-client";
+import { forkProject, getJamAiRecap } from "../../lib/api-client";
+import { AiActionButton, AiCallout } from "../ai/ai-ui";
 import { resolveAndLoadCustomSounds } from "../../lib/custom-sound-buffers";
 import { errorSource, renderError, type ErrorSource } from "../../lib/error-message";
 import { formatDateTime } from "../../lib/format-date";
@@ -44,7 +45,7 @@ export function JamResultView({
 }: {
   result: JamResultResponseDto;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
   const [toast, setToast] = useState<{
@@ -58,11 +59,35 @@ export function JamResultView({
   const [playing, setPlaying] = useState(false);
   const [playBusy, setPlayBusy] = useState(false);
   const [playError, setPlayError] = useState<string | null>(null);
+  const [aiRecap, setAiRecap] = useState<{
+    key: string;
+    loading: boolean;
+    recap: string | null;
+    unavailable: boolean;
+  }>({ key: "", loading: false, recap: null, unavailable: false });
 
   const hasNotes =
     result.hasContributions &&
     result.snapshot !== null &&
     result.snapshot.notes.length > 0;
+
+  const recapKey = `${result.eventId}:${lang}`;
+  const activeRecap = aiRecap.key === recapKey ? aiRecap : null;
+
+  async function requestAiRecap() {
+    setAiRecap({ key: recapKey, loading: true, recap: null, unavailable: false });
+    try {
+      const res = await getJamAiRecap(result.eventId, lang);
+      setAiRecap({
+        key: recapKey,
+        loading: false,
+        recap: res.recap,
+        unavailable: res.recap === null,
+      });
+    } catch {
+      setAiRecap({ key: recapKey, loading: false, recap: null, unavailable: true });
+    }
+  }
 
   // UC-68: a frozen grid, driven purely by the result snapshot.
   const notes = result.snapshot?.notes ?? [];
@@ -189,11 +214,35 @@ export function JamResultView({
             )}
             {t("jam.copyToMine")}
           </Button>
+          {hasNotes && user && (
+            <AiActionButton
+              compact
+              label={t("jamAi.recap")}
+              loading={activeRecap?.loading ?? false}
+              onClick={() => void requestAiRecap()}
+              testId="jam-ai-recap-btn"
+            />
+          )}
           <Button variant="ghost" onClick={() => router.push("/jam")}>
             {t("jam.backExplore")}
           </Button>
         </div>
       </div>
+
+      {activeRecap && (
+        <AiCallout
+          title={t("jamAi.title")}
+          loading={activeRecap.loading}
+          loadingLabel={t("jamAi.loading")}
+          unavailable={activeRecap.unavailable && !activeRecap.recap}
+          text={activeRecap.recap}
+          copyText={activeRecap.recap}
+          onRegenerate={() => void requestAiRecap()}
+          regenerating={activeRecap.loading}
+          subtitle={t("ai.objectiveNote")}
+          testId="jam-ai-recap-callout"
+        />
+      )}
 
       {/* 4.E1 — audio playback failure, inline + retry-friendly. */}
       {playError && (
