@@ -66,7 +66,19 @@ function parseModeParam(raw: string | null): 'major' | 'minor' | undefined {
   return raw === 'major' || raw === 'minor' ? raw : undefined;
 }
 
-function ExploreContent() {
+interface ExploreAiNotice {
+  loading: boolean;
+  error: boolean;
+  result: ExploreParseResponse | null;
+}
+
+function ExploreContent({
+  aiNotice,
+  setAiNotice,
+}: {
+  aiNotice: ExploreAiNotice | null;
+  setAiNotice: (next: ExploreAiNotice | null) => void;
+}) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
@@ -172,11 +184,7 @@ function ExploreContent() {
 
   const [searchInput, setSearchInput] = useState(search);
   const skipNextDebounceRef = useRef(false);
-  const [aiNotice, setAiNotice] = useState<{
-    loading: boolean;
-    error: boolean;
-    result: ExploreParseResponse | null;
-  } | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (skipNextDebounceRef.current) {
@@ -184,19 +192,32 @@ function ExploreContent() {
       return;
     }
     if (searchInput === search) return;
-    const timer = setTimeout(() => updateParams({ search: searchInput || null }), 400);
-    return () => clearTimeout(timer);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      updateParams({ search: searchInput || null });
+    }, 400);
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
 
   async function handleAiSearch() {
     const trimmed = searchInput.trim();
     if (!trimmed) return;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     setAiNotice({ loading: true, error: false, result: null });
     try {
       const parsed = await parseExploreQuery(trimmed, lang);
       skipNextDebounceRef.current = true;
       setSearchInput(parsed.search ?? '');
+      setAiNotice({ loading: false, error: false, result: parsed });
       updateParams({
         search: parsed.search,
         genre: parsed.genre,
@@ -205,7 +226,6 @@ function ExploreContent() {
         tempoMax: parsed.tempoMax !== null ? String(parsed.tempoMax) : null,
         mode: parsed.mode,
       });
-      setAiNotice({ loading: false, error: false, result: parsed });
     } catch {
       setAiNotice({ loading: false, error: true, result: null });
     }
@@ -526,6 +546,7 @@ function ExploreContent() {
 
 export default function ExplorePage() {
   const { t } = useI18n();
+  const [aiNotice, setAiNotice] = useState<ExploreAiNotice | null>(null);
   useSpaceScene('full', 4);
   useSpaceScroll(4, 0.7);
   return (
@@ -543,7 +564,7 @@ export default function ExplorePage() {
       />
 
       <Suspense fallback={<ProjectRowsSkeleton />}>
-        <ExploreContent />
+        <ExploreContent aiNotice={aiNotice} setAiNotice={setAiNotice} />
       </Suspense>
     </div>
   );
